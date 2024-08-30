@@ -4,10 +4,11 @@ f32 dt;
 f32 game_time;
 
 #define FLAGS i32
+//#define EPSILON 0.0000000000000001f
 
 enum Flags{
     GROUND = 1 << 0,
-    COLOR_CHANGE = 1 << 1
+    DRAW_TEXT = 1 << 1
 };
 
 struct Ground{
@@ -21,6 +22,11 @@ struct Color_Changer{
     Color target_color;
     
     f32 change_time = 2.0f;
+};
+
+struct Text_Drawer{
+    const char *text;  
+    f32 size = 30;
 };
 
 struct Entity{
@@ -59,6 +65,7 @@ struct Entity{
     
     Ground ground;
     Color_Changer color_changer;
+    Text_Drawer text_drawer;
 };
 
 //scale 150 should be full screen;
@@ -74,6 +81,8 @@ struct Context{
     Array<Entity> entities = Array<Entity>(1000);
 
     Vector2 mouse_pos;
+    Vector2 mouse_delta;
+    f32     mouse_wheel;
     Vector2 unit_screen_size;
     
     Entity *selected_entity;
@@ -86,6 +95,8 @@ global_variable Context context = {};
 
 #include "game.h"
 
+Entity *zoom_entity;
+
 void init_game(){
     game_time = 0;
 
@@ -96,46 +107,53 @@ void init_game(){
     c->unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
     
     c->cam.position = Vector2_zero;
-    c->cam.cam2D.target = world_to_screen({0, c->unit_screen_size.y * 0.5f});
-    c->cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
+    c->cam.cam2D.target = world_to_screen({0, 0});
+    c->cam.cam2D.offset = (Vector2){ screen_width/2.0f, (f32)screen_height * 0.5f };
     c->cam.cam2D.rotation = 0.0f;
     c->cam.cam2D.zoom = 1.0f;
+    
+    zoom_entity = add_text({-20, 20}, 40, "DSF");
     
     //add_entity({0, 10}, {10, 3}, 0, GROUND | COLOR_CHANGE);
 }
 
 Vector2 game_mouse_pos(){
-    f32 width = screen_width;
-    f32 height = screen_height;
+    f32 zoom = context.cam.cam2D.zoom;
+
+    f32 width = screen_width   ;
+    f32 height = screen_height ;
 
     Vector2 screen_pos = GetMousePosition();
-    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / UNIT_SIZE, (height - screen_pos.y) / UNIT_SIZE};
-    world_pos = world_pos + context.cam.position;
+    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / UNIT_SIZE, (height * 0.5f - screen_pos.y) / UNIT_SIZE};
+    world_pos /= zoom;
+    world_pos = world_pos + context.cam.position;// + ( (Vector2){0, -context.unit_screen_size.y * 0.5f});
     return world_pos;
 }
 
 void update_game(){
     game_time += dt;
 
-    Context *c = &context;
-    
-    c->mouse_pos = game_mouse_pos();
+    context.mouse_pos = game_mouse_pos();
+    context.mouse_delta = GetMouseDelta();
+    context.mouse_wheel = GetMouseWheelMove();
     
     //Paper *p = &context.paper;
     if (screen_size_changed){
-        c->unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
-        c->cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
+        context.unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
+        context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         
-        // UnloadRenderTexture(c->up_render_target);
-        // UnloadRenderTexture(c->down_render_target);
-        // UnloadRenderTexture(c->up_render_target);
+        // UnloadRenderTexture(context.up_render_target);
+        // UnloadRenderTexture(context.down_render_target);
+        // UnloadRenderTexture(context.up_render_target);
         
-        // c->up_render_target = LoadRenderTexture(c->up_screen_size.x, c->up_screen_size.y);
-        // c->down_render_target = LoadRenderTexture(c->down_screen_size.x, c->down_screen_size.y);
-        // c->right_render_target = LoadRenderTexture(c->right_screen_size.x, c->right_screen_size.y);
+        // context.up_render_target = LoadRenderTexture(context.up_screen_size.x, context.up_screen_size.y);
+        // context.down_render_target = LoadRenderTexture(context.down_screen_size.x, context.down_screen_size.y);
+        // context.right_render_target = LoadRenderTexture(context.right_screen_size.x, context.right_screen_size.y);
     }
     
     update_editor();
+    
+    zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
     
     update_entities();
     
@@ -164,23 +182,23 @@ Entity *selected_entity;
 
 void update_editor(){
     if (IsKeyPressed(KEY_B)){
-        Entity *e = add_entity(context.mouse_pos, {5, 5}, {0.5f, 0.5f}, 0, GROUND | COLOR_CHANGE);
+        Entity *e = add_entity(context.mouse_pos, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
         e->color = BROWN;
         e->color_changer.start_color = e->color;
         e->color_changer.target_color = e->color * 1.5f;
     }
     
-    if (IsKeyDown(KEY_D)){
-        context.cam.position.x += dt * 50;
+    f32 zoom = context.cam.cam2D.zoom;
+    
+    if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
+        context.cam.position += ((Vector2){-context.mouse_delta.x / zoom, context.mouse_delta.y / zoom}) / (UNIT_SIZE);
     }
-    if (IsKeyDown(KEY_A)){
-        context.cam.position.x -= dt * 50;
-    }
-    if (IsKeyDown(KEY_W)){
-        context.cam.position.y += dt * 50;
-    }
-    if (IsKeyDown(KEY_S)){
-        context.cam.position.y -= dt * 50;
+    
+    if (context.mouse_wheel != 0){
+        //So if wheel positive - don't allow zoom any further, same with negative
+        if (context.mouse_wheel > 0 && zoom < 5 || context.mouse_wheel < 0 && zoom > 0.1f){
+            context.cam.cam2D.zoom += context.mouse_wheel * 0.05f;
+        }
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
@@ -203,6 +221,10 @@ void update_editor(){
             }
         }
     }
+    
+    if (IsKeyPressed(KEY_F) && selected_entity != NULL){
+        context.cam.position = selected_entity->position;
+    }
 }
 
 void update_entities(){
@@ -215,9 +237,7 @@ void update_entities(){
             continue;
         }
           
-        if (e->flags & COLOR_CHANGE){
-            update_color_changer(e);            
-        }
+        update_color_changer(e);            
     }
 }
 
@@ -234,6 +254,10 @@ void draw_entities(){
     
         if (e->flags & GROUND){
             draw_game_rect(e->position, e->scale, e->pivot, e->color);
+        }
+        
+        if (e-> flags & DRAW_TEXT){
+            draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
     }
 }
@@ -272,6 +296,15 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     return context.entities.last_ptr();
 }
 
+Entity *add_text(Vector2 pos, f32 size, const char *text){
+    Entity e = Entity(pos, {1, 1}, {0.5f, 0.5f}, 0, DRAW_TEXT);    
+    //@TODO: Check for type and set bounds correctly (for textures for example)
+    e.bounds = {1, 1};
+    e.text_drawer.text = text;
+    e.text_drawer.size = size;
+    context.entities.add(e);
+    return context.entities.last_ptr();
+}
 
 Vector2 world_to_screen(Vector2 position){
     Vector2 cam_pos = context.cam.position;
@@ -285,7 +318,7 @@ Vector2 world_to_screen(Vector2 position){
     f32 width_add, height_add;
     
     width_add = screen_width * 0.5f;    
-    height_add = screen_height;    
+    height_add = screen_height * 0.5f;    
     Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
 
     return to_center;
@@ -309,6 +342,11 @@ void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation
     draw_rect(screen_pos, multiply(scale, UNIT_SIZE), rotation, color);
 }
 
+void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
+    Vector2 screen_pos = world_to_screen(position);
+    draw_text(text, screen_pos, size, color);
+}
+
 void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     tex.width *= scale.x;
     tex.height *= scale.y;
@@ -320,4 +358,14 @@ void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 piv
 
 void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
     draw_line(world_to_screen(start), world_to_screen(end), thick * UNIT_SIZE, color);
+}
+
+f32 zoom_unit_size(){
+    f32 zoom = context.cam.cam2D.zoom;
+    
+    if (zoom <= EPSILON){
+        zoom = 1;
+    }
+
+    return UNIT_SIZE / zoom;
 }

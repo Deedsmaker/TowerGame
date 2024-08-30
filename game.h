@@ -15,8 +15,14 @@ void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Col
 void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, Color color);
 void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
 
+void draw_game_text(Vector2 position, const char *text, f32 size, Color color);
+
 //void draw_anim(Anim *anim, Texture *textures);
 void load_anim(Array<Texture> *frames, const char *name);
 
+Entity* add_text(Vector2 pos, f32 size, const char *text);
+
 Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
+
+f32 zoom_unit_size();

@@ -22,6 +22,22 @@ struct Vector2{
     Vector2 operator/(f32 value){
         return {x / value, y / value};
     }
+    void operator+=(Vector2 b){
+        x += b.x;
+        y += b.y;
+    }
+    void operator-=(Vector2 b){
+        x -= b.x;
+        y -= b.y;
+    }
+    void operator*=(f32 value){
+        x *= value;
+        y *= value;
+    }
+    void operator/=(f32 value){
+        x /= value;
+        y /= value;
+    }
 };
 
 struct Color {
