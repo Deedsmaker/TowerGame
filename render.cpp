@@ -15,11 +15,12 @@ void draw_texture(Texture tex, Vector2 pos, float rotation, Color tint){
 void draw_rect(Vector2 pos, Vector2 size, Color color){
     DrawRectangleV(pos, size, color);
 }
-
 void draw_rect(Vector2 pos, Vector2 size, f32 rotation, Color color){
-    DrawRectanglePro({pos.x, pos.y, size.x, size.y}, {0, 0}, rotation, color);
+    DrawRectanglePro({pos.x, pos.y, size.x, size.y}, {size.x * 0.5f, size.y * 0.5f}, rotation, color);
 }
-
+void draw_rect(Vector2 pos, Vector2 size, Vector2 pivot, f32 rotation, Color color){
+    DrawRectanglePro({pos.x, pos.y, size.x, size.y}, {size.x * pivot.x, size.y * pivot.y}, rotation, color);
+}
 void draw_rect(int x, int y, int width, int height, Color color){
     DrawRectangle(x, y, width, height, color);
 }

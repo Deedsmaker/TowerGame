@@ -26,3 +26,6 @@ Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 
 f32 zoom_unit_size();
+
+Vector2 get_left_up(Entity e);
+Vector2 get_right_down(Entity e);

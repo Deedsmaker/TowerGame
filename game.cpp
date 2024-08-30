@@ -172,10 +172,10 @@ void update_color_changer(Entity *entity){
 }
 
 b32 check_col_point_rec(Vector2 point, Entity e){
-    Vector2 left_up    = {e.position.x - e.pivot.x * e.bounds.x, e.position.y + e.pivot.y * e.bounds.y};
-    Vector2 right_down = {left_up.x + e.bounds.x, left_up.y - e.bounds.y};
+    Vector2 l_u = get_left_up(e);
+    Vector2 r_d = get_right_down(e);
 
-    return ((point.x >= left_up.x) && (point.x <= right_down.x) && (point.y >= right_down.y) && (point.y <= left_up.y));
+    return ((point.x >= l_u.x) && (point.x <= r_d.x) && (point.y >= r_d.y) && (point.y <= l_u.y));
 }
 
 Entity *selected_entity;
@@ -231,7 +231,6 @@ void update_editor(){
                     
                     selected_this_click = true;
                 }
-                
             }
         } else if (dragging_entity == NULL && !selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && selected_entity != NULL){
             if (check_col_point_rec(context.mouse_position, *e)){
@@ -252,10 +251,25 @@ void update_editor(){
         dragging_entity->position += move_delta;
     }
     
+    //editor Entity to mouse or go to entity
     if (IsKeyPressed(KEY_F) && dragging_entity != NULL){
         dragging_entity->position = context.mouse_position;
     } else if (IsKeyPressed(KEY_F) && selected_entity != NULL){
         context.cam.position = selected_entity->position;
+    }
+    
+    //editor Entity rotation
+    if (selected_entity != NULL){
+        f32 rotation = 0;
+        if (IsKeyDown(KEY_E)){
+            rotation = dt * 50;
+        } else if (IsKeyDown(KEY_Q)){
+            rotation = -dt * 50;
+        }
+        
+        if (rotation != 0){
+            selected_entity->rotation += rotation;
+        }
     }
 }
 
@@ -285,7 +299,7 @@ void draw_entities(){
         }
     
         if (e->flags & GROUND){
-            draw_game_rect(e->position, e->scale, e->pivot, e->color);
+            draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
         }
         
         if (e-> flags & DRAW_TEXT){
@@ -374,8 +388,8 @@ void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color)
 }
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
-    Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect(screen_pos, multiply(scale, UNIT_SIZE), rotation, color);
+    Vector2 screen_pos = rect_screen_pos(position, scale, {0, 0});
+    draw_rect(screen_pos, multiply(scale, UNIT_SIZE), pivot, rotation, color);
 }
 
 void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
@@ -404,4 +418,15 @@ f32 zoom_unit_size(){
     }
 
     return UNIT_SIZE / zoom;
+}
+
+Vector2 get_left_up(Entity e){
+    Vector2 lu = {e.position.x - e.pivot.x * e.bounds.x, e.position.y + e.pivot.y * e.bounds.y};
+    return lu;
+}
+
+Vector2 get_right_down(Entity e){
+    Vector2 lu = get_left_up(e);
+    Vector2 rd = {lu.x + e.bounds.x, lu.y - e.bounds.y};
+    return rd;
 }
