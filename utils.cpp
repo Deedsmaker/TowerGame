@@ -65,6 +65,14 @@ void print(f32 num){
     printf("%f\n", num);
 }
 
+void print(b32 num){
+    if (num){
+        printf("true\n");
+    } else{
+        printf("false\n");
+    }
+}
+
 char* to_string(int num){
     char* text = (char*)malloc(10 * sizeof(char));
     sprintf(text, "%d", num);

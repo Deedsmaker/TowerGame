@@ -206,6 +206,9 @@ void update_editor(){
     }
     
     local_persist b32 selected_this_click = 0;
+    local_persist f32 dragging_time = 0;
+    
+    b32 released_dragging = false;
     
     //editor entities loop
     for (int i = 0; i < context.entities.count; i++){        
@@ -220,7 +223,6 @@ void update_editor(){
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
             if (check_col_point_rec(context.mouse_position, *e)){
                 b32 is_same_selected_entity = selected_entity != NULL && selected_entity->id == e->id;
-                
                 if (!is_same_selected_entity){
                     if (selected_entity != NULL){
                         selected_entity->color_changer.changing = 0;
@@ -238,12 +240,27 @@ void update_editor(){
                     dragging_entity = selected_entity;
                 }
             }
+        } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+            if (selected_entity != NULL && !selected_this_click && check_col_point_rec(context.mouse_position, *e)){
+                if (dragging_time <= 0.1f && e->id == selected_entity->id){
+                    selected_entity->color_changer.changing = 0;
+                    selected_entity->color = selected_entity->color_changer.start_color;
+                    selected_entity = NULL;        
+                }
+            }
+            
+            released_dragging = true;
         }
     }
     
-    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+    if (released_dragging){
+        dragging_time = 0;
         selected_this_click = false;
         dragging_entity = NULL;
+    }
+    
+    if (dragging_entity != NULL){
+        dragging_time += dt;
     }
     
     if (dragging_entity != NULL && !moving_editor_cam){
@@ -269,6 +286,30 @@ void update_editor(){
         
         if (rotation != 0){
             selected_entity->rotation += rotation;
+        }
+    }
+    
+    //editor entity scaling
+    if (selected_entity != NULL){
+        Vector2 scaling = {};
+        f32 speed = 5;
+        
+        if (IsKeyDown(KEY_W)){
+            scaling.y += speed * dt;
+        } else if (IsKeyDown(KEY_S)){
+            scaling.y -= speed * dt;
+        }
+        
+        if (IsKeyDown(KEY_D)){
+            scaling.x += speed * dt;
+        } else if (IsKeyDown(KEY_A)){
+            scaling.x -= speed * dt;
+        }
+        
+        if (scaling != Vector2_zero){
+            selected_entity->scale += scaling;   
+            clamp(&selected_entity->scale.x, 0.01f, 10000);
+            clamp(&selected_entity->scale.y, 0.01f, 10000);
         }
     }
 }

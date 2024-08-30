@@ -38,6 +38,13 @@ struct Vector2{
         x /= value;
         y /= value;
     }
+    
+    b32 operator==(Vector2 b){
+        return x == b.x && y == b.y;
+    }
+    b32 operator!=(Vector2 b){
+        return x != b.x || y != b.y;
+    }
 };
 
 struct Color {
