@@ -481,7 +481,8 @@ void update_editor(){
         for (int i = 0; i < context.entities.count; i++){        
             Entity *e = context.entities.get_ptr(i);
             
-            fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:;\n", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)e->color.r, (i32)e->color.g, (i32)e->color.b, (i32)e->color.a, e->flags);
+            Color color = e->color_changer.start_color;
+            fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:;\n", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags);
         }
 
         
