@@ -49,6 +49,8 @@ struct Entity{
 
     b32 enabled = 1;
     
+    b32 destroyed = 0;
+    
     FLAGS flags;
     //b32 need_to_destroy = 0;
     
@@ -90,8 +92,12 @@ struct Context{
     Cam cam = {};
 };
 
+struct Editor{
+      
+};
 
 global_variable Context context = {};
+global_variable Editor  editor  = {};
 
 #include "game.h"
 
@@ -180,6 +186,7 @@ b32 check_col_point_rec(Vector2 point, Entity e){
 
 Entity *selected_entity;
 Entity *dragging_entity;
+Entity *cursor_entity;
 
 void update_editor(){
     if (IsKeyPressed(KEY_B)){
@@ -208,7 +215,7 @@ void update_editor(){
     local_persist b32 selected_this_click = 0;
     local_persist f32 dragging_time = 0;
     
-    b32 released_dragging = false;
+    b32 found_cursor_entity_this_frame = false;
     
     //editor entities loop
     for (int i = 0; i < context.entities.count; i++){        
@@ -220,44 +227,57 @@ void update_editor(){
         
         Rectangle rect = {e->position.x - e->pivot.x * e->bounds.x, e->position.y - e->pivot.y * e->bounds.y, e->bounds.x * UNIT_SIZE, e->bounds.y * UNIT_SIZE};
         
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-            if (check_col_point_rec(context.mouse_position, *e)){
-                b32 is_same_selected_entity = selected_entity != NULL && selected_entity->id == e->id;
-                if (!is_same_selected_entity){
-                    if (selected_entity != NULL){
-                        selected_entity->color_changer.changing = 0;
-                        selected_entity->color = selected_entity->color_changer.start_color;
-                    }
-                    e->color_changer.changing = 1;
-                    selected_entity = e;
-                    
-                    selected_this_click = true;
-                }
-            }
-        } else if (dragging_entity == NULL && !selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && selected_entity != NULL){
-            if (check_col_point_rec(context.mouse_position, *e)){
-                if (selected_entity != NULL && selected_entity->id == e->id){
-                    dragging_entity = selected_entity;
-                }
-            }
-        } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
-            if (selected_entity != NULL && !selected_this_click && check_col_point_rec(context.mouse_position, *e)){
-                if (dragging_time <= 0.1f && e->id == selected_entity->id){
-                    selected_entity->color_changer.changing = 0;
-                    selected_entity->color = selected_entity->color_changer.start_color;
-                    selected_entity = NULL;        
-                }
-            }
-            
-            released_dragging = true;
+        
+        if (check_col_point_rec(context.mouse_position, *e)){
+            cursor_entity = e;
+            found_cursor_entity_this_frame = true;
+        } else if (!found_cursor_entity_this_frame){
+            cursor_entity = NULL;
         }
     }
     
-    if (released_dragging){
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        if (cursor_entity != NULL){
+            b32 is_same_selected_entity = selected_entity != NULL && selected_entity->id == cursor_entity->id;
+            if (!is_same_selected_entity){
+                if (selected_entity != NULL){
+                    selected_entity->color_changer.changing = 0;
+                    selected_entity->color = selected_entity->color_changer.start_color;
+                }
+                cursor_entity->color_changer.changing = 1;
+                selected_entity = cursor_entity;
+                
+                selected_this_click = true;
+            }
+        }
+    } else if (dragging_entity == NULL && !selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && selected_entity != NULL){
+        if (cursor_entity != NULL){
+            if (selected_entity != NULL && selected_entity->id == cursor_entity->id){
+                dragging_entity = selected_entity;
+            }
+        }
+    } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+        if (selected_entity != NULL && !selected_this_click && cursor_entity != NULL){
+            if (dragging_time <= 0.1f && cursor_entity->id == selected_entity->id){
+                selected_entity->color_changer.changing = 0;
+                selected_entity->color = selected_entity->color_changer.start_color;
+                selected_entity = NULL;        
+            }
+        }
+        
         dragging_time = 0;
         selected_this_click = false;
         dragging_entity = NULL;
     }
+    
+    //editor Delete entity
+    if (IsKeyPressed(KEY_X) && selected_entity){
+        selected_entity->destroyed = true;
+        selected_entity = NULL;
+        dragging_entity = NULL;
+        cursor_entity   = NULL;
+    }
+    
     
     if (dragging_entity != NULL){
         dragging_time += dt;
@@ -278,10 +298,11 @@ void update_editor(){
     //editor Entity rotation
     if (selected_entity != NULL){
         f32 rotation = 0;
+        f32 speed = 50;
         if (IsKeyDown(KEY_E)){
-            rotation = dt * 50;
+            rotation = dt * speed;
         } else if (IsKeyDown(KEY_Q)){
-            rotation = -dt * 50;
+            rotation = -dt * speed;
         }
         
         if (rotation != 0){
@@ -293,6 +314,10 @@ void update_editor(){
     if (selected_entity != NULL){
         Vector2 scaling = {};
         f32 speed = 5;
+        
+        if (IsKeyDown(KEY_LEFT_SHIFT)){
+            speed *= 3.0f;
+        }
         
         if (IsKeyDown(KEY_W)){
             scaling.y += speed * dt;
@@ -321,6 +346,13 @@ void update_entities(){
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
         if (!e->enabled){
+            continue;
+        }
+        
+        if (e->destroyed){
+            //@TODO properly destroy different entities
+            entities->remove(i);    
+            i--;
             continue;
         }
           
@@ -371,7 +403,7 @@ void draw_game(){
 
 Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
     Entity e = Entity(pos, scale, rotation, flags);    
-    e.id = context.entities.count;
+    e.id = context.entities.count + game_time * 1000;
     e.bounds = scale;
     context.entities.add(e);
     return context.entities.last_ptr();
@@ -381,7 +413,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
     //@TODO: Check for type and set bounds correctly (for textures for example)
     e.bounds = scale;
-    e.id = context.entities.count;
+    e.id = context.entities.count + game_time * 1000;
     context.entities.add(e);
     return context.entities.last_ptr();
 }
@@ -392,7 +424,7 @@ Entity *add_text(Vector2 pos, f32 size, const char *text){
     e.bounds = {1, 1};
     e.text_drawer.text = text;
     e.text_drawer.size = size;
-    e.id = context.entities.count;
+    e.id = context.entities.count + game_time * 1000;
     context.entities.add(e);
     return context.entities.last_ptr();
 }

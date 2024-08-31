@@ -30,9 +30,9 @@ struct Array{
     
     void remove(int index){
         for (int i = index; i < count - 1; i++){
-            T current_element = get(i);
-            T next_element = get(i + 1);
-            memmove(&current_element, &next_element, sizeof(T));
+            T *current_element = get_ptr(i);
+            T *next_element    = get_ptr(i + 1);
+            memmove(current_element, next_element, sizeof(T));
         }
         
         count--;
