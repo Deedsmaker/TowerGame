@@ -134,3 +134,10 @@ void array_remove(Old_Arr *array, int index){
     
     array->count--;
 }
+
+void zero_array(char *arr, int count){
+    for (int i = 0; i < count; i++){
+        arr[i] = NULL;
+    }
+}
+    

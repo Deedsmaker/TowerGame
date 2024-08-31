@@ -1,8 +1,10 @@
+#define _CRT_SECURE_NO_DEPRECATE
+
 #include <stdio.h>
 #include <stdlib.h> 
 #include <string.h>
 #include <stdint.h>
-
+#include <assert.h>
 
 typedef float  f32;
 typedef double f64;

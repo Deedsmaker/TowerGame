@@ -1,5 +1,8 @@
 #pragma once
 
+//#define assert(a) (if (!a) (int*)void*);
+//#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
+
 f32 dt;
 f32 game_time;
 
@@ -38,6 +41,15 @@ struct Entity{
     }
     
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
+        position = _pos;
+        scale    = _scale;
+        pivot = _pivot;
+        rotation = _rotation;
+        flags    = _flags;
+    }
+    
+    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
+        id = _id;
         position = _pos;
         scale    = _scale;
         pivot = _pivot;
@@ -92,10 +104,15 @@ struct Context{
     Cam cam = {};
 };
 
+struct Level{
+    Context *context;  
+};
+
 struct Editor{
       
 };
 
+global_variable Level current_level;
 global_variable Context context = {};
 global_variable Editor  editor  = {};
 
@@ -103,10 +120,126 @@ global_variable Editor  editor  = {};
 
 Entity *zoom_entity;
 
+void parse_line(char *line, char *result, int *index){ 
+    assert(line[*index] == ':');
+    
+    int i;
+    int added_count = 0;
+    for (i = *index + 1; line[i] != NULL && line[i] != ':'; i++){
+        result[added_count] = line[i];
+        added_count++;
+    }
+    
+    *index = i;
+}
+
 void init_game(){
     game_time = 0;
 
-    context = {};
+    current_level = {};
+    current_level.context = (Context*)malloc(sizeof(Context));
+    context = *current_level.context;
+    context = {};    
+    
+    
+    //load level
+    FILE *fptr = fopen("../test_level.level", "r");
+    
+    if (fptr == NULL){
+        fptr = fopen("test_level.level", "r");
+    }
+    
+    const unsigned MAX_LENGTH = 1000;
+    char buffer[MAX_LENGTH];
+
+    while (fptr != NULL && fgets(buffer, MAX_LENGTH, fptr)){
+        if (strcmp(buffer, "Entities:\n") == 0){
+            continue;   
+        }
+    
+        i32 entity_id;
+        Vector2 entity_position;
+        Vector2 entity_scale;
+        Vector2 entity_pivot;
+        f32     entity_rotation;
+        Color   entity_color;
+        FLAGS   entity_flags;
+        
+        
+        b32 found_id = false;
+        b32 found_position_x = false;
+        b32 found_position_y = false;
+        b32 found_scale_x    = false;
+        b32 found_scale_y    = false;
+        b32 found_pivot_x    = false;
+        b32 found_pivot_y    = false;
+        b32 found_rotation   = false;
+        b32 found_color_r    = false;
+        b32 found_color_g    = false;
+        b32 found_color_b    = false;
+        b32 found_color_a    = false;
+        b32 found_flags      = false;
+        
+        i32 parsed_count = 50;
+        char parsed_data[parsed_count];
+        
+        for (int i = 0; buffer[i] != NULL && buffer[i] != ';'; i++){
+            if (buffer[i] == ':'){
+                zero_array(parsed_data, parsed_count);
+                parse_line(buffer, parsed_data, &i);
+                
+                if (!found_id){
+                    entity_id = atoi(parsed_data);
+                    found_id = true;
+                } else if (!found_position_x){
+                    entity_position.x = atof(parsed_data);
+                    found_position_x = true;
+                } else if (!found_position_y){
+                    entity_position.y = atof(parsed_data);
+                    found_position_y = true;
+                } else if (!found_scale_x){
+                    entity_scale.x = atof(parsed_data);
+                    found_scale_x = true;
+                } else if (!found_scale_y){
+                    entity_scale.y = atof(parsed_data);
+                    found_scale_y = true;
+                } else if (!found_pivot_x){
+                    entity_pivot.x = atof(parsed_data);
+                    found_pivot_x = true;
+                } else if (!found_pivot_y){
+                    entity_pivot.y = atof(parsed_data);
+                    found_pivot_y = true;
+                } else if (!found_rotation){
+                    entity_rotation = atof(parsed_data);
+                    found_rotation = true;
+                } else if (!found_color_r){
+                    entity_color.r = (char)atoi(parsed_data);
+                    found_color_r = true;
+                } else if (!found_color_g){
+                    entity_color.g = (char)atoi(parsed_data);
+                    found_color_g = true;
+                } else if (!found_color_b){
+                    entity_color.b = (char)atoi(parsed_data);
+                    found_color_b = true;
+                } else if (!found_color_a){
+                    entity_color.a = (char)atoi(parsed_data);
+                    found_color_a = true;
+                } else if (!found_flags){
+                    entity_flags = atoi(parsed_data);
+                    found_flags = true;
+                }
+            }
+        }
+        
+        //No need to assert every variable. We can add something to entity and old levels should not broke
+        assert(found_id && found_position_x && found_position_y);
+        
+        add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags);
+    }
+    
+    if (fptr){
+        fclose(fptr);
+    }
     
     Context *c = &context;
     
@@ -118,7 +251,7 @@ void init_game(){
     c->cam.cam2D.rotation = 0.0f;
     c->cam.cam2D.zoom = 1.0f;
     
-    zoom_entity = add_text({-20, 20}, 40, "DSF");
+    //zoom_entity = add_text({-20, 20}, 40, "DSF");
     
     //add_entity({0, 10}, {10, 3}, 0, GROUND | COLOR_CHANGE);
 }
@@ -159,7 +292,7 @@ void update_game(){
     
     update_editor();
     
-    zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
+    //zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
     
     update_entities();
     
@@ -337,6 +470,23 @@ void update_editor(){
             clamp(&selected_entity->scale.y, 0.01f, 10000);
         }
     }
+    
+    //editor Save level
+    if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
+        FILE *fptr;
+        fptr = fopen("test_level.level", "w");
+        printf("level saved\n");
+        
+        fprintf(fptr, "Entities:\n");
+        for (int i = 0; i < context.entities.count; i++){        
+            Entity *e = context.entities.get_ptr(i);
+            
+            fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:;\n", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)e->color.r, (i32)e->color.g, (i32)e->color.b, (i32)e->color.a, e->flags);
+        }
+
+        
+        fclose(fptr);
+    }
 }
 
 void update_entities(){
@@ -401,6 +551,11 @@ void draw_game(){
     
 }
 
+void setup_color_changer(Entity *entity){
+    entity->color_changer.start_color = entity->color;
+    entity->color_changer.target_color = entity->color * 1.4f;
+}
+
 Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
     Entity e = Entity(pos, scale, rotation, flags);    
     e.id = context.entities.count + game_time * 1000;
@@ -410,12 +565,22 @@ Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
-    Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    //@TODO: Check for type and set bounds correctly (for textures for example)
-    e.bounds = scale;
-    e.id = context.entities.count + game_time * 1000;
-    context.entities.add(e);
-    return context.entities.last_ptr();
+    Entity *e = add_entity(pos, scale, rotation, flags);    
+    e->pivot = pivot;
+    return e;
+}
+
+Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
+    Entity *e = add_entity(pos, scale, pivot, rotation, flags);    
+    e->id = id;
+    return e;
+}
+
+Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags){
+    Entity *e = add_entity(id, pos, scale, pivot, rotation, flags);    
+    e->color = color;
+    setup_color_changer(e);
+    return e;
 }
 
 Entity *add_text(Vector2 pos, f32 size, const char *text){
