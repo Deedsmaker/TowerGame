@@ -530,8 +530,8 @@ void rotate_to(Entity *entity, f32 new_rotation){
 
     entity->rotation = new_rotation;
     
-    entity->up    = {sinf(new_rotation), cosf(new_rotation)};
-    entity->right = {cosf(new_rotation), sinf(new_rotation)};
+    entity->up    = {sinf(new_rotation * DEG2RAD), cosf(new_rotation * DEG2RAD)};
+    entity->right = {cosf(new_rotation * DEG2RAD), -sinf(new_rotation * DEG2RAD)};
 }
 
 void rotate(Entity *entity, f32 rotation){
@@ -577,6 +577,19 @@ void draw_entities(){
         if (e-> flags & DRAW_TEXT){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
+        
+        Vector2 left_up = world_to_screen(get_left_up(*e));
+        Vector2 right_down = world_to_screen(get_right_down(*e));
+        DrawCircle(left_up.x, left_up.y, 5, RED);
+        DrawCircle(right_down.x, right_down.y, 5, BLUE);
+        
+        Vector2 screen_pos = world_to_screen(e->position);
+        DrawLine(screen_pos.x, screen_pos.y, screen_pos.x + e->right.x * 50, screen_pos.y - e->right.y * 50, RED);
+        DrawLine(screen_pos.x, screen_pos.y, screen_pos.x + e->up.x * 50   , screen_pos.y - e->up.y * 50, GREEN);
+        
+        draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
+        draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("UP: {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
+        draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
     }
 }
 
