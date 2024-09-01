@@ -31,3 +31,11 @@ f32 zoom_unit_size();
 
 Vector2 get_left_up(Entity e);
 Vector2 get_right_down(Entity e);
+
+void change_scale(Entity *entity, Vector2 new_scale);
+void add_scale(Entity *entity, Vector2 added);
+
+void change_up(Entity *entity, Vector2 new_up);
+void change_right(Entity *entity, Vector2 new_right);
+void rotate_to(Entity *entity, f32 new_rotation);
+void rotate(Entity *entity, f32 rotation);

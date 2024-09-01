@@ -33,35 +33,18 @@ struct Text_Drawer{
 };
 
 struct Entity{
-    Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
-        position = _pos;
-        scale    = _scale;
-        rotation = _rotation;
-        flags    = _flags;
-    }
-    
-    Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
-        position = _pos;
-        scale    = _scale;
-        pivot = _pivot;
-        rotation = _rotation;
-        flags    = _flags;
-    }
-    
-    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
-        id = _id;
-        position = _pos;
-        scale    = _scale;
-        pivot = _pivot;
-        rotation = _rotation;
-        flags    = _flags;
-    }
-    
+    Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
+    Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
+    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
+
     i32 id = -1;
 
     b32 enabled = 1;
     
     b32 destroyed = 0;
+    
+    Vector2 up;
+    Vector2 right;
     
     FLAGS flags;
     //b32 need_to_destroy = 0;
@@ -118,6 +101,31 @@ global_variable Editor  editor  = {};
 
 #include "game.h"
 
+Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
+    position = _pos;
+    change_scale(this, _scale);
+    rotate_to(this, _rotation);
+    flags    = _flags;
+}
+
+Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
+    position = _pos;
+    pivot = _pivot;
+    change_scale(this, _scale);
+    rotate_to(this, _rotation);
+    flags    = _flags;
+}
+
+Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
+    id = _id;
+    position = _pos;
+    change_scale(this, _scale);
+    pivot = _pivot;
+    rotate_to(this, _rotation);
+    flags    = _flags;
+}
+
+
 Entity *zoom_entity;
 
 void parse_line(char *line, char *result, int *index){ 
@@ -143,10 +151,10 @@ void init_game(){
     
     
     //load level
-    FILE *fptr = fopen("../test_level.level", "r");
+    FILE *fptr = fopen("test_level.level", "r");
     
     if (fptr == NULL){
-        fptr = fopen("test_level.level", "r");
+        fptr = fopen("../test_level.level", "r");
     }
     
     const unsigned MAX_LENGTH = 1000;
@@ -439,7 +447,7 @@ void update_editor(){
         }
         
         if (rotation != 0){
-            selected_entity->rotation += rotation;
+            rotate(selected_entity, rotation);
         }
     }
     
@@ -465,9 +473,7 @@ void update_editor(){
         }
         
         if (scaling != Vector2_zero){
-            selected_entity->scale += scaling;   
-            clamp(&selected_entity->scale.x, 0.01f, 10000);
-            clamp(&selected_entity->scale.y, 0.01f, 10000);
+            add_scale(selected_entity, scaling);
         }
     }
     
@@ -488,6 +494,48 @@ void update_editor(){
         
         fclose(fptr);
     }
+}
+
+void change_scale(Entity *entity, Vector2 new_scale){
+    entity->scale = new_scale;
+    
+    clamp(&entity->scale.x, 0.01f, 10000);
+    clamp(&entity->scale.y, 0.01f, 10000);
+
+    //@TODO properly calculate bounds
+    entity->bounds = new_scale;
+}
+
+void add_scale(Entity *entity, Vector2 added){
+    change_scale(entity, entity->scale + added);
+}
+
+void change_up(Entity *entity, Vector2 new_up){
+    entity->up = new_up;
+    entity->rotation = atan2f(new_up.y, new_up.x) * RAD2DEG;
+}
+
+void change_right(Entity *entity, Vector2 new_right){
+    entity->right = new_right;
+    entity->rotation = atan2f(new_right.y, new_right.x) * RAD2DEG;
+}
+
+void rotate_to(Entity *entity, f32 new_rotation){
+    while (new_rotation >= 360){
+        new_rotation -= 360;
+    }
+    while (new_rotation < 0){
+        new_rotation += 360;
+    }
+
+    entity->rotation = new_rotation;
+    
+    entity->up    = {sinf(new_rotation), cosf(new_rotation)};
+    entity->right = {cosf(new_rotation), sinf(new_rotation)};
+}
+
+void rotate(Entity *entity, f32 rotation){
+    rotate_to(entity, entity->rotation + rotation);
 }
 
 void update_entities(){
@@ -560,7 +608,6 @@ void setup_color_changer(Entity *entity){
 Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
     Entity e = Entity(pos, scale, rotation, flags);    
     e.id = context.entities.count + game_time * 1000;
-    e.bounds = scale;
     context.entities.add(e);
     return context.entities.last_ptr();
 }
