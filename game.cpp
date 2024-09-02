@@ -720,12 +720,28 @@ f32 zoom_unit_size(){
 }
 
 Vector2 get_left_up(Entity e){
+    //f32 x_add = sinf(e.rotation * DEG2RAD) * e.bounds.x;
     Vector2 lu = {e.position.x - e.pivot.x * e.bounds.x, e.position.y + e.pivot.y * e.bounds.y};
+    
+    float s = -sinf(e.rotation * DEG2RAD);
+    float c = cosf(e.rotation * DEG2RAD);
+    
+    lu.x -= e.position.x;
+    lu.y -= e.position.y;
+    
+    // rotate point
+    float xnew = lu.x * c - lu.y * s;
+    float ynew = lu.x * s + lu.y * c;
+    
+    // translate point back:
+    lu.x = xnew + e.position.x;
+    lu.y = ynew + e.position.y;
     return lu;
 }
 
 Vector2 get_right_down(Entity e){
     Vector2 lu = get_left_up(e);
-    Vector2 rd = {lu.x + e.bounds.x, lu.y - e.bounds.y};
+    Vector2 rd = lu + e.right * e.bounds.x;
+    rd -= e.up * e.bounds.y;
     return rd;
 }
