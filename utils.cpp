@@ -52,6 +52,10 @@ struct Array{
         count = 0;
     }
     
+    void free_arr(){
+        free(data);
+    }
+    
     // ~Array(){
     //     free(data);   
     // }
@@ -63,6 +67,10 @@ void print(Vector2 vec){
 
 void print(f32 num){
     printf("%f\n", num);
+}
+
+void print(i32 num){
+    printf("%d\n", num);
 }
 
 void print(b32 num){

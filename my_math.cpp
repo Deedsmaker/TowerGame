@@ -194,6 +194,16 @@ f32 dot(Vector2 v1, Vector2 v2){
     return result;
 }
 
+// f32 min(f32 a, f32 b){
+//     if (a <= b) return a;
+//     return b;
+// }
+
+// f32 max(f32 a, f32 b){
+//     if (a >= b) return a;
+//     return b;
+// }
+
 void normalize(Vector2 *vector){
     *vector = divide(*vector, magnitude(*vector));
 }

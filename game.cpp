@@ -319,10 +319,71 @@ void update_color_changer(Entity *entity){
 }
 
 b32 check_col_point_rec(Vector2 point, Entity e){
-    Vector2 l_u = get_left_up(e);
-    Vector2 r_d = get_right_down(e);
+    Vector2 l_u = get_left_up_no_rot(e);
+    Vector2 r_d = get_right_down_no_rot(e);
 
     return ((point.x >= l_u.x) && (point.x <= r_d.x) && (point.y >= r_d.y) && (point.y <= l_u.y));
+}
+
+b32 check_rectangles_col(Entity entity1, Entity entity2){
+    Array<Vector2> normals = Array<Vector2>(4);
+    normals.add(entity1.up);
+    normals.add(entity1.right);
+    // normals.add(entity1.up * -1.0f);
+    // normals.add(entity1.right * -1.0f);
+    normals.add(entity2.up);
+    normals.add(entity2.right);
+    // normals.add(entity2.up * -1.0f);
+    // normals.add(entity2.right * -1.0f);
+    
+    Array<Vector2> vertices1 = Array<Vector2>(4);
+    vertices1.add(get_left_up(entity1));
+    vertices1.add(get_right_up(entity1));
+    vertices1.add(get_right_down(entity1));
+    vertices1.add(get_left_down(entity1));
+    
+    Array<Vector2> vertices2 = Array<Vector2>(4);
+    vertices2.add(get_left_up(entity2));
+    vertices2.add(get_right_up(entity2));
+    vertices2.add(get_right_down(entity2));
+    vertices2.add(get_left_down(entity2));
+
+    for (int i = 0; i < normals.count; i++){
+        Vector2 projections[2];
+        projections[0].x = 100000000;
+        projections[1].x = 100000000;
+        projections[0].y = -100000000;
+        projections[1].y = -100000000;
+        
+        Vector2 axis = normals.get(i);
+
+        for (int shape = 0; shape < 2; shape++){
+            Array<Vector2> vertices = Array<Vector2>(4);
+            if (shape == 0) {
+                vertices = vertices1;
+            } else{
+                vertices = vertices2;
+            }
+            
+            for (int j = 0; j < vertices.count; j++){            
+                f32 p = dot(vertices.get(j), axis);
+                
+                f32 min = fmin(projections[shape].x, p);
+                f32 max = fmax(projections[shape].y, p);
+                
+                projections[shape].x = min;
+                projections[shape].y = max;
+            }
+        }
+        if (!(projections[1].y >= projections[0].x && projections[0].y >= projections[1].x)){
+            return false;
+        }
+    }
+    
+    normals.free_arr();
+    vertices1.free_arr();
+    vertices2.free_arr();
+    return true;
 }
 
 Entity *selected_entity;
@@ -374,6 +435,13 @@ void update_editor(){
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
             cursor_entity = NULL;
+        }
+        
+        if (dragging_entity != NULL && e->id != dragging_entity->id){
+            if (check_rectangles_col(*dragging_entity, *e)){
+                printf("col %.2f\n", game_time);
+                e->color = WHITE * abs(sinf(game_time * 10));
+            }
         }
     }
     
@@ -511,12 +579,12 @@ void add_scale(Entity *entity, Vector2 added){
 }
 
 void change_up(Entity *entity, Vector2 new_up){
-    entity->up = new_up;
+    entity->up = normalized(new_up);
     entity->rotation = atan2f(new_up.y, new_up.x) * RAD2DEG;
 }
 
 void change_right(Entity *entity, Vector2 new_right){
-    entity->right = new_right;
+    entity->right = normalized(new_right);
     entity->rotation = atan2f(new_right.y, new_right.x) * RAD2DEG;
 }
 
@@ -530,8 +598,8 @@ void rotate_to(Entity *entity, f32 new_rotation){
 
     entity->rotation = new_rotation;
     
-    entity->up    = {sinf(new_rotation * DEG2RAD), cosf(new_rotation * DEG2RAD)};
-    entity->right = {cosf(new_rotation * DEG2RAD), -sinf(new_rotation * DEG2RAD)};
+    entity->up    = normalized({sinf(new_rotation * DEG2RAD), cosf(new_rotation * DEG2RAD)});
+    entity->right = normalized({cosf(new_rotation * DEG2RAD), -sinf(new_rotation * DEG2RAD)});
 }
 
 void rotate(Entity *entity, f32 rotation){
@@ -563,6 +631,9 @@ void draw_entities(){
     Context *c = &context;
     Array<Entity> *entities = &c->entities;
     
+    f32 closest_len = 1000000;
+    Entity *closest;
+    
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
     
@@ -580,16 +651,31 @@ void draw_entities(){
         
         Vector2 left_up = world_to_screen(get_left_up(*e));
         Vector2 right_down = world_to_screen(get_right_down(*e));
+        Vector2 left_down = world_to_screen(get_left_down(*e));
+        Vector2 right_up = world_to_screen(get_right_up(*e));
         DrawCircle(left_up.x, left_up.y, 5, RED);
         DrawCircle(right_down.x, right_down.y, 5, BLUE);
+        DrawCircle(left_down.x, left_down.y, 5, GREEN);
+        DrawCircle(right_up.x, right_up.y, 5, PURPLE);
         
-        Vector2 screen_pos = world_to_screen(e->position);
-        DrawLine(screen_pos.x, screen_pos.y, screen_pos.x + e->right.x * 50, screen_pos.y - e->right.y * 50, RED);
-        DrawLine(screen_pos.x, screen_pos.y, screen_pos.x + e->up.x * 50   , screen_pos.y - e->up.y * 50, GREEN);
+        draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
+        draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
         
         draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
         draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("UP: {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
         draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
+        
+        if (dragging_entity != NULL && e->id != dragging_entity->id){
+            f32 len = magnitude(e->position - dragging_entity->position);
+            if (len < closest_len){
+                closest_len = len;
+                closest = e;
+            }
+        }
+    }
+    
+    if (dragging_entity != NULL){
+        draw_game_line(dragging_entity->position, closest->position, 0.1f, PINK);
     }
 }
 
@@ -719,9 +805,13 @@ f32 zoom_unit_size(){
     return UNIT_SIZE / zoom;
 }
 
+Vector2 get_left_up_no_rot(Entity e){
+    return {e.position.x - e.pivot.x * e.bounds.x, e.position.y + e.pivot.y * e.bounds.y};
+}
+
 Vector2 get_left_up(Entity e){
     //f32 x_add = sinf(e.rotation * DEG2RAD) * e.bounds.x;
-    Vector2 lu = {e.position.x - e.pivot.x * e.bounds.x, e.position.y + e.pivot.y * e.bounds.y};
+    Vector2 lu = get_left_up_no_rot(e);
     
     float s = -sinf(e.rotation * DEG2RAD);
     float c = cosf(e.rotation * DEG2RAD);
@@ -739,9 +829,34 @@ Vector2 get_left_up(Entity e){
     return lu;
 }
 
+Vector2 get_right_down_no_rot(Entity e){
+    Vector2 lu = get_left_up_no_rot(e);
+    return {lu.x + e.bounds.x, lu.y - e.bounds.y};
+}
+
 Vector2 get_right_down(Entity e){
     Vector2 lu = get_left_up(e);
     Vector2 rd = lu + e.right * e.bounds.x;
     rd -= e.up * e.bounds.y;
     return rd;
+}
+
+Vector2 get_left_down_no_rot(Entity e){
+    Vector2 lu = get_left_up_no_rot(e);
+    return {lu.x, lu.y - e.bounds.y};
+}
+
+Vector2 get_left_down(Entity e){
+    Vector2 rd = get_right_down(e);
+    return rd - e.right * e.bounds.x;
+}
+
+Vector2 get_right_up_no_rot(Entity e){
+    Vector2 lu = get_left_up_no_rot(e);
+    return {lu.x + e.bounds.x, lu.y};
+}
+
+Vector2 get_right_up(Entity e){
+    Vector2 lu = get_left_up(e);
+    return lu + e.right * e.bounds.x;
 }
