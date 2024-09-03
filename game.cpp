@@ -33,6 +33,8 @@ struct Text_Drawer{
 };
 
 struct Entity{
+    Entity(Vector2 _pos);
+    Entity(Vector2 _pos, Vector2 _scale);
     Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
@@ -77,14 +79,18 @@ struct Cam{
 struct Context{
     Array<Entity> entities = Array<Entity>(1000);
 
-    Vector2 mouse_position;
-    Vector2 mouse_delta;
-    f32     mouse_wheel;
     Vector2 unit_screen_size;
     
     Entity *selected_entity;
     
     Cam cam = {};
+};
+
+struct Input{
+    Vector2 direction;
+    Vector2 mouse_position;
+    Vector2 mouse_delta;
+    f32     mouse_wheel;
 };
 
 struct Level{
@@ -95,11 +101,31 @@ struct Editor{
       
 };
 
+global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
 global_variable Editor  editor  = {};
 
 #include "game.h"
+
+Entity::Entity(Vector2 _pos){
+    position = _pos;
+    change_scale(this, {1, 1});
+    rotation = 0;
+    up = {0, 1};
+    right = {1, 0};
+    
+    flags = 0;
+}
+
+Entity::Entity(Vector2 _pos, Vector2 _scale){
+    position = _pos;
+    change_scale(this, _scale);
+    rotation = 0;
+    up = {0, 1};
+    right = {1, 0};
+    flags = 0;
+}
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
     position = _pos;
@@ -143,6 +169,8 @@ void parse_line(char *line, char *result, int *index){
 
 void init_game(){
     game_time = 0;
+
+    input = {};
 
     current_level = {};
     current_level.context = (Context*)malloc(sizeof(Context));
@@ -280,9 +308,24 @@ Vector2 game_mouse_pos(){
 void update_game(){
     game_time += dt;
 
-    context.mouse_position = game_mouse_pos();
-    context.mouse_delta = GetMouseDelta();
-    context.mouse_wheel = GetMouseWheelMove();
+    //update input
+    input.mouse_position = game_mouse_pos();
+    input.mouse_delta = GetMouseDelta();
+    input.mouse_wheel = GetMouseWheelMove();
+    
+    input.direction.x = 0;
+    input.direction.y = 0;
+    
+    // if (IsKeyDown(KEY_D))
+    //     input.direction.x = 1;
+    // } else if (IsKeyDown(KEY_A)){
+    //     input.direction.x = -1;
+    // }
+    // if (IsKeyDown(KEY_W))
+    //     input.direction.y = 1;
+    // } else if (IsKeyDown(KEY_S)){
+    //     input.direction.y = -1;
+    // }
     
     //Paper *p = &context.paper;
     if (screen_size_changed){
@@ -325,6 +368,17 @@ b32 check_col_point_rec(Vector2 point, Entity e){
     return ((point.x >= l_u.x) && (point.x <= r_d.x) && (point.y >= r_d.y) && (point.y <= l_u.y));
 }
 
+struct Collision{
+    b32 collided;
+    f32 overlap;
+    
+    
+    Vector2 normal;    
+    Vector2 point;
+};
+
+Collision last_collision;
+
 b32 check_rectangles_col(Entity entity1, Entity entity2){
     Array<Vector2> normals = Array<Vector2>(4);
     normals.add(entity1.up);
@@ -347,13 +401,19 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
     vertices2.add(get_right_up(entity2));
     vertices2.add(get_right_down(entity2));
     vertices2.add(get_left_down(entity2));
+    
+    f32 overlap = INFINITY;
+    Vector2 min_overlap_axis = Vector2_zero;
+    
+    Vector2 min_overlap_projection = {};
 
     for (int i = 0; i < normals.count; i++){
         Vector2 projections[2];
-        projections[0].x = 100000000;
-        projections[1].x = 100000000;
-        projections[0].y = -100000000;
-        projections[1].y = -100000000;
+        //x - min, y - max
+        projections[0].x =  INFINITY;
+        projections[1].x =  INFINITY;
+        projections[0].y = -INFINITY;
+        projections[1].y = -INFINITY;
         
         Vector2 axis = normals.get(i);
 
@@ -375,9 +435,35 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
                 projections[shape].y = max;
             }
         }
+        
+        f32 new_overlap = fmin(fmin(projections[0].y, projections[1].y) - fmax(projections[0].x, projections[1].x), overlap);
+        if (new_overlap != overlap){
+            overlap = new_overlap;
+            min_overlap_axis = axis;
+            min_overlap_projection.x = projections[0].x;
+            min_overlap_projection.y = projections[0].y;
+        }
+        
         if (!(projections[1].y >= projections[0].x && projections[0].y >= projections[1].x)){
+            normals.free_arr();
+            vertices1.free_arr();
+            vertices2.free_arr();
             return false;
         }
+    }
+    
+    Vector2 vec_to_first = entity1.position - entity2.position;
+    Vector2 dir_to_first = normalized(vec_to_first);
+    
+    entity1.position += dir_to_first * overlap;
+    
+    if (entity1.flags > 0){
+        last_collision.overlap = overlap;
+        last_collision.collided = true;
+        //last_collision.normal = dir_to_first;
+        last_collision.normal = dot(dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
+        //last_collision.point = entity1.position - dir_to_first * overlap;
+        last_collision.point = entity1.position - last_collision.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
     }
     
     normals.free_arr();
@@ -392,7 +478,7 @@ Entity *cursor_entity;
 
 void update_editor(){
     if (IsKeyPressed(KEY_B)){
-        Entity *e = add_entity(context.mouse_position, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
+        Entity *e = add_entity(input.mouse_position, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
         e->color = BROWN;
         e->color_changer.start_color = e->color;
         e->color_changer.target_color = e->color * 1.5f;
@@ -403,14 +489,14 @@ void update_editor(){
     b32 moving_editor_cam = false;
     
     if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
-        context.cam.position += ((Vector2){-context.mouse_delta.x / zoom, context.mouse_delta.y / zoom}) / (UNIT_SIZE);
+        context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (UNIT_SIZE);
         moving_editor_cam = true;
     }
     
-    if (context.mouse_wheel != 0){
+    if (input.mouse_wheel != 0){
         //So if wheel positive - don't allow zoom any further, same with negative
-        if (context.mouse_wheel > 0 && zoom < 5 || context.mouse_wheel < 0 && zoom > 0.1f){
-            context.cam.cam2D.zoom += context.mouse_wheel * 0.05f;
+        if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
+            context.cam.cam2D.zoom += input.mouse_wheel * 0.05f;
         }
     }
     
@@ -430,7 +516,7 @@ void update_editor(){
         Rectangle rect = {e->position.x - e->pivot.x * e->bounds.x, e->position.y - e->pivot.y * e->bounds.y, e->bounds.x * UNIT_SIZE, e->bounds.y * UNIT_SIZE};
         
         
-        if (check_col_point_rec(context.mouse_position, *e)){
+        if (check_rectangles_col(Entity(input.mouse_position), *e)){
             cursor_entity = e;
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
@@ -439,7 +525,6 @@ void update_editor(){
         
         if (dragging_entity != NULL && e->id != dragging_entity->id){
             if (check_rectangles_col(*dragging_entity, *e)){
-                printf("col %.2f\n", game_time);
                 e->color = WHITE * abs(sinf(game_time * 10));
             }
         }
@@ -493,13 +578,13 @@ void update_editor(){
     }
     
     if (dragging_entity != NULL && !moving_editor_cam){
-        Vector2 move_delta = ((Vector2){context.mouse_delta.x / zoom, -context.mouse_delta.y / zoom}) / (UNIT_SIZE);
+        Vector2 move_delta = ((Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (UNIT_SIZE);
         dragging_entity->position += move_delta;
     }
     
     //editor Entity to mouse or go to entity
     if (IsKeyPressed(KEY_F) && dragging_entity != NULL){
-        dragging_entity->position = context.mouse_position;
+        dragging_entity->position = input.mouse_position;
     } else if (IsKeyPressed(KEY_F) && selected_entity != NULL){
         context.cam.position = selected_entity->position;
     }
@@ -598,8 +683,9 @@ void rotate_to(Entity *entity, f32 new_rotation){
 
     entity->rotation = new_rotation;
     
-    entity->up    = normalized({sinf(new_rotation * DEG2RAD), cosf(new_rotation * DEG2RAD)});
-    entity->right = normalized({cosf(new_rotation * DEG2RAD), -sinf(new_rotation * DEG2RAD)});
+    entity->up    = {sinf(new_rotation * DEG2RAD),  cosf(new_rotation * DEG2RAD)};
+    entity->right = {cosf(new_rotation * DEG2RAD), -sinf(new_rotation * DEG2RAD)};
+    
 }
 
 void rotate(Entity *entity, f32 rotation){
@@ -649,21 +735,33 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        Vector2 left_up = world_to_screen(get_left_up(*e));
-        Vector2 right_down = world_to_screen(get_right_down(*e));
-        Vector2 left_down = world_to_screen(get_left_down(*e));
-        Vector2 right_up = world_to_screen(get_right_up(*e));
-        DrawCircle(left_up.x, left_up.y, 5, RED);
-        DrawCircle(right_down.x, right_down.y, 5, BLUE);
-        DrawCircle(left_down.x, left_down.y, 5, GREEN);
-        DrawCircle(right_up.x, right_up.y, 5, PURPLE);
+        b32 draw_circles_on_vertices = false;
+        if (draw_circles_on_vertices){
+            Vector2 left_up = world_to_screen(get_left_up(*e));
+            Vector2 right_down = world_to_screen(get_right_down(*e));
+            Vector2 left_down = world_to_screen(get_left_down(*e));
+            Vector2 right_up = world_to_screen(get_right_up(*e));
+            DrawCircle(left_up.x, left_up.y, 5, RED);
+            DrawCircle(right_down.x, right_down.y, 5, BLUE);
+            DrawCircle(left_down.x, left_down.y, 5, GREEN);
+            DrawCircle(right_up.x, right_up.y, 5, PURPLE);
+        }
         
         draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
         draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
         
-        draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
-        draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("UP: {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
-        draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
+        draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
+        
+        b32 draw_rotation = false;
+        if (draw_rotation){
+            draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
+        }
+        
+        b32 draw_directions = false;
+        if (draw_directions){
+            draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("UP:    {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
+            draw_game_text(e->position + ((Vector2){0, -9}), TextFormat("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
+        }
         
         if (dragging_entity != NULL && e->id != dragging_entity->id){
             f32 len = magnitude(e->position - dragging_entity->position);
@@ -672,6 +770,8 @@ void draw_entities(){
                 closest = e;
             }
         }
+        
+        draw_game_line(last_collision.point, last_collision.point + last_collision.normal * 4, 0.2f, GREEN);
     }
     
     if (dragging_entity != NULL){
