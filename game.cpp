@@ -33,6 +33,7 @@ struct Text_Drawer{
 };
 
 struct Entity{
+    Entity();
     Entity(Vector2 _pos);
     Entity(Vector2 _pos, Vector2 _scale);
     Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
@@ -44,6 +45,8 @@ struct Entity{
     b32 enabled = 1;
     
     b32 destroyed = 0;
+    
+    Array<Vector2> vertices = Array<Vector2>(20);
     
     Vector2 up;
     Vector2 right;
@@ -108,8 +111,28 @@ global_variable Editor  editor  = {};
 
 #include "game.h"
 
+void free_entity(Entity *e){
+    e->vertices.free_arr();
+}
+
+void add_rect_vertices(Array<Vector2> *vertices){
+    vertices->add({0.5f, 0.5f});
+    vertices->add({-0.5f, 0.5f});
+    vertices->add({0.5f, -0.5f});
+    vertices->add({-0.5f, -0.5f});
+}
+Entity::Entity(){
+    
+}
+
 Entity::Entity(Vector2 _pos){
     position = _pos;
+    // vertices.add({-0.5f, 0.5f});
+    // vertices.add({0.5f, 0.5f});
+    // vertices.add({0.5f, -0.5f});
+    //vertices.add({-0.5f, -0.5f});
+    add_rect_vertices(&vertices);
+
     change_scale(this, {1, 1});
     rotation = 0;
     up = {0, 1};
@@ -120,7 +143,12 @@ Entity::Entity(Vector2 _pos){
 
 Entity::Entity(Vector2 _pos, Vector2 _scale){
     position = _pos;
+    
+    add_rect_vertices(&vertices);
+
     change_scale(this, _scale);
+    rotation = 0;
+    
     rotation = 0;
     up = {0, 1};
     right = {1, 0};
@@ -129,7 +157,12 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
     position = _pos;
+    add_rect_vertices(&vertices);
+    
+
     change_scale(this, _scale);
+    rotation = 0;
+    
     rotate_to(this, _rotation);
     flags    = _flags;
 }
@@ -137,16 +170,27 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
 Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
     position = _pos;
     pivot = _pivot;
+    
+    add_rect_vertices(&vertices);
+    
     change_scale(this, _scale);
+    rotation = 0;
+    
     rotate_to(this, _rotation);
     flags    = _flags;
+    
+    
 }
 
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
     id = _id;
     position = _pos;
-    change_scale(this, _scale);
     pivot = _pivot;
+    
+    add_rect_vertices(&vertices);
+    
+    change_scale(this, _scale);
+    rotation = 0;
     rotate_to(this, _rotation);
     flags    = _flags;
 }
@@ -390,17 +434,17 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
     // normals.add(entity2.up * -1.0f);
     // normals.add(entity2.right * -1.0f);
     
-    Array<Vector2> vertices1 = Array<Vector2>(4);
-    vertices1.add(get_left_up(entity1));
-    vertices1.add(get_right_up(entity1));
-    vertices1.add(get_right_down(entity1));
-    vertices1.add(get_left_down(entity1));
+    // Array<Vector2> vertices1 = Array<Vector2>(4);
+    // vertices1.add(get_left_up(entity1));
+    // vertices1.add(get_right_up(entity1));
+    // vertices1.add(get_right_down(entity1));
+    // vertices1.add(get_left_down(entity1));
     
-    Array<Vector2> vertices2 = Array<Vector2>(4);
-    vertices2.add(get_left_up(entity2));
-    vertices2.add(get_right_up(entity2));
-    vertices2.add(get_right_down(entity2));
-    vertices2.add(get_left_down(entity2));
+    // Array<Vector2> vertices2 = Array<Vector2>(4);
+    // vertices2.add(get_left_up(entity2));
+    // vertices2.add(get_right_up(entity2));
+    // vertices2.add(get_right_down(entity2));
+    // vertices2.add(get_left_down(entity2));
     
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
@@ -419,14 +463,17 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
 
         for (int shape = 0; shape < 2; shape++){
             Array<Vector2> vertices = Array<Vector2>(4);
+            Entity entity = {};
             if (shape == 0) {
-                vertices = vertices1;
+                vertices = entity1.vertices;
+                entity = entity1;
             } else{
-                vertices = vertices2;
+                vertices = entity2.vertices;
+                entity = entity2;
             }
             
             for (int j = 0; j < vertices.count; j++){            
-                f32 p = dot(vertices.get(j), axis);
+                f32 p = dot(global(entity, vertices.get(j)), axis);
                 
                 f32 min = fmin(projections[shape].x, p);
                 f32 max = fmax(projections[shape].y, p);
@@ -446,8 +493,6 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
         
         if (!(projections[1].y >= projections[0].x && projections[0].y >= projections[1].x)){
             normals.free_arr();
-            vertices1.free_arr();
-            vertices2.free_arr();
             return false;
         }
     }
@@ -467,8 +512,6 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
     }
     
     normals.free_arr();
-    vertices1.free_arr();
-    vertices2.free_arr();
     return true;
 }
 
@@ -516,7 +559,8 @@ void update_editor(){
         Rectangle rect = {e->position.x - e->pivot.x * e->bounds.x, e->position.y - e->pivot.y * e->bounds.y, e->bounds.x * UNIT_SIZE, e->bounds.y * UNIT_SIZE};
         
         
-        if (check_rectangles_col(Entity(input.mouse_position), *e)){
+        Entity mouse_entity = Entity(input.mouse_position);
+        if (check_rectangles_col(mouse_entity, *e)){
             cursor_entity = e;
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
@@ -528,6 +572,8 @@ void update_editor(){
                 e->color = WHITE * abs(sinf(game_time * 10));
             }
         }
+        
+        free_entity(&mouse_entity);
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
@@ -650,6 +696,8 @@ void update_editor(){
 }
 
 void change_scale(Entity *entity, Vector2 new_scale){
+    Vector2 old_scale = entity->scale;
+    
     entity->scale = new_scale;
     
     clamp(&entity->scale.x, 0.01f, 10000);
@@ -657,6 +705,11 @@ void change_scale(Entity *entity, Vector2 new_scale){
 
     //@TODO properly calculate bounds
     entity->bounds = new_scale;
+    
+    for (int i = 0; i < entity->vertices.count; i++){
+        Vector2 *vertex = entity->vertices.get_ptr(i);
+        *vertex = (*vertex / magnitude(old_scale)) * magnitude(new_scale);
+    }
 }
 
 void add_scale(Entity *entity, Vector2 added){
@@ -673,6 +726,22 @@ void change_right(Entity *entity, Vector2 new_right){
     entity->rotation = atan2f(new_right.y, new_right.x) * RAD2DEG;
 }
 
+void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation){
+    float s = -sinf(rotation * DEG2RAD);
+    float c =  cosf(rotation * DEG2RAD);
+    
+    target->x -= origin.x;
+    target->y -= origin.y;
+    
+    // rotate point
+    float xnew = target->x * c - target->y * s;
+    float ynew = target->x * s + target->y * c;
+    
+    // translate point back:
+    target->x = xnew + origin.x;
+    target->y = ynew + origin.y;
+}
+
 void rotate_to(Entity *entity, f32 new_rotation){
     while (new_rotation >= 360){
         new_rotation -= 360;
@@ -681,11 +750,22 @@ void rotate_to(Entity *entity, f32 new_rotation){
         new_rotation += 360;
     }
 
+    // for (int i = 0; i < entity->vertices.count; i++){
+    //     Vector2 *vertex = entity->vertices.get_ptr(i);
+    //     rotate_around_point(vertex, {0, 0}, -entity->rotation);
+    // }
+    
+    f32 old_rotation = entity->rotation;
+
     entity->rotation = new_rotation;
     
     entity->up    = {sinf(new_rotation * DEG2RAD),  cosf(new_rotation * DEG2RAD)};
     entity->right = {cosf(new_rotation * DEG2RAD), -sinf(new_rotation * DEG2RAD)};
     
+    for (int i = 0; i < entity->vertices.count; i++){
+        Vector2 *vertex = entity->vertices.get_ptr(i);
+        rotate_around_point(vertex, {0, 0}, entity->rotation - old_rotation);
+    }
 }
 
 void rotate(Entity *entity, f32 rotation){
@@ -728,15 +808,26 @@ void draw_entities(){
         }
     
         if (e->flags & GROUND){
-            draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
+            if (e->vertices.count > 0){
+                draw_game_triangle_strip(*e);
+            } else{
+                draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
+            }
         }
         
         if (e-> flags & DRAW_TEXT){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        b32 draw_circles_on_vertices = false;
+        b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT) && true;
         if (draw_circles_on_vertices){
+            for (int v = 0; v < e->vertices.count; v++){
+                draw_game_circle(global(*e, e->vertices.get(v)), 1, PINK);
+            }
+        }
+        
+        b32 draw_circles_on_bounds = false;
+        if (draw_circles_on_bounds){
             Vector2 left_up = world_to_screen(get_left_up(*e));
             Vector2 right_down = world_to_screen(get_right_down(*e));
             Vector2 left_down = world_to_screen(get_left_down(*e));
@@ -794,6 +885,16 @@ void draw_game(){
     
     draw_entities();
     
+    Vector2 poly_vertices[5];
+    
+    poly_vertices[0] = {100, 100};
+    poly_vertices[1] = {200, 150};
+    poly_vertices[2] = {500, 600};
+    poly_vertices[3] = {800, 1000};
+    poly_vertices[4] = {50, 350};
+    
+    DrawTriangleStrip(poly_vertices, 5, RED);
+    
     EndMode2D();
     EndDrawing();
     
@@ -841,6 +942,10 @@ Entity *add_text(Vector2 pos, f32 size, const char *text){
     return context.entities.last_ptr();
 }
 
+Vector2 global(Entity e, Vector2 local){
+    return e.position + local;
+}
+
 Vector2 world_to_screen(Vector2 position){
     Vector2 cam_pos = context.cam.position;
 
@@ -867,9 +972,25 @@ Vector2 rect_screen_pos(Vector2 position, Vector2 scale, Vector2 pivot){
     return screen_pos;
 }
 
+
+void draw_game_circle(Vector2 position, f32 radius, Color color){
+    Vector2 screen_pos = world_to_screen(position);
+    DrawCircle(screen_pos.x, screen_pos.y, radius * UNIT_SIZE, color);
+}
+
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
     draw_rect(screen_pos, multiply(scale, UNIT_SIZE), color);
+}
+
+void draw_game_triangle_strip(Entity entity){
+    Vector2 screen_positions[entity.vertices.count];
+    
+    for (int i = 0; i < entity.vertices.count; i++){
+        screen_positions[i] = world_to_screen(global(entity, entity.vertices.get(i)));
+    }
+    
+    DrawTriangleStrip(screen_positions, entity.vertices.count, entity.color);
 }
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
@@ -913,19 +1034,7 @@ Vector2 get_left_up(Entity e){
     //f32 x_add = sinf(e.rotation * DEG2RAD) * e.bounds.x;
     Vector2 lu = get_left_up_no_rot(e);
     
-    float s = -sinf(e.rotation * DEG2RAD);
-    float c = cosf(e.rotation * DEG2RAD);
-    
-    lu.x -= e.position.x;
-    lu.y -= e.position.y;
-    
-    // rotate point
-    float xnew = lu.x * c - lu.y * s;
-    float ynew = lu.x * s + lu.y * c;
-    
-    // translate point back:
-    lu.x = xnew + e.position.x;
-    lu.y = ynew + e.position.y;
+    rotate_around_point(&lu, e.position, e.rotation);
     return lu;
 }
 
