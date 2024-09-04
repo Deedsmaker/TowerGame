@@ -412,6 +412,17 @@ b32 check_col_point_rec(Vector2 point, Entity e){
     return ((point.x >= l_u.x) && (point.x <= r_d.x) && (point.y >= r_d.y) && (point.y <= l_u.y));
 }
 
+struct Circle{
+    Vector2 position;  
+    f32 radius;
+};
+
+b32 check_col_circles(Circle a, Circle b){
+    f32 distance = sqr_magnitude(a.position - b.position);
+    
+    return distance < a.radius * a.radius + b.radius * b.radius;
+}
+
 struct Collision{
     b32 collided;
     f32 overlap;
@@ -427,24 +438,8 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
     Array<Vector2> normals = Array<Vector2>(4);
     normals.add(entity1.up);
     normals.add(entity1.right);
-    // normals.add(entity1.up * -1.0f);
-    // normals.add(entity1.right * -1.0f);
     normals.add(entity2.up);
     normals.add(entity2.right);
-    // normals.add(entity2.up * -1.0f);
-    // normals.add(entity2.right * -1.0f);
-    
-    // Array<Vector2> vertices1 = Array<Vector2>(4);
-    // vertices1.add(get_left_up(entity1));
-    // vertices1.add(get_right_up(entity1));
-    // vertices1.add(get_right_down(entity1));
-    // vertices1.add(get_left_down(entity1));
-    
-    // Array<Vector2> vertices2 = Array<Vector2>(4);
-    // vertices2.add(get_left_up(entity2));
-    // vertices2.add(get_right_up(entity2));
-    // vertices2.add(get_right_down(entity2));
-    // vertices2.add(get_left_down(entity2));
     
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
@@ -517,6 +512,9 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
 
 Entity *selected_entity;
 Entity *dragging_entity;
+Vector2 *last_selected_vertex;
+Vector2 *moving_vertex;
+Entity  *moving_vertex_entity;
 Entity *cursor_entity;
 
 void update_editor(){
@@ -548,6 +546,13 @@ void update_editor(){
     
     b32 found_cursor_entity_this_frame = false;
     
+    b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
+    
+    int selected_vertex_index;
+    Vector2 closest_vertex_global;
+    f32 distance_to_closest_vertex = INFINITY;
+    
     //editor entities loop
     for (int i = 0; i < context.entities.count; i++){        
         Entity *e = context.entities.get_ptr(i);
@@ -573,7 +578,45 @@ void update_editor(){
             }
         }
         
+        //editor vertices
+        for (int v = 0; v < e->vertices.count && (need_move_vertices || need_snap_vertex); v++){
+            Vector2 *vertex = e->vertices.get_ptr(v);
+            
+            Vector2 vertex_global = global(*e, *vertex);
+            
+            if (need_move_vertices && moving_vertex == NULL){
+                if (check_col_circles({input.mouse_position, 1}, {vertex_global, 2})){
+                    moving_vertex = vertex;
+                    last_selected_vertex = vertex;
+                    moving_vertex_entity = e;
+                    dragging_entity = NULL;
+                }
+            }
+            
+            if (selected_entity != NULL && last_selected_vertex != NULL && need_snap_vertex && e->id != selected_entity->id){
+                f32 sqr_distance = sqr_magnitude(global(*selected_entity, *last_selected_vertex) - vertex_global);
+                if (sqr_distance < distance_to_closest_vertex){
+                    distance_to_closest_vertex = sqr_distance;
+                    closest_vertex_global = vertex_global;
+                }
+            }
+        }
+        //editor move vertices
+    
+         //editor snap closest vertex to closest vertex
+
+        
         free_entity(&mouse_entity);
+    }
+    
+    if (need_snap_vertex && last_selected_vertex != NULL && selected_entity != NULL){
+        *last_selected_vertex = global(*selected_entity, *last_selected_vertex);
+        last_selected_vertex->x = closest_vertex_global.x;
+        last_selected_vertex->y = closest_vertex_global.y;
+        *last_selected_vertex = local(*selected_entity, *last_selected_vertex);
+        
+        moving_vertex = NULL;
+        moving_vertex_entity = NULL;
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
@@ -592,7 +635,7 @@ void update_editor(){
         }
     } else if (dragging_entity == NULL && !selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && selected_entity != NULL){
         if (cursor_entity != NULL){
-            if (selected_entity != NULL && selected_entity->id == cursor_entity->id){
+            if (moving_vertex == NULL && selected_entity != NULL && selected_entity->id == cursor_entity->id){
                 dragging_entity = selected_entity;
             }
         }
@@ -608,6 +651,15 @@ void update_editor(){
         dragging_time = 0;
         selected_this_click = false;
         dragging_entity = NULL;
+        moving_vertex = NULL;
+        moving_vertex_entity = NULL;
+    }
+    
+    if (moving_vertex != NULL){
+        *moving_vertex = global(*moving_vertex_entity, *moving_vertex);
+        moving_vertex->x = input.mouse_position.x;
+        moving_vertex->y = input.mouse_position.y;
+        *moving_vertex = local(*moving_vertex_entity, *moving_vertex);
     }
     
     //editor Delete entity
@@ -708,7 +760,9 @@ void change_scale(Entity *entity, Vector2 new_scale){
     
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
-        *vertex = (*vertex / magnitude(old_scale)) * magnitude(new_scale);
+        //*vertex = (*vertex / magnitude(old_scale)) * magnitude(new_scale);
+        vertex->x = (vertex->x / old_scale.x) * new_scale.x;
+        vertex->y = (vertex->y / old_scale.y) * new_scale.y;
     }
 }
 
@@ -942,8 +996,12 @@ Entity *add_text(Vector2 pos, f32 size, const char *text){
     return context.entities.last_ptr();
 }
 
-Vector2 global(Entity e, Vector2 local){
-    return e.position + local;
+Vector2 global(Entity e, Vector2 local_pos){
+    return e.position + local_pos;
+}
+
+Vector2 local(Entity e, Vector2 global_pos){
+    return global_pos - e.position;
 }
 
 Vector2 world_to_screen(Vector2 position){

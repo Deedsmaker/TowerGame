@@ -9,7 +9,8 @@ void draw_game();
 
 void draw_entities();
 
-Vector2 global(Entity e, Vector2 local);
+Vector2 global(Entity e, Vector2 local_pos);
+Vector2 local(Entity e, Vector2 global_pos);
 
 Vector2 world_to_screen(Vector2 pos);
 void draw_game_circle(Vector2 position, f32 radius, Color color);
