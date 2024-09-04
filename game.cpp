@@ -85,8 +85,6 @@ struct Context{
 
     Vector2 unit_screen_size;
     
-    Entity *selected_entity;
-    
     Cam cam = {};
 };
 
@@ -101,8 +99,28 @@ struct Level{
     Context *context;  
 };
 
+struct Collision{
+    b32 collided;
+    f32 overlap;
+    
+    Vector2 normal;    
+    Vector2 point;
+};
+
 struct Editor{
-      
+    Entity  *selected_entity;
+    Entity  *dragging_entity;
+    Entity  *moving_vertex_entity;
+    Entity  *cursor_entity;
+    
+    Vector2 *last_selected_vertex;
+    Vector2 *moving_vertex;
+    
+    b32 selected_this_click = 0;
+    
+    f32 dragging_time = 0;
+    
+    Collision last_collision;
 };
 
 global_variable Input input;
@@ -467,23 +485,34 @@ b32 check_col_circles(Circle a, Circle b){
     return distance < a.radius * a.radius + b.radius * b.radius;
 }
 
-struct Collision{
-    b32 collided;
-    f32 overlap;
-    
-    
-    Vector2 normal;    
-    Vector2 point;
-};
+Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise){
+    return {-v.y * clockwise, v.x * clockwise};
+}
 
-Collision last_collision;
+Array<Vector2> get_normals(Array<Vector2> vertices){
+    Array<Vector2> normals = Array<Vector2>(vertices.count);
+    
+    for (int i = 0; i < vertices.count; i++){
+        Vector2 edge = vertices.get(i) - vertices.get((i + 1) % vertices.count);
+        
+        normals.add(normalized(get_rotated_vector_90(edge, 1)));
+    }
+    
+    return normals;
+}
+
+void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
+    for (int i = 0; i < vertices.count; i++){
+        Vector2 edge = vertices.get(i) - vertices.get((i + 1) % vertices.count);
+        
+        normals->add(normalized(get_rotated_vector_90(edge, -1)));
+    }
+}
 
 b32 check_rectangles_col(Entity entity1, Entity entity2){
-    Array<Vector2> normals = Array<Vector2>(4);
-    normals.add(entity1.up);
-    normals.add(entity1.right);
-    normals.add(entity2.up);
-    normals.add(entity2.right);
+    Array<Vector2> normals = Array<Vector2>(entity1.vertices.count + entity2.vertices.count);
+    fill_arr_with_normals(&normals, entity1.vertices);
+    fill_arr_with_normals(&normals, entity2.vertices);
     
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
@@ -542,24 +571,17 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
     entity1.position += dir_to_first * overlap;
     
     if (entity1.flags > 0){
-        last_collision.overlap = overlap;
-        last_collision.collided = true;
-        //last_collision.normal = dir_to_first;
-        last_collision.normal = dot(dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
-        //last_collision.point = entity1.position - dir_to_first * overlap;
-        last_collision.point = entity1.position - last_collision.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
+        editor.last_collision.overlap = overlap;
+        editor.last_collision.collided = true;
+        //editor.last_collision.normal = dir_to_first;
+        editor.last_collision.normal = dot(dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
+        //editor.last_collision.point = entity1.position - dir_to_first * overlap;
+        editor.last_collision.point = entity1.position - editor.last_collision.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
     }
     
     normals.free_arr();
     return true;
 }
-
-Entity *selected_entity;
-Entity *dragging_entity;
-Vector2 *last_selected_vertex;
-Vector2 *moving_vertex;
-Entity  *moving_vertex_entity;
-Entity *cursor_entity;
 
 void update_editor(){
     if (IsKeyPressed(KEY_B)){
@@ -585,9 +607,6 @@ void update_editor(){
         }
     }
     
-    local_persist b32 selected_this_click = 0;
-    local_persist f32 dragging_time = 0;
-    
     b32 found_cursor_entity_this_frame = false;
     
     b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
@@ -610,14 +629,14 @@ void update_editor(){
         
         Entity mouse_entity = Entity(input.mouse_position);
         if (check_rectangles_col(mouse_entity, *e)){
-            cursor_entity = e;
+            editor.cursor_entity = e;
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
-            cursor_entity = NULL;
+            editor.cursor_entity = NULL;
         }
         
-        if (dragging_entity != NULL && e->id != dragging_entity->id){
-            if (check_rectangles_col(*dragging_entity, *e)){
+        if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
+            if (check_rectangles_col(*editor.dragging_entity, *e)){
                 e->color = WHITE * abs(sinf(game_time * 10));
             }
         }
@@ -628,17 +647,17 @@ void update_editor(){
             
             Vector2 vertex_global = global(*e, *vertex);
             
-            if (need_move_vertices && moving_vertex == NULL){
+            if (need_move_vertices && editor.moving_vertex == NULL){
                 if (check_col_circles({input.mouse_position, 1}, {vertex_global, 2})){
-                    moving_vertex = vertex;
-                    last_selected_vertex = vertex;
-                    moving_vertex_entity = e;
-                    dragging_entity = NULL;
+                    editor.moving_vertex = vertex;
+                    editor.last_selected_vertex = vertex;
+                    editor.moving_vertex_entity = e;
+                    editor.dragging_entity = NULL;
                 }
             }
             
-            if (selected_entity != NULL && last_selected_vertex != NULL && need_snap_vertex && e->id != selected_entity->id){
-                f32 sqr_distance = sqr_magnitude(global(*selected_entity, *last_selected_vertex) - vertex_global);
+            if (editor.selected_entity != NULL && editor.last_selected_vertex != NULL && need_snap_vertex && e->id != editor.selected_entity->id){
+                f32 sqr_distance = sqr_magnitude(global(*editor.selected_entity, *editor.last_selected_vertex) - vertex_global);
                 if (sqr_distance < distance_to_closest_vertex){
                     distance_to_closest_vertex = sqr_distance;
                     closest_vertex_global = vertex_global;
@@ -653,86 +672,86 @@ void update_editor(){
         free_entity(&mouse_entity);
     }
     
-    if (need_snap_vertex && last_selected_vertex != NULL && selected_entity != NULL){
-        *last_selected_vertex = global(*selected_entity, *last_selected_vertex);
-        last_selected_vertex->x = closest_vertex_global.x;
-        last_selected_vertex->y = closest_vertex_global.y;
-        *last_selected_vertex = local(*selected_entity, *last_selected_vertex);
+    if (need_snap_vertex && editor.last_selected_vertex != NULL && editor.selected_entity != NULL){
+        *editor.last_selected_vertex = global(*editor.selected_entity, *editor.last_selected_vertex);
+        editor.last_selected_vertex->x = closest_vertex_global.x;
+        editor.last_selected_vertex->y = closest_vertex_global.y;
+        *editor.last_selected_vertex = local(*editor.selected_entity, *editor.last_selected_vertex);
         
-        moving_vertex = NULL;
-        moving_vertex_entity = NULL;
+        editor.moving_vertex = NULL;
+        editor.moving_vertex_entity = NULL;
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-        if (cursor_entity != NULL){
-            b32 is_same_selected_entity = selected_entity != NULL && selected_entity->id == cursor_entity->id;
+        if (editor.cursor_entity != NULL){
+            b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             if (!is_same_selected_entity){
-                if (selected_entity != NULL){
-                    selected_entity->color_changer.changing = 0;
-                    selected_entity->color = selected_entity->color_changer.start_color;
+                if (editor.selected_entity != NULL){
+                    editor.selected_entity->color_changer.changing = 0;
+                    editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
                 }
-                cursor_entity->color_changer.changing = 1;
-                selected_entity = cursor_entity;
+                editor.cursor_entity->color_changer.changing = 1;
+                editor.selected_entity = editor.cursor_entity;
                 
-                selected_this_click = true;
+                editor.selected_this_click = true;
             }
         }
-    } else if (dragging_entity == NULL && !selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && selected_entity != NULL){
-        if (cursor_entity != NULL){
-            if (moving_vertex == NULL && selected_entity != NULL && selected_entity->id == cursor_entity->id){
-                dragging_entity = selected_entity;
+    } else if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL){
+        if (editor.cursor_entity != NULL){
+            if (editor.moving_vertex == NULL && editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id){
+                editor.dragging_entity = editor.selected_entity;
             }
         }
     } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
-        if (selected_entity != NULL && !selected_this_click && cursor_entity != NULL){
-            if (dragging_time <= 0.1f && cursor_entity->id == selected_entity->id){
-                selected_entity->color_changer.changing = 0;
-                selected_entity->color = selected_entity->color_changer.start_color;
-                selected_entity = NULL;        
+        if (editor.selected_entity != NULL && !editor.selected_this_click && editor.cursor_entity != NULL){
+            if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id){
+                editor.selected_entity->color_changer.changing = 0;
+                editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
+                editor.selected_entity = NULL;        
             }
         }
         
-        dragging_time = 0;
-        selected_this_click = false;
-        dragging_entity = NULL;
-        moving_vertex = NULL;
-        moving_vertex_entity = NULL;
+        editor.dragging_time = 0;
+        editor.selected_this_click = false;
+        editor.dragging_entity = NULL;
+        editor.moving_vertex = NULL;
+        editor.moving_vertex_entity = NULL;
     }
     
-    if (moving_vertex != NULL){
-        *moving_vertex = global(*moving_vertex_entity, *moving_vertex);
-        moving_vertex->x = input.mouse_position.x;
-        moving_vertex->y = input.mouse_position.y;
-        *moving_vertex = local(*moving_vertex_entity, *moving_vertex);
+    if (editor.moving_vertex != NULL){
+        *editor.moving_vertex = global(*editor.moving_vertex_entity, *editor.moving_vertex);
+        editor.moving_vertex->x = input.mouse_position.x;
+        editor.moving_vertex->y = input.mouse_position.y;
+        *editor.moving_vertex = local(*editor.moving_vertex_entity, *editor.moving_vertex);
     }
     
     //editor Delete entity
-    if (IsKeyPressed(KEY_X) && selected_entity){
-        selected_entity->destroyed = true;
-        selected_entity = NULL;
-        dragging_entity = NULL;
-        cursor_entity   = NULL;
+    if (IsKeyPressed(KEY_X) && editor.selected_entity){
+        editor.selected_entity->destroyed = true;
+        editor.selected_entity = NULL;
+        editor.dragging_entity = NULL;
+        editor.cursor_entity   = NULL;
     }
     
     
-    if (dragging_entity != NULL){
-        dragging_time += dt;
+    if (editor.dragging_entity != NULL){
+        editor.dragging_time += dt;
     }
     
-    if (dragging_entity != NULL && !moving_editor_cam){
+    if (editor.dragging_entity != NULL && !moving_editor_cam){
         Vector2 move_delta = ((Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (UNIT_SIZE);
-        dragging_entity->position += move_delta;
+        editor.dragging_entity->position += move_delta;
     }
     
     //editor Entity to mouse or go to entity
-    if (IsKeyPressed(KEY_F) && dragging_entity != NULL){
-        dragging_entity->position = input.mouse_position;
-    } else if (IsKeyPressed(KEY_F) && selected_entity != NULL){
-        context.cam.position = selected_entity->position;
+    if (IsKeyPressed(KEY_F) && editor.dragging_entity != NULL){
+        editor.dragging_entity->position = input.mouse_position;
+    } else if (IsKeyPressed(KEY_F) && editor.selected_entity != NULL){
+        context.cam.position = editor.selected_entity->position;
     }
     
     //editor Entity rotation
-    if (selected_entity != NULL){
+    if (editor.selected_entity != NULL){
         f32 rotation = 0;
         f32 speed = 50;
         if (IsKeyDown(KEY_E)){
@@ -742,12 +761,12 @@ void update_editor(){
         }
         
         if (rotation != 0){
-            rotate(selected_entity, rotation);
+            rotate(editor.selected_entity, rotation);
         }
     }
     
     //editor entity scaling
-    if (selected_entity != NULL){
+    if (editor.selected_entity != NULL){
         Vector2 scaling = {};
         f32 speed = 5;
         
@@ -768,7 +787,7 @@ void update_editor(){
         }
         
         if (scaling != Vector2_zero){
-            add_scale(selected_entity, scaling);
+            add_scale(editor.selected_entity, scaling);
         }
     }
     
@@ -965,19 +984,20 @@ void draw_entities(){
             draw_game_text(e->position + ((Vector2){0, -9}), TextFormat("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
         }
         
-        if (dragging_entity != NULL && e->id != dragging_entity->id){
-            f32 len = magnitude(e->position - dragging_entity->position);
+        if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
+            f32 len = magnitude(e->position - editor.dragging_entity->position);
             if (len < closest_len){
                 closest_len = len;
                 closest = e;
             }
         }
         
-        draw_game_line(last_collision.point, last_collision.point + last_collision.normal * 4, 0.2f, GREEN);
+        draw_game_line(editor.last_collision.point, editor.last_collision.point + editor.last_collision.normal * 4, 0.2f, GREEN);
+        draw_game_rect(editor.last_collision.point + editor.last_collision.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
     }
     
-    if (dragging_entity != NULL){
-        draw_game_line(dragging_entity->position, closest->position, 0.1f, PINK);
+    if (editor.dragging_entity != NULL){
+        draw_game_line(editor.dragging_entity->position, closest->position, 0.1f, PINK);
     }
 }
 
