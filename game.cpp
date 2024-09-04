@@ -39,6 +39,7 @@ struct Entity{
     Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
+    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2> _vertices);
 
     i32 id = -1;
 
@@ -196,6 +197,22 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
 }
 
 
+Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2> _vertices){
+    id = _id;
+    position = _pos;
+    pivot = _pivot;
+    
+    //add_rect_vertices(&vertices);
+    vertices.free_arr();
+    vertices = _vertices;
+    
+    change_scale(this, _scale);
+    rotation = 0;
+    rotate_to(this, _rotation);
+    flags    = _flags;
+}
+
+
 Entity *zoom_entity;
 
 void parse_line(char *line, char *result, int *index){ 
@@ -245,6 +262,8 @@ void init_game(){
         Color   entity_color;
         FLAGS   entity_flags;
         
+        Array<Vector2> entity_vertices = Array<Vector2>(20); 
+        Vector2 vertex;
         
         b32 found_id = false;
         b32 found_position_x = false;
@@ -260,10 +279,24 @@ void init_game(){
         b32 found_color_a    = false;
         b32 found_flags      = false;
         
+        b32 parsing_vertices = false;
+        b32 found_vertex_x   = false;
+        b32 found_vertex_y   = false;
+        b32 found_vertices   = false;
+        
         i32 parsed_count = 50;
         char parsed_data[parsed_count];
         
         for (int i = 0; buffer[i] != NULL && buffer[i] != ';'; i++){
+            if (buffer[i] == '['){
+                parsing_vertices = true;
+            }
+            
+            if (buffer[i] == ']' && parsing_vertices){
+                parsing_vertices = false;
+                found_vertices = true;
+            }
+        
             if (buffer[i] == ':'){
                 zero_array(parsed_data, parsed_count);
                 parse_line(buffer, parsed_data, &i);
@@ -307,6 +340,17 @@ void init_game(){
                 } else if (!found_flags){
                     entity_flags = atoi(parsed_data);
                     found_flags = true;
+                } else if (!found_vertices && parsing_vertices){
+                    if (!found_vertex_x){
+                        vertex.x = atof(parsed_data);
+                        found_vertex_x = true;
+                        found_vertex_y = false;
+                    } else if (!found_vertex_y){
+                        vertex.y = atof(parsed_data);
+                        entity_vertices.add(vertex);
+                        found_vertex_y = true;
+                        found_vertex_x = false;
+                    }
                 }
             }
         }
@@ -314,7 +358,7 @@ void init_game(){
         //No need to assert every variable. We can add something to entity and old levels should not broke
         assert(found_id && found_position_x && found_position_y);
         
-        add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags);
+        add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags, entity_vertices);
     }
     
     if (fptr){
@@ -739,7 +783,16 @@ void update_editor(){
             Entity *e = context.entities.get_ptr(i);
             
             Color color = e->color_changer.start_color;
-            fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:;\n", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags);
+            fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d: ", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags);
+            
+            fprintf(fptr, "vertices[ ");
+            for (int v = 0; v < e->vertices.count; v++){
+                fprintf(fptr, "{:%f:, :%f:} ", e->vertices.get(v).x, e->vertices.get(v).y); 
+            }
+            
+            fprintf(fptr, "] "); 
+            
+            fprintf(fptr, ";\n"); 
         }
 
         
@@ -985,6 +1038,14 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags){
     Entity *e = add_entity(id, pos, scale, pivot, rotation, flags);    
     e->color = color;
+    setup_color_changer(e);
+    return e;
+}
+
+Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Array<Vector2> vertices){
+    Entity *e = add_entity(id, pos, scale, pivot, rotation, color, flags);    
+    e->vertices.free_arr();
+    e->vertices = vertices;
     setup_color_changer(e);
     return e;
 }
