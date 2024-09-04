@@ -48,8 +48,8 @@ struct Entity{
     
     Array<Vector2> vertices = Array<Vector2>(20);
     
-    Vector2 up;
-    Vector2 right;
+    Vector2 up = {0, 1};
+    Vector2 right = {1, 0};
     
     FLAGS flags;
     //b32 need_to_destroy = 0;
@@ -61,7 +61,7 @@ struct Entity{
     Vector2 scale = {1, 1};
     Vector2 bounds = {1, 1};
     Vector2 pivot = {0.5f, 1.0f};
-    f32 rotation;
+    f32 rotation = 0;
     
     Color color = WHITE;
     
@@ -756,13 +756,17 @@ void change_scale(Entity *entity, Vector2 new_scale){
     clamp(&entity->scale.y, 0.01f, 10000);
 
     //@TODO properly calculate bounds
-    entity->bounds = new_scale;
+    entity->bounds = entity->scale;
+    
+    Vector2 vec_scale_difference = entity->scale - old_scale;
     
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
-        //*vertex = (*vertex / magnitude(old_scale)) * magnitude(new_scale);
-        vertex->x = (vertex->x / old_scale.x) * new_scale.x;
-        vertex->y = (vertex->y / old_scale.y) * new_scale.y;
+        f32 up_dot    = normalized(dot(entity->up,    *vertex));
+        f32 right_dot = normalized(dot(entity->right, *vertex));
+        
+        *vertex += entity->up    * up_dot    * vec_scale_difference.y * 0.5f;
+        *vertex += entity->right * right_dot * vec_scale_difference.x * 0.5f;
     }
 }
 

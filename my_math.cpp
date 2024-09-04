@@ -94,7 +94,7 @@ struct Gradient{
 };
 
 
-f32 normalize(f32 number){
+f32 normalized(f32 number){
     if (number == 0) return 0;
     if (number > 0) return 1;
     return -1;
