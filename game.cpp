@@ -544,11 +544,33 @@ Array<Vector2> get_normals(Array<Vector2> vertices){
 }
 
 void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
-    for (int i = 0; i < vertices.count; i++){
-        Vector2 edge = vertices.get(i) - vertices.get((i + 1) % vertices.count);
+    //@TODO now only for rects, need to find proper algorithm for calculating edge normals from vertices because 
+    //we add vertices in triangle shape
+    
+    //up
+    Vector2 edge1 = vertices.get(0) - vertices.get(1);
+    normals->add(normalized(get_rotated_vector_90(edge1, 1)));
+    //left
+    Vector2 edge2 = vertices.get(1) - vertices.get(3);
+    normals->add(normalized(get_rotated_vector_90(edge2, 1)));
+    //bottom
+    Vector2 edge3 = vertices.get(3) - vertices.get(2);
+    normals->add(normalized(get_rotated_vector_90(edge3, 1)));
+    //right
+    Vector2 edge4 = vertices.get(2) - vertices.get(0);
+    normals->add(normalized(get_rotated_vector_90(edge4, 1)));
+
+    // for (int i = 0; i < vertices.count; i++){
+    //     int add = 1;
+    //     while (dot(vertices.get(i), vertices.get(add)) < 0 && add < vertices.count - i - 1){
+    //         add++;
+    //     }
+    
+    //     Vector2 edge = vertices.get(i) - vertices.get((i + add) % vertices.count);
         
-        normals->add(normalized(get_rotated_vector_90(edge, -1)));
-    }
+    //     //normals->add(get_rotated_vector_90(normalized(edge), -1));
+    //     normals->add(normalized(edge));
+    // }
 }
 
 Collision check_rectangles_col(Entity *entity1, Entity *entity2){
@@ -1129,9 +1151,24 @@ void draw_editor(){
             }
         }
         
-        b32 draw_bounds = true;
+        b32 draw_bounds = false;
         if (draw_bounds){
             draw_game_rect_lines(e->position, e->bounds, e->pivot, 2, GREEN);
+        }
+        
+        b32 draw_normals = true;
+        if (draw_normals){
+            Array<Vector2> normals = Array<Vector2>(e->vertices.count + 4);
+            fill_arr_with_normals(&normals, e->vertices);
+            
+            for (int n = 0; n < normals.count; n++){
+                Vector2 start = e->position + normals.get(n) * 4; 
+                Vector2 end   = e->position + normals.get(n) * 8; 
+                draw_game_line(start, end, 0.5f, PURPLE);
+                draw_game_rect(end, {1, 1}, {0.5f, 0.5f}, PURPLE * 0.9f);
+            }
+            
+            normals.free_arr();
         }
     }
     
