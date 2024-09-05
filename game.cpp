@@ -11,7 +11,8 @@ f32 game_time;
 
 enum Flags{
     GROUND = 1 << 0,
-    DRAW_TEXT = 1 << 1
+    DRAW_TEXT = 1 << 1,
+    PLAYER = 1 << 2
 };
 
 struct Ground{
@@ -30,6 +31,12 @@ struct Color_Changer{
 struct Text_Drawer{
     const char *text;  
     f32 size = 30;
+};
+
+struct Player{
+    f32 base_speed = 30.0f;  
+    
+    f32 current_speed;
 };
 
 struct Entity{
@@ -66,6 +73,7 @@ struct Entity{
     
     Color color = WHITE;
     
+    Player player;
     Ground ground;
     Color_Changer color_changer;
     Text_Drawer text_drawer;
@@ -135,6 +143,7 @@ global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
 global_variable Editor  editor  = {};
+global_variable Entity *player_entity;
 
 #include "game.h"
 
@@ -160,12 +169,12 @@ Entity::Entity(Vector2 _pos){
     //vertices.add({-0.5f, -0.5f});
     add_rect_vertices(&vertices);
 
-    change_scale(this, {1, 1});
     rotation = 0;
     up = {0, 1};
     right = {1, 0};
     
     flags = 0;
+    change_scale(this, {1, 1});
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale){
@@ -173,13 +182,13 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
     
     add_rect_vertices(&vertices);
 
-    change_scale(this, _scale);
     rotation = 0;
     
     rotation = 0;
     up = {0, 1};
     right = {1, 0};
     flags = 0;
+    change_scale(this, _scale);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
@@ -187,11 +196,11 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
     add_rect_vertices(&vertices);
     
 
-    change_scale(this, _scale);
     rotation = 0;
     
     rotate_to(this, _rotation);
     flags    = _flags;
+    change_scale(this, _scale);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
@@ -200,13 +209,12 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAG
     
     add_rect_vertices(&vertices);
     
-    change_scale(this, _scale);
     rotation = 0;
     
     rotate_to(this, _rotation);
     flags    = _flags;
     
-    
+    change_scale(this, _scale);
 }
 
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
@@ -216,10 +224,10 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     
     add_rect_vertices(&vertices);
     
-    change_scale(this, _scale);
     rotation = 0;
     rotate_to(this, _rotation);
     flags    = _flags;
+    change_scale(this, _scale);
 }
 
 
@@ -232,10 +240,10 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     vertices.free_arr();
     vertices = _vertices;
     
-    change_scale(this, _scale);
     rotation = 0;
     rotate_to(this, _rotation);
     flags    = _flags;
+    change_scale(this, _scale);
 }
 
 
@@ -409,6 +417,10 @@ void init_game(){
 
 void enter_game_state(){
     game_state = GAME;
+    
+    // player_entity = add_entity(editor.player_spawn_point, {2, 4}, {0.5f, 0.5f}, 0, PLAYER);
+    // player_entity->color = RED;
+    
 }
 
 void enter_editor_state(){
@@ -675,9 +687,6 @@ void update_editor(){
             continue;
         }
         
-        Rectangle rect = {e->position.x - e->pivot.x * e->bounds.x, e->position.y - e->pivot.y * e->bounds.y, e->bounds.x * UNIT_SIZE, e->bounds.y * UNIT_SIZE};
-        
-        
         Entity mouse_entity = Entity(input.mouse_position);
         if ((check_rectangles_col(&mouse_entity, e)).collided){
             editor.cursor_entity = e;
@@ -872,6 +881,32 @@ void update_editor(){
     }
 }
 
+void calculate_bounds(Entity *entity){
+    f32 top_vertex    = -INFINITY;
+    f32 bottom_vertex =  INFINITY;
+    f32 right_vertex  = -INFINITY;
+    f32 left_vertex   =  INFINITY;
+    for (int i = 0; i < entity->vertices.count; i++){
+        Vector2 *vertex = entity->vertices.get_ptr(i);
+        
+        if (vertex->y > top_vertex){
+            top_vertex = vertex->y;
+        }
+        if (vertex->y < bottom_vertex){
+            bottom_vertex = vertex->y;
+        }
+        if (vertex->x > right_vertex){
+            right_vertex = vertex->x;
+        }
+        if (vertex->x < left_vertex){
+            left_vertex = vertex->x;
+        }
+    }    
+    
+    //this is collision vertex bounds, for culling we'll need something else
+    entity->bounds = {right_vertex - left_vertex, top_vertex - bottom_vertex};
+}
+
 void change_scale(Entity *entity, Vector2 new_scale){
     Vector2 old_scale = entity->scale;
     
@@ -880,9 +915,6 @@ void change_scale(Entity *entity, Vector2 new_scale){
     clamp(&entity->scale.x, 0.01f, 10000);
     clamp(&entity->scale.y, 0.01f, 10000);
 
-    //@TODO properly calculate bounds
-    entity->bounds = entity->scale;
-    
     Vector2 vec_scale_difference = entity->scale - old_scale;
     
     for (int i = 0; i < entity->vertices.count; i++){
@@ -893,6 +925,8 @@ void change_scale(Entity *entity, Vector2 new_scale){
         *vertex += entity->up    * up_dot    * vec_scale_difference.y * 0.5f;
         *vertex += entity->right * right_dot * vec_scale_difference.x * 0.5f;
     }
+    
+    calculate_bounds(entity);
 }
 
 void add_scale(Entity *entity, Vector2 added){
@@ -902,11 +936,13 @@ void add_scale(Entity *entity, Vector2 added){
 void change_up(Entity *entity, Vector2 new_up){
     entity->up = normalized(new_up);
     entity->rotation = atan2f(new_up.y, new_up.x) * RAD2DEG;
+    calculate_bounds(entity);
 }
 
 void change_right(Entity *entity, Vector2 new_right){
     entity->right = normalized(new_right);
     entity->rotation = atan2f(new_right.y, new_right.x) * RAD2DEG;
+    calculate_bounds(entity);
 }
 
 void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation){
@@ -949,6 +985,8 @@ void rotate_to(Entity *entity, f32 new_rotation){
         Vector2 *vertex = entity->vertices.get_ptr(i);
         rotate_around_point(vertex, {0, 0}, entity->rotation - old_rotation);
     }
+    
+    calculate_bounds(entity);
 }
 
 void rotate(Entity *entity, f32 rotation){
@@ -1063,7 +1101,7 @@ void draw_editor(){
         
         b32 draw_bounds = true;
         if (draw_bounds){
-            
+            draw_game_rect_lines(e->position, e->bounds, e->pivot, 2, GREEN);
         }
     }
     
@@ -1110,6 +1148,13 @@ Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
     Entity *e = add_entity(pos, scale, rotation, flags);    
     e->pivot = pivot;
+    return e;
+}
+
+Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags){
+    Entity *e = add_entity(pos, scale, pivot, rotation, flags);    
+    e->color = color;
+    setup_color_changer(e);
     return e;
 }
 
@@ -1192,7 +1237,8 @@ void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color)
 
 void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect_lines(position, scale * UNIT_SIZE, thick, color);
+    //Vector2 screen_pos = world_to_screen(position);
+    draw_rect_lines(screen_pos, scale * UNIT_SIZE, thick, color);
 }
 
 void draw_game_triangle_strip(Entity entity){
