@@ -33,7 +33,18 @@ struct Text_Drawer{
     f32 size = 30;
 };
 
+struct Collision{
+    b32 collided;
+    f32 overlap;
+    
+    Vector2 normal;    
+    Vector2 point;
+    Vector2 dir_to_first;
+};
+
 struct Player{
+    Array<Collision> collisions = Array<Collision>(10);
+    
     f32 base_speed = 30.0f;  
     
     f32 current_speed;
@@ -107,15 +118,6 @@ struct Level{
     Context *context;  
 };
 
-struct Collision{
-    b32 collided;
-    f32 overlap;
-    
-    Vector2 normal;    
-    Vector2 point;
-    Vector2 dir_to_first;
-};
-
 struct Circle{
     Vector2 position;  
     f32 radius;
@@ -139,10 +141,15 @@ struct Editor{
     Vector2 player_spawn_point = {0, 0};
 };
 
+struct Debug{
+    b32 draw_player_collisions = true;  
+};
+
 global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
-global_variable Editor  editor  = {};
+global_variable Editor editor  = {};
+global_variable Debug  debug  = {};
 global_variable Entity *player_entity;
 
 #include "game.h"
@@ -418,14 +425,14 @@ void init_game(){
 void enter_game_state(){
     game_state = GAME;
     
-    // player_entity = add_entity(editor.player_spawn_point, {2, 4}, {0.5f, 0.5f}, 0, PLAYER);
-    // player_entity->color = RED;
+    player_entity = add_entity(editor.player_spawn_point, {2, 4}, {0.5f, 0.5f}, 0, RED, PLAYER);
     
 }
 
 void enter_editor_state(){
     game_state = EDITOR;
     
+    player_entity->destroyed = true;
 }
 
 Vector2 game_mouse_pos(){
@@ -452,16 +459,16 @@ void update_game(){
     input.direction.x = 0;
     input.direction.y = 0;
     
-    // if (IsKeyDown(KEY_D))
-    //     input.direction.x = 1;
-    // } else if (IsKeyDown(KEY_A)){
-    //     input.direction.x = -1;
-    // }
-    // if (IsKeyDown(KEY_W))
-    //     input.direction.y = 1;
-    // } else if (IsKeyDown(KEY_S)){
-    //     input.direction.y = -1;
-    // }
+    if (IsKeyDown(KEY_D)){
+        input.direction.x = 1;
+    } else if (IsKeyDown(KEY_A)){
+        input.direction.x = -1;
+    }
+    if (IsKeyDown(KEY_W)){
+        input.direction.y = 1;
+    } else if (IsKeyDown(KEY_S)){
+        input.direction.y = -1;
+    }
     
     //Paper *p = &context.paper;
     if (screen_size_changed){
@@ -626,8 +633,8 @@ void resolve_collision(Entity *entity, Collision col){
     entity->position += col.dir_to_first * col.overlap;
 }
 
-Array<Collision> get_collisions(Entity *entity){
-    Array<Collision> result = Array<Collision>(10);
+void fill_collisions(Entity *entity, Array<Collision> *result){
+    result->count = 0;
 
     for (int i = 0; i < context.entities.count; i++){
         Entity *other = context.entities.get_ptr(i);
@@ -639,11 +646,9 @@ Array<Collision> get_collisions(Entity *entity){
         Collision col = check_rectangles_col(entity, other);
         
         if (col.collided){
-            result.add(col);
+            result->add(col);
         }
     }
-    
-    return result;
 }
 
 void update_editor(){
@@ -695,13 +700,13 @@ void update_editor(){
             editor.cursor_entity = NULL;
         }
         
-        if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
-            Collision col = check_rectangles_col(editor.dragging_entity, e);
-            if (col.collided){
-                //resolve_collision(editor.dragging_entity, col);
-                e->color = WHITE * abs(sinf(game_time * 10));
-            }
-        }
+        // if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
+        //     Collision col = check_rectangles_col(editor.dragging_entity, e);
+        //     if (col.collided){
+        //         //resolve_collision(editor.dragging_entity, col);
+        //         e->color = WHITE * abs(sinf(game_time * 10));
+        //     }
+        // }
         
         //editor vertices
         for (int v = 0; v < e->vertices.count && (need_move_vertices || need_snap_vertex); v++){
@@ -993,6 +998,19 @@ void rotate(Entity *entity, f32 rotation){
     rotate_to(entity, entity->rotation + rotation);
 }
 
+void update_player(Entity *entity){
+    assert(entity->flags & PLAYER);
+
+    Player *player = &entity->player;
+    
+    entity->position += input.direction * dt * player->base_speed;
+    
+    fill_collisions(entity, &player->collisions);
+    for (int i = 0; i < player->collisions.count; i++){
+        resolve_collision(entity, player->collisions.get(i));
+    }
+}
+
 void update_entities(){
     Context *c = &context;
     Array<Entity> *entities = &c->entities;
@@ -1009,9 +1027,20 @@ void update_entities(){
             i--;
             continue;
         }
+        
+        if (e->flags & PLAYER){
+            update_player(e);
+        }
           
         update_color_changer(e);            
     }
+}
+
+void draw_player(Entity *entity){
+    assert(entity->flags & PLAYER);
+    Player *player = &entity->player;
+    
+    draw_game_triangle_strip(entity);
 }
 
 void draw_entities(){
@@ -1026,10 +1055,14 @@ void draw_entities(){
     
         if (e->flags & GROUND){
             if (e->vertices.count > 0){
-                draw_game_triangle_strip(*e);
+                draw_game_triangle_strip(e);
             } else{
                 draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
             }
+        }
+        
+        if (e->flags & PLAYER){
+            draw_player(e);
         }
         
         if (e-> flags & DRAW_TEXT){
@@ -1096,9 +1129,6 @@ void draw_editor(){
             }
         }
         
-        draw_game_line(editor.last_collision.point, editor.last_collision.point + editor.last_collision.normal * 4, 0.2f, GREEN);
-        draw_game_rect(editor.last_collision.point + editor.last_collision.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
-        
         b32 draw_bounds = true;
         if (draw_bounds){
             draw_game_rect_lines(e->position, e->bounds, e->pivot, 2, GREEN);
@@ -1124,6 +1154,15 @@ void draw_game(){
     //draw_rect({200, 200}, {200, 100}, BLUE);
     
     draw_entities();
+    
+    if (player_entity != NULL && debug.draw_player_collisions){
+        for (int i = 0; i < player_entity->player.collisions.count; i++){
+            Collision col = player_entity->player.collisions.get(i);
+            
+            draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
+            draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
+        }
+    }
     
     if (game_state == EDITOR){
         draw_editor();
@@ -1241,14 +1280,14 @@ void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 th
     draw_rect_lines(screen_pos, scale * UNIT_SIZE, thick, color);
 }
 
-void draw_game_triangle_strip(Entity entity){
-    Vector2 screen_positions[entity.vertices.count];
+void draw_game_triangle_strip(Entity *entity){
+    Vector2 screen_positions[entity->vertices.count];
     
-    for (int i = 0; i < entity.vertices.count; i++){
-        screen_positions[i] = world_to_screen(global(entity, entity.vertices.get(i)));
+    for (int i = 0; i < entity->vertices.count; i++){
+        screen_positions[i] = world_to_screen(global(*entity, entity->vertices.get(i)));
     }
     
-    draw_triangle_strip(screen_positions, entity.vertices.count, entity.color);
+    draw_triangle_strip(screen_positions, entity->vertices.count, entity->color);
 }
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){

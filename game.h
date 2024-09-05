@@ -25,13 +25,14 @@ Array<Vector2> get_normals(Array<Vector2> vertices);
 void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices);
 
 void resolve_collision(Entity *entity, Collision col);
-Array<Collision> get_collisions(Entity *entity);
+//Array<Collision> get_collisions(Entity *entity);
+void fill_collisions(Entity *entity, Array<Collision> *result);
 Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 b32 check_col_circles(Circle a, Circle b);
 
 Vector2 world_to_screen(Vector2 pos);
 void draw_game_circle(Vector2 position, f32 radius, Color color);
-void draw_game_triangle_strip(Entity entity);
+void draw_game_triangle_strip(Entity *entity);
 void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, Color color);
 void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
