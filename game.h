@@ -1,5 +1,12 @@
 #pragma once
 
+enum Game_State{
+    EDITOR,
+    GAME
+};
+
+global_variable Game_State game_state = EDITOR;
+
 void update_editor();
 void update_entities();
 
@@ -11,6 +18,16 @@ void draw_entities();
 
 Vector2 global(Entity e, Vector2 local_pos);
 Vector2 local(Entity e, Vector2 global_pos);
+
+Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
+
+Array<Vector2> get_normals(Array<Vector2> vertices);
+void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices);
+
+void resolve_collision(Entity *entity, Collision col);
+Array<Collision> get_collisions(Entity *entity);
+Collision check_rectangles_col(Entity *entity1, Entity *entity2);
+b32 check_col_circles(Circle a, Circle b);
 
 Vector2 world_to_screen(Vector2 pos);
 void draw_game_circle(Vector2 position, f32 radius, Color color);

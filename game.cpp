@@ -105,6 +105,12 @@ struct Collision{
     
     Vector2 normal;    
     Vector2 point;
+    Vector2 dir_to_first;
+};
+
+struct Circle{
+    Vector2 position;  
+    f32 radius;
 };
 
 struct Editor{
@@ -121,6 +127,8 @@ struct Editor{
     f32 dragging_time = 0;
     
     Collision last_collision;
+    
+    Vector2 player_spawn_point = {0, 0};
 };
 
 global_variable Input input;
@@ -247,6 +255,8 @@ void parse_line(char *line, char *result, int *index){
 }
 
 void init_game(){
+    game_state = EDITOR;
+
     game_time = 0;
 
     input = {};
@@ -255,7 +265,6 @@ void init_game(){
     current_level.context = (Context*)malloc(sizeof(Context));
     context = *current_level.context;
     context = {};    
-    
     
     //load level
     FILE *fptr = fopen("test_level.level", "r");
@@ -398,6 +407,15 @@ void init_game(){
     //add_entity({0, 10}, {10, 3}, 0, GROUND | COLOR_CHANGE);
 }
 
+void enter_game_state(){
+    game_state = GAME;
+}
+
+void enter_editor_state(){
+    game_state = EDITOR;
+    
+}
+
 Vector2 game_mouse_pos(){
     f32 zoom = context.cam.cam2D.zoom;
 
@@ -447,7 +465,17 @@ void update_game(){
         // context.right_render_target = LoadRenderTexture(context.right_screen_size.x, context.right_screen_size.y);
     }
     
-    update_editor();
+    if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)){
+        if (game_state == EDITOR){
+            enter_game_state();
+        } else if (game_state == GAME){
+            enter_editor_state();
+        }
+    }
+    
+    if (game_state == EDITOR){
+        update_editor();
+    }
     
     //zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
     
@@ -473,11 +501,6 @@ b32 check_col_point_rec(Vector2 point, Entity e){
 
     return ((point.x >= l_u.x) && (point.x <= r_d.x) && (point.y >= r_d.y) && (point.y <= l_u.y));
 }
-
-struct Circle{
-    Vector2 position;  
-    f32 radius;
-};
 
 b32 check_col_circles(Circle a, Circle b){
     f32 distance = sqr_magnitude(a.position - b.position);
@@ -509,10 +532,12 @@ void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
     }
 }
 
-b32 check_rectangles_col(Entity entity1, Entity entity2){
-    Array<Vector2> normals = Array<Vector2>(entity1.vertices.count + entity2.vertices.count);
-    fill_arr_with_normals(&normals, entity1.vertices);
-    fill_arr_with_normals(&normals, entity2.vertices);
+Collision check_rectangles_col(Entity *entity1, Entity *entity2){
+    Collision result = {};
+
+    Array<Vector2> normals = Array<Vector2>(entity1->vertices.count + entity2->vertices.count);
+    fill_arr_with_normals(&normals, entity1->vertices);
+    fill_arr_with_normals(&normals, entity2->vertices);
     
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
@@ -531,17 +556,17 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
 
         for (int shape = 0; shape < 2; shape++){
             Array<Vector2> vertices = Array<Vector2>(4);
-            Entity entity = {};
+            Entity *entity;
             if (shape == 0) {
-                vertices = entity1.vertices;
+                vertices = entity1->vertices;
                 entity = entity1;
             } else{
-                vertices = entity2.vertices;
+                vertices = entity2->vertices;
                 entity = entity2;
             }
             
             for (int j = 0; j < vertices.count; j++){            
-                f32 p = dot(global(entity, vertices.get(j)), axis);
+                f32 p = dot(global(*entity, vertices.get(j)), axis);
                 
                 f32 min = fmin(projections[shape].x, p);
                 f32 max = fmax(projections[shape].y, p);
@@ -561,26 +586,52 @@ b32 check_rectangles_col(Entity entity1, Entity entity2){
         
         if (!(projections[1].y >= projections[0].x && projections[0].y >= projections[1].x)){
             normals.free_arr();
-            return false;
+            return result;
         }
     }
     
-    Vector2 vec_to_first = entity1.position - entity2.position;
-    Vector2 dir_to_first = normalized(vec_to_first);
+    Vector2 vec_to_first = entity1->position - entity2->position;
     
-    entity1.position += dir_to_first * overlap;
-    
-    if (entity1.flags > 0){
-        editor.last_collision.overlap = overlap;
-        editor.last_collision.collided = true;
-        //editor.last_collision.normal = dir_to_first;
-        editor.last_collision.normal = dot(dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
-        //editor.last_collision.point = entity1.position - dir_to_first * overlap;
-        editor.last_collision.point = entity1.position - editor.last_collision.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
+    result.collided = true;
+    if (entity1->flags > 0){
+        result.overlap = overlap;
+        //result.normal = dir_to_first;
+        result.dir_to_first = normalized(vec_to_first);
+        result.normal = dot(result.dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
+        //result.point = entity1->position - dir_to_first * overlap;
+        result.point = entity1->position - result.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
     }
     
     normals.free_arr();
-    return true;
+    return result;
+}
+
+void resolve_collision(Entity *entity, Collision col){
+    if (!col.collided){
+        return;
+    }
+
+    entity->position += col.dir_to_first * col.overlap;
+}
+
+Array<Collision> get_collisions(Entity *entity){
+    Array<Collision> result = Array<Collision>(10);
+
+    for (int i = 0; i < context.entities.count; i++){
+        Entity *other = context.entities.get_ptr(i);
+        
+        if (other == entity){
+            continue;
+        }
+        
+        Collision col = check_rectangles_col(entity, other);
+        
+        if (col.collided){
+            result.add(col);
+        }
+    }
+    
+    return result;
 }
 
 void update_editor(){
@@ -628,7 +679,7 @@ void update_editor(){
         
         
         Entity mouse_entity = Entity(input.mouse_position);
-        if (check_rectangles_col(mouse_entity, *e)){
+        if ((check_rectangles_col(&mouse_entity, e)).collided){
             editor.cursor_entity = e;
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
@@ -636,7 +687,9 @@ void update_editor(){
         }
         
         if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
-            if (check_rectangles_col(*editor.dragging_entity, *e)){
+            Collision col = check_rectangles_col(editor.dragging_entity, e);
+            if (col.collided){
+                //resolve_collision(editor.dragging_entity, col);
                 e->color = WHITE * abs(sinf(game_time * 10));
             }
         }
@@ -924,11 +977,7 @@ void update_entities(){
 }
 
 void draw_entities(){
-    Context *c = &context;
-    Array<Entity> *entities = &c->entities;
-    
-    f32 closest_len = 1000000;
-    Entity *closest;
+    Array<Entity> *entities = &context.entities;
     
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
@@ -948,6 +997,23 @@ void draw_entities(){
         if (e-> flags & DRAW_TEXT){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
+    }
+}
+
+void draw_editor(){
+    f32 closest_len = 1000000;
+    Entity *closest;
+
+    Array<Entity> *entities = &context.entities;
+
+    for (int i = 0; i < entities->count; i++){
+        Entity *e = entities->get_ptr(i);
+    
+        if (!e->enabled){
+            continue;
+        }
+        
+        draw_game_circle(editor.player_spawn_point, 3, BLUE);
         
         b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT) && true;
         if (draw_circles_on_vertices){
@@ -956,17 +1022,17 @@ void draw_entities(){
             }
         }
         
-        b32 draw_circles_on_bounds = false;
-        if (draw_circles_on_bounds){
-            Vector2 left_up = world_to_screen(get_left_up(*e));
-            Vector2 right_down = world_to_screen(get_right_down(*e));
-            Vector2 left_down = world_to_screen(get_left_down(*e));
-            Vector2 right_up = world_to_screen(get_right_up(*e));
-            DrawCircle(left_up.x, left_up.y, 5, RED);
-            DrawCircle(right_down.x, right_down.y, 5, BLUE);
-            DrawCircle(left_down.x, left_down.y, 5, GREEN);
-            DrawCircle(right_up.x, right_up.y, 5, PURPLE);
-        }
+        // b32 draw_circles_on_bounds = false;
+        // if (draw_circles_on_bounds){
+        //     Vector2 left_up = world_to_screen(get_left_up(*e));
+        //     Vector2 right_down = world_to_screen(get_right_down(*e));
+        //     Vector2 left_down = world_to_screen(get_left_down(*e));
+        //     Vector2 right_up = world_to_screen(get_right_up(*e));
+        //     DrawCircle(left_up.x, left_up.y, 5, RED);
+        //     DrawCircle(right_down.x, right_down.y, 5, BLUE);
+        //     DrawCircle(left_down.x, left_down.y, 5, GREEN);
+        //     DrawCircle(right_up.x, right_up.y, 5, PURPLE);
+        // }
         
         draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
         draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
@@ -994,6 +1060,11 @@ void draw_entities(){
         
         draw_game_line(editor.last_collision.point, editor.last_collision.point + editor.last_collision.normal * 4, 0.2f, GREEN);
         draw_game_rect(editor.last_collision.point + editor.last_collision.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
+        
+        b32 draw_bounds = true;
+        if (draw_bounds){
+            
+        }
     }
     
     if (editor.dragging_entity != NULL){
@@ -1016,19 +1087,12 @@ void draw_game(){
     
     draw_entities();
     
-    Vector2 poly_vertices[5];
-    
-    poly_vertices[0] = {100, 100};
-    poly_vertices[1] = {200, 150};
-    poly_vertices[2] = {500, 600};
-    poly_vertices[3] = {800, 1000};
-    poly_vertices[4] = {50, 350};
-    
-    DrawTriangleStrip(poly_vertices, 5, RED);
+    if (game_state == EDITOR){
+        draw_editor();
+    }
     
     EndMode2D();
     EndDrawing();
-    
 }
 
 void setup_color_changer(Entity *entity){
@@ -1118,12 +1182,17 @@ Vector2 rect_screen_pos(Vector2 position, Vector2 scale, Vector2 pivot){
 
 void draw_game_circle(Vector2 position, f32 radius, Color color){
     Vector2 screen_pos = world_to_screen(position);
-    DrawCircle(screen_pos.x, screen_pos.y, radius * UNIT_SIZE, color);
+    draw_circle(screen_pos, radius * UNIT_SIZE, color);
 }
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
     draw_rect(screen_pos, multiply(scale, UNIT_SIZE), color);
+}
+
+void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color){
+    Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
+    draw_rect_lines(position, scale * UNIT_SIZE, thick, color);
 }
 
 void draw_game_triangle_strip(Entity entity){
@@ -1133,7 +1202,7 @@ void draw_game_triangle_strip(Entity entity){
         screen_positions[i] = world_to_screen(global(entity, entity.vertices.get(i)));
     }
     
-    DrawTriangleStrip(screen_positions, entity.vertices.count, entity.color);
+    draw_triangle_strip(screen_positions, entity.vertices.count, entity.color);
 }
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){

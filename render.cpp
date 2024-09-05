@@ -25,6 +25,19 @@ void draw_rect(int x, int y, int width, int height, Color color){
     DrawRectangle(x, y, width, height, color);
 }
 
+void draw_rect_lines(Vector2 pos, Vector2 scale, f32 thick, Color color){
+    Rectangle rec = {pos.x, pos.y, scale.x, scale.y};
+    DrawRectangleLinesEx(rec, thick, color);
+}
+
+void draw_triangle_strip(Vector2 *points, int count, Color color){
+    DrawTriangleStrip(points, count, color);
+}
+
+void draw_circle(Vector2 pos, f32 radius, Color color){
+    DrawCircle(pos.x, pos.y, radius, color);
+}
+
 void draw_line(Vector2 start, Vector2 end, f32 thick, Color color){
     DrawLineEx(start, end, thick, color);
 }
