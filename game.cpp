@@ -45,9 +45,19 @@ struct Collision{
 struct Player{
     Array<Collision> collisions = Array<Collision>(10);
     
-    f32 base_speed = 30.0f;  
+    f32 base_move_speed = 30.0f;  
+    f32 acceleration = 300;
+    f32 friction = 120;
+    f32 jump_force = 175;
+    f32 gravity = 120;
+    f32 gravity_mult = 1;
     
-    f32 current_speed;
+    
+    b32 grounded = false;
+    f32 current_move_speed;
+    Vector2 velocity = {0, 0};
+    
+    f32 jump_timer = 0;
 };
 
 struct Entity{
@@ -544,7 +554,7 @@ Array<Vector2> get_normals(Array<Vector2> vertices){
 }
 
 void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
-    //@TODO now only for rects, need to find proper algorithm for calculating edge normals from vertices because 
+    //@INCOMPLETE now only for rects, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
     
     //up
@@ -652,7 +662,8 @@ void resolve_collision(Entity *entity, Collision col){
         return;
     }
 
-    entity->position += col.dir_to_first * col.overlap;
+    //entity->position += col.dir_to_first * col.overlap;
+    entity->position += col.normal * col.overlap;
 }
 
 void fill_collisions(Entity *entity, Array<Collision> *result){
@@ -961,15 +972,17 @@ void add_scale(Entity *entity, Vector2 added){
 }
 
 void change_up(Entity *entity, Vector2 new_up){
-    entity->up = normalized(new_up);
-    entity->rotation = atan2f(new_up.y, new_up.x) * RAD2DEG;
-    calculate_bounds(entity);
+    rotate_to(entity, (atan2f(new_up.x, new_up.y) * RAD2DEG));
+    // entity->up = normalized(new_up);
+    // entity->rotation = atan2f(new_up.y, new_up.x) * RAD2DEG;
+    //calculate_bounds(entity);
 }
 
 void change_right(Entity *entity, Vector2 new_right){
-    entity->right = normalized(new_right);
-    entity->rotation = atan2f(new_right.y, new_right.x) * RAD2DEG;
-    calculate_bounds(entity);
+    rotate_to(entity, atan2f(-new_right.y, new_right.x) * RAD2DEG);
+    // entity->right = normalized(new_right);
+    // entity->rotation = atan2f(new_right.y, new_right.x) * RAD2DEG;
+    // calculate_bounds(entity);
 }
 
 void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation){
@@ -1023,13 +1036,52 @@ void rotate(Entity *entity, f32 rotation){
 void update_player(Entity *entity){
     assert(entity->flags & PLAYER);
 
-    Player *player = &entity->player;
+    Player *p = &entity->player;
     
-    entity->position += input.direction * dt * player->base_speed;
+    f32 max_move_speed = p->base_move_speed;
     
-    fill_collisions(entity, &player->collisions);
-    for (int i = 0; i < player->collisions.count; i++){
-        resolve_collision(entity, player->collisions.get(i));
+    f32 new_move_speed = p->velocity.x + p->acceleration * input.direction.x * dt;
+    
+    if (abs(new_move_speed) > max_move_speed && new_move_speed * input.direction.x > 0){
+        new_move_speed = p->velocity.x;
+    }
+    
+    p->velocity.x = new_move_speed;
+
+    f32 friction = p->friction;
+    
+    if (abs(p->velocity.x) > max_move_speed){
+        friction *= 2 + abs(p->velocity.x) / max_move_speed;
+    }
+    f32 friction_force = friction * -normalized (p->velocity.x) * dt;
+    p->velocity.x += friction_force;
+
+    // p->velocity->x = new_speed;
+    p->velocity.y -= p->gravity * p->gravity_mult * dt;
+    
+    if (IsKeyPressed(KEY_SPACE)){
+        p->velocity.y = p->jump_force;
+        p->jump_timer = 0;
+    }
+    
+    p->jump_timer += dt;
+    
+    f32 jump_t = clamp01(p->velocity.y / p->jump_force);
+    p->gravity_mult = lerp(1.0f, 7.0f, sqrtf(jump_t));
+    
+    Vector2 next_pos = {entity->position.x + p->velocity.x * dt, entity->position.y + p->velocity.y * dt};
+    
+    entity->position = next_pos;
+    
+    fill_collisions(entity, &p->collisions);
+    for (int i = 0; i < p->collisions.count; i++){
+        Collision col = p->collisions.get(i);
+    
+        resolve_collision(entity, col);
+        
+        p->velocity -= col.normal * dot(p->velocity, col.normal);
+        
+        change_up(entity, col.normal);
     }
 }
 
@@ -1090,6 +1142,9 @@ void draw_entities(){
         if (e-> flags & DRAW_TEXT){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
+        
+        draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
+        draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
     }
 }
 
@@ -1126,9 +1181,6 @@ void draw_editor(){
         //     DrawCircle(left_down.x, left_down.y, 5, GREEN);
         //     DrawCircle(right_up.x, right_up.y, 5, PURPLE);
         // }
-        
-        draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
-        draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
         
         draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
         
