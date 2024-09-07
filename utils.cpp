@@ -1,5 +1,50 @@
 #pragma once
 
+void print(Vector2 vec){
+    printf("{%f, %f}; %.4f\n", vec.x, vec.y, game_time);
+}
+
+void print(f32 num){
+    printf("%f; %.4f\n", num, game_time);
+}
+
+void print(i32 num){
+    printf("%d; %.4f\n", num, game_time);
+}
+
+void print(const char *str){
+    printf("%s; %.4f\n", str, game_time);
+}
+
+void print(b32 num){
+    if (num){
+        printf("true; %.4f\n", game_time);
+    } else{
+        printf("false; %.4f\n", game_time);
+    }
+}
+
+char* to_string(int num){
+    char* text = (char*)malloc(10 * sizeof(char));
+    sprintf(text, "%d", num);
+    return text;
+}
+
+char* to_string(f32 num){
+    char* text = (char*)malloc(10 * sizeof(char));
+    sprintf(text, "%f", num);
+    return text;
+}
+char* to_string(f64 num){
+    char* text = (char*)malloc(30 * sizeof(char));
+    sprintf(text, "%f", num);
+    return text;
+}
+
+const char* to_string(Color color){
+    return TextFormat("{%d, %d, %d, %d}", color.r, color.g, color.b, color.a);
+}
+
 template<typename T>
 struct Array{
     T *data;
@@ -10,6 +55,13 @@ struct Array{
         max_count = max_amount;
         count = 0;
         data = (T*)malloc(max_amount * sizeof(T));
+        print("alloc");
+    }
+    
+    Array(){
+        max_count = 0;
+        count = 0;
+        //data = (T*)malloc(max_amount * sizeof(T));
     }
     
     T get(int index){
@@ -61,46 +113,6 @@ struct Array{
     // }
 };
 
-void print(Vector2 vec){
-    printf("{%f, %f}\n", vec.x, vec.y);
-}
-
-void print(f32 num){
-    printf("%f\n", num);
-}
-
-void print(i32 num){
-    printf("%d\n", num);
-}
-
-void print(b32 num){
-    if (num){
-        printf("true\n");
-    } else{
-        printf("false\n");
-    }
-}
-
-char* to_string(int num){
-    char* text = (char*)malloc(10 * sizeof(char));
-    sprintf(text, "%d", num);
-    return text;
-}
-
-char* to_string(f32 num){
-    char* text = (char*)malloc(10 * sizeof(char));
-    sprintf(text, "%f", num);
-    return text;
-}
-char* to_string(f64 num){
-    char* text = (char*)malloc(30 * sizeof(char));
-    sprintf(text, "%f", num);
-    return text;
-}
-
-const char* to_string(Color color){
-    return TextFormat("{%d, %d, %d, %d}", color.r, color.g, color.b, color.a);
-}
 
 struct Old_Arr{  
     u8 *data;

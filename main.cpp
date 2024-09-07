@@ -8,8 +8,6 @@
 
 typedef float  f32;
 typedef double f64;
-
-
 //#define _CRT_SECURE_NO_WARNINGS
 
 #define global_variable static
@@ -33,6 +31,8 @@ typedef u32 b32;
 #include "include\raylib.h"
 #include "include\raymath.h"
 #include "include\rlgl.h"
+
+global_variable f32 game_time = 0;
 
 #include "utils.cpp"
 #include "render.cpp"

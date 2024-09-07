@@ -16,8 +16,8 @@ void draw_game();
 
 void draw_entities();
 
-Vector2 global(Entity e, Vector2 local_pos);
-Vector2 local(Entity e, Vector2 global_pos);
+Vector2 global(Entity *e, Vector2 local_pos);
+Vector2 local (Entity *e, Vector2 global_pos);
 
 Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
 
@@ -55,14 +55,14 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
 
 f32 zoom_unit_size();
 
-Vector2 get_left_up_no_rot(Entity e);
-Vector2 get_left_up(Entity e);
-Vector2 get_right_down_no_rot(Entity e);
-Vector2 get_right_down(Entity e);
-Vector2 get_left_down_no_rot(Entity e);
-Vector2 get_left_down(Entity e);
-Vector2 get_right_up_no_rot(Entity e);
-Vector2 get_right_up(Entity e);
+Vector2 get_left_up_no_rot(Entity *e);
+Vector2 get_left_up(Entity *e);
+Vector2 get_right_down_no_rot(Entity *e);
+Vector2 get_right_down(Entity *e);
+Vector2 get_left_down_no_rot(Entity *e);
+Vector2 get_left_down(Entity *e);
+Vector2 get_right_up_no_rot(Entity *e);
+Vector2 get_right_up(Entity *e);
 
 void change_scale(Entity *entity, Vector2 new_scale);
 void add_scale(Entity *entity, Vector2 added);

@@ -4,7 +4,7 @@
 //#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
 f32 dt;
-f32 game_time;
+//f32 game_time;
 
 #define FLAGS i32
 //#define EPSILON 0.0000000000000001f
@@ -42,6 +42,8 @@ struct Collision{
     Vector2 dir_to_first;
 };
 
+struct Entity;
+
 struct Player{
     Array<Collision> collisions = Array<Collision>(10);
     
@@ -54,6 +56,7 @@ struct Player{
     
     
     b32 grounded = false;
+    Entity *ground_detector;
     f32 current_move_speed;
     Vector2 velocity = {0, 0};
     
@@ -162,6 +165,10 @@ global_variable Editor editor  = {};
 global_variable Debug  debug  = {};
 global_variable Entity *player_entity;
 
+global_variable Array<Vector2> global_normals = Array<Vector2>(30);
+
+global_variable Entity *mouse_entity;
+
 #include "game.h"
 
 void free_entity(Entity *e){
@@ -263,9 +270,6 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     change_scale(this, _scale);
 }
 
-
-Entity *zoom_entity;
-
 void parse_line(char *line, char *result, int *index){ 
     assert(line[*index] == ':');
     
@@ -290,6 +294,8 @@ void init_game(){
     current_level.context = (Context*)malloc(sizeof(Context));
     context = *current_level.context;
     context = {};    
+    
+    mouse_entity = add_entity(input.mouse_position, {1, 1}, 0, -1);
     
     //load level
     FILE *fptr = fopen("test_level.level", "r");
@@ -436,7 +442,8 @@ void enter_game_state(){
     game_state = GAME;
     
     player_entity = add_entity(editor.player_spawn_point, {2, 4}, {0.5f, 0.5f}, 0, RED, PLAYER);
-    
+    player_entity->player.ground_detector = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3.0f}, 0, 0); 
+    player_entity->player.ground_detector->color = PURPLE * 0.8f;
 }
 
 void enter_editor_state(){
@@ -524,7 +531,7 @@ void update_color_changer(Entity *entity){
     entity->color = lerp(changer->start_color, changer->target_color, t);
 }
 
-b32 check_col_point_rec(Vector2 point, Entity e){
+b32 check_col_point_rec(Vector2 point, Entity *e){
     Vector2 l_u = get_left_up_no_rot(e);
     Vector2 r_d = get_right_down_no_rot(e);
 
@@ -541,17 +548,17 @@ Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise){
     return {-v.y * clockwise, v.x * clockwise};
 }
 
-Array<Vector2> get_normals(Array<Vector2> vertices){
-    Array<Vector2> normals = Array<Vector2>(vertices.count);
+// Array<Vector2> get_normals(Array<Vector2> vertices){
+//     Array<Vector2> normals = Array<Vector2>(vertices.count);
     
-    for (int i = 0; i < vertices.count; i++){
-        Vector2 edge = vertices.get(i) - vertices.get((i + 1) % vertices.count);
+//     for (int i = 0; i < vertices.count; i++){
+//         Vector2 edge = vertices.get(i) - vertices.get((i + 1) % vertices.count);
         
-        normals.add(normalized(get_rotated_vector_90(edge, 1)));
-    }
+//         normals.add(normalized(get_rotated_vector_90(edge, 1)));
+//     }
     
-    return normals;
-}
+//     return normals;
+// }
 
 void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
     //@INCOMPLETE now only for rects, need to find proper algorithm for calculating edge normals from vertices because 
@@ -586,16 +593,17 @@ void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
 Collision check_rectangles_col(Entity *entity1, Entity *entity2){
     Collision result = {};
 
-    Array<Vector2> normals = Array<Vector2>(entity1->vertices.count + entity2->vertices.count);
-    fill_arr_with_normals(&normals, entity1->vertices);
-    fill_arr_with_normals(&normals, entity2->vertices);
+    //Array<Vector2> normals = Array<Vector2>(entity1->vertices.count + entity2->vertices.count);
+    global_normals.count = 0;
+    fill_arr_with_normals(&global_normals, entity1->vertices);
+    fill_arr_with_normals(&global_normals, entity2->vertices);
     
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
     
     Vector2 min_overlap_projection = {};
 
-    for (int i = 0; i < normals.count; i++){
+    for (int i = 0; i < global_normals.count; i++){
         Vector2 projections[2];
         //x - min, y - max
         projections[0].x =  INFINITY;
@@ -603,10 +611,10 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2){
         projections[0].y = -INFINITY;
         projections[1].y = -INFINITY;
         
-        Vector2 axis = normals.get(i);
+        Vector2 axis = global_normals.get(i);
 
         for (int shape = 0; shape < 2; shape++){
-            Array<Vector2> vertices = Array<Vector2>(4);
+            Array<Vector2> vertices;
             Entity *entity;
             if (shape == 0) {
                 vertices = entity1->vertices;
@@ -617,7 +625,7 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2){
             }
             
             for (int j = 0; j < vertices.count; j++){            
-                f32 p = dot(global(*entity, vertices.get(j)), axis);
+                f32 p = dot(global(entity, vertices.get(j)), axis);
                 
                 f32 min = fmin(projections[shape].x, p);
                 f32 max = fmax(projections[shape].y, p);
@@ -625,6 +633,8 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2){
                 projections[shape].x = min;
                 projections[shape].y = max;
             }
+            
+            //vertices.free_arr();
         }
         
         f32 new_overlap = fmin(fmin(projections[0].y, projections[1].y) - fmax(projections[0].x, projections[1].x), overlap);
@@ -636,7 +646,7 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2){
         }
         
         if (!(projections[1].y >= projections[0].x && projections[0].y >= projections[1].x)){
-            normals.free_arr();
+            //normals.free_arr();
             return result;
         }
     }
@@ -653,7 +663,7 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2){
         result.point = entity1->position - result.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
     }
     
-    normals.free_arr();
+    //normals.free_arr();
     return result;
 }
 
@@ -672,7 +682,7 @@ void fill_collisions(Entity *entity, Array<Collision> *result){
     for (int i = 0; i < context.entities.count; i++){
         Entity *other = context.entities.get_ptr(i);
         
-        if (other == entity){
+        if (other == entity || other->flags == 0){
             continue;
         }
         
@@ -717,16 +727,17 @@ void update_editor(){
     Vector2 closest_vertex_global;
     f32 distance_to_closest_vertex = INFINITY;
     
+    mouse_entity->position = input.mouse_position;
+    
     //editor entities loop
     for (int i = 0; i < context.entities.count; i++){        
         Entity *e = context.entities.get_ptr(i);
         
-        if (!e->enabled){
+        if (!e->enabled || e->flags == -1){
             continue;
         }
         
-        Entity mouse_entity = Entity(input.mouse_position);
-        if ((check_rectangles_col(&mouse_entity, e)).collided){
+        if ((check_rectangles_col(mouse_entity, e)).collided){
             editor.cursor_entity = e;
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
@@ -745,7 +756,7 @@ void update_editor(){
         for (int v = 0; v < e->vertices.count && (need_move_vertices || need_snap_vertex); v++){
             Vector2 *vertex = e->vertices.get_ptr(v);
             
-            Vector2 vertex_global = global(*e, *vertex);
+            Vector2 vertex_global = global(e, *vertex);
             
             if (need_move_vertices && editor.moving_vertex == NULL){
                 if (check_col_circles({input.mouse_position, 1}, {vertex_global, 2})){
@@ -757,7 +768,7 @@ void update_editor(){
             }
             
             if (editor.selected_entity != NULL && editor.last_selected_vertex != NULL && need_snap_vertex && e->id != editor.selected_entity->id){
-                f32 sqr_distance = sqr_magnitude(global(*editor.selected_entity, *editor.last_selected_vertex) - vertex_global);
+                f32 sqr_distance = sqr_magnitude(global(editor.selected_entity, *editor.last_selected_vertex) - vertex_global);
                 if (sqr_distance < distance_to_closest_vertex){
                     distance_to_closest_vertex = sqr_distance;
                     closest_vertex_global = vertex_global;
@@ -767,16 +778,13 @@ void update_editor(){
         //editor move vertices
     
          //editor snap closest vertex to closest vertex
-
-        
-        free_entity(&mouse_entity);
     }
     
     if (need_snap_vertex && editor.last_selected_vertex != NULL && editor.selected_entity != NULL){
-        *editor.last_selected_vertex = global(*editor.selected_entity, *editor.last_selected_vertex);
+        *editor.last_selected_vertex = global(editor.selected_entity, *editor.last_selected_vertex);
         editor.last_selected_vertex->x = closest_vertex_global.x;
         editor.last_selected_vertex->y = closest_vertex_global.y;
-        *editor.last_selected_vertex = local(*editor.selected_entity, *editor.last_selected_vertex);
+        *editor.last_selected_vertex = local(editor.selected_entity, *editor.last_selected_vertex);
         
         editor.moving_vertex = NULL;
         editor.moving_vertex_entity = NULL;
@@ -819,10 +827,10 @@ void update_editor(){
     }
     
     if (editor.moving_vertex != NULL){
-        *editor.moving_vertex = global(*editor.moving_vertex_entity, *editor.moving_vertex);
+        *editor.moving_vertex = global(editor.moving_vertex_entity, *editor.moving_vertex);
         editor.moving_vertex->x = input.mouse_position.x;
         editor.moving_vertex->y = input.mouse_position.y;
-        *editor.moving_vertex = local(*editor.moving_vertex_entity, *editor.moving_vertex);
+        *editor.moving_vertex = local(editor.moving_vertex_entity, *editor.moving_vertex);
     }
     
     //editor Delete entity
@@ -1091,7 +1099,7 @@ void update_entities(){
     
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
-        if (!e->enabled){
+        if (!e->enabled || e->flags == -1){
             continue;
         }
         
@@ -1123,11 +1131,11 @@ void draw_entities(){
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
     
-        if (!e->enabled){
+        if (!e->enabled || e->flags == -1){
             continue;
         }
     
-        if (e->flags & GROUND){
+        if (e->flags & GROUND || e->flags == 0){
             if (e->vertices.count > 0){
                 draw_game_triangle_strip(e);
             } else{
@@ -1157,7 +1165,7 @@ void draw_editor(){
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
     
-        if (!e->enabled){
+        if (!e->enabled || e->flags == -1){
             continue;
         }
         
@@ -1166,7 +1174,7 @@ void draw_editor(){
         b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT) && true;
         if (draw_circles_on_vertices){
             for (int v = 0; v < e->vertices.count; v++){
-                draw_game_circle(global(*e, e->vertices.get(v)), 1, PINK);
+                draw_game_circle(global(e, e->vertices.get(v)), 1, PINK);
             }
         }
         
@@ -1210,17 +1218,17 @@ void draw_editor(){
         
         b32 draw_normals = true;
         if (draw_normals){
-            Array<Vector2> normals = Array<Vector2>(e->vertices.count + 4);
-            fill_arr_with_normals(&normals, e->vertices);
+            global_normals.count = 0;
+            //Array<Vector2> normals = Array<Vector2>(e->vertices.count + 4);
+            fill_arr_with_normals(&global_normals, e->vertices);
             
-            for (int n = 0; n < normals.count; n++){
-                Vector2 start = e->position + normals.get(n) * 4; 
-                Vector2 end   = e->position + normals.get(n) * 8; 
+            for (int n = 0; n < global_normals.count; n++){
+                Vector2 start = e->position + global_normals.get(n) * 4; 
+                Vector2 end   = e->position + global_normals.get(n) * 8; 
                 draw_game_line(start, end, 0.5f, PURPLE);
                 draw_game_rect(end, {1, 1}, {0.5f, 0.5f}, PURPLE * 0.9f);
             }
-            
-            normals.free_arr();
+            //global_normals.free_arr();
         }
     }
     
@@ -1268,7 +1276,7 @@ void setup_color_changer(Entity *entity){
 
 Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
     Entity e = Entity(pos, scale, rotation, flags);    
-    e.id = context.entities.count + game_time * 1000;
+    e.id = context.entities.count + game_time * 10000;
     context.entities.add(e);
     return context.entities.last_ptr();
 }
@@ -1309,21 +1317,20 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
 
 Entity *add_text(Vector2 pos, f32 size, const char *text){
     Entity e = Entity(pos, {1, 1}, {0.5f, 0.5f}, 0, DRAW_TEXT);    
-    //@TODO: Check for type and set bounds correctly (for textures for example)
     e.bounds = {1, 1};
     e.text_drawer.text = text;
     e.text_drawer.size = size;
-    e.id = context.entities.count + game_time * 1000;
+    e.id = context.entities.count + game_time * 10000;
     context.entities.add(e);
     return context.entities.last_ptr();
 }
 
-Vector2 global(Entity e, Vector2 local_pos){
-    return e.position + local_pos;
+Vector2 global(Entity *e, Vector2 local_pos){
+    return e->position + local_pos;
 }
 
-Vector2 local(Entity e, Vector2 global_pos){
-    return global_pos - e.position;
+Vector2 local(Entity *e, Vector2 global_pos){
+    return global_pos - e->position;
 }
 
 Vector2 world_to_screen(Vector2 position){
@@ -1373,7 +1380,7 @@ void draw_game_triangle_strip(Entity *entity){
     Vector2 screen_positions[entity->vertices.count];
     
     for (int i = 0; i < entity->vertices.count; i++){
-        screen_positions[i] = world_to_screen(global(*entity, entity->vertices.get(i)));
+        screen_positions[i] = world_to_screen(global(entity, entity->vertices.get(i)));
     }
     
     draw_triangle_strip(screen_positions, entity->vertices.count, entity->color);
@@ -1412,46 +1419,46 @@ f32 zoom_unit_size(){
     return UNIT_SIZE / zoom;
 }
 
-Vector2 get_left_up_no_rot(Entity e){
-    return {e.position.x - e.pivot.x * e.bounds.x, e.position.y + e.pivot.y * e.bounds.y};
+Vector2 get_left_up_no_rot(Entity *e){
+    return {e->position.x - e->pivot.x * e->bounds.x, e->position.y + e->pivot.y * e->bounds.y};
 }
 
-Vector2 get_left_up(Entity e){
-    //f32 x_add = sinf(e.rotation * DEG2RAD) * e.bounds.x;
+Vector2 get_left_up(Entity *e){
+    //f32 x_add = sinf(e->rotation * DEG2RAD) * e->bounds.x;
     Vector2 lu = get_left_up_no_rot(e);
     
-    rotate_around_point(&lu, e.position, e.rotation);
+    rotate_around_point(&lu, e->position, e->rotation);
     return lu;
 }
 
-Vector2 get_right_down_no_rot(Entity e){
+Vector2 get_right_down_no_rot(Entity *e){
     Vector2 lu = get_left_up_no_rot(e);
-    return {lu.x + e.bounds.x, lu.y - e.bounds.y};
+    return {lu.x + e->bounds.x, lu.y - e->bounds.y};
 }
 
-Vector2 get_right_down(Entity e){
+Vector2 get_right_down(Entity *e){
     Vector2 lu = get_left_up(e);
-    Vector2 rd = lu + e.right * e.bounds.x;
-    rd -= e.up * e.bounds.y;
+    Vector2 rd = lu + e->right * e->bounds.x;
+    rd -= e->up * e->bounds.y;
     return rd;
 }
 
-Vector2 get_left_down_no_rot(Entity e){
+Vector2 get_left_down_no_rot(Entity *e){
     Vector2 lu = get_left_up_no_rot(e);
-    return {lu.x, lu.y - e.bounds.y};
+    return {lu.x, lu.y - e->bounds.y};
 }
 
-Vector2 get_left_down(Entity e){
+Vector2 get_left_down(Entity *e){
     Vector2 rd = get_right_down(e);
-    return rd - e.right * e.bounds.x;
+    return rd - e->right * e->bounds.x;
 }
 
-Vector2 get_right_up_no_rot(Entity e){
+Vector2 get_right_up_no_rot(Entity *e){
     Vector2 lu = get_left_up_no_rot(e);
-    return {lu.x + e.bounds.x, lu.y};
+    return {lu.x + e->bounds.x, lu.y};
 }
 
-Vector2 get_right_up(Entity e){
+Vector2 get_right_up(Entity *e){
     Vector2 lu = get_left_up(e);
-    return lu + e.right * e.bounds.x;
+    return lu + e->right * e->bounds.x;
 }
