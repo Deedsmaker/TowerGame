@@ -55,7 +55,6 @@ struct Array{
         max_count = max_amount;
         count = 0;
         data = (T*)malloc(max_amount * sizeof(T));
-        print("alloc");
     }
     
     Array(){

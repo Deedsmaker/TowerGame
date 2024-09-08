@@ -47,16 +47,23 @@ struct Entity;
 struct Player{
     Array<Collision> collisions = Array<Collision>(10);
     
+    f32 max_ground_angle = 45;
+    
     f32 base_move_speed = 30.0f;  
-    f32 acceleration = 300;
-    f32 friction = 120;
+    f32 ground_acceleration = 30;
+    f32 ground_deceleration = 15;
+    f32 air_acceleration    = 10;
+    f32 air_deceleration    = 10;
+    f32 friction = 200;
     f32 jump_force = 175;
     f32 gravity = 120;
     f32 gravity_mult = 1;
     
     
+    Vector2 plane_vector = {0, 1};
+    Vector2 ground_normal = {0, 1};
     b32 grounded = false;
-    Entity *ground_detector;
+    Entity *ground_checker;
     f32 current_move_speed;
     Vector2 velocity = {0, 0};
     
@@ -155,7 +162,9 @@ struct Editor{
 };
 
 struct Debug{
-    b32 draw_player_collisions = true;  
+    b32 draw_player_collisions = false;  
+    b32 draw_player_speed = false;
+    b32 draw_fps = true;
 };
 
 global_variable Input input;
@@ -441,9 +450,9 @@ void init_game(){
 void enter_game_state(){
     game_state = GAME;
     
-    player_entity = add_entity(editor.player_spawn_point, {2, 4}, {0.5f, 0.5f}, 0, RED, PLAYER);
-    player_entity->player.ground_detector = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3.0f}, 0, 0); 
-    player_entity->player.ground_detector->color = PURPLE * 0.8f;
+    player_entity = add_entity(editor.player_spawn_point, {2, 2}, {0.5f, 0.5f}, 0, RED, PLAYER);
+    player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3}, 0, 0); 
+    player_entity->player.ground_checker->color = PURPLE * 0.8f;
 }
 
 void enter_editor_state(){
@@ -654,14 +663,14 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2){
     Vector2 vec_to_first = entity1->position - entity2->position;
     
     result.collided = true;
-    if (entity1->flags > 0){
+    //if (entity1->flags > 0){
         result.overlap = overlap;
         //result.normal = dir_to_first;
         result.dir_to_first = normalized(vec_to_first);
         result.normal = dot(result.dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
         //result.point = entity1->position - dir_to_first * overlap;
         result.point = entity1->position - result.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
-    }
+    //}
     
     //normals.free_arr();
     return result;
@@ -676,13 +685,13 @@ void resolve_collision(Entity *entity, Collision col){
     entity->position += col.normal * col.overlap;
 }
 
-void fill_collisions(Entity *entity, Array<Collision> *result){
+void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS exclude_flags){
     result->count = 0;
 
     for (int i = 0; i < context.entities.count; i++){
         Entity *other = context.entities.get_ptr(i);
         
-        if (other == entity || other->flags == 0){
+        if (other == entity || other->flags <= 0 || (other->flags & exclude_flags) > 0){
             continue;
         }
         
@@ -1041,56 +1050,167 @@ void rotate(Entity *entity, f32 rotation){
     rotate_to(entity, entity->rotation + rotation);
 }
 
-void update_player(Entity *entity){
-    assert(entity->flags & PLAYER);
-
+void player_apply_friction(Entity *entity, f32 max_move_speed){
     Player *p = &entity->player;
-    
-    f32 max_move_speed = p->base_move_speed;
-    
-    f32 new_move_speed = p->velocity.x + p->acceleration * input.direction.x * dt;
-    
-    if (abs(new_move_speed) > max_move_speed && new_move_speed * input.direction.x > 0){
-        new_move_speed = p->velocity.x;
-    }
-    
-    p->velocity.x = new_move_speed;
 
     f32 friction = p->friction;
     
     if (abs(p->velocity.x) > max_move_speed){
         friction *= 2 + abs(p->velocity.x) / max_move_speed;
     }
+    
     f32 friction_force = friction * -normalized (p->velocity.x) * dt;
     p->velocity.x += friction_force;
+}
 
-    // p->velocity->x = new_speed;
-    p->velocity.y -= p->gravity * p->gravity_mult * dt;
+void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 acceleration){
+    Player *p = &entity->player;
+
+    // f32 new_move_speed = p->velocity.x + p->acceleration * input.direction.x * dt;
     
-    if (IsKeyPressed(KEY_SPACE)){
+    // if (abs(new_move_speed) > max_move_speed && new_move_speed * input.direction.x > 0){
+    //     new_move_speed = p->velocity.x;
+    // }
+    
+    // p->velocity.x = new_move_speed;
+    
+    f32 speed_in_wish_direction = dot(p->velocity, dir);
+    
+    f32 speed_difference = wish_speed - speed_in_wish_direction;        
+    
+    //means we above max speed
+    if (speed_difference <= 0){
+        return;
+    }
+    
+    f32 acceleration_speed = acceleration * speed_difference * dt;
+    if (acceleration_speed > speed_difference){
+        acceleration_speed = speed_difference;
+    }
+    
+    p->velocity.x += dir.x * acceleration_speed;
+}
+
+void player_ground_move(Entity *entity){
+    Player *p = &entity->player;
+
+    f32 max_move_speed = p->base_move_speed;
+    
+    player_apply_friction(entity, max_move_speed);
+    
+    f32 acceleration = dot(p->velocity, input.direction) > 0 ? p->ground_acceleration : p->ground_deceleration;
+    
+    f32 wish_speed = sqr_magnitude(input.direction) * max_move_speed;
+    
+    player_accelerate(entity, input.direction, wish_speed, acceleration);
+}
+
+void player_air_move(Entity *entity){
+    Player *p = &entity->player;
+
+    f32 max_move_speed = p->base_move_speed;
+    
+    f32 acceleration = dot(p->velocity, input.direction) > 0 ? p->air_acceleration : p->air_deceleration;
+    
+    f32 wish_speed = sqr_magnitude(input.direction) * max_move_speed;
+    
+    player_accelerate(entity, input.direction, wish_speed, acceleration);
+}
+
+void update_player(Entity *entity){
+    assert(entity->flags & PLAYER);
+
+    Player *p = &entity->player;
+    
+    p->ground_checker->position = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
+    
+    if (p->grounded){
+        player_ground_move(entity);
+        
+        p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
+        p->velocity = p->plane_vector * magnitude(p->velocity);
+        
+        entity->position.y -= dt;
+        p->velocity -= p->ground_normal * dt;
+        print(p->ground_normal);
+    } else{
+        player_air_move(entity);
+        
+        f32 jump_t = clamp01(p->velocity.y / p->jump_force);
+        p->gravity_mult = lerp(1.0f, 7.0f, sqrtf(jump_t));
+        p->velocity.y -= p->gravity * p->gravity_mult * dt;
+    }
+    
+    // p->velocity->x = new_speed;
+    
+    if (p->grounded && IsKeyPressed(KEY_SPACE)){
         p->velocity.y = p->jump_force;
         p->jump_timer = 0;
     }
     
     p->jump_timer += dt;
     
-    f32 jump_t = clamp01(p->velocity.y / p->jump_force);
-    p->gravity_mult = lerp(1.0f, 7.0f, sqrtf(jump_t));
+    // if (p->grounded && p->jump_timer > 0.2f){
+    //     p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
+    //     p->velocity = plane_vector * magnitude(p->velocity);
+    //}
+    
+    //print(magnitude(p->velocity));
     
     Vector2 next_pos = {entity->position.x + p->velocity.x * dt, entity->position.y + p->velocity.y * dt};
     
     entity->position = next_pos;
     
-    fill_collisions(entity, &p->collisions);
+    f32 found_ground = false;
+    f32 just_grounded = false;
+    
+    fill_collisions(p->ground_checker, &p->collisions, PLAYER);
     for (int i = 0; i < p->collisions.count; i++){
         Collision col = p->collisions.get(i);
+        assert(col.collided);
+        
+        if (dot(col.normal, p->velocity) >= 0){
+            continue;
+        }
+            
+        entity->position.y += col.overlap;
+        if (dot(((Vector2){0, 1}), col.normal) > 0.5f){
+            p->velocity -= col.normal * dot(p->velocity, col.normal);
+        }
+        
+        f32 angle = fangle(col.normal, entity->up);
+        
+        if (angle <= p->max_ground_angle){
+            found_ground = true;
+            p->ground_normal = col.normal;
+            
+            if (!p->grounded && !just_grounded){
+                
+                p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
+                p->velocity = p->plane_vector * magnitude(p->velocity);
+                just_grounded = true;
+            }
+        }
+    }
     
+    fill_collisions(entity, &p->collisions, 0);
+    for (int i = 0; i < p->collisions.count; i++){
+        Collision col = p->collisions.get(i);
+        assert(col.collided);
+        
+        if (dot(col.normal, p->velocity) >= 0){
+            continue;
+        }
+        
         resolve_collision(entity, col);
         
         p->velocity -= col.normal * dot(p->velocity, col.normal);
-        
-        change_up(entity, col.normal);
     }
+    
+    
+    p->grounded = found_ground;
+    
+    //print(p->grounded);
 }
 
 void update_entities(){
@@ -1259,6 +1379,10 @@ void draw_game(){
             draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
             draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
         }
+    }
+    
+    if (debug.draw_fps){
+        draw_text(TextFormat("%d FPS", GetFPS()), 10, 10,  30, RED);
     }
     
     if (game_state == EDITOR){

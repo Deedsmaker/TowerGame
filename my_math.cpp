@@ -194,6 +194,10 @@ f32 dot(Vector2 v1, Vector2 v2){
     return result;
 }
 
+f32 fangle(Vector2 v1, Vector2 v2){
+    return (acosf(dot(v1, v2) / (magnitude(v1) *  magnitude(v2)))) * RAD2DEG;
+}
+
 // f32 min(f32 a, f32 b){
 //     if (a <= b) return a;
 //     return b;
