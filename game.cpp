@@ -51,10 +51,10 @@ struct Player{
     
     f32 base_move_speed = 30.0f;  
     f32 ground_acceleration = 30;
-    f32 ground_deceleration = 15;
-    f32 air_acceleration    = 10;
-    f32 air_deceleration    = 10;
-    f32 friction = 200;
+    f32 ground_deceleration = 10;
+    f32 air_acceleration    = 5;
+    f32 air_deceleration    = 1;
+    f32 friction = 120;
     f32 jump_force = 175;
     f32 gravity = 120;
     f32 gravity_mult = 1;
@@ -63,11 +63,22 @@ struct Player{
     Vector2 plane_vector = {0, 1};
     Vector2 ground_normal = {0, 1};
     b32 grounded = false;
+    
     Entity *ground_checker;
-    f32 current_move_speed;
+    
     Vector2 velocity = {0, 0};
     
     f32 jump_timer = 0;
+    //Sword
+    f32 sword_rotation_speed = 50.0f;
+    f32 sword_attack_time;
+    
+    Entity *sword_entity;
+    
+    f32 sword_attack_timer;
+    f32 sword_angular_velocity = 0;  
+    
+    f32 current_move_speed;
 };
 
 struct Entity{
@@ -184,11 +195,11 @@ void free_entity(Entity *e){
     e->vertices.free_arr();
 }
 
-void add_rect_vertices(Array<Vector2> *vertices){
-    vertices->add({0.5f, 0.5f});
-    vertices->add({-0.5f, 0.5f});
-    vertices->add({0.5f, -0.5f});
-    vertices->add({-0.5f, -0.5f});
+void add_rect_vertices(Array<Vector2> *vertices, Vector2 pivot){
+    vertices->add({pivot.x, pivot.y});
+    vertices->add({-pivot.x, pivot.y});
+    vertices->add({pivot.x, pivot.y - 1.0f});
+    vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
 Entity::Entity(){
     
@@ -200,7 +211,7 @@ Entity::Entity(Vector2 _pos){
     // vertices.add({0.5f, 0.5f});
     // vertices.add({0.5f, -0.5f});
     //vertices.add({-0.5f, -0.5f});
-    add_rect_vertices(&vertices);
+    add_rect_vertices(&vertices, pivot);
 
     rotation = 0;
     up = {0, 1};
@@ -213,7 +224,7 @@ Entity::Entity(Vector2 _pos){
 Entity::Entity(Vector2 _pos, Vector2 _scale){
     position = _pos;
     
-    add_rect_vertices(&vertices);
+    add_rect_vertices(&vertices, pivot);
 
     rotation = 0;
     
@@ -226,7 +237,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
     position = _pos;
-    add_rect_vertices(&vertices);
+    add_rect_vertices(&vertices, pivot);
     
 
     rotation = 0;
@@ -240,7 +251,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAG
     position = _pos;
     pivot = _pivot;
     
-    add_rect_vertices(&vertices);
+    add_rect_vertices(&vertices, pivot);
     
     rotation = 0;
     
@@ -255,7 +266,7 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     position = _pos;
     pivot = _pivot;
     
-    add_rect_vertices(&vertices);
+    add_rect_vertices(&vertices, pivot);
     
     rotation = 0;
     rotate_to(this, _rotation);
@@ -269,7 +280,7 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     position = _pos;
     pivot = _pivot;
     
-    //add_rect_vertices(&vertices);
+    //add_rect_vertices(&vertices, pivot);
     vertices.free_arr();
     vertices = _vertices;
     
@@ -453,12 +464,18 @@ void enter_game_state(){
     player_entity = add_entity(editor.player_spawn_point, {2, 2}, {0.5f, 0.5f}, 0, RED, PLAYER);
     player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3}, 0, 0); 
     player_entity->player.ground_checker->color = PURPLE * 0.8f;
+    
+    player_entity->player.sword_entity = add_entity(editor.player_spawn_point, {1.5f, 7}, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, 0);
+    player_entity->player.sword_entity->color = GRAY + RED * 0.1f;
+    player_entity->player.sword_entity->color.a = 255;
 }
 
 void enter_editor_state(){
     game_state = EDITOR;
     
-    player_entity->destroyed = true;
+    player_entity->destroyed                 = true;
+    player_entity->player.ground_checker->destroyed = true;
+    player_entity->player.sword_entity->destroyed          = true;
 }
 
 Vector2 game_mouse_pos(){
@@ -977,8 +994,8 @@ void change_scale(Entity *entity, Vector2 new_scale){
         f32 up_dot    = normalized(dot(entity->up,    *vertex));
         f32 right_dot = normalized(dot(entity->right, *vertex));
         
-        *vertex += entity->up    * up_dot    * vec_scale_difference.y * 0.5f;
-        *vertex += entity->right * right_dot * vec_scale_difference.x * 0.5f;
+        *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y;
+        *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x;
     }
     
     calculate_bounds(entity);
@@ -1003,15 +1020,15 @@ void change_right(Entity *entity, Vector2 new_right){
 }
 
 void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation){
-    float s = -sinf(rotation * DEG2RAD);
-    float c =  cosf(rotation * DEG2RAD);
+    f32 s = -sinf(rotation * DEG2RAD);
+    f32 c =  cosf(rotation * DEG2RAD);
     
     target->x -= origin.x;
     target->y -= origin.y;
     
     // rotate point
-    float xnew = target->x * c - target->y * s;
-    float ynew = target->x * s + target->y * c;
+    f32 xnew = target->x * c - target->y * s;
+    f32 ynew = target->x * s + target->y * c;
     
     // translate point back:
     target->x = xnew + origin.x;
@@ -1121,8 +1138,21 @@ void update_player(Entity *entity){
     assert(entity->flags & PLAYER);
 
     Player *p = &entity->player;
+    Entity *sword = p->sword_entity;    
     
     p->ground_checker->position = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
+    p->sword_entity->position = entity->position;
+    
+    Vector2 sword_tip = sword->position + sword->up * sword->scale.y;
+    
+    Vector2 vec_to_mouse = input.mouse_position - entity->position;
+    Vector2 dir_to_mouse = normalized(vec_to_mouse);
+    //Vector2 vec_tip_to_mouse = input.mouse_position - sword_tip;
+    
+    
+    
+    change_up(p->sword_entity, lerp(p->sword_entity->up, dir_to_mouse, dt * p->sword_rotation_speed));
+    
     
     if (p->grounded){
         player_ground_move(entity);
@@ -1132,7 +1162,7 @@ void update_player(Entity *entity){
         
         entity->position.y -= dt;
         p->velocity -= p->ground_normal * dt;
-        print(p->ground_normal);
+        //print(p->ground_normal);
     } else{
         player_air_move(entity);
         

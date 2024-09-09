@@ -56,6 +56,9 @@ struct Color {
     Color operator*(f32 value){
         return {(unsigned char)(r * value), (unsigned char)(g * value), (unsigned char)(b * value), (unsigned char)(a * value)};
     }
+    Color operator+(Color other){
+        return {(unsigned char)(r + other.r), (unsigned char)(g + other.g), (unsigned char)(b + other.b), (unsigned char)(a + other.a)};
+    }
 };
 
 #define LIGHTGRAY  (Color){ 200, 200, 200, 255 }   
@@ -196,6 +199,11 @@ f32 dot(Vector2 v1, Vector2 v2){
 
 f32 fangle(Vector2 v1, Vector2 v2){
     return (acosf(dot(v1, v2) / (magnitude(v1) *  magnitude(v2)))) * RAD2DEG;
+}
+
+//angle of vector ({0, 1} it's 0)
+f32 fangle(Vector2 v){
+    return atan2f(v.x, v.y) * RAD2DEG;
 }
 
 // f32 min(f32 a, f32 b){
