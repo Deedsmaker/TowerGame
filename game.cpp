@@ -59,7 +59,7 @@ struct Player{
     f32 gravity = 120;
     f32 gravity_mult = 1;
     
-    
+    Vector2 sword_start_scale = {1.5f, 7};
     Vector2 plane_vector = {0, 1};
     Vector2 ground_normal = {0, 1};
     b32 grounded = false;
@@ -71,11 +71,13 @@ struct Player{
     f32 jump_timer = 0;
     //Sword
     f32 sword_rotation_speed = 50.0f;
-    f32 sword_attack_time;
+    f32 sword_attack_time = 0.3f;
+    f32 sword_cooldown = 0.5f;
     
     Entity *sword_entity;
     
-    f32 sword_attack_timer;
+    f32 sword_attack_countdown;
+    f32 sword_cooldown_countdown;
     f32 sword_angular_velocity = 0;  
     
     f32 current_move_speed;
@@ -465,7 +467,7 @@ void enter_game_state(){
     player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3}, 0, 0); 
     player_entity->player.ground_checker->color = PURPLE * 0.8f;
     
-    player_entity->player.sword_entity = add_entity(editor.player_spawn_point, {1.5f, 7}, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, 0);
+    player_entity->player.sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, 0);
     player_entity->player.sword_entity->color = GRAY + RED * 0.1f;
     player_entity->player.sword_entity->color.a = 255;
 }
@@ -991,8 +993,18 @@ void change_scale(Entity *entity, Vector2 new_scale){
     
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
-        f32 up_dot    = normalized(dot(entity->up,    *vertex));
-        f32 right_dot = normalized(dot(entity->right, *vertex));
+        f32 up_dot    = dot(entity->up,    *vertex);
+        f32 right_dot = dot(entity->right, *vertex);
+        
+        if (entity->scale.y > 4 && abs(up_dot) < 1){
+            up_dot = 0;
+        }
+        if (entity->scale.x > 4 && abs(right_dot) < 1){
+            right_dot = 0;
+        }
+        
+        up_dot    = normalized(up_dot);
+        right_dot = normalized(right_dot);
         
         *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y;
         *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x;
@@ -1134,10 +1146,52 @@ void player_air_move(Entity *entity){
     player_accelerate(entity, input.direction, wish_speed, acceleration);
 }
 
+void update_player_sword(Entity *entity){
+    assert(entity->flags & PLAYER);
+
+    Player *p     = &entity->player;
+    Entity *sword = p->sword_entity;    
+    
+    p->sword_entity->position = entity->position;
+    
+    Vector2 sword_tip = sword->position + sword->up * sword->scale.y;
+    
+    Vector2 vec_to_mouse = input.mouse_position - entity->position;
+    Vector2 dir_to_mouse = normalized(vec_to_mouse);
+    
+    change_up(p->sword_entity, lerp(p->sword_entity->up, dir_to_mouse, dt * p->sword_rotation_speed));
+    
+    f32 sword_size_multiplier = 2.0f;
+    b32 can_attack = p->sword_attack_countdown <= 0 && p->sword_cooldown_countdown <= 0;
+    if (can_attack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        p->sword_attack_countdown = p->sword_attack_time;    
+    } 
+    
+    if (p->sword_attack_countdown > 0){
+        p->sword_attack_countdown -= dt;
+        f32 attack_progress = clamp01((p->sword_attack_time - p->sword_attack_countdown) / p->sword_attack_time);
+        change_scale(sword, lerp(p->sword_start_scale, p->sword_start_scale * sword_size_multiplier, sqrtf(attack_progress)));
+        print(sword->scale);
+        
+        //sword attack ended, now cooldown
+        if (p->sword_attack_countdown <= 0){
+            p->sword_cooldown_countdown = p->sword_cooldown;
+        }
+    }
+    
+    if (p->sword_cooldown_countdown > 0){
+        p->sword_cooldown_countdown -= dt;
+        
+        f32 cooldown_progress = clamp01((p->sword_cooldown - p->sword_cooldown_countdown) / p->sword_cooldown);
+        
+        change_scale(sword, lerp(p->sword_start_scale * sword_size_multiplier, p->sword_start_scale, cooldown_progress * cooldown_progress));
+    }
+}
+
 void update_player(Entity *entity){
     assert(entity->flags & PLAYER);
 
-    Player *p = &entity->player;
+    Player *p     = &entity->player;
     Entity *sword = p->sword_entity;    
     
     p->ground_checker->position = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
@@ -1150,9 +1204,9 @@ void update_player(Entity *entity){
     //Vector2 vec_tip_to_mouse = input.mouse_position - sword_tip;
     
     
+    update_player_sword(entity);
     
-    change_up(p->sword_entity, lerp(p->sword_entity->up, dir_to_mouse, dt * p->sword_rotation_speed));
-    
+    //change_up(p->sword_entity, lerp(p->sword_entity->up, dir_to_mouse, dt * p->sword_rotation_speed));
     
     if (p->grounded){
         player_ground_move(entity);

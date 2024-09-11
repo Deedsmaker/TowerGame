@@ -103,6 +103,12 @@ f32 normalized(f32 number){
     return -1;
 }
 
+void normalize(f32 *number){
+    if (*number == 0) *number = 0;
+    if (*number > 0)  *number = 1;
+    *number = -1;
+}
+
 f32 abs(f32 number){
     if (number < 0) return -number;
     return number;
