@@ -5,6 +5,7 @@
 #define PI 3.14159265358979323846f
 #define DEG2RAD (PI/180.0f)
 #define RAD2DEG (180.0f/PI)
+#define EPSILON 0.000001f
 
 struct Vector2{
     f32 x;
@@ -194,7 +195,13 @@ f32 magnitude(Vector2 vector){
 }
 
 Vector2 normalized(Vector2 vector){
-    return divide(vector, magnitude(vector));
+    f32 len = magnitude(vector);
+    
+    if (len <= EPSILON || (abs(vector.x) <= EPSILON && abs(vector.y) <= EPSILON)){
+        return {0, -1};
+    }
+
+    return divide(vector, len);
 }
 
 f32 dot(Vector2 v1, Vector2 v2){

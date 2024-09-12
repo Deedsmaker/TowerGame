@@ -70,8 +70,8 @@ struct Player{
     
     f32 jump_timer = 0;
     //Sword
-    f32 sword_rotation_speed = 50.0f;
-    f32 sword_attack_time = 0.3f;
+    f32 sword_rotation_speed = 5.0f;
+    f32 sword_attack_time = 0.15f;
     f32 sword_cooldown = 0.5f;
     
     Entity *sword_entity;
@@ -177,7 +177,7 @@ struct Editor{
 struct Debug{
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;
-    b32 draw_fps = true;
+    b32 draw_fps = false;
 };
 
 global_variable Input input;
@@ -1146,48 +1146,6 @@ void player_air_move(Entity *entity){
     player_accelerate(entity, input.direction, wish_speed, acceleration);
 }
 
-void update_player_sword(Entity *entity){
-    assert(entity->flags & PLAYER);
-
-    Player *p     = &entity->player;
-    Entity *sword = p->sword_entity;    
-    
-    p->sword_entity->position = entity->position;
-    
-    Vector2 sword_tip = sword->position + sword->up * sword->scale.y;
-    
-    Vector2 vec_to_mouse = input.mouse_position - entity->position;
-    Vector2 dir_to_mouse = normalized(vec_to_mouse);
-    
-    change_up(p->sword_entity, lerp(p->sword_entity->up, dir_to_mouse, dt * p->sword_rotation_speed));
-    
-    f32 sword_size_multiplier = 2.0f;
-    b32 can_attack = p->sword_attack_countdown <= 0 && p->sword_cooldown_countdown <= 0;
-    if (can_attack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-        p->sword_attack_countdown = p->sword_attack_time;    
-    } 
-    
-    if (p->sword_attack_countdown > 0){
-        p->sword_attack_countdown -= dt;
-        f32 attack_progress = clamp01((p->sword_attack_time - p->sword_attack_countdown) / p->sword_attack_time);
-        change_scale(sword, lerp(p->sword_start_scale, p->sword_start_scale * sword_size_multiplier, sqrtf(attack_progress)));
-        print(sword->scale);
-        
-        //sword attack ended, now cooldown
-        if (p->sword_attack_countdown <= 0){
-            p->sword_cooldown_countdown = p->sword_cooldown;
-        }
-    }
-    
-    if (p->sword_cooldown_countdown > 0){
-        p->sword_cooldown_countdown -= dt;
-        
-        f32 cooldown_progress = clamp01((p->sword_cooldown - p->sword_cooldown_countdown) / p->sword_cooldown);
-        
-        change_scale(sword, lerp(p->sword_start_scale * sword_size_multiplier, p->sword_start_scale, cooldown_progress * cooldown_progress));
-    }
-}
-
 void update_player(Entity *entity){
     assert(entity->flags & PLAYER);
 
@@ -1204,11 +1162,55 @@ void update_player(Entity *entity){
     //Vector2 vec_tip_to_mouse = input.mouse_position - sword_tip;
     
     
-    update_player_sword(entity);
+    f32 sword_size_multiplier = 2.0f;
+    f32 sword_dash_power = 70.0f;
+    b32 can_attack = p->sword_attack_countdown <= 0 && p->sword_cooldown_countdown <= 0;
+    if (can_attack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        p->sword_attack_countdown = p->sword_attack_time;    
+        
+        p->velocity = dir_to_mouse * sword_dash_power;
+        change_up(p->sword_entity, dir_to_mouse);
+    } 
     
-    //change_up(p->sword_entity, lerp(p->sword_entity->up, dir_to_mouse, dt * p->sword_rotation_speed));
+    if (p->sword_attack_countdown > 0){
+        p->sword_attack_countdown -= dt;
+        f32 attack_progress = clamp01((p->sword_attack_time - p->sword_attack_countdown) / p->sword_attack_time);
+        change_scale(sword, lerp(p->sword_start_scale, p->sword_start_scale * sword_size_multiplier, sqrtf(attack_progress)));
+        
+        //sword attack ended, now cooldown
+        if (p->sword_attack_countdown <= 0){
+            p->sword_cooldown_countdown = p->sword_cooldown;
+        }
+    }
     
-    if (p->grounded){
+    if (p->sword_cooldown_countdown > 0){
+        p->sword_cooldown_countdown -= dt;
+        
+        f32 cooldown_progress = clamp01((p->sword_cooldown - p->sword_cooldown_countdown) / p->sword_cooldown);
+        
+        change_scale(sword, lerp(p->sword_start_scale * sword_size_multiplier, p->sword_start_scale, cooldown_progress * cooldown_progress));
+    }
+    
+    b32 sword_attacking = p->sword_attack_countdown > 0;
+    
+    p->sword_angular_velocity *= 1.0f - (dt);
+    
+    b32 can_sword_spin = !sword_attacking;
+    
+    f32 sword_spin_sense = 2;
+    if (can_sword_spin && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
+        p->sword_angular_velocity += input.mouse_delta.x * sword_spin_sense;
+    }
+    
+    Vector2 velocity_norm = normalized(p->velocity);
+    
+    if (abs(p->sword_angular_velocity) > 10){ 
+        rotate(sword, p->sword_angular_velocity * dt);
+    } else{
+        change_up(p->sword_entity, lerp(p->sword_entity->up, velocity_norm * -1, dt * p->sword_rotation_speed));
+    }
+    
+    if (p->grounded && !sword_attacking){
         player_ground_move(entity);
         
         p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
@@ -1216,11 +1218,10 @@ void update_player(Entity *entity){
         
         entity->position.y -= dt;
         p->velocity -= p->ground_normal * dt;
-        //print(p->ground_normal);
-    } else{
+    } else if (!sword_attacking){
         player_air_move(entity);
         
-        f32 jump_t = clamp01(p->velocity.y / p->jump_force);
+        f32 jump_t = clamp01((p->velocity.y - 10.0f) / p->jump_force);
         p->gravity_mult = lerp(1.0f, 7.0f, sqrtf(jump_t));
         p->velocity.y -= p->gravity * p->gravity_mult * dt;
     }
@@ -1233,13 +1234,6 @@ void update_player(Entity *entity){
     }
     
     p->jump_timer += dt;
-    
-    // if (p->grounded && p->jump_timer > 0.2f){
-    //     p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
-    //     p->velocity = plane_vector * magnitude(p->velocity);
-    //}
-    
-    //print(magnitude(p->velocity));
     
     Vector2 next_pos = {entity->position.x + p->velocity.x * dt, entity->position.y + p->velocity.y * dt};
     
