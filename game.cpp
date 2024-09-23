@@ -3,7 +3,7 @@
 //#define assert(a) (if (!a) (int*)void*);
 //#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
-f32 dt;
+global_variable f32 dt;
 //f32 game_time;
 
 #define FLAGS i32
@@ -12,7 +12,9 @@ f32 dt;
 enum Flags{
     GROUND = 1 << 0,
     DRAW_TEXT = 1 << 1,
-    PLAYER = 1 << 2
+    PLAYER = 1 << 2,
+    ENEMY = 1 << 3,
+    SWORD = 1 << 4
 };
 
 struct Ground{
@@ -20,7 +22,10 @@ struct Ground{
 };
 
 struct Color_Changer{
-    b32 changing = 0;
+    b32 changing = false;
+    b32 interpolating = false;
+    
+    f32 progress = 0;
 
     Color start_color;
     Color target_color;
@@ -165,6 +170,9 @@ struct Editor{
     Vector2 *last_selected_vertex;
     Vector2 *moving_vertex;
     
+    b32 ruler_active = false;
+    Vector2 ruler_start_position;
+    
     b32 selected_this_click = 0;
     
     f32 dragging_time = 0;
@@ -200,6 +208,13 @@ void free_entity(Entity *e){
 void add_rect_vertices(Array<Vector2> *vertices, Vector2 pivot){
     vertices->add({pivot.x, pivot.y});
     vertices->add({-pivot.x, pivot.y});
+    vertices->add({pivot.x, pivot.y - 1.0f});
+    vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
+}
+
+void add_sword_vertices(Array<Vector2> *vertices, Vector2 pivot){
+    vertices->add({pivot.x * 0.2f, pivot.y * 0.2f});
+    vertices->add({-pivot.x * 0.2f, pivot.y * 0.2f});
     vertices->add({pivot.x, pivot.y - 1.0f});
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
@@ -239,8 +254,11 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
     position = _pos;
-    add_rect_vertices(&vertices, pivot);
-    
+    // if (_flags & SWORD){
+    //     add_sword_vertices(&vertices, pivot);
+    // } else{
+        add_rect_vertices(&vertices, pivot);
+    // }
 
     rotation = 0;
     
@@ -253,7 +271,11 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAG
     position = _pos;
     pivot = _pivot;
     
-    add_rect_vertices(&vertices, pivot);
+    // if (_flags & SWORD){
+    //     add_sword_vertices(&vertices, pivot);
+    // } else{
+        add_rect_vertices(&vertices, pivot);
+    // }
     
     rotation = 0;
     
@@ -268,7 +290,11 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     position = _pos;
     pivot = _pivot;
     
-    add_rect_vertices(&vertices, pivot);
+    // if (_flags & SWORD){
+    //     add_sword_vertices(&vertices, pivot);
+    // } else{
+        add_rect_vertices(&vertices, pivot);
+    // }
     
     rotation = 0;
     rotate_to(this, _rotation);
@@ -467,9 +493,12 @@ void enter_game_state(){
     player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3}, 0, 0); 
     player_entity->player.ground_checker->color = PURPLE * 0.8f;
     
-    player_entity->player.sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, 0);
-    player_entity->player.sword_entity->color = GRAY + RED * 0.1f;
+    player_entity->player.sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, /*SWORD*/0);
+    player_entity->player.sword_entity->color   = GRAY + RED * 0.1f;
     player_entity->player.sword_entity->color.a = 255;
+    player_entity->player.sword_entity->color_changer.start_color = player_entity->player.sword_entity->color;
+    player_entity->player.sword_entity->color_changer.target_color = RED * 0.99f;
+    player_entity->player.sword_entity->color_changer.interpolating = true;
 }
 
 void enter_editor_state(){
@@ -551,12 +580,14 @@ void update_game(){
 void update_color_changer(Entity *entity){
     Color_Changer *changer = &entity->color_changer;
     
-    if (!changer->changing){
-        return;
+    if (changer->changing){
+        f32 t = abs(sinf(game_time * changer->change_time));
+        entity->color = lerp(changer->start_color, changer->target_color, t);
     }
     
-    f32 t = abs(sinf(game_time * changer->change_time));
-    entity->color = lerp(changer->start_color, changer->target_color, t);
+    if (changer->interpolating){
+        entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
+    }
 }
 
 b32 check_col_point_rec(Vector2 point, Entity *e){
@@ -723,11 +754,17 @@ void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS exclude_fla
 }
 
 void update_editor(){
-    if (IsKeyPressed(KEY_B)){
+    if (IsKeyPressed(KEY_B)){ //spawn block
         Entity *e = add_entity(input.mouse_position, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
         e->color = BROWN;
         e->color_changer.start_color = e->color;
         e->color_changer.target_color = e->color * 1.5f;
+        print("spawn ground block");
+    }
+    
+    if (IsKeyPressed(KEY_G)){
+        Entity *e = add_entity(input.mouse_position, {3, 3}, {0.5f, 0.5f}, 0, RED * 0.9f, ENEMY);
+        print("spawn enemy");
     }
     
     f32 zoom = context.cam.cam2D.zoom;
@@ -860,6 +897,15 @@ void update_editor(){
         editor.moving_vertex->y = input.mouse_position.y;
         *editor.moving_vertex = local(editor.moving_vertex_entity, *editor.moving_vertex);
     }
+    
+    //editor ruler
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && IsKeyDown(KEY_LEFT_ALT)){
+        editor.ruler_active = true;
+        editor.ruler_start_position = input.mouse_position;
+    } else if (editor.ruler_active && IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
+        editor.ruler_active = false;
+    }
+    
     
     //editor Delete entity
     if (IsKeyPressed(KEY_X) && editor.selected_entity){
@@ -1210,6 +1256,11 @@ void update_player(Entity *entity){
         change_up(p->sword_entity, lerp(p->sword_entity->up, velocity_norm * -1, dt * p->sword_rotation_speed));
     }
     
+    f32 sword_max_spin_speed = 5000;
+    f32 sword_spin_speed_progress = clamp01(abs(p->sword_angular_velocity) / sword_max_spin_speed);
+    
+    sword->color_changer.progress = sword_spin_speed_progress * sword_spin_speed_progress;
+    
     if (p->grounded && !sword_attacking){
         player_ground_move(entity);
         
@@ -1323,6 +1374,12 @@ void draw_player(Entity *entity){
     draw_game_triangle_strip(entity);
 }
 
+void draw_enemy(Entity *entity){
+    assert(entity->flags & ENEMY);
+    
+    draw_game_triangle_strip(entity);
+}
+
 void draw_entities(){
     Array<Entity> *entities = &context.entities;
     
@@ -1333,7 +1390,7 @@ void draw_entities(){
             continue;
         }
     
-        if (e->flags & GROUND || e->flags == 0){
+        if (e->flags & GROUND || e->flags == 0 || e->flags & SWORD){
             if (e->vertices.count > 0){
                 draw_game_triangle_strip(e);
             } else{
@@ -1345,12 +1402,21 @@ void draw_entities(){
             draw_player(e);
         }
         
+        if (e->flags & ENEMY){
+            draw_enemy(e);
+        }
+        
         if (e-> flags & DRAW_TEXT){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
         draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
         draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
+        
+        b32 draw_bounds = false;
+        if (draw_bounds){
+            draw_game_rect_lines(e->position, e->bounds, e->pivot, 2, GREEN);
+        }
     }
 }
 
@@ -1409,12 +1475,7 @@ void draw_editor(){
             }
         }
         
-        b32 draw_bounds = false;
-        if (draw_bounds){
-            draw_game_rect_lines(e->position, e->bounds, e->pivot, 2, GREEN);
-        }
-        
-        b32 draw_normals = true;
+        b32 draw_normals = false;
         if (draw_normals){
             global_normals.count = 0;
             //Array<Vector2> normals = Array<Vector2>(e->vertices.count + 4);
@@ -1432,6 +1493,15 @@ void draw_editor(){
     
     if (editor.dragging_entity != NULL){
         draw_game_line(editor.dragging_entity->position, closest->position, 0.1f, PINK);
+    }
+    
+    //editor ruler drawing
+    if (editor.ruler_active){
+        draw_game_line(editor.ruler_start_position, input.mouse_position, 0.3f, BLUE * 0.9f);
+        Vector2 vec_to_mouse = input.mouse_position - editor.ruler_start_position;
+        f32 length = magnitude(vec_to_mouse);
+        
+        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), TextFormat("%.2f", length), 20, RED);
     }
 }
 

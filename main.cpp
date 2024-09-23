@@ -28,6 +28,9 @@ typedef u32 b32;
 
 #include "my_math.cpp"
 
+#include "string.hpp"
+#include "array.hpp"
+
 #include "include\raylib.h"
 #include "include\raymath.h"
 #include "include\rlgl.h"
@@ -36,7 +39,6 @@ global_variable f32 game_time = 0;
 
 #include "utils.cpp"
 #include "render.cpp"
-
 
 int screen_width = 1600;
 int screen_height = 900;
