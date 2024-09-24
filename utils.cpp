@@ -157,6 +157,19 @@ void print(b32 num){
     }
 }
 
+void print(Array<Vector2> *arr){
+    printf("[");
+    for (int i = 0; i < arr->count; i++){
+        printf("{%.4f, %.4f}", arr->get(i).x, arr->get(i).y);
+        
+        if (i < arr->count - 1){
+            printf(",");
+        }
+    }
+    
+    printf("]; %.4f\n", game_time);
+}
+
 char* to_string(int num){
     char* text = (char*)malloc(10 * sizeof(char));
     sprintf(text, "%d", num);

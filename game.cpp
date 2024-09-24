@@ -6,187 +6,7 @@
 global_variable f32 dt;
 //f32 game_time;
 
-#define FLAGS i32
-//#define EPSILON 0.0000000000000001f
-
-enum Flags{
-    GROUND = 1 << 0,
-    DRAW_TEXT = 1 << 1,
-    PLAYER = 1 << 2,
-    ENEMY = 1 << 3,
-    SWORD = 1 << 4
-};
-
-struct Ground{
-      
-};
-
-struct Color_Changer{
-    b32 changing = false;
-    b32 interpolating = false;
-    
-    f32 progress = 0;
-
-    Color start_color;
-    Color target_color;
-    
-    f32 change_time = 2.0f;
-};
-
-struct Text_Drawer{
-    const char *text;  
-    f32 size = 30;
-};
-
-struct Collision{
-    b32 collided;
-    f32 overlap;
-    
-    Vector2 normal;    
-    Vector2 point;
-    Vector2 dir_to_first;
-};
-
-struct Entity;
-
-struct Player{
-    Array<Collision> collisions = Array<Collision>(10);
-    
-    f32 max_ground_angle = 45;
-    
-    f32 base_move_speed = 30.0f;  
-    f32 ground_acceleration = 30;
-    f32 ground_deceleration = 10;
-    f32 air_acceleration    = 5;
-    f32 air_deceleration    = 1;
-    f32 friction = 120;
-    f32 jump_force = 175;
-    f32 gravity = 120;
-    f32 gravity_mult = 1;
-    
-    Vector2 sword_start_scale = {1.5f, 7};
-    Vector2 plane_vector = {0, 1};
-    Vector2 ground_normal = {0, 1};
-    b32 grounded = false;
-    
-    Entity *ground_checker;
-    
-    Vector2 velocity = {0, 0};
-    
-    f32 jump_timer = 0;
-    //Sword
-    f32 sword_rotation_speed = 5.0f;
-    f32 sword_attack_time = 0.15f;
-    f32 sword_cooldown = 0.5f;
-    
-    Entity *sword_entity;
-    
-    f32 sword_attack_countdown;
-    f32 sword_cooldown_countdown;
-    f32 sword_angular_velocity = 0;  
-    
-    f32 current_move_speed;
-};
-
-struct Entity{
-    Entity();
-    Entity(Vector2 _pos);
-    Entity(Vector2 _pos, Vector2 _scale);
-    Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
-    Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
-    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
-    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2> _vertices);
-
-    i32 id = -1;
-
-    b32 enabled = 1;
-    
-    b32 destroyed = 0;
-    
-    Array<Vector2> vertices = Array<Vector2>(20);
-    
-    Vector2 up = {0, 1};
-    Vector2 right = {1, 0};
-    
-    FLAGS flags;
-    //b32 need_to_destroy = 0;
-    
-    //lower - closer to camera
-    i32 draw_order = 1;
-    
-    Vector2 position;
-    Vector2 scale = {1, 1};
-    Vector2 bounds = {1, 1};
-    Vector2 pivot = {0.5f, 1.0f};
-    f32 rotation = 0;
-    
-    Color color = WHITE;
-    
-    Player player;
-    Ground ground;
-    Color_Changer color_changer;
-    Text_Drawer text_drawer;
-};
-
-//scale 150 should be full screen;
-
-struct Cam{
-    Vector2 position;
-    float rotation;
-    
-    Camera2D cam2D = {};
-};
-
-struct Context{
-    Array<Entity> entities = Array<Entity>(1000);
-
-    Vector2 unit_screen_size;
-    
-    Cam cam = {};
-};
-
-struct Input{
-    Vector2 direction;
-    Vector2 mouse_position;
-    Vector2 mouse_delta;
-    f32     mouse_wheel;
-};
-
-struct Level{
-    Context *context;  
-};
-
-struct Circle{
-    Vector2 position;  
-    f32 radius;
-};
-
-struct Editor{
-    Entity  *selected_entity;
-    Entity  *dragging_entity;
-    Entity  *moving_vertex_entity;
-    Entity  *cursor_entity;
-    
-    Vector2 *last_selected_vertex;
-    Vector2 *moving_vertex;
-    
-    b32 ruler_active = false;
-    Vector2 ruler_start_position;
-    
-    b32 selected_this_click = 0;
-    
-    f32 dragging_time = 0;
-    
-    Collision last_collision;
-    
-    Vector2 player_spawn_point = {0, 0};
-};
-
-struct Debug{
-    b32 draw_player_collisions = false;  
-    b32 draw_player_speed = false;
-    b32 draw_fps = false;
-};
+#include "game.h"
 
 global_variable Input input;
 global_variable Level current_level;
@@ -199,8 +19,6 @@ global_variable Array<Vector2> global_normals = Array<Vector2>(30);
 
 global_variable Entity *mouse_entity;
 
-#include "game.h"
-
 void free_entity(Entity *e){
     e->vertices.free_arr();
 }
@@ -210,6 +28,8 @@ void add_rect_vertices(Array<Vector2> *vertices, Vector2 pivot){
     vertices->add({-pivot.x, pivot.y});
     vertices->add({pivot.x, pivot.y - 1.0f});
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
+    
+    print(vertices);
 }
 
 void add_sword_vertices(Array<Vector2> *vertices, Vector2 pivot){
@@ -343,7 +163,7 @@ void init_game(){
     context = *current_level.context;
     context = {};    
     
-    mouse_entity = add_entity(input.mouse_position, {1, 1}, 0, -1);
+    mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
     
     //load level
     FILE *fptr = fopen("test_level.level", "r");
@@ -490,7 +310,7 @@ void enter_game_state(){
     game_state = GAME;
     
     player_entity = add_entity(editor.player_spawn_point, {2, 2}, {0.5f, 0.5f}, 0, RED, PLAYER);
-    player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3}, 0, 0); 
+    player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3}, {0.5f, 0.5f}, 0, 0); 
     player_entity->player.ground_checker->color = PURPLE * 0.8f;
     
     player_entity->player.sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, /*SWORD*/0);
@@ -573,6 +393,11 @@ void update_game(){
     //zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
     
     update_entities();
+    
+    if (game_state == GAME && player_entity != NULL){
+        Vector2 target_position = player_entity->position + Vector2_up * 10;
+        context.cam.position = lerp(context.cam.position, target_position, dt * 10);
+    }
     
     draw_game();
 }
@@ -1042,18 +867,22 @@ void change_scale(Entity *entity, Vector2 new_scale){
         f32 up_dot    = dot(entity->up,    *vertex);
         f32 right_dot = dot(entity->right, *vertex);
         
-        if (entity->scale.y > 4 && abs(up_dot) < 1){
-            up_dot = 0;
-        }
-        if (entity->scale.x > 4 && abs(right_dot) < 1){
-            right_dot = 0;
-        }
         
-        up_dot    = normalized(up_dot);
-        right_dot = normalized(right_dot);
+        // if (entity->scale.y > 4 && abs(up_dot) < 1){
+        //     up_dot = 0;
+        // }
+        // if (entity->scale.x > 4 && abs(right_dot) < 1){
+        //     right_dot = 0;
+        // }
         
-        *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y;
-        *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x;
+        if (abs(up_dot) >= entity->scale.y * 0.1f){
+            up_dot    = normalized(up_dot);
+            *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y;
+        }
+        if (abs(right_dot) >= entity->scale.x * 0.1f){
+            right_dot = normalized(right_dot);
+            *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x;
+        }
     }
     
     calculate_bounds(entity);
@@ -1273,7 +1102,7 @@ void update_player(Entity *entity){
         player_air_move(entity);
         
         f32 jump_t = clamp01((p->velocity.y - 10.0f) / p->jump_force);
-        p->gravity_mult = lerp(1.0f, 7.0f, sqrtf(jump_t));
+        p->gravity_mult = lerp(1.0f, 4.0f, sqrtf(jump_t));
         p->velocity.y -= p->gravity * p->gravity_mult * dt;
     }
     
@@ -1410,9 +1239,11 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
-        draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
-        
+        b32 draw_up_right = true;
+        if (draw_up_right){
+            draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
+            draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
+        }
         b32 draw_bounds = false;
         if (draw_bounds){
             draw_game_rect_lines(e->position, e->bounds, e->pivot, 2, GREEN);
@@ -1546,17 +1377,21 @@ void setup_color_changer(Entity *entity){
     entity->color_changer.target_color = entity->color * 1.4f;
 }
 
-Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
-    Entity e = Entity(pos, scale, rotation, flags);    
-    e.id = context.entities.count + game_time * 10000;
-    context.entities.add(e);
-    return context.entities.last_ptr();
-}
+// Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
+//     Entity e = Entity(pos, scale, rotation, flags);    
+//     e.id = context.entities.count + game_time * 10000;
+//     context.entities.add(e);
+//     return context.entities.last_ptr();
+// }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
-    Entity *e = add_entity(pos, scale, rotation, flags);    
-    e->pivot = pivot;
-    return e;
+    //Entity *e = add_entity(pos, scale, rotation, flags);    
+    Entity e = Entity(pos, scale, pivot, rotation, flags);    
+    e.id = context.entities.count + game_time * 10000;
+    //e.pivot = pivot;
+
+    context.entities.add(e);
+    return context.entities.last_ptr();
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags){

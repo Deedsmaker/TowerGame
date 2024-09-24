@@ -89,8 +89,10 @@ struct Color {
 #define MAGENTA    (Color){ 255, 0, 255, 255 }     
 #define RAYWHITE   (Color){ 245, 245, 245, 255 }   
 
-global_variable Vector2 Vector2_one = {1, 1};
-global_variable Vector2 Vector2_zero = {0, 0};
+global_variable Vector2 Vector2_one   = {1, 1};
+global_variable Vector2 Vector2_up    = {0, 1};
+global_variable Vector2 Vector2_right = {1, 0};
+global_variable Vector2 Vector2_zero  = {0, 0};
 
 struct Gradient{
     u32 *colors;
