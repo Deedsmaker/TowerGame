@@ -55,6 +55,8 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Array<Vector2> vertices);
 
+Particle_Emitter* add_emitter();
+
 f32 zoom_unit_size();
 
 Vector2 get_left_up_no_rot(Entity *e);

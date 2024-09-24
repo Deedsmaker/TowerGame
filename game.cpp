@@ -6,6 +6,7 @@
 global_variable f32 dt;
 //f32 game_time;
 
+
 #include "game.h"
 
 global_variable Input input;
@@ -14,10 +15,14 @@ global_variable Context context = {};
 global_variable Editor editor  = {};
 global_variable Debug  debug  = {};
 global_variable Entity *player_entity;
+global_variable Particle_Emitter *chainsaw_emitter;
 
 global_variable Array<Vector2> global_normals = Array<Vector2>(30);
 
 global_variable Entity *mouse_entity;
+
+#include "random.hpp"
+#include "particles.hpp"
 
 void free_entity(Entity *e){
     e->vertices.free_arr();
@@ -309,9 +314,9 @@ void init_game(){
 void enter_game_state(){
     game_state = GAME;
     
-    player_entity = add_entity(editor.player_spawn_point, {2, 2}, {0.5f, 0.5f}, 0, RED, PLAYER);
-    player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {1.5f, 3}, {0.5f, 0.5f}, 0, 0); 
-    player_entity->player.ground_checker->color = PURPLE * 0.8f;
+    player_entity = add_entity(editor.player_spawn_point, {1.0f, 1.5f}, {0.5f, 0.5f}, 0, RED, PLAYER);
+    player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
+    player_entity->player.ground_checker->color = Fade(PURPLE, 0.8f);
     
     player_entity->player.sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, /*SWORD*/0);
     player_entity->player.sword_entity->color   = GRAY + RED * 0.1f;
@@ -319,6 +324,16 @@ void enter_game_state(){
     player_entity->player.sword_entity->color_changer.start_color = player_entity->player.sword_entity->color;
     player_entity->player.sword_entity->color_changer.target_color = RED * 0.99f;
     player_entity->player.sword_entity->color_changer.interpolating = true;
+    
+    if (chainsaw_emitter == NULL){
+        chainsaw_emitter = add_emitter();
+        chainsaw_emitter->over_distance = 2;
+        chainsaw_emitter->over_time     = 2;
+        chainsaw_emitter->speed_min     = 5;
+        chainsaw_emitter->speed_max     = 20;
+        chainsaw_emitter->spread        = 1;
+        chainsaw_emitter->enabled       = false;
+    }
 }
 
 void enter_editor_state(){
@@ -393,6 +408,8 @@ void update_game(){
     //zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
     
     update_entities();
+    update_emitters();
+    update_particles();
     
     if (game_state == GAME && player_entity != NULL){
         Vector2 target_position = player_entity->position + Vector2_up * 10;
@@ -560,13 +577,13 @@ void resolve_collision(Entity *entity, Collision col){
     entity->position += col.normal * col.overlap;
 }
 
-void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS exclude_flags){
+void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS include_flags){
     result->count = 0;
 
     for (int i = 0; i < context.entities.count; i++){
         Entity *other = context.entities.get_ptr(i);
         
-        if (other == entity || other->flags <= 0 || (other->flags & exclude_flags) > 0){
+        if (other == entity || other->flags <= 0 || (other->flags & include_flags) <= 0){
             continue;
         }
         
@@ -1073,8 +1090,23 @@ void update_player(Entity *entity){
     b32 can_sword_spin = !sword_attacking;
     
     f32 sword_spin_sense = 2;
+    
+    if (can_sword_spin && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+        chainsaw_emitter->position = input.mouse_position;
+        chainsaw_emitter->last_emitted_position = input.mouse_position;
+        chainsaw_emitter->enabled = true;
+    }
+    
     if (can_sword_spin && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
         p->sword_angular_velocity += input.mouse_delta.x * sword_spin_sense;
+        
+        chainsaw_emitter->position = input.mouse_position;
+    } else{
+        //chainsaw_emitter->last_emitted_position = input.mouse_position;
+    }
+    
+    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
+        chainsaw_emitter->enabled = false;
     }
     
     Vector2 velocity_norm = normalized(p->velocity);
@@ -1082,13 +1114,13 @@ void update_player(Entity *entity){
     if (abs(p->sword_angular_velocity) > 10){ 
         rotate(sword, p->sword_angular_velocity * dt);
     } else{
-        change_up(p->sword_entity, lerp(p->sword_entity->up, velocity_norm * -1, dt * p->sword_rotation_speed));
+        //change_up(p->sword_entity, lerp(p->sword_entity->up, velocity_norm * -1, dt * p->sword_rotation_speed));
     }
     
     f32 sword_max_spin_speed = 5000;
-    f32 sword_spin_speed_progress = clamp01(abs(p->sword_angular_velocity) / sword_max_spin_speed);
+    p->sword_spin_speed_progress = clamp01(abs(p->sword_angular_velocity) / sword_max_spin_speed);
     
-    sword->color_changer.progress = sword_spin_speed_progress * sword_spin_speed_progress;
+    sword->color_changer.progress = p->sword_spin_speed_progress * p->sword_spin_speed_progress;
     
     if (p->grounded && !sword_attacking){
         player_ground_move(entity);
@@ -1122,7 +1154,7 @@ void update_player(Entity *entity){
     f32 found_ground = false;
     f32 just_grounded = false;
     
-    fill_collisions(p->ground_checker, &p->collisions, PLAYER);
+    fill_collisions(p->ground_checker, &p->collisions, GROUND);
     for (int i = 0; i < p->collisions.count; i++){
         Collision col = p->collisions.get(i);
         assert(col.collided);
@@ -1151,7 +1183,7 @@ void update_player(Entity *entity){
         }
     }
     
-    fill_collisions(entity, &p->collisions, 0);
+    fill_collisions(entity, &p->collisions, GROUND);
     for (int i = 0; i < p->collisions.count; i++){
         Collision col = p->collisions.get(i);
         assert(col.collided);
@@ -1336,6 +1368,14 @@ void draw_editor(){
     }
 }
 
+void draw_particles(){
+    for (int i = 0; i < context.particles.count; i++){
+        Particle particle = context.particles.get(i);
+        
+        draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, 0, particle.color);
+    }
+}
+
 void draw_game(){
     //context.cam.cam2D.rotation = 20;
     //context.cam.cam2D.target = world_to_screen({0, context.unit_screen_size.y * 0.5f});
@@ -1350,6 +1390,7 @@ void draw_game(){
     //draw_rect({200, 200}, {200, 100}, BLUE);
     
     draw_entities();
+    draw_particles();
     
     if (player_entity != NULL && debug.draw_player_collisions){
         for (int i = 0; i < player_entity->player.collisions.count; i++){
@@ -1360,15 +1401,39 @@ void draw_game(){
         }
     }
     
-    if (debug.draw_fps){
-        draw_text(TextFormat("%d FPS", GetFPS()), 10, 10,  30, RED);
-    }
-    
     if (game_state == EDITOR){
         draw_editor();
     }
     
     EndMode2D();
+    
+    f32 v_pos = 10;
+    f32 font_size = 18;
+    if (debug.draw_fps){
+        draw_text(TextFormat("FPS: %d", GetFPS()), 10, v_pos, font_size, RED);
+        v_pos += font_size;
+    }
+    
+    if (game_state == GAME && player_entity != NULL){            
+        b32 draw_spin_progress = true;
+        if (draw_spin_progress){
+            draw_text(TextFormat("Spin progress: %.2f", player_entity->player.sword_spin_speed_progress), 10, v_pos, font_size, RED);
+            v_pos += font_size;
+        }
+    }
+    
+    b32 draw_particle_count = true;
+    if (draw_particle_count){
+        draw_text(TextFormat("Particles count: %d", context.particles.count), 10, v_pos, font_size, RED);
+        v_pos += font_size;
+    }
+    
+    b32 draw_emitters_count = true;
+    if (draw_emitters_count){
+        draw_text(TextFormat("Emitters count: %d", context.emitters.count), 10, v_pos, font_size, RED);
+        v_pos += font_size;
+    }
+    
     EndDrawing();
 }
 
@@ -1420,6 +1485,13 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
     e->vertices = vertices;
     setup_color_changer(e);
     return e;
+}
+
+Particle_Emitter* add_emitter(){
+    Particle_Emitter e = Particle_Emitter();
+    
+    context.emitters.add(e);    
+    return context.emitters.last_ptr();
 }
 
 Entity *add_text(Vector2 pos, f32 size, const char *text){

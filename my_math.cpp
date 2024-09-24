@@ -337,42 +337,6 @@ int lerp_gradient(Gradient gradient, float fraction){
 }
 
 
-global_variable u32 rnd_state = 0;
-
-//lehmer
-u32 rnd(u32 state)
-{
-    state += 0xe120fc15;
-    u64 tmp;
-    tmp = (u64)state * 0x4a39b70d;
-    u32 m1 = (tmp >> 32) ^ tmp;
-    tmp = (u64)m1 * 0x12fad5c9;
-    u32 m2 = (tmp >> 32) * tmp;
-    return m2;
-	//return (u64)state * 48271 % 0x7fffffff;
-}
-
-u32 rnd()
-{
-    rnd_state = (1 + rnd_state) * 5;
-	return (u64)rnd_state * 48271 % 0x7fffffff;
-}
-
-int rnd(int min, int max){
-    if (min == max) return max;
-    return (rnd() % (max - min)) + min;
-}
-
-f32 rnd(f32 min, f32 max){
-    if (min == max) return max;
-    return ((f32)rnd() / (f32)(0x7FFFFFFF)) * (max - min) + min;
-}
-
-f32 rnd01(){
-    return rnd(0.0f, 1.0f);
-}
-
-
 //Ease functions
 float EaseInOutQuad(float x){
     return x < 0.5f ? 2.0f * x * x : 1 - (f32)pow(-2 * x + 2, 2) / 2.0f;
