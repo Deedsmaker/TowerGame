@@ -57,6 +57,10 @@ int main(){
     while(!WindowShouldClose()){
         dt = GetFrameTime();
         
+        if (IsKeyPressed(KEY_ENTER) && IsKeyDown(KEY_LEFT_ALT)){
+            ToggleBorderlessWindowed();
+        }
+        
         update_game();
         screen_size_changed = 0;
     }

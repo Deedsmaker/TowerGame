@@ -31,15 +31,23 @@ struct Particle_Emitter{
     f32 emitting_timer;
     f32 over_time;
     f32 over_distance;
+    b32 direction_to_move = false;
+    
     u32 count_min = 10;
     u32 count_max = 50;
+    f32 count_multiplier = 1;
+    
     f32 speed_min = 10;
     f32 speed_max = 50;  
+    f32 speed_multiplier = 1;
+    
     f32 scale_min = 0.1f;
     f32 scale_max = 0.5f;
     f32 spread = 0.2f;
+    
     f32 lifetime_min = 0.5f;
     f32 lifetime_max = 2;
+    f32 lifetime_multiplier = 1;
     
     //f32 colliding_chance = 1.0f;
     
@@ -63,7 +71,7 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
                                     
     f32 randomized_speed = rnd(emitter.speed_min * speed_multiplier, emitter.speed_max * speed_multiplier);
     
-    f32 lifetime = rnd(emitter.lifetime_min, emitter.lifetime_max);
+    f32 lifetime = rnd(emitter.lifetime_min, emitter.lifetime_max) * emitter.lifetime_multiplier;
     particle.max_lifetime = lifetime;
     
     // if (emitter.try_splash){
@@ -99,29 +107,34 @@ void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 directio
     }
 }
 
-void update_overtime_emitter(Particle_Emitter *emitter, f32 count_multiplier, f32 speed_multiplier){
+void update_overtime_emitter(Particle_Emitter *emitter){
     emitter->emitting_timer += dt;
-    f32 emit_delay = 1.0f / (emitter->over_time * count_multiplier);
+    f32 emit_delay = 1.0f / (emitter->over_time * emitter->count_multiplier);
     while (emitter->emitting_timer >= emit_delay){
         emitter->emitting_timer -= emit_delay;
-        shoot_particle(*emitter, emitter->position, emitter->direction, speed_multiplier);
+        shoot_particle(*emitter, emitter->position, emitter->direction, emitter->speed_multiplier);
     }
 }
 
-void update_overdistance_emitter(Particle_Emitter *emitter, f32 count_multiplier, f32 speed_multiplier){
+void update_overdistance_emitter(Particle_Emitter *emitter){
     Vector2 current_emitter_position = emitter->position;
 
     Vector2 moved_vector = emitter->position - emitter->last_emitted_position;
     Vector2 moved_direction = normalized(moved_vector);
+    
+    if (emitter->direction_to_move){
+        emitter->direction = moved_direction;
+    }
+    
     f32 moved_distance = magnitude(moved_vector);
     
-    f32 distance_to_emit = 1.0f / emitter->over_distance;
+    f32 distance_to_emit = 1.0f / (emitter->over_distance * emitter->count_multiplier);
     
     while (moved_distance > distance_to_emit){
         moved_distance -= distance_to_emit;
         emitter->last_emitted_position += moved_direction * distance_to_emit;
         emitter->position = emitter->last_emitted_position;
-        shoot_particle(*emitter, emitter->position, emitter->direction, speed_multiplier);
+        shoot_particle(*emitter, emitter->position, emitter->direction, emitter->speed_multiplier);
     }
     
     emitter->position = current_emitter_position;
@@ -136,11 +149,11 @@ void update_emitters(){
         }
         
         if (emitter->over_time > 0){
-            update_overtime_emitter(emitter, 1, 1);
+            update_overtime_emitter(emitter);
         }
         
         if (emitter->over_distance > 0){
-            update_overdistance_emitter(emitter, 1, 1);
+            update_overdistance_emitter(emitter);
         }
     }
 }
@@ -175,5 +188,40 @@ void update_particles(){
         // if (particle->leave_splash){
         //     add_splash(game, particle->entity, particle-> splash_color == 0 ? particle->color : particle->splash_color);
         // }
+    }
+}
+
+global_variable Particle_Emitter *chainsaw_emitter;
+global_variable Particle_Emitter *sword_tip_emitter;
+
+void setup_particles(){
+    if (chainsaw_emitter == NULL){
+        chainsaw_emitter = add_emitter();
+        chainsaw_emitter->over_distance = 3;
+        chainsaw_emitter->over_time     = 0;
+        chainsaw_emitter->speed_min     = 5;
+        chainsaw_emitter->speed_max     = 20;
+        chainsaw_emitter->scale_min     = 0.1f;
+        chainsaw_emitter->scale_max     = 0.6f;
+        chainsaw_emitter->lifetime_min  = 0.05f;
+        chainsaw_emitter->lifetime_max  = 0.3f;
+        chainsaw_emitter->spread        = 1;
+        chainsaw_emitter->enabled       = false;
+    }
+    
+    if (sword_tip_emitter == NULL){
+        sword_tip_emitter = add_emitter();
+        sword_tip_emitter->over_distance     = 3;
+        sword_tip_emitter->direction_to_move = true;
+        sword_tip_emitter->over_time         = 0;
+        sword_tip_emitter->speed_min         = 5;
+        sword_tip_emitter->speed_max         = 20;
+        sword_tip_emitter->scale_min         = 0.1f;
+        sword_tip_emitter->scale_max         = 0.6f;
+        sword_tip_emitter->lifetime_min      = 0.05f;
+        sword_tip_emitter->lifetime_max      = 0.3f;
+        sword_tip_emitter->spread            = 0.4f;
+        sword_tip_emitter->color             = RED * 0.9f;
+        sword_tip_emitter->enabled           = true;
     }
 }

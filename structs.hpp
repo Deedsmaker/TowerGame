@@ -50,9 +50,9 @@ struct Player{
     f32 ground_acceleration = 30;
     f32 ground_deceleration = 10;
     f32 air_acceleration    = 15;
-    f32 air_deceleration    = 10;
+    f32 air_deceleration    = 3;
     f32 friction = 120;
-    f32 jump_force = 100;
+    f32 jump_force = 60;
     f32 gravity = 120;
     f32 gravity_mult = 1;
     
@@ -65,7 +65,8 @@ struct Player{
     
     Vector2 velocity = {0, 0};
     
-    f32 jump_timer = 0;
+    f32 since_jump_timer = 0;
+    f32 since_airborn_timer = 0;
     //Sword
     f32 sword_rotation_speed = 5.0f;
     f32 sword_attack_time = 0.15f;
@@ -136,7 +137,7 @@ struct Particle_Emitter;
 
 struct Context{
     Array<Entity>           entities  = Array<Entity>(1000);
-    Array<Particle>         particles = Array<Particle>(10000);
+    Array<Particle>         particles = Array<Particle>(100000);
     Array<Particle_Emitter> emitters  = Array<Particle_Emitter>(1000);
 
     Vector2 unit_screen_size;

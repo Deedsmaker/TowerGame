@@ -15,7 +15,6 @@ global_variable Context context = {};
 global_variable Editor editor  = {};
 global_variable Debug  debug  = {};
 global_variable Entity *player_entity;
-global_variable Particle_Emitter *chainsaw_emitter;
 
 global_variable Array<Vector2> global_normals = Array<Vector2>(30);
 
@@ -167,6 +166,8 @@ void init_game(){
     current_level.context = (Context*)malloc(sizeof(Context));
     context = *current_level.context;
     context = {};    
+    
+    setup_particles();
     
     mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
     
@@ -324,16 +325,6 @@ void enter_game_state(){
     player_entity->player.sword_entity->color_changer.start_color = player_entity->player.sword_entity->color;
     player_entity->player.sword_entity->color_changer.target_color = RED * 0.99f;
     player_entity->player.sword_entity->color_changer.interpolating = true;
-    
-    if (chainsaw_emitter == NULL){
-        chainsaw_emitter = add_emitter();
-        chainsaw_emitter->over_distance = 2;
-        chainsaw_emitter->over_time     = 2;
-        chainsaw_emitter->speed_min     = 5;
-        chainsaw_emitter->speed_max     = 20;
-        chainsaw_emitter->spread        = 1;
-        chainsaw_emitter->enabled       = false;
-    }
 }
 
 void enter_editor_state(){
@@ -1047,7 +1038,7 @@ void update_player(Entity *entity){
     p->ground_checker->position = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
     p->sword_entity->position = entity->position;
     
-    Vector2 sword_tip = sword->position + sword->up * sword->scale.y;
+    Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
     
     Vector2 vec_to_mouse = input.mouse_position - entity->position;
     Vector2 dir_to_mouse = normalized(vec_to_mouse);
@@ -1099,8 +1090,6 @@ void update_player(Entity *entity){
     
     if (can_sword_spin && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
         p->sword_angular_velocity += input.mouse_delta.x * sword_spin_sense;
-        
-        chainsaw_emitter->position = input.mouse_position;
     } else{
         //chainsaw_emitter->last_emitted_position = input.mouse_position;
     }
@@ -1122,30 +1111,83 @@ void update_player(Entity *entity){
     
     sword->color_changer.progress = p->sword_spin_speed_progress * p->sword_spin_speed_progress;
     
-    if (p->grounded && !sword_attacking){
-        player_ground_move(entity);
+    { 
+        f32 progress = p->sword_spin_speed_progress;
+    
+        chainsaw_emitter->position = input.mouse_position;
+        chainsaw_emitter->lifetime_multiplier = 1.0f + progress * progress * 2; //Add blood multiplier and change color
+        chainsaw_emitter->speed_multiplier    = 1.0f + progress * progress * 2; //Add blood multiplier and change color
         
-        p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
-        p->velocity = p->plane_vector * magnitude(p->velocity);
+        sword_tip_emitter->position = sword_tip;
+        sword_tip_emitter->lifetime_multiplier = 1.0f + progress * progress * 1.0f;
+        sword_tip_emitter->speed_multiplier    = 1.0f + progress * progress * 3.0f;
+        sword_tip_emitter->count_multiplier    = 1.0f + progress * progress * 1.0f;
+    }
+    
+    fill_collisions(sword, &p->collisions, GROUND | ENEMY);
+    for (int i = 0; i < p->collisions.count; i++){
+        Collision col = p->collisions.get(i);
+        assert(col.collided);
         
-        entity->position.y -= dt;
-        p->velocity -= p->ground_normal * dt;
-    } else if (!sword_attacking){
-        player_air_move(entity);
         
-        f32 jump_t = clamp01((p->velocity.y - 10.0f) / p->jump_force);
-        p->gravity_mult = lerp(1.0f, 4.0f, sqrtf(jump_t));
-        p->velocity.y -= p->gravity * p->gravity_mult * dt;
+    }
+    
+    p->since_jump_timer += dt;
+    
+    f32 sword_spin_direction = normalized(p->sword_angular_velocity);
+    if (p->grounded){
+        if (!sword_attacking){
+            player_ground_move(entity);
+            
+            p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
+            p->velocity = p->plane_vector * magnitude(p->velocity);
+            
+            entity->position.y -= dt;
+            p->velocity -= p->ground_normal * dt;
+        }
+        
+        if (p->sword_spin_speed_progress > 0.3f){
+            Vector2 plane = get_rotated_vector_90(p->ground_normal, -sword_spin_direction);
+            
+            f32 max_ground_sword_spin_acceleration = 1000;
+            f32 t = p->sword_spin_speed_progress;
+            p->velocity += plane * lerp(0.0f, max_ground_sword_spin_acceleration, t * t) * dt;
+        }
+        
+        p->since_airborn_timer = 0;
+    } else{
+        if (p->velocity.y > 0){
+            f32 max_height_jump_time = 0.2f;
+            f32 jump_t = clamp01(p->since_jump_timer / max_height_jump_time);
+            p->gravity_mult = lerp(2.0f, 1.0f, jump_t * jump_t * jump_t);
+        } else{
+            p->gravity_mult = 1;
+        }
+        
+        if (!sword_attacking){
+            player_air_move(entity);
+            
+            p->velocity.y -= p->gravity * p->gravity_mult * dt;
+        }
+        
+        p->since_airborn_timer += dt;
+        
+        if (p->sword_spin_speed_progress > 0.3f){
+            f32 max_air_sword_spin_acceleration = 150;
+            f32 airborn_reduce_spin_acceleration_time = 0.5f;
+            f32 t = clamp01(p->sword_spin_speed_progress - clamp01(airborn_reduce_spin_acceleration_time - p->since_airborn_timer));
+            p->velocity.x += lerp(0.0f, max_air_sword_spin_acceleration, t * t) * dt * -sword_spin_direction;
+        }
+        
     }
     
     // p->velocity->x = new_speed;
     
     if (p->grounded && IsKeyPressed(KEY_SPACE)){
         p->velocity.y = p->jump_force;
-        p->jump_timer = 0;
+        p->since_jump_timer = 0;
     }
     
-    p->jump_timer += dt;
     
     Vector2 next_pos = {entity->position.x + p->velocity.x * dt, entity->position.y + p->velocity.y * dt};
     
