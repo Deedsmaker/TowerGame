@@ -32,8 +32,6 @@ void add_rect_vertices(Array<Vector2> *vertices, Vector2 pivot){
     vertices->add({-pivot.x, pivot.y});
     vertices->add({pivot.x, pivot.y - 1.0f});
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
-    
-    print(vertices);
 }
 
 void add_sword_vertices(Array<Vector2> *vertices, Vector2 pivot){
@@ -440,18 +438,6 @@ Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise){
     return {-v.y * clockwise, v.x * clockwise};
 }
 
-// Array<Vector2> get_normals(Array<Vector2> vertices){
-//     Array<Vector2> normals = Array<Vector2>(vertices.count);
-    
-//     for (int i = 0; i < vertices.count; i++){
-//         Vector2 edge = vertices.get(i) - vertices.get((i + 1) % vertices.count);
-        
-//         normals.add(normalized(get_rotated_vector_90(edge, 1)));
-//     }
-    
-//     return normals;
-// }
-
 void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
     //@INCOMPLETE now only for rects, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
@@ -484,6 +470,7 @@ void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
 
 Collision check_rectangles_col(Entity *entity1, Entity *entity2){
     Collision result = {};
+    result.other_entity = entity2;
 
     //Array<Vector2> normals = Array<Vector2>(entity1->vertices.count + entity2->vertices.count);
     global_normals.count = 0;
@@ -571,10 +558,14 @@ void resolve_collision(Entity *entity, Collision col){
 void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS include_flags){
     result->count = 0;
 
+    if (entity->destroyed || !entity->enabled){
+        return;
+    }
+    
     for (int i = 0; i < context.entities.count; i++){
         Entity *other = context.entities.get_ptr(i);
         
-        if (other == entity || other->flags <= 0 || (other->flags & include_flags) <= 0){
+        if (other->destroyed || !other->enabled || other == entity || other->flags <= 0 || (other->flags & include_flags) <= 0){
             continue;
         }
         
@@ -1029,6 +1020,22 @@ void player_air_move(Entity *entity){
     player_accelerate(entity, input.direction, wish_speed, acceleration);
 }
 
+void calculate_sword_collisions(Entity *sword, Player *player){
+    fill_collisions(sword, &player->collisions, GROUND | ENEMY);
+    for (int i = 0; i < player->collisions.count; i++){
+        Collision col = player->collisions.get(i);
+        Entity *other = col.other_entity;
+        
+        if (other->flags & ENEMY && !other->enemy.dead_man){
+            emit_particles(*blood_emitter, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal, 1, 1);
+            
+            other->enemy.dead_man = true;
+            other->enabled = false;
+            other->destroyed = true;
+        }
+    }
+}
+
 void update_player(Entity *entity){
     assert(entity->flags & PLAYER);
 
@@ -1100,12 +1107,6 @@ void update_player(Entity *entity){
     
     Vector2 velocity_norm = normalized(p->velocity);
     
-    if (abs(p->sword_angular_velocity) > 10){ 
-        rotate(sword, p->sword_angular_velocity * dt);
-    } else{
-        //change_up(p->sword_entity, lerp(p->sword_entity->up, velocity_norm * -1, dt * p->sword_rotation_speed));
-    }
-    
     f32 sword_max_spin_speed = 5000;
     p->sword_spin_speed_progress = clamp01(abs(p->sword_angular_velocity) / sword_max_spin_speed);
     
@@ -1124,12 +1125,17 @@ void update_player(Entity *entity){
         sword_tip_emitter->count_multiplier    = 1.0f + progress * progress * 1.0f;
     }
     
-    fill_collisions(sword, &p->collisions, GROUND | ENEMY);
-    for (int i = 0; i < p->collisions.count; i++){
-        Collision col = p->collisions.get(i);
-        assert(col.collided);
-        
-        
+    f32 sword_min_rotation_amount = 20;
+    f32 need_to_rotate = p->sword_angular_velocity * dt;
+    
+    if (abs(p->sword_angular_velocity) > 10){ 
+        while(need_to_rotate > sword_min_rotation_amount){
+            rotate(sword, sword_min_rotation_amount);
+            calculate_sword_collisions(sword, p);
+            need_to_rotate -= sword_min_rotation_amount;
+        }
+        rotate(sword, need_to_rotate);
+        calculate_sword_collisions(sword, p);
     }
     
     p->since_jump_timer += dt;
@@ -1241,8 +1247,6 @@ void update_player(Entity *entity){
     
     
     p->grounded = found_ground;
-    
-    //print(p->grounded);
 }
 
 void update_entities(){
@@ -1251,14 +1255,16 @@ void update_entities(){
     
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
-        if (!e->enabled || e->flags == -1){
-            continue;
-        }
         
         if (e->destroyed){
             //@TODO properly destroy different entities
             entities->remove(i);    
+            print("destroyed");
             i--;
+            continue;
+        }
+        
+        if (!e->enabled || e->flags == -1){
             continue;
         }
         
@@ -1313,7 +1319,7 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        b32 draw_up_right = true;
+        b32 draw_up_right = false;
         if (draw_up_right){
             draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);

@@ -193,6 +193,7 @@ void update_particles(){
 
 global_variable Particle_Emitter *chainsaw_emitter;
 global_variable Particle_Emitter *sword_tip_emitter;
+global_variable Particle_Emitter *blood_emitter;
 
 void setup_particles(){
     if (chainsaw_emitter == NULL){
@@ -223,5 +224,23 @@ void setup_particles(){
         sword_tip_emitter->spread            = 0.4f;
         sword_tip_emitter->color             = RED * 0.9f;
         sword_tip_emitter->enabled           = true;
+    }
+    
+    if (blood_emitter == NULL){
+        blood_emitter = add_emitter();
+        blood_emitter->over_distance     = 0;
+        blood_emitter->direction_to_move = 0;
+        blood_emitter->over_time         = 0;
+        blood_emitter->speed_min         = 5;
+        blood_emitter->speed_max         = 20;
+        blood_emitter->count_min         = 10;
+        blood_emitter->count_max         = 40;
+        blood_emitter->scale_min         = 0.2f;
+        blood_emitter->scale_max         = 0.8f;
+        blood_emitter->lifetime_min      = 0.05f;
+        blood_emitter->lifetime_max      = 0.5f;
+        blood_emitter->spread            = 1.0f;
+        blood_emitter->color             = RED * 0.7f;
+        blood_emitter->enabled           = true;
     }
 }

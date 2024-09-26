@@ -13,6 +13,10 @@ struct Ground{
       
 };
 
+struct Enemy{
+    b32 dead_man = false;  
+};
+
 struct Color_Changer{
     b32 changing = false;
     b32 interpolating = false;
@@ -30,16 +34,18 @@ struct Text_Drawer{
     f32 size = 30;
 };
 
+struct Entity;
+
 struct Collision{
     b32 collided;
     f32 overlap;
+    Entity *other_entity;
     
     Vector2 normal;    
     Vector2 point;
     Vector2 dir_to_first;
 };
 
-struct Entity;
 
 struct Player{
     Array<Collision> collisions = Array<Collision>(10);
@@ -53,7 +59,7 @@ struct Player{
     f32 air_deceleration    = 3;
     f32 friction = 120;
     f32 jump_force = 60;
-    f32 gravity = 120;
+    f32 gravity = 100;
     f32 gravity_mult = 1;
     
     Vector2 sword_start_scale = {1.5f, 7};
@@ -120,6 +126,7 @@ struct Entity{
     Ground ground;
     Color_Changer color_changer;
     Text_Drawer text_drawer;
+    Enemy enemy;
 };
 
 //scale 150 should be full screen;
