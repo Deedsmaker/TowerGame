@@ -215,22 +215,22 @@ u8 *array_get(Old_Arr *array, int index){
     return (array->data) + index * array->size;
 }
 
-void array_add(Old_Arr *array, void *value){
-    if (array->count >= array->max_count) return;
-    u8* element = array_get(array, array->count);
-    memmove(element, value, array->size);
-    array->count++;
-}
+// void array_add(Old_Arr *array, void *value){
+//     if (array->count >= array->max_count) return;
+//     u8* element = array_get(array, array->count);
+//     memmove(element, value, array->size);
+//     array->count++;
+// }
 
-void array_remove(Old_Arr *array, int index){
-    for (int i = index; i < array->count - 1; i++){
-        u8 *current_element = array_get(array, i);
-        u8 *next_element = array_get(array, i + 1);
-        memmove(current_element, next_element, array->size);
-    }
+// void array_remove(Old_Arr *array, int index){
+//     for (int i = index; i < array->count - 1; i++){
+//         u8 *current_element = array_get(array, i);
+//         u8 *next_element = array_get(array, i + 1);
+//         memmove(current_element, next_element, array->size);
+//     }
     
-    array->count--;
-}
+//     array->count--;
+// }
 
 void zero_array(char *arr, int count){
     for (int i = 0; i < count; i++){

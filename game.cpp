@@ -4,6 +4,7 @@
 //#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
 global_variable f32 dt;
+global_variable f32 dt_scale = 1;
 //f32 game_time;
 
 
@@ -20,7 +21,7 @@ global_variable Array<Vector2> global_normals = Array<Vector2>(30);
 
 global_variable Entity *mouse_entity;
 
-#include "random.hpp"
+#include "../my_libs/random.hpp"
 #include "particles.hpp"
 
 void free_entity(Entity *e){
@@ -180,7 +181,7 @@ void init_game(){
     char buffer[MAX_LENGTH];
 
     while (fptr != NULL && fgets(buffer, MAX_LENGTH, fptr)){
-        if (strcmp(buffer, "Entities:\n") == 0){
+        if (str_cmp(buffer, "Entities:\n")){
             continue;   
         }
     
@@ -347,6 +348,8 @@ Vector2 game_mouse_pos(){
 }
 
 void update_game(){
+    dt *= dt_scale;
+
     game_time += dt;
 
     //update input
@@ -1032,6 +1035,7 @@ void calculate_sword_collisions(Entity *sword, Player *player){
             other->enemy.dead_man = true;
             other->enabled = false;
             other->destroyed = true;
+            //dt_scale = 0.002f;
         }
     }
 }
@@ -1118,6 +1122,8 @@ void update_player(Entity *entity){
         chainsaw_emitter->position = input.mouse_position;
         chainsaw_emitter->lifetime_multiplier = 1.0f + progress * progress * 2; //Add blood multiplier and change color
         chainsaw_emitter->speed_multiplier    = 1.0f + progress * progress * 2; //Add blood multiplier and change color
+        
+        print(sword_tip);
         
         sword_tip_emitter->position = sword_tip;
         sword_tip_emitter->lifetime_multiplier = 1.0f + progress * progress * 1.0f;

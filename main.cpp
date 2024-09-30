@@ -2,34 +2,14 @@
 
 #include <stdio.h>
 #include <stdlib.h> 
-#include <string.h>
+//#include <string.h>
 #include <stdint.h>
 #include <assert.h>
 
-typedef float  f32;
-typedef double f64;
-//#define _CRT_SECURE_NO_WARNINGS
-
-#define global_variable static
-#define local_persist   static
-#define internal        static
-
-typedef int8_t  i8;
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef u32 b32;
-
-#include "my_math.cpp"
-
-#include "string.hpp"
-#include "array.hpp"
+#include "../my_libs/my_defines.hpp"
+#include "../my_libs/my_math.cpp"
+#include "../my_libs/string.hpp"
+#include "../my_libs/array.hpp"
 
 #include "include\raylib.h"
 #include "include\raymath.h"
