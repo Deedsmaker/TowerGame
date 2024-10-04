@@ -15,11 +15,15 @@ global_variable Level current_level;
 global_variable Context context = {};
 global_variable Editor editor  = {};
 global_variable Debug  debug  = {};
-global_variable Entity *player_entity;
+//global_variable Entity *player_entity;
+global_variable b32 player_on_level;
 
 global_variable Array<Vector2> global_normals = Array<Vector2>(30);
 
-global_variable Entity *mouse_entity;
+global_variable Entity mouse_entity;
+
+global_variable Entity recent_player_data = Entity();
+global_variable b32 need_destroy_player = false;
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
@@ -158,6 +162,8 @@ void init_game(){
     game_state = EDITOR;
 
     game_time = 0;
+    
+    recent_player_data.destroyed = true;
 
     input = {};
 
@@ -168,7 +174,8 @@ void init_game(){
     
     setup_particles();
     
-    mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
+    //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
+    mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
     //load level
     FILE *fptr = fopen("test_level.level", "r");
@@ -314,24 +321,50 @@ void init_game(){
 void enter_game_state(){
     game_state = GAME;
     
-    player_entity = add_entity(editor.player_spawn_point, {1.0f, 1.5f}, {0.5f, 0.5f}, 0, RED, PLAYER);
-    player_entity->player.ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
-    player_entity->player.ground_checker->color = Fade(PURPLE, 0.8f);
+    Entity *player_entity = add_entity(editor.player_spawn_point, {1.0f, 1.5f}, {0.5f, 0.5f}, 0, RED, PLAYER);
     
-    player_entity->player.sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, /*SWORD*/0);
-    player_entity->player.sword_entity->color   = GRAY + RED * 0.1f;
-    player_entity->player.sword_entity->color.a = 255;
-    player_entity->player.sword_entity->color_changer.start_color = player_entity->player.sword_entity->color;
-    player_entity->player.sword_entity->color_changer.target_color = RED * 0.99f;
-    player_entity->player.sword_entity->color_changer.interpolating = true;
+    player_entity->index = context.entities.count - 1;
+    
+    Entity *ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
+    ground_checker->color = Fade(PURPLE, 0.8f);
+    
+    ground_checker->index = context.entities.count - 1;
+    
+    Entity *sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, /*SWORD*/0);
+    sword_entity->color   = GRAY + RED * 0.1f;
+    sword_entity->color.a = 255;
+    sword_entity->color_changer.start_color = sword_entity->color;
+    sword_entity->color_changer.target_color = RED * 0.99f;
+    sword_entity->color_changer.interpolating = true;
+    
+    sword_entity->index = context.entities.count - 1;
+    
+    player_entity->player.ground_checker_index_offset = ground_checker->index - player_entity->index;
+    player_entity->player.sword_entity_index_offset = sword_entity->index - player_entity->index;
+    
+    assert(player_entity->player.ground_checker_index_offset > 0);
+    assert(player_entity->player.sword_entity_index_offset   > 0);
+
+    
+    recent_player_data = *player_entity;
+}
+
+void destroy_player(Entity *player_entity){
+    player_entity->destroyed                 = true;
+    context.entities.get_ptr(player_entity->index + player_entity->player.ground_checker_index_offset)->destroyed = true;
+    context.entities.get_ptr(player_entity->index + player_entity->player.sword_entity_index_offset  )->destroyed = true;
+    
+    assert(player_entity->player.ground_checker_index_offset > 0);
+    assert(player_entity->player.sword_entity_index_offset   > 0);
+    
+    recent_player_data = *player_entity;
 }
 
 void enter_editor_state(){
     game_state = EDITOR;
     
-    player_entity->destroyed                 = true;
-    player_entity->player.ground_checker->destroyed = true;
-    player_entity->player.sword_entity->destroyed          = true;
+    need_destroy_player = true;
+    recent_player_data.destroyed = true;
 }
 
 Vector2 game_mouse_pos(){
@@ -403,8 +436,8 @@ void update_game(){
     update_emitters();
     update_particles();
     
-    if (game_state == GAME && player_entity != NULL){
-        Vector2 target_position = player_entity->position + Vector2_up * 10;
+    if (game_state == GAME && !recent_player_data.destroyed){
+        Vector2 target_position = recent_player_data.position + Vector2_up * 10;
         context.cam.position = lerp(context.cam.position, target_position, dt * 10);
     }
     
@@ -619,17 +652,17 @@ void update_editor(){
     Vector2 closest_vertex_global;
     f32 distance_to_closest_vertex = INFINITY;
     
-    mouse_entity->position = input.mouse_position;
+    mouse_entity.position = input.mouse_position;
     
     //editor entities loop
     for (int i = 0; i < context.entities.count; i++){        
         Entity *e = context.entities.get_ptr(i);
         
-        if (!e->enabled || e->flags == -1){
+        if (!e->enabled/* || e->flags == -1*/){
             continue;
         }
         
-        if ((check_rectangles_col(mouse_entity, e)).collided){
+        if ((check_rectangles_col(&mouse_entity, e)).collided){
             editor.cursor_entity = e;
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
@@ -1023,10 +1056,12 @@ void player_air_move(Entity *entity){
     player_accelerate(entity, input.direction, wish_speed, acceleration);
 }
 
-void calculate_sword_collisions(Entity *sword, Player *player){
-    fill_collisions(sword, &player->collisions, GROUND | ENEMY);
-    for (int i = 0; i < player->collisions.count; i++){
-        Collision col = player->collisions.get(i);
+Array<Collision> sword_collisions = Array<Collision>(16);
+
+void calculate_sword_collisions(Entity *sword){
+    fill_collisions(sword, &sword_collisions, GROUND | ENEMY);
+    for (int i = 0; i < sword_collisions.count; i++){
+        Collision col = sword_collisions.get(i);
         Entity *other = col.other_entity;
         
         if (other->flags & ENEMY && !other->enemy.dead_man){
@@ -1043,11 +1078,14 @@ void calculate_sword_collisions(Entity *sword, Player *player){
 void update_player(Entity *entity){
     assert(entity->flags & PLAYER);
 
+    recent_player_data = *entity;
+
     Player *p     = &entity->player;
-    Entity *sword = p->sword_entity;    
+    Entity *ground_checker = context.entities.get_ptr(entity->index + entity->player.ground_checker_index_offset);
+    Entity *sword   = context.entities.get_ptr(entity->index + entity->player.sword_entity_index_offset);
     
-    p->ground_checker->position = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
-    p->sword_entity->position = entity->position;
+    ground_checker->position = entity->position - entity->up * entity->scale.y * 0.5f;
+    sword->position = entity->position;
     
     Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
     
@@ -1063,7 +1101,7 @@ void update_player(Entity *entity){
         p->sword_attack_countdown = p->sword_attack_time;    
         
         p->velocity = dir_to_mouse * sword_dash_power;
-        change_up(p->sword_entity, dir_to_mouse);
+        change_up(sword, dir_to_mouse);
     } 
     
     if (p->sword_attack_countdown > 0){
@@ -1123,8 +1161,6 @@ void update_player(Entity *entity){
         chainsaw_emitter->lifetime_multiplier = 1.0f + progress * progress * 2; //Add blood multiplier and change color
         chainsaw_emitter->speed_multiplier    = 1.0f + progress * progress * 2; //Add blood multiplier and change color
         
-        print(sword_tip);
-        
         sword_tip_emitter->position = sword_tip;
         sword_tip_emitter->lifetime_multiplier = 1.0f + progress * progress * 1.0f;
         sword_tip_emitter->speed_multiplier    = 1.0f + progress * progress * 3.0f;
@@ -1137,11 +1173,11 @@ void update_player(Entity *entity){
     if (abs(p->sword_angular_velocity) > 10){ 
         while(need_to_rotate > sword_min_rotation_amount){
             rotate(sword, sword_min_rotation_amount);
-            calculate_sword_collisions(sword, p);
+            calculate_sword_collisions(sword);
             need_to_rotate -= sword_min_rotation_amount;
         }
         rotate(sword, need_to_rotate);
-        calculate_sword_collisions(sword, p);
+        calculate_sword_collisions(sword);
     }
     
     p->since_jump_timer += dt;
@@ -1208,7 +1244,7 @@ void update_player(Entity *entity){
     f32 found_ground = false;
     f32 just_grounded = false;
     
-    fill_collisions(p->ground_checker, &p->collisions, GROUND);
+    fill_collisions(ground_checker, &p->collisions, GROUND);
     for (int i = 0; i < p->collisions.count; i++){
         Collision col = p->collisions.get(i);
         assert(col.collided);
@@ -1251,8 +1287,9 @@ void update_player(Entity *entity){
         p->velocity -= col.normal * dot(p->velocity, col.normal);
     }
     
-    
     p->grounded = found_ground;
+    
+    recent_player_data = *entity;
 }
 
 void update_entities(){
@@ -1262,13 +1299,38 @@ void update_entities(){
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
         
+        if (e->flags == -1){
+            print("WATAHELL");
+            continue;
+        }
+        
+        if (e->flags & PLAYER){
+            if (need_destroy_player){
+                destroy_player(e);   
+                need_destroy_player = false;
+            }
+        }
+        
         if (e->destroyed){
             //@TODO properly destroy different entities
+            //e->enabled = false;
+            
+            if (e->flags & PLAYER){
+                // assert(recent_player_data.player.ground_checker->destroyed && recent_player_data.player.sword_entity->destroyed);
+                // recent_player_data.destroyed                 = true;
+                // recent_player_data.player.ground_checker->destroyed = true;
+                // recent_player_data.player.sword_entity->destroyed          = true;
+            }
+            
+            print("DESTROY");
+            
+            free_entity(e);
             entities->remove(i);    
-            print("destroyed");
             i--;
             continue;
         }
+        
+        e->index = i;
         
         if (!e->enabled || e->flags == -1){
             continue;
@@ -1301,7 +1363,7 @@ void draw_entities(){
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
     
-        if (!e->enabled || e->flags == -1){
+        if (!e->enabled/* || e->flags == -1*/){
             continue;
         }
     
@@ -1446,9 +1508,9 @@ void draw_game(){
     draw_entities();
     draw_particles();
     
-    if (player_entity != NULL && debug.draw_player_collisions){
-        for (int i = 0; i < player_entity->player.collisions.count; i++){
-            Collision col = player_entity->player.collisions.get(i);
+    if (!recent_player_data.destroyed && debug.draw_player_collisions){
+        for (int i = 0; i < recent_player_data.player.collisions.count; i++){
+            Collision col = recent_player_data.player.collisions.get(i);
             
             draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
             draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
@@ -1468,10 +1530,10 @@ void draw_game(){
         v_pos += font_size;
     }
     
-    if (game_state == GAME && player_entity != NULL){            
+    if (game_state == GAME && !recent_player_data.destroyed){            
         b32 draw_spin_progress = true;
         if (draw_spin_progress){
-            draw_text(TextFormat("Spin progress: %.2f", player_entity->player.sword_spin_speed_progress), 10, v_pos, font_size, RED);
+            draw_text(TextFormat("Spin progress: %.2f", recent_player_data.player.sword_spin_speed_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
     }

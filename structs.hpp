@@ -46,7 +46,6 @@ struct Collision{
     Vector2 dir_to_first;
 };
 
-
 struct Player{
     Array<Collision> collisions = Array<Collision>(10);
     
@@ -67,7 +66,7 @@ struct Player{
     Vector2 ground_normal = {0, 1};
     b32 grounded = false;
     
-    Entity *ground_checker;
+    int ground_checker_index_offset = -1;
     
     Vector2 velocity = {0, 0};
     
@@ -78,7 +77,7 @@ struct Player{
     f32 sword_attack_time = 0.15f;
     f32 sword_cooldown = 0.5f;
     
-    Entity *sword_entity;
+    int sword_entity_index_offset = -1;
     
     f32 sword_attack_countdown;
     f32 sword_cooldown_countdown;
@@ -98,6 +97,7 @@ struct Entity{
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2> _vertices);
 
     i32 id = -1;
+    i32 index = -1;
 
     b32 enabled = 1;
     
