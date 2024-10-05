@@ -23,12 +23,12 @@ Vector2 local (Entity *e, Vector2 global_pos);
 
 Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
 
-Array<Vector2> get_normals(Array<Vector2> vertices);
-void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices);
+Stack_Array<Vector2, MAX_VERTICES> get_normals(Stack_Array<Vector2, MAX_VERTICES> vertices);
+void fill_arr_with_normals(Stack_Array<Vector2, MAX_VERTICES> *normals, Stack_Array<Vector2, MAX_VERTICES> vertices);
 
 void resolve_collision(Entity *entity, Collision col);
 //Array<Collision> get_collisions(Entity *entity);
-void fill_collisions(Entity *entity, Array<Collision> *result);
+void fill_collisions(Entity *entity, Stack_Array<Collision, MAX_VERTICES> *result);
 Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 b32 check_col_circles(Circle a, Circle b);
 
@@ -53,7 +53,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
-Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Array<Vector2> vertices);
+Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Stack_Array<Vector2, MAX_VERTICES> vertices);
 
 Particle_Emitter* add_emitter();
 

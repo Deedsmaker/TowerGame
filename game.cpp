@@ -19,7 +19,7 @@ global_variable Debug  debug  = {};
 //global_variable Entity *player_entity;
 global_variable b32 player_on_level;
 
-global_variable Array<Vector2> global_normals = Array<Vector2>(30);
+global_variable Stack_Array<Vector2, MAX_VERTICES> global_normals = Stack_Array<Vector2, MAX_VERTICES>();
 
 global_variable Entity mouse_entity;
 
@@ -35,17 +35,17 @@ global_variable Vector2 frame_on_circle_rnd;
 #include "ui.hpp"
 
 void free_entity(Entity *e){
-    e->vertices.free_arr();
+    //e->vertices.free_arr();
 }
 
-void add_rect_vertices(Array<Vector2> *vertices, Vector2 pivot){
+void add_rect_vertices(Stack_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->add({pivot.x, pivot.y});
     vertices->add({-pivot.x, pivot.y});
     vertices->add({pivot.x, pivot.y - 1.0f});
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
 
-void add_sword_vertices(Array<Vector2> *vertices, Vector2 pivot){
+void add_sword_vertices(Stack_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->add({pivot.x * 0.3f, pivot.y});
     vertices->add({-pivot.x * 0.3f, pivot.y});
     vertices->add({pivot.x, pivot.y - 1.0f});
@@ -136,13 +136,13 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
 }
 
 
-Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2> _vertices){
+Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Stack_Array<Vector2, MAX_VERTICES> _vertices){
     id = _id;
     position = _pos;
     pivot = _pivot;
     
     //add_rect_vertices(&vertices, pivot);
-    vertices.free_arr();
+    //vertices.free_arr();
     vertices = _vertices;
     
     rotation = 0;
@@ -234,7 +234,7 @@ int load_level(const char *level_name){
         Color   entity_color;
         FLAGS   entity_flags;
         
-        Array<Vector2> entity_vertices = Array<Vector2>(20); 
+        Stack_Array<Vector2, MAX_VERTICES> entity_vertices = Stack_Array<Vector2, MAX_VERTICES>(); 
         Vector2 vertex;
         
         b32 found_id = false;
@@ -546,7 +546,7 @@ Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise){
     return {-v.y * clockwise, v.x * clockwise};
 }
 
-void fill_arr_with_normals(Array<Vector2> *normals, Array<Vector2> vertices){
+void fill_arr_with_normals(Stack_Array<Vector2, MAX_VERTICES> *normals, Stack_Array<Vector2, MAX_VERTICES> vertices){
     //@INCOMPLETE now only for rects, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
     
@@ -601,7 +601,7 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2){
         Vector2 axis = global_normals.get(i);
 
         for (int shape = 0; shape < 2; shape++){
-            Array<Vector2> vertices;
+            Stack_Array<Vector2, MAX_VERTICES> vertices;
             Entity *entity;
             if (shape == 0) {
                 vertices = entity1->vertices;
@@ -663,7 +663,7 @@ void resolve_collision(Entity *entity, Collision col){
     entity->position += col.normal * col.overlap;
 }
 
-void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS include_flags){
+void fill_collisions(Entity *entity, Stack_Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags){
     result->count = 0;
 
     if (entity->destroyed || !entity->enabled){
@@ -1715,9 +1715,9 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
     return e;
 }
 
-Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Array<Vector2> vertices){
+Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Stack_Array<Vector2, MAX_VERTICES> vertices){
     Entity *e = add_entity(id, pos, scale, pivot, rotation, color, flags);    
-    e->vertices.free_arr();
+    //e->vertices.free_arr();
     e->vertices = vertices;
     setup_color_changer(e);
     return e;
