@@ -53,10 +53,10 @@ struct Player{
     
     f32 base_move_speed = 30.0f;  
     f32 ground_acceleration = 30;
-    f32 ground_deceleration = 10;
+    f32 ground_deceleration = 3;
     f32 air_acceleration    = 15;
     f32 air_deceleration    = 3;
-    f32 friction = 120;
+    f32 friction = 30;
     f32 jump_force = 60;
     f32 gravity = 100;
     f32 gravity_mult = 1;
@@ -76,6 +76,7 @@ struct Player{
     f32 sword_rotation_speed = 5.0f;
     f32 sword_attack_time = 0.15f;
     f32 sword_cooldown = 0.5f;
+    f32 sword_spin_direction = 0;
     
     int sword_entity_index_offset = -1;
     

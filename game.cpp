@@ -25,6 +25,9 @@ global_variable Entity mouse_entity;
 global_variable Entity recent_player_data = Entity();
 global_variable b32 need_destroy_player = false;
 
+global_variable f32 frame_rnd;
+global_variable Vector2 frame_on_circle_rnd;
+
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
 
@@ -40,8 +43,8 @@ void add_rect_vertices(Array<Vector2> *vertices, Vector2 pivot){
 }
 
 void add_sword_vertices(Array<Vector2> *vertices, Vector2 pivot){
-    vertices->add({pivot.x * 0.2f, pivot.y * 0.2f});
-    vertices->add({-pivot.x * 0.2f, pivot.y * 0.2f});
+    vertices->add({pivot.x * 0.3f, pivot.y});
+    vertices->add({-pivot.x * 0.3f, pivot.y});
     vertices->add({pivot.x, pivot.y - 1.0f});
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
@@ -81,11 +84,11 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
     position = _pos;
-    // if (_flags & SWORD){
-    //     add_sword_vertices(&vertices, pivot);
-    // } else{
+    if (_flags & SWORD){
+        add_sword_vertices(&vertices, pivot);
+    } else{
         add_rect_vertices(&vertices, pivot);
-    // }
+    }
 
     rotation = 0;
     
@@ -98,11 +101,11 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAG
     position = _pos;
     pivot = _pivot;
     
-    // if (_flags & SWORD){
-    //     add_sword_vertices(&vertices, pivot);
-    // } else{
+    if (_flags & SWORD){
+        add_sword_vertices(&vertices, pivot);
+    } else{
         add_rect_vertices(&vertices, pivot);
-    // }
+    }
     
     rotation = 0;
     
@@ -117,11 +120,11 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     position = _pos;
     pivot = _pivot;
     
-    // if (_flags & SWORD){
-    //     add_sword_vertices(&vertices, pivot);
-    // } else{
+    if (_flags & SWORD){
+        add_sword_vertices(&vertices, pivot);
+    } else{
         add_rect_vertices(&vertices, pivot);
-    // }
+    }
     
     rotation = 0;
     rotate_to(this, _rotation);
@@ -330,7 +333,7 @@ void enter_game_state(){
     
     ground_checker->index = context.entities.count - 1;
     
-    Entity *sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, /*SWORD*/0);
+    Entity *sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
     sword_entity->color   = GRAY + RED * 0.1f;
     sword_entity->color.a = 255;
     sword_entity->color_changer.start_color = sword_entity->color;
@@ -384,6 +387,9 @@ void update_game(){
     dt *= dt_scale;
 
     game_time += dt;
+    
+    frame_rnd = rnd01();
+    frame_on_circle_rnd = rnd_on_circle();
 
     //update input
     input.mouse_position = game_mouse_pos();
@@ -404,7 +410,10 @@ void update_game(){
         input.direction.y = -1;
     }
     
-    //Paper *p = &context.paper;
+    if (input.direction.x != 0 || input.direction.y != 0){
+        normalize(&input.direction);
+    }
+    
     if (screen_size_changed){
         context.unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
         context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
@@ -993,6 +1002,9 @@ void player_apply_friction(Entity *entity, f32 max_move_speed){
     Player *p = &entity->player;
 
     f32 friction = p->friction;
+    if (input.direction.y < 0){
+        friction *= 10;
+    }
     
     if (abs(p->velocity.x) > max_move_speed){
         friction *= 2 + abs(p->velocity.x) / max_move_speed;
@@ -1037,7 +1049,13 @@ void player_ground_move(Entity *entity){
     
     player_apply_friction(entity, max_move_speed);
     
-    f32 acceleration = dot(p->velocity, input.direction) > 0 ? p->ground_acceleration : p->ground_deceleration;
+    f32 acceleration = p->ground_acceleration;
+    if (dot(p->velocity, input.direction) <= 0){
+        acceleration = p->ground_deceleration;
+        if (input.direction.y < 0){
+            acceleration *= 0.3f;
+        }
+    }
     
     f32 wish_speed = sqr_magnitude(input.direction) * max_move_speed;
     
@@ -1056,12 +1074,13 @@ void player_air_move(Entity *entity){
     player_accelerate(entity, input.direction, wish_speed, acceleration);
 }
 
-Array<Collision> sword_collisions = Array<Collision>(16);
-
-void calculate_sword_collisions(Entity *sword){
-    fill_collisions(sword, &sword_collisions, GROUND | ENEMY);
-    for (int i = 0; i < sword_collisions.count; i++){
-        Collision col = sword_collisions.get(i);
+void calculate_sword_collisions(Entity *sword, Entity *player_entity){
+    fill_collisions(sword, &player_entity->player.collisions, GROUND | ENEMY);
+    
+    Player *player = &player_entity->player;
+    
+    for (int i = 0; i < player->collisions.count; i++){
+        Collision col = player->collisions.get(i);
         Entity *other = col.other_entity;
         
         if (other->flags & ENEMY && !other->enemy.dead_man){
@@ -1071,6 +1090,15 @@ void calculate_sword_collisions(Entity *sword){
             other->enabled = false;
             other->destroyed = true;
             //dt_scale = 0.002f;
+            
+            f32 max_speed_boost = 10 * player->sword_spin_direction;
+            if (!player->grounded){
+                max_speed_boost *= -1;
+            }
+            f32 max_vertical_speed_boost = player->grounded ? 0 : 10;
+            f32 spin_t = player->sword_spin_speed_progress;
+            player->velocity += Vector2_up    * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
+                             + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
         }
     }
 }
@@ -1100,9 +1128,21 @@ void update_player(Entity *entity){
     if (can_attack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         p->sword_attack_countdown = p->sword_attack_time;    
         
-        p->velocity = dir_to_mouse * sword_dash_power;
+        //p->velocity = dir_to_mouse * sword_dash_power;
         change_up(sword, dir_to_mouse);
+        
+        rifle_bullet_emitter->position = sword_tip;
+//        rifle_bullet_emitter->enabled = true;
+        enable_emitter(rifle_bullet_emitter);
     } 
+    
+    if (rifle_bullet_emitter->enabled){
+        if (rifle_bullet_emitter->emitter_lifetime > 0.5f){
+            rifle_bullet_emitter->enabled = false;
+        } else{
+            rifle_bullet_emitter->position += sword->up * 500 * dt;
+        }
+    }
     
     if (p->sword_attack_countdown > 0){
         p->sword_attack_countdown -= dt;
@@ -1170,19 +1210,20 @@ void update_player(Entity *entity){
     f32 sword_min_rotation_amount = 20;
     f32 need_to_rotate = p->sword_angular_velocity * dt;
     
+    p->sword_spin_direction = normalized(p->sword_angular_velocity);
+    
     if (abs(p->sword_angular_velocity) > 10){ 
         while(need_to_rotate > sword_min_rotation_amount){
             rotate(sword, sword_min_rotation_amount);
-            calculate_sword_collisions(sword);
+            calculate_sword_collisions(sword, entity);
             need_to_rotate -= sword_min_rotation_amount;
         }
         rotate(sword, need_to_rotate);
-        calculate_sword_collisions(sword);
+        calculate_sword_collisions(sword, entity);
     }
     
     p->since_jump_timer += dt;
     
-    f32 sword_spin_direction = normalized(p->sword_angular_velocity);
     if (p->grounded){
         if (!sword_attacking){
             player_ground_move(entity);
@@ -1195,9 +1236,9 @@ void update_player(Entity *entity){
         }
         
         if (p->sword_spin_speed_progress > 0.3f){
-            Vector2 plane = get_rotated_vector_90(p->ground_normal, -sword_spin_direction);
+            Vector2 plane = get_rotated_vector_90(p->ground_normal, -p->sword_spin_direction);
             
-            f32 max_ground_sword_spin_acceleration = 1000;
+            f32 max_ground_sword_spin_acceleration = 400;
             f32 t = p->sword_spin_speed_progress;
             p->velocity += plane * lerp(0.0f, max_ground_sword_spin_acceleration, t * t) * dt;
         }
@@ -1208,8 +1249,17 @@ void update_player(Entity *entity){
             f32 max_height_jump_time = 0.2f;
             f32 jump_t = clamp01(p->since_jump_timer / max_height_jump_time);
             p->gravity_mult = lerp(2.0f, 1.0f, jump_t * jump_t * jump_t);
+            
+            if (p->since_jump_timer > 0.3f && input.direction.y < 0){
+                p->gravity_mult = 5;
+            }
+            
         } else{
-            p->gravity_mult = 1;
+            if (input.direction.y < 0){
+                p->gravity_mult = 5;
+            } else{
+                p->gravity_mult = 1;
+            }
         }
         
         if (!sword_attacking){
@@ -1224,7 +1274,7 @@ void update_player(Entity *entity){
             f32 max_air_sword_spin_acceleration = 150;
             f32 airborn_reduce_spin_acceleration_time = 0.5f;
             f32 t = clamp01(p->sword_spin_speed_progress - clamp01(airborn_reduce_spin_acceleration_time - p->since_airborn_timer));
-            p->velocity.x += lerp(0.0f, max_air_sword_spin_acceleration, t * t) * dt * -sword_spin_direction;
+            p->velocity.x += lerp(0.0f, max_air_sword_spin_acceleration, t * t) * dt * -p->sword_spin_direction;
         }
         
     }
@@ -1321,8 +1371,6 @@ void update_entities(){
                 // recent_player_data.player.ground_checker->destroyed = true;
                 // recent_player_data.player.sword_entity->destroyed          = true;
             }
-            
-            print("DESTROY");
             
             free_entity(e);
             entities->remove(i);    

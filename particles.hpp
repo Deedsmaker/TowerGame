@@ -49,6 +49,8 @@ struct Particle_Emitter{
     f32 lifetime_max = 2;
     f32 lifetime_multiplier = 1;
     
+    f32 emitter_lifetime = 0;
+    
     //f32 colliding_chance = 1.0f;
     
     Color color = YELLOW;
@@ -57,7 +59,7 @@ struct Particle_Emitter{
 
 void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
     Particle particle = {};
-    particle.position = position;
+    particle.position = position + rnd_on_circle() * 1;
     
     particle.shape = emitter.shape;
     
@@ -140,13 +142,21 @@ void update_overdistance_emitter(Particle_Emitter *emitter){
     emitter->position = current_emitter_position;
 }
 
+void enable_emitter(Particle_Emitter *emitter){
+    emitter->enabled = true;
+    emitter->last_emitted_position = emitter->position;
+}
+
 void update_emitters(){
     for (int i = 0; i < context.emitters.count; i++){
         Particle_Emitter *emitter = context.emitters.get_ptr(i);
         
         if (!emitter->enabled){
+            emitter->emitter_lifetime = 0;
             continue;
         }
+        
+        emitter->emitter_lifetime += dt;
         
         if (emitter->over_time > 0){
             update_overtime_emitter(emitter);
@@ -175,6 +185,8 @@ void update_particles(){
         f32 gravity = -50;
         particle->velocity.y += gravity * dt;
         
+        particle->velocity += frame_on_circle_rnd * 100 * dt;
+        
         // if (particle->colliding){
         //     calculate_particle_tilemap_collisions(game, particle, check_tilemap_collisions(game, particle->velocity, particle->entity));
         // }
@@ -194,6 +206,7 @@ void update_particles(){
 global_variable Particle_Emitter *chainsaw_emitter;
 global_variable Particle_Emitter *sword_tip_emitter;
 global_variable Particle_Emitter *blood_emitter;
+global_variable Particle_Emitter *rifle_bullet_emitter;
 
 void setup_particles(){
     if (chainsaw_emitter == NULL){
@@ -242,5 +255,23 @@ void setup_particles(){
         blood_emitter->spread            = 1.0f;
         blood_emitter->color             = RED * 0.7f;
         blood_emitter->enabled           = true;
+    }
+    
+    if (rifle_bullet_emitter == NULL){
+        rifle_bullet_emitter = add_emitter();
+        rifle_bullet_emitter->over_distance     = 3;
+        rifle_bullet_emitter->direction_to_move = 0;
+        rifle_bullet_emitter->over_time         = 0;
+        rifle_bullet_emitter->speed_min         = 5;
+        rifle_bullet_emitter->speed_max         = 20;
+        rifle_bullet_emitter->count_min         = 10;
+        rifle_bullet_emitter->count_max         = 40;
+        rifle_bullet_emitter->scale_min         = 0.1f;
+        rifle_bullet_emitter->scale_max         = 0.4f;
+        rifle_bullet_emitter->lifetime_min      = 0.5f;
+        rifle_bullet_emitter->lifetime_max      = 2.5f;
+        rifle_bullet_emitter->spread            = 1.0f;
+        rifle_bullet_emitter->color             = GRAY * 0.7f;
+        rifle_bullet_emitter->enabled           = false;
     }
 }
