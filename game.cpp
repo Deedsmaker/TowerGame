@@ -31,6 +31,7 @@ global_variable Vector2 frame_on_circle_rnd;
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
+#include "text_input.hpp"
 #include "ui.hpp"
 
 void free_entity(Entity *e){
@@ -495,6 +496,8 @@ void update_game(){
         }
     }
     
+    update_input_field();
+    
     if (game_state == EDITOR){
         update_editor();
     }
@@ -848,6 +851,9 @@ void update_editor(){
         print("CLICKED LOL");
     }
     
+    if (make_input_field("", {500, 500}, {300, 40}, "test")){
+        print(focus_input_field.content);
+    }
     
     if (editor.dragging_entity != NULL){
         editor.dragging_time += dt;
@@ -1593,7 +1599,15 @@ void draw_ui(){
         draw_text(button.text, button.position - text_horizontal_offset - text_vertical_offset, button.font_size, BLACK * 0.9f);
     }
     
+    for (int i = 0; i < input_fields.count; i++){
+        Input_Field input_field = input_fields.get(i);
+        
+        draw_rect(input_field.position, input_field.size, {0, 0}, 0, GRAY * 0.8f);
+        draw_text(input_field.content, input_field.position, input_field.font_size, BLUE * 0.9f);
+    }
+    
     ui_context.buttons.clear();
+    input_fields.clear();
 }
 
 void draw_game(){
