@@ -157,7 +157,7 @@ void print(b32 num){
     }
 }
 
-void print(Array<Vector2> *arr){
+void print(Dynamic_Array<Vector2> *arr){
     printf("[");
     for (int i = 0; i < arr->count; i++){
         printf("{%.4f, %.4f}", arr->get(i).x, arr->get(i).y);

@@ -1,5 +1,6 @@
 #pragma once
 
+#define MAX_INPUT_FIELDS 16
 #define INPUT_FIELD_MAX_CHARS 100
 
 struct Input_Field{
@@ -16,7 +17,7 @@ struct Input_Field{
     b32 in_focus = false;
 };
 
-global_variable Array<Input_Field> input_fields = Array<Input_Field>(16);
+global_variable Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Array<Input_Field, MAX_INPUT_FIELDS>();
 global_variable Input_Field focus_input_field;
 
 void update_input_field(){

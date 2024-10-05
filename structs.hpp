@@ -50,7 +50,7 @@ struct Collision{
 };
 
 struct Player{
-    Stack_Array<Collision, MAX_COLLISIONS> collisions = Stack_Array<Collision, MAX_COLLISIONS>();
+    Array<Collision, MAX_COLLISIONS> collisions = Array<Collision, MAX_COLLISIONS>();
     
     f32 max_ground_angle = 45;
     
@@ -98,7 +98,7 @@ struct Entity{
     Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
-    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Stack_Array<Vector2, MAX_VERTICES> _vertices);
+    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices);
 
     i32 id = -1;
     i32 index = -1;
@@ -107,7 +107,7 @@ struct Entity{
     
     b32 destroyed = 0;
     
-    Stack_Array<Vector2, MAX_VERTICES> vertices = Stack_Array<Vector2, MAX_VERTICES>();
+    Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
     
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
@@ -147,9 +147,9 @@ struct Particle;
 struct Particle_Emitter;
 
 struct Context{
-    Array<Entity>           entities  = Array<Entity>(1000);
-    Array<Particle>         particles = Array<Particle>(100000);
-    Array<Particle_Emitter> emitters  = Array<Particle_Emitter>(1000);
+    Dynamic_Array<Entity>           entities  = Dynamic_Array<Entity>(1000);
+    Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(100000);
+    Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
 
     Vector2 unit_screen_size;
     

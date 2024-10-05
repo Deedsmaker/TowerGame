@@ -1,5 +1,7 @@
 #pragma once
 
+#define MAX_BUTTONS 32
+
 struct Button{
     Vector2 position;
     Vector2 size;
@@ -11,7 +13,7 @@ struct Button{
 };
 
 struct Ui_Context{
-    Array<Button> buttons = Array<Button>(32);
+    Array<Button, MAX_BUTTONS> buttons = Array<Button, MAX_BUTTONS>();
 };
 
 global_variable Ui_Context ui_context = {};
