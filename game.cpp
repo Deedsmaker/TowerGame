@@ -13,6 +13,7 @@ global_variable f32 dt_scale = 1;
 global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
+global_variable Context saved_level_context = {};
 global_variable Editor editor  = {};
 global_variable Debug  debug  = {};
 //global_variable Entity *player_entity;
@@ -161,30 +162,58 @@ void parse_line(char *line, char *result, int *index){
     *index = i;
 }
 
-void init_game(){
-    game_state = EDITOR;
+// void copy_context(Context *dest, Context *src){
+//     //*dest = *src;
 
-    game_time = 0;
-    
-    recent_player_data.destroyed = true;
+//     copy_array(&dest->entities, &src->entities);
+//     //copy_array(&dest->particles, &src->particles);
+//     copy_array(&dest->emitters, &src->emitters);
+// }
 
-    input = {};
+void clear_context(Context *c){
+    c->entities.clear();
+    c->particles.clear();
+    c->emitters.clear();
+}
 
-    current_level = {};
-    current_level.context = (Context*)malloc(sizeof(Context));
-    context = *current_level.context;
-    context = {};    
-    
-    setup_particles();
-    
-    //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
-    mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
-    
-    //load level
-    FILE *fptr = fopen("test_level.level", "r");
+int save_level(const char *level_name){
+    FILE *fptr;
+    fptr = fopen(level_name, "w");
     
     if (fptr == NULL){
-        fptr = fopen("../test_level.level", "r");
+        return 0;
+    }
+    
+    printf("level saved: %s\n", level_name);
+    
+    fprintf(fptr, "Entities:\n");
+    for (int i = 0; i < context.entities.count; i++){        
+        Entity *e = context.entities.get_ptr(i);
+        
+        Color color = e->color_changer.start_color;
+        fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d: ", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags);
+        
+        fprintf(fptr, "vertices[ ");
+        for (int v = 0; v < e->vertices.count; v++){
+            fprintf(fptr, "{:%f:, :%f:} ", e->vertices.get(v).x, e->vertices.get(v).y); 
+        }
+        
+        fprintf(fptr, "] "); 
+        
+        fprintf(fptr, ";\n"); 
+    }
+
+    
+    fclose(fptr);
+    
+    return 1;
+}
+
+int load_level(const char *level_name){
+    FILE *fptr = fopen(level_name, "r");
+    
+    if (fptr == NULL){
+        return 0;
     }
     
     const unsigned MAX_LENGTH = 1000;
@@ -302,9 +331,31 @@ void init_game(){
         add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags, entity_vertices);
     }
     
-    if (fptr){
-        fclose(fptr);
-    }
+    fclose(fptr);
+    
+    setup_particles();
+    
+    return 1;
+}
+
+void init_game(){
+    game_state = EDITOR;
+
+    game_time = 0;
+    
+    recent_player_data.destroyed = true;
+
+    input = {};
+
+    current_level = {};
+    current_level.context = (Context*)malloc(sizeof(Context));
+    context = *current_level.context;
+    context = {};    
+    
+    //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
+    mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
+    
+    load_level("test_level.level");
     
     Context *c = &context;
     
@@ -323,6 +374,10 @@ void init_game(){
 
 void enter_game_state(){
     game_state = GAME;
+    
+    save_level("temp_test_level.level");
+    
+    //copy_context(&saved_level_context, &context);
     
     Entity *player_entity = add_entity(editor.player_spawn_point, {1.0f, 1.5f}, {0.5f, 0.5f}, 0, RED, PLAYER);
     
@@ -366,8 +421,12 @@ void destroy_player(Entity *player_entity){
 void enter_editor_state(){
     game_state = EDITOR;
     
-    need_destroy_player = true;
+    // need_destroy_player = true;
     recent_player_data.destroyed = true;
+    
+    clear_context(&context);
+    load_level("temp_test_level.level");
+    //copy_context(&context, &saved_level_context);
 }
 
 Vector2 game_mouse_pos(){
@@ -844,29 +903,7 @@ void update_editor(){
     
     //editor Save level
     if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
-        FILE *fptr;
-        fptr = fopen("test_level.level", "w");
-        printf("level saved\n");
-        
-        fprintf(fptr, "Entities:\n");
-        for (int i = 0; i < context.entities.count; i++){        
-            Entity *e = context.entities.get_ptr(i);
-            
-            Color color = e->color_changer.start_color;
-            fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d: ", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags);
-            
-            fprintf(fptr, "vertices[ ");
-            for (int v = 0; v < e->vertices.count; v++){
-                fprintf(fptr, "{:%f:, :%f:} ", e->vertices.get(v).x, e->vertices.get(v).y); 
-            }
-            
-            fprintf(fptr, "] "); 
-            
-            fprintf(fptr, ";\n"); 
-        }
-
-        
-        fclose(fptr);
+        save_level("test_level.level");
     }
 }
 
@@ -1356,6 +1393,7 @@ void update_entities(){
         
         if (e->flags & PLAYER){
             if (need_destroy_player){
+                print("WATAHELL");
                 destroy_player(e);   
                 need_destroy_player = false;
             }

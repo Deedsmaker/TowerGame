@@ -208,70 +208,70 @@ global_variable Particle_Emitter *sword_tip_emitter;
 global_variable Particle_Emitter *blood_emitter;
 global_variable Particle_Emitter *rifle_bullet_emitter;
 
+void free_emitter(Particle_Emitter *emitter){
+    emitter = NULL;
+}
+
 void setup_particles(){
-    if (chainsaw_emitter == NULL){
-        chainsaw_emitter = add_emitter();
-        chainsaw_emitter->over_distance = 3;
-        chainsaw_emitter->over_time     = 0;
-        chainsaw_emitter->speed_min     = 5;
-        chainsaw_emitter->speed_max     = 20;
-        chainsaw_emitter->scale_min     = 0.1f;
-        chainsaw_emitter->scale_max     = 0.6f;
-        chainsaw_emitter->lifetime_min  = 0.05f;
-        chainsaw_emitter->lifetime_max  = 0.3f;
-        chainsaw_emitter->spread        = 1;
-        chainsaw_emitter->enabled       = false;
-    }
-    
-    if (sword_tip_emitter == NULL){
-        sword_tip_emitter = add_emitter();
-        sword_tip_emitter->over_distance     = 3;
-        sword_tip_emitter->direction_to_move = true;
-        sword_tip_emitter->over_time         = 0;
-        sword_tip_emitter->speed_min         = 5;
-        sword_tip_emitter->speed_max         = 20;
-        sword_tip_emitter->scale_min         = 0.1f;
-        sword_tip_emitter->scale_max         = 0.6f;
-        sword_tip_emitter->lifetime_min      = 0.05f;
-        sword_tip_emitter->lifetime_max      = 0.3f;
-        sword_tip_emitter->spread            = 0.4f;
-        sword_tip_emitter->color             = RED * 0.9f;
-        sword_tip_emitter->enabled           = true;
-    }
-    
-    if (blood_emitter == NULL){
-        blood_emitter = add_emitter();
-        blood_emitter->over_distance     = 0;
-        blood_emitter->direction_to_move = 0;
-        blood_emitter->over_time         = 0;
-        blood_emitter->speed_min         = 5;
-        blood_emitter->speed_max         = 20;
-        blood_emitter->count_min         = 10;
-        blood_emitter->count_max         = 40;
-        blood_emitter->scale_min         = 0.2f;
-        blood_emitter->scale_max         = 0.8f;
-        blood_emitter->lifetime_min      = 0.05f;
-        blood_emitter->lifetime_max      = 0.5f;
-        blood_emitter->spread            = 1.0f;
-        blood_emitter->color             = RED * 0.7f;
-        blood_emitter->enabled           = true;
-    }
-    
-    if (rifle_bullet_emitter == NULL){
-        rifle_bullet_emitter = add_emitter();
-        rifle_bullet_emitter->over_distance     = 3;
-        rifle_bullet_emitter->direction_to_move = 0;
-        rifle_bullet_emitter->over_time         = 0;
-        rifle_bullet_emitter->speed_min         = 5;
-        rifle_bullet_emitter->speed_max         = 20;
-        rifle_bullet_emitter->count_min         = 10;
-        rifle_bullet_emitter->count_max         = 40;
-        rifle_bullet_emitter->scale_min         = 0.1f;
-        rifle_bullet_emitter->scale_max         = 0.4f;
-        rifle_bullet_emitter->lifetime_min      = 0.5f;
-        rifle_bullet_emitter->lifetime_max      = 2.5f;
-        rifle_bullet_emitter->spread            = 1.0f;
-        rifle_bullet_emitter->color             = GRAY * 0.7f;
-        rifle_bullet_emitter->enabled           = false;
-    }
+    free_emitter(chainsaw_emitter);
+    chainsaw_emitter = add_emitter();
+    chainsaw_emitter->over_distance = 3;
+    chainsaw_emitter->over_time     = 0;
+    chainsaw_emitter->speed_min     = 5;
+    chainsaw_emitter->speed_max     = 20;
+    chainsaw_emitter->scale_min     = 0.1f;
+    chainsaw_emitter->scale_max     = 0.6f;
+    chainsaw_emitter->lifetime_min  = 0.05f;
+    chainsaw_emitter->lifetime_max  = 0.3f;
+    chainsaw_emitter->spread        = 1;
+    chainsaw_emitter->enabled       = false;
+
+    free_emitter(sword_tip_emitter);
+    sword_tip_emitter = add_emitter();
+    sword_tip_emitter->over_distance     = 3;
+    sword_tip_emitter->direction_to_move = true;
+    sword_tip_emitter->over_time         = 0;
+    sword_tip_emitter->speed_min         = 5;
+    sword_tip_emitter->speed_max         = 20;
+    sword_tip_emitter->scale_min         = 0.1f;
+    sword_tip_emitter->scale_max         = 0.6f;
+    sword_tip_emitter->lifetime_min      = 0.05f;
+    sword_tip_emitter->lifetime_max      = 0.3f;
+    sword_tip_emitter->spread            = 0.4f;
+    sword_tip_emitter->color             = RED * 0.9f;
+    sword_tip_emitter->enabled           = true;
+
+    free_emitter(blood_emitter);
+    blood_emitter = add_emitter();
+    blood_emitter->over_distance     = 0;
+    blood_emitter->direction_to_move = 0;
+    blood_emitter->over_time         = 0;
+    blood_emitter->speed_min         = 5;
+    blood_emitter->speed_max         = 20;
+    blood_emitter->count_min         = 10;
+    blood_emitter->count_max         = 40;
+    blood_emitter->scale_min         = 0.2f;
+    blood_emitter->scale_max         = 0.8f;
+    blood_emitter->lifetime_min      = 0.05f;
+    blood_emitter->lifetime_max      = 0.5f;
+    blood_emitter->spread            = 1.0f;
+    blood_emitter->color             = RED * 0.7f;
+    blood_emitter->enabled           = true;
+
+    free_emitter(rifle_bullet_emitter);
+    rifle_bullet_emitter = add_emitter();
+    rifle_bullet_emitter->over_distance     = 3;
+    rifle_bullet_emitter->direction_to_move = 0;
+    rifle_bullet_emitter->over_time         = 0;
+    rifle_bullet_emitter->speed_min         = 5;
+    rifle_bullet_emitter->speed_max         = 20;
+    rifle_bullet_emitter->count_min         = 10;
+    rifle_bullet_emitter->count_max         = 40;
+    rifle_bullet_emitter->scale_min         = 0.1f;
+    rifle_bullet_emitter->scale_max         = 0.4f;
+    rifle_bullet_emitter->lifetime_min      = 0.5f;
+    rifle_bullet_emitter->lifetime_max      = 2.5f;
+    rifle_bullet_emitter->spread            = 1.0f;
+    rifle_bullet_emitter->color             = GRAY * 0.7f;
+    rifle_bullet_emitter->enabled           = false;
 }
