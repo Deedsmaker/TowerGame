@@ -31,6 +31,7 @@ global_variable Vector2 frame_on_circle_rnd;
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
+#include "ui.hpp"
 
 void free_entity(Entity *e){
     e->vertices.free_arr();
@@ -843,6 +844,10 @@ void update_editor(){
         editor.cursor_entity   = NULL;
     }
     
+    if (make_button({200, 200}, {200, 100}, {0.5f, 0.5f}, "WATAHELL", 24)){
+        print("CLICKED LOL");
+    }
+    
     
     if (editor.dragging_entity != NULL){
         editor.dragging_time += dt;
@@ -1578,6 +1583,19 @@ void draw_particles(){
     }
 }
 
+void draw_ui(){
+    for (int i = 0; i < ui_context.buttons.count; i++){
+        Button button = ui_context.buttons.get(i);
+        
+        draw_rect(button.position, button.size, button.pivot, 0, button.color);
+        Vector2 text_horizontal_offset = Vector2_right * button.size.x * button.pivot.x;
+        Vector2 text_vertical_offset   = Vector2_up    * (button.size.y - button.font_size) * (button.pivot.y - 0.5f);
+        draw_text(button.text, button.position - text_horizontal_offset - text_vertical_offset, button.font_size, BLACK * 0.9f);
+    }
+    
+    ui_context.buttons.clear();
+}
+
 void draw_game(){
     //context.cam.cam2D.rotation = 20;
     //context.cam.cam2D.target = world_to_screen({0, context.unit_screen_size.y * 0.5f});
@@ -1608,6 +1626,8 @@ void draw_game(){
     }
     
     EndMode2D();
+    
+    draw_ui();
     
     f32 v_pos = 10;
     f32 font_size = 18;
