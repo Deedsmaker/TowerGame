@@ -199,6 +199,7 @@ struct Editor{
     int max_undos_added;
 
     b32 create_box_active = false;
+    i32 create_box_selected_index = 0;
 
     Vector2 dragging_start;
     Vector2 resizing_start;

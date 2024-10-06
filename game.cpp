@@ -377,6 +377,18 @@ void init_spawn_objects(){
     str_copy(block_base_object.name, block_base_entity.name);
     
     spawn_objects.add(block_base_object);
+    
+    Entity enemy_base_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY);
+    enemy_base_entity.color = RED * 0.9f;
+    enemy_base_entity.color_changer.start_color = enemy_base_entity.color;
+    enemy_base_entity.color_changer.target_color = enemy_base_entity.color * 1.5f;
+    str_copy(enemy_base_entity.name, "enemy_base"); 
+    
+    Spawn_Object enemy_base_object;
+    copy_entity(&enemy_base_object.entity, &enemy_base_entity);
+    str_copy(enemy_base_object.name, enemy_base_entity.name);
+    
+    spawn_objects.add(enemy_base_object);
 }
 
 void init_game(){
@@ -757,10 +769,8 @@ void validate_editor_pointers(){
         
         for (int a = 0; a < editor.max_undos_added; a++){
             Undo_Action *action = editor.undo_actions.get_ptr(a);
-            print(action->entity_id);
             
             if (action->entity_id == e->id){
-                print("validating");
                 action->entity = e;
             }
         }
@@ -791,6 +801,7 @@ void editor_delete_entity(Entity *entity, b32 add_undo){
         undo_action.entity_was_deleted = true;
         copy_entity(&undo_action.deleted_entity, editor.selected_entity);
         undo_action.entity_id = undo_action.deleted_entity.id;
+        undo_action.entity = NULL;
         add_undo_action(undo_action);
     }
     entity->destroyed = true;
@@ -802,6 +813,7 @@ void editor_delete_entity(Entity *entity, b32 add_undo){
 void update_editor(){
     Undo_Action undo_action;
     b32 something_in_undo = false;
+    b32 can_control_with_single_button = !focus_input_field.in_focus;
 
     if (editor.need_validate_entity_pointers){
         validate_editor_pointers();
@@ -980,7 +992,7 @@ void update_editor(){
     }
     
     //editor Delete entity
-    if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_X) && editor.selected_entity){
+    if (can_control_with_single_button && IsKeyPressed(KEY_X) && editor.selected_entity){
         editor_delete_entity(editor.selected_entity, true);
     }
     
@@ -992,6 +1004,7 @@ void update_editor(){
     if (IsKeyPressed(KEY_SPACE)){
         if (editor.create_box_active){
             editor.create_box_active = false;
+            focus_input_field.in_focus = false;
         } else{
             editor.create_box_active = true;
             make_next_input_field_in_focus();
@@ -1003,25 +1016,59 @@ void update_editor(){
     }
     
     if (editor.create_box_active){
+        if (IsKeyPressed(KEY_DOWN)){
+            editor.create_box_selected_index++;
+            if (editor.create_box_selected_index < 0){
+                editor.create_box_selected_index = 0;
+            }
+        }
+        if (IsKeyPressed(KEY_UP)){
+            editor.create_box_selected_index--;
+            if (editor.create_box_selected_index < 0){
+                editor.create_box_selected_index = 0;
+            }
+        }
+    
         Vector2 field_size = {600, 50};
         Vector2 field_position = {screen_width * 0.5f - field_size.x * 0.5f, 100};
-        if (make_input_field("", field_position, field_size, "create_box")){
-            print(focus_input_field.content);
-            editor.create_box_active = false;
-        }
         
-        int spawn_objects_count = 0;
+        //auto fitting_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
+        int input_len = str_len(focus_input_field.content);
+        int fitting_count = 0;
+        
         for (int i = 0; i < spawn_objects.count; i++){
             Spawn_Object obj = spawn_objects.get(i);
-            Vector2 obj_position = field_position + Vector2_up * field_size.y * (spawn_objects_count + 1) + Vector2_right * field_size.x * 0.2f;
+            if (input_len > 0 && !str_start_with(obj.name, focus_input_field.content)){
+                continue;
+            }
+            
+            Vector2 obj_position = field_position + Vector2_up * field_size.y * (fitting_count + 1) + Vector2_right * field_size.x * 0.2f;
             Vector2 obj_size = {field_size.x * 0.6f, field_size.y};
-            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24)){
+            
+            b32 this_object_selected = editor.create_box_selected_index == fitting_count;
+            
+            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24) || (this_object_selected && IsKeyPressed(KEY_ENTER))){
                 Entity *entity = add_entity(&obj.entity);
                 entity->position = input.mouse_position;
                 editor.create_box_active = false;
+                focus_input_field.in_focus = false;
             }
             
-            spawn_objects_count++;
+            if (this_object_selected){
+                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, WHITE * 0.9f);
+            }
+            
+            fitting_count++;
+        }
+        
+        if (fitting_count > 0 && editor.create_box_selected_index > fitting_count - 1){
+            editor.create_box_selected_index = fitting_count - 1;   
+        }
+    
+        if (make_input_field("", field_position, field_size, "create_box")){
+            //print(focus_input_field.content);
+            editor.create_box_active = false;
+            focus_input_field.in_focus = false;
         }
     }
     
@@ -1042,7 +1089,7 @@ void update_editor(){
     }
     
     //editor Entity rotation
-    if (editor.selected_entity != NULL){
+    if (can_control_with_single_button && editor.selected_entity != NULL){
         f32 rotation = 0;
         f32 speed = 50;
         if (IsKeyDown(KEY_E)){
@@ -1057,7 +1104,7 @@ void update_editor(){
     }
     
     //editor entity scaling
-    if (editor.selected_entity != NULL){
+    if (can_control_with_single_button && editor.selected_entity != NULL){
         Vector2 scaling = {};
         f32 speed = 5;
         
@@ -1806,6 +1853,12 @@ void draw_ui(){
         draw_text(button.text, button.position - text_horizontal_offset - text_vertical_offset, button.font_size, button.text_color);
     }
     
+    for (int i = 0; i < ui_context.ui_images.count; i++){
+        Ui_Image ui_image = ui_context.ui_images.get(i);
+        
+        draw_rect(ui_image.position, ui_image.size, ui_image.pivot, 0, ui_image.color);
+    }
+    
     for (int i = 0; i < input_fields.count; i++){
         Input_Field input_field = input_fields.get(i);
         
@@ -1814,6 +1867,7 @@ void draw_ui(){
     }
     
     ui_context.buttons.clear();
+    ui_context.ui_images.clear();
     input_fields.clear();
 }
 

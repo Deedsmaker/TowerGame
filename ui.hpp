@@ -1,6 +1,7 @@
 #pragma once
 
 #define MAX_BUTTONS 32
+#define MAX_UI_IMAGES 32
 
 struct Button{
     Vector2 position;
@@ -13,8 +14,17 @@ struct Button{
     Color text_color = WHITE * 0.9f;
 };
 
+struct Ui_Image{
+    Vector2 position;
+    Vector2 size;
+    Vector2 pivot;
+
+    Color color;
+};
+
 struct Ui_Context{
-    Array<Button, MAX_BUTTONS> buttons = Array<Button, MAX_BUTTONS>();
+    Array<Button, MAX_BUTTONS>     buttons   = Array<Button, MAX_BUTTONS>();
+    Array<Ui_Image, MAX_UI_IMAGES> ui_images = Array<Ui_Image, MAX_UI_IMAGES>();
 };
 
 global_variable Ui_Context ui_context = {};
@@ -34,4 +44,11 @@ b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text,
     }
     
     return false;
+}
+
+void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color){
+    Ui_Image new_ui_image = {position, size, pivot};
+    new_ui_image.color = color;
+    
+    ui_context.ui_images.add(new_ui_image);
 }
