@@ -193,8 +193,8 @@ struct Undo_Action{
     Entity spawned_entity;
     b32    entity_was_spawned = false;
     
-    Vector2 position_change;  
-    Vector2 scale_change;
+    Vector2 position_change = {0, 0};  
+    Vector2 scale_change = {0, 0};
     f32 rotation_change = 0;
 };
 

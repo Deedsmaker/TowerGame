@@ -1099,11 +1099,21 @@ void update_editor(){
     if (can_control_with_single_button && editor.selected_entity != NULL){
         f32 rotation = 0;
         f32 speed = 50;
+        if (IsKeyPressed(KEY_E)){
+            editor.rotating_start = editor.selected_entity->rotation;
+        } else if (IsKeyPressed(KEY_Q)){
+            editor.rotating_start = editor.selected_entity->rotation;
+        }
         if (IsKeyDown(KEY_E)){
             rotation = dt * speed;
         } else if (IsKeyDown(KEY_Q)){
             rotation = -dt * speed;
         }
+        if (IsKeyReleased(KEY_E) || IsKeyReleased(KEY_Q)){
+            something_in_undo = true;
+            undo_action.rotation_change = editor.selected_entity->rotation - editor.rotating_start;
+            undo_action.entity = editor.selected_entity;
+        } 
         
         if (rotation != 0){
             rotate(editor.selected_entity, rotation);
@@ -1160,6 +1170,7 @@ void update_editor(){
             editor.need_validate_entity_pointers = true;
         } else{
             action->entity->position -= action->position_change;
+            rotate(action->entity, -action->rotation_change);
         }
     }
     
@@ -1180,6 +1191,8 @@ void update_editor(){
             editor.need_validate_entity_pointers = true;
         } else{
             action->entity->position += action->position_change;
+            print(action->position_change);
+            rotate(action->entity, action->rotation_change);
         }
     }
 }
