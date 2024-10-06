@@ -151,6 +151,28 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     change_scale(this, _scale);
 }
 
+Entity::Entity(Entity *copy){
+    id = copy->id;
+    position = copy->position;
+    pivot = copy->pivot;
+    
+    vertices = copy->vertices;
+    
+    rotation = copy->rotation;
+    scale = copy->scale;
+    flags = copy->flags;
+    color = copy->color;
+    
+    color_changer = copy->color_changer;
+    
+    if (flags & DRAW_TEXT){
+        text_drawer = copy->text_drawer;
+    }
+    if (flags & ENEMY){
+        enemy = copy->enemy;
+    }
+}
+
 void parse_line(char *line, char *result, int *index){ 
     assert(line[*index] == ':');
     
@@ -715,6 +737,10 @@ void validate_editor_pointers(){
     }
 }
 
+void copy_entity(Entity *dest, Entity *src){
+    *dest = *src;
+}
+
 void update_editor(){
     if (editor.need_validate_entity_pointers){
         validate_editor_pointers();
@@ -861,6 +887,19 @@ void update_editor(){
         editor.moving_vertex->x = input.mouse_position.x;
         editor.moving_vertex->y = input.mouse_position.y;
         *editor.moving_vertex = local(editor.moving_vertex_entity, *editor.moving_vertex);
+    }
+    
+    //editor copy/paste
+    if (editor.selected_entity && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)){
+        copy_entity(&editor.copied_entity, editor.selected_entity);
+        editor.is_copied = true;
+    }
+    
+    if (editor.is_copied && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)){
+        Entity *pasted_entity = add_entity(&editor.copied_entity);
+        pasted_entity->position = input.mouse_position;
+        editor.selected_entity = pasted_entity;
+        editor.selected_entity_id = pasted_entity->id;
     }
     
     //editor ruler
@@ -1721,6 +1760,14 @@ void setup_color_changer(Entity *entity){
 //     context.entities.add(e);
 //     return context.entities.last_ptr();
 // }
+
+Entity* add_entity(Entity *copy){
+    Entity e = Entity(copy);
+    
+    e.id = context.entities.count + game_time * 10000;
+    context.entities.add(e);
+    return context.entities.last_ptr();
+}
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
     //Entity *e = add_entity(pos, scale, rotation, flags);    

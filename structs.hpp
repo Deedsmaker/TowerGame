@@ -99,6 +99,7 @@ struct Entity{
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices);
+    Entity(Entity *copy);
 
     i32 id = -1;
     i32 index = -1;
@@ -126,9 +127,10 @@ struct Entity{
     
     Color color = WHITE;
     
+    Color_Changer color_changer;
+    
     Player player;
     Ground ground;
-    Color_Changer color_changer;
     Text_Drawer text_drawer;
     Enemy enemy;
 };
@@ -181,6 +183,9 @@ struct Editor{
     int moving_vertex_entity_id;
     Entity  *cursor_entity;
     
+    Entity copied_entity;
+    b32 is_copied;
+    
     b32 need_validate_entity_pointers = false;
     
     Vector2 *last_selected_vertex;
@@ -190,6 +195,8 @@ struct Editor{
     
     b32 ruler_active = false;
     Vector2 ruler_start_position;
+    
+    b32 objets_selector_active = false;
     
     b32 selected_this_click = 0;
     
