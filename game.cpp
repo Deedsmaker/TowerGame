@@ -1052,6 +1052,13 @@ void update_editor(){
                 entity->position = input.mouse_position;
                 editor.create_box_active = false;
                 focus_input_field.in_focus = false;
+                
+                Undo_Action undo_action;
+                undo_action.spawned_entity = entity;
+                undo_action.entity = entity;
+                undo_action.entity_id = entity->id;
+                undo_action.entity_was_spawned = true;
+                add_undo_action(undo_action);
             }
             
             if (this_object_selected){
@@ -1148,6 +1155,9 @@ void update_editor(){
             action->entity = restored_entity;
             
             editor.need_validate_entity_pointers = true;
+        } else if (action->entity_was_spawned){
+            editor_delete_entity(action->entity, false);
+            editor.need_validate_entity_pointers = true;
         } else{
             action->entity->position -= action->position_change;
         }
@@ -1161,6 +1171,12 @@ void update_editor(){
         
         if (action->entity_was_deleted){ //so we need delete this again
             editor_delete_entity(action->entity, false);
+            editor.need_validate_entity_pointers = true;
+        } else if (action->entity_was_spawned){ //so we need spawn this again
+            Entity *restored_entity = add_entity(&action->spawned_entity);
+            restored_entity->id = action->spawned_entity.id;
+            action->entity = restored_entity;
+            
             editor.need_validate_entity_pointers = true;
         } else{
             action->entity->position += action->position_change;

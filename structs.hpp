@@ -189,6 +189,10 @@ struct Undo_Action{
 
     Entity deleted_entity;
     b32    entity_was_deleted = false;
+    
+    Entity spawned_entity;
+    b32    entity_was_spawned = false;
+    
     Vector2 position_change;  
     Vector2 scale_change;
     f32 rotation_change = 0;
