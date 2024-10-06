@@ -685,7 +685,41 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, F
     }
 }
 
+void assign_moving_vertex_entity(Entity *e, int vertex_index){
+    Vector2 *vertex = e->vertices.get_ptr(vertex_index);
+
+    editor.moving_vertex = vertex;
+    editor.moving_vertex_index = vertex_index;
+    editor.last_selected_vertex = vertex;
+    editor.last_selected_vertex_index = vertex_index;
+    editor.moving_vertex_entity = e;
+    editor.moving_vertex_entity_id = e->id;
+    
+    editor.dragging_entity = NULL;
+}
+
+void validate_editor_pointers(){
+    for (int i = 0; i < context.entities.count; i++){
+        Entity *e = context.entities.get_ptr(i);
+        
+        if (editor.selected_entity && e->id == editor.selected_entity_id){
+            editor.selected_entity = e;
+        }
+        if (editor.dragging_entity && e->id == editor.dragging_entity_id){
+            editor.dragging_entity = e;
+        }
+        if (editor.moving_vertex_entity && e->id == editor.moving_vertex_entity_id){
+            //editor.moving_vertex_entity = e;
+            assign_moving_vertex_entity(e, editor.last_selected_vertex_index);
+        }
+    }
+}
+
 void update_editor(){
+    if (editor.need_validate_entity_pointers){
+        validate_editor_pointers();
+    }
+
     if (IsKeyPressed(KEY_B)){ //spawn block
         Entity *e = add_entity(input.mouse_position, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
         e->color = BROWN;
@@ -756,11 +790,8 @@ void update_editor(){
             Vector2 vertex_global = global(e, *vertex);
             
             if (need_move_vertices && editor.moving_vertex == NULL){
-                if (check_col_circles({input.mouse_position, 1}, {vertex_global, 2})){
-                    editor.moving_vertex = vertex;
-                    editor.last_selected_vertex = vertex;
-                    editor.moving_vertex_entity = e;
-                    editor.dragging_entity = NULL;
+                if (check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f})){
+                    assign_moving_vertex_entity(e, v);
                 }
             }
             
@@ -797,6 +828,7 @@ void update_editor(){
                 }
                 editor.cursor_entity->color_changer.changing = 1;
                 editor.selected_entity = editor.cursor_entity;
+                editor.selected_entity_id = editor.selected_entity->id;
                 
                 editor.selected_this_click = true;
             }
@@ -805,6 +837,7 @@ void update_editor(){
         if (editor.cursor_entity != NULL){
             if (editor.moving_vertex == NULL && editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id){
                 editor.dragging_entity = editor.selected_entity;
+                editor.dragging_entity_id = editor.selected_entity->id;
             }
         }
     } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
@@ -1424,6 +1457,10 @@ void update_entities(){
             free_entity(e);
             entities->remove(i);    
             i--;
+            
+            if (game_state == EDITOR){
+                editor.need_validate_entity_pointers = true;
+            }
             continue;
         }
         

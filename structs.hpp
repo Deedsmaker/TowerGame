@@ -174,12 +174,19 @@ struct Circle{
 
 struct Editor{
     Entity  *selected_entity;
+    int selected_entity_id;
     Entity  *dragging_entity;
+    int dragging_entity_id;
     Entity  *moving_vertex_entity;
+    int moving_vertex_entity_id;
     Entity  *cursor_entity;
     
+    b32 need_validate_entity_pointers = false;
+    
     Vector2 *last_selected_vertex;
+    int last_selected_vertex_index;
     Vector2 *moving_vertex;
+    int moving_vertex_index;
     
     b32 ruler_active = false;
     Vector2 ruler_start_position;

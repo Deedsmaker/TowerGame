@@ -250,10 +250,10 @@ void setup_particles(){
     blood_emitter->speed_max         = 20;
     blood_emitter->count_min         = 10;
     blood_emitter->count_max         = 40;
-    blood_emitter->scale_min         = 0.2f;
-    blood_emitter->scale_max         = 0.8f;
-    blood_emitter->lifetime_min      = 0.05f;
-    blood_emitter->lifetime_max      = 0.5f;
+    blood_emitter->scale_min         = 0.4f;
+    blood_emitter->scale_max         = 1.2f;
+    blood_emitter->lifetime_min      = 0.1f;
+    blood_emitter->lifetime_max      = 0.9f;
     blood_emitter->spread            = 1.0f;
     blood_emitter->color             = RED * 0.7f;
     blood_emitter->enabled           = true;
