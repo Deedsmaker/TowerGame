@@ -742,6 +742,9 @@ void copy_entity(Entity *dest, Entity *src){
 }
 
 void update_editor(){
+    Undo_Action undo_action;
+    b32 something_in_undo = false;
+
     if (editor.need_validate_entity_pointers){
         validate_editor_pointers();
     }
@@ -845,7 +848,7 @@ void update_editor(){
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-        if (editor.cursor_entity != NULL){
+        if (editor.cursor_entity != NULL){ //selecting entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             if (!is_same_selected_entity){
                 if (editor.selected_entity != NULL){
@@ -859,14 +862,15 @@ void update_editor(){
                 editor.selected_this_click = true;
             }
         }
-    } else if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL){
+    } else if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL){ 
         if (editor.cursor_entity != NULL){
-            if (editor.moving_vertex == NULL && editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id){
+            if (editor.moving_vertex == NULL && editor.selected_entity->id == editor.cursor_entity->id){
                 editor.dragging_entity = editor.selected_entity;
                 editor.dragging_entity_id = editor.selected_entity->id;
+                editor.dragging_start = editor.dragging_entity->position;
             }
         }
-    } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+    } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){ //stop dragging entity
         if (editor.selected_entity != NULL && !editor.selected_this_click && editor.cursor_entity != NULL){
             if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id){
                 editor.selected_entity->color_changer.changing = 0;
@@ -875,8 +879,16 @@ void update_editor(){
             }
         }
         
+        
         editor.dragging_time = 0;
         editor.selected_this_click = false;
+        
+        if (editor.dragging_entity){
+            something_in_undo = true;
+            undo_action.position_change = editor.dragging_entity->position - editor.dragging_start;
+            undo_action.entity = editor.dragging_entity;
+        }
+        
         editor.dragging_entity = NULL;
         editor.moving_vertex = NULL;
         editor.moving_vertex_entity = NULL;
@@ -987,6 +999,30 @@ void update_editor(){
     //editor Save level
     if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
         save_level("test_level.level");
+    }
+    
+    //undo logic
+    if (something_in_undo){
+        editor.undo_actions.add(undo_action);
+        if (editor.undo_actions.count >= MAX_UNDOS){
+            editor.undo_actions.remove_first_half();
+        }
+        editor.max_undos_added = editor.undo_actions.count;
+        
+    }
+    
+    if (editor.undo_actions.count > 0 && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z) && !IsKeyDown(KEY_LEFT_SHIFT)){
+        Undo_Action action = editor.undo_actions.pop();
+        
+        action.entity->position -= action.position_change;
+    }
+    
+    b32 need_make_redo = editor.max_undos_added > editor.undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
+    if (need_make_redo){
+        editor.undo_actions.count++;        
+        
+        Undo_Action action = editor.undo_actions.last();
+        action.entity->position += action.position_change;
     }
 }
 

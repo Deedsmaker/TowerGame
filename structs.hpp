@@ -174,7 +174,25 @@ struct Circle{
     f32 radius;
 };
 
+#define MAX_UNDOS 256
+
+struct Undo_Action{
+    Entity *entity;
+    int entity_id;
+
+    Vector2 position_change;  
+    Vector2 scale_change;
+    f32 rotation_change = 0;
+};
+
 struct Editor{
+    Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
+    int max_undos_added;
+
+    Vector2 dragging_start;
+    Vector2 resizing_start;
+    f32     rotating_start;
+
     Entity  *selected_entity;
     int selected_entity_id;
     Entity  *dragging_entity;
