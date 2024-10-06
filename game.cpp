@@ -743,8 +743,8 @@ void assign_moving_vertex_entity(Entity *e, int vertex_index){
 
     editor.moving_vertex = vertex;
     editor.moving_vertex_index = vertex_index;
-    editor.last_selected_vertex = vertex;
-    editor.last_selected_vertex_index = vertex_index;
+    // editor.last_selected_vertex = vertex;
+    // editor.last_selected_vertex_index = vertex_index;
     editor.moving_vertex_entity = e;
     editor.moving_vertex_entity_id = e->id;
     
@@ -911,8 +911,8 @@ void update_editor(){
                 }
             }
             
-            if (editor.selected_entity != NULL && editor.last_selected_vertex != NULL && need_snap_vertex && e->id != editor.selected_entity->id){
-                f32 sqr_distance = sqr_magnitude(global(editor.selected_entity, *editor.last_selected_vertex) - vertex_global);
+            if (editor.moving_vertex && need_snap_vertex && e->id != editor.moving_vertex_entity->id){
+                f32 sqr_distance = sqr_magnitude(global(editor.moving_vertex_entity, *editor.moving_vertex) - vertex_global);
                 if (sqr_distance < distance_to_closest_vertex){
                     distance_to_closest_vertex = sqr_distance;
                     closest_vertex_global = vertex_global;
@@ -924,11 +924,11 @@ void update_editor(){
          //editor snap closest vertex to closest vertex
     }
     
-    if (need_snap_vertex && editor.last_selected_vertex != NULL && editor.selected_entity != NULL){
-        *editor.last_selected_vertex = global(editor.selected_entity, *editor.last_selected_vertex);
-        editor.last_selected_vertex->x = closest_vertex_global.x;
-        editor.last_selected_vertex->y = closest_vertex_global.y;
-        *editor.last_selected_vertex = local(editor.selected_entity, *editor.last_selected_vertex);
+    if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
+        *editor.moving_vertex = global(editor.selected_entity, *editor.moving_vertex);
+        editor.moving_vertex->x = closest_vertex_global.x;
+        editor.moving_vertex->y = closest_vertex_global.y;
+        *editor.moving_vertex = local(editor.selected_entity, *editor.moving_vertex);
         
         undo_apply_vertices_change(editor.selected_entity, &undo_action);
         something_in_undo = true;

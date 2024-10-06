@@ -226,8 +226,8 @@ struct Editor{
     
     b32 need_validate_entity_pointers = false;
     
-    Vector2 *last_selected_vertex;
-    int last_selected_vertex_index;
+    // Vector2 *last_selected_vertex;
+    // int last_selected_vertex_index;
     Vector2 *moving_vertex;
     int moving_vertex_index;
     
