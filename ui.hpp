@@ -9,7 +9,8 @@ struct Button{
     char text[30];
     f32 font_size = 20;
     
-    Color color = WHITE;    
+    Color color = BLACK * 0.8f;    
+    Color text_color = WHITE * 0.9f;
 };
 
 struct Ui_Context{

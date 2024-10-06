@@ -247,7 +247,7 @@ void setup_particles(){
     blood_emitter->direction_to_move = 0;
     blood_emitter->over_time         = 0;
     blood_emitter->speed_min         = 5;
-    blood_emitter->speed_max         = 20;
+    blood_emitter->speed_max         = 40;
     blood_emitter->count_min         = 10;
     blood_emitter->count_max         = 40;
     blood_emitter->scale_min         = 0.4f;

@@ -27,7 +27,7 @@ void update_input_field(){
 
     if (focus_input_field.in_focus)
     {
-        SetMouseCursor(MOUSE_CURSOR_IBEAM);
+        //SetMouseCursor(MOUSE_CURSOR_IBEAM);
 
         int key = GetCharPressed();
 
@@ -50,7 +50,7 @@ void update_input_field(){
             focus_input_field.content[focus_input_field.chars_count] = '\0';
         }
     } else{
-         SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+         //SetMouseCursor(MOUSE_CURSOR_DEFAULT);
     }
 }
 
@@ -67,6 +67,11 @@ void update_input_field(){
 void make_last_in_focus(){
     input_fields.last_ptr()->in_focus = true;
     focus_input_field = input_fields.last();
+}
+
+global_variable b32 make_next_in_focus = false;
+void make_next_input_field_in_focus(){
+    make_next_in_focus = true;
 }
 
 void copy_input_field(Input_Field *dest, Input_Field *src){
@@ -100,9 +105,10 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     
     Rectangle field_rect = {input_field.position.x, input_field.position.y, input_field.size.x, input_field.size.y};
     
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), field_rect)){
+    if (make_next_in_focus || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), field_rect)){
         input_field.in_focus = true;
         copy_input_field(&focus_input_field, &input_field);
+        make_next_in_focus = false;
     }
     
     input_fields.add(input_field);

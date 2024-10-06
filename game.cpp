@@ -157,7 +157,6 @@ Entity::Entity(Entity *copy){
     pivot = copy->pivot;
     
     vertices = copy->vertices;
-    
     rotation = copy->rotation;
     scale = copy->scale;
     flags = copy->flags;
@@ -362,6 +361,24 @@ int load_level(const char *level_name){
     return 1;
 }
 
+#define MAX_SPAWN_OBJECTS 128
+
+global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
+
+void init_spawn_objects(){
+    Entity block_base_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, GROUND);
+    block_base_entity.color = BROWN;
+    block_base_entity.color_changer.start_color = block_base_entity.color;
+    block_base_entity.color_changer.target_color = block_base_entity.color * 1.5f;
+    str_copy(block_base_entity.name, "block_base"); 
+    
+    Spawn_Object block_base_object;
+    copy_entity(&block_base_object.entity, &block_base_entity);
+    str_copy(block_base_object.name, block_base_entity.name);
+    
+    spawn_objects.add(block_base_object);
+}
+
 void init_game(){
     game_state = EDITOR;
 
@@ -375,6 +392,8 @@ void init_game(){
     current_level.context = (Context*)malloc(sizeof(Context));
     context = *current_level.context;
     context = {};    
+    
+    init_spawn_objects();
     
     //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
@@ -789,13 +808,13 @@ void update_editor(){
         editor.need_validate_entity_pointers = false;
     }
 
-    if (IsKeyPressed(KEY_B)){ //spawn block
-        Entity *e = add_entity(input.mouse_position, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
-        e->color = BROWN;
-        e->color_changer.start_color = e->color;
-        e->color_changer.target_color = e->color * 1.5f;
-        print("spawn ground block");
-    }
+    // if (IsKeyPressed(KEY_B)){ //spawn block
+    //     Entity *e = add_entity(input.mouse_position, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
+    //     e->color = BROWN;
+    //     e->color_changer.start_color = e->color;
+    //     e->color_changer.target_color = e->color * 1.5f;
+    //     print("spawn ground block");
+    // }
     
     if (IsKeyPressed(KEY_G)){
         Entity *e = add_entity(input.mouse_position, {3, 3}, {0.5f, 0.5f}, 0, RED * 0.9f, ENEMY);
@@ -812,7 +831,6 @@ void update_editor(){
     }
     
     if (input.mouse_wheel != 0){
-        //So if wheel positive - don't allow zoom any further, same with negative
         if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
             context.cam.cam2D.zoom += input.mouse_wheel * 0.05f;
         }
@@ -962,7 +980,7 @@ void update_editor(){
     }
     
     //editor Delete entity
-    if (IsKeyPressed(KEY_X) && editor.selected_entity){
+    if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_X) && editor.selected_entity){
         editor_delete_entity(editor.selected_entity, true);
     }
     
@@ -970,8 +988,41 @@ void update_editor(){
         print("CLICKED LOL");
     }
     
-    if (make_input_field("", {500, 500}, {300, 40}, "test")){
-        print(focus_input_field.content);
+    //create box
+    if (IsKeyPressed(KEY_SPACE)){
+        if (editor.create_box_active){
+            editor.create_box_active = false;
+        } else{
+            editor.create_box_active = true;
+            make_next_input_field_in_focus();
+        }
+    }
+    
+    if (IsKeyPressed(KEY_ESCAPE)){
+        editor.create_box_active = false;
+    }
+    
+    if (editor.create_box_active){
+        Vector2 field_size = {600, 50};
+        Vector2 field_position = {screen_width * 0.5f - field_size.x * 0.5f, 100};
+        if (make_input_field("", field_position, field_size, "create_box")){
+            print(focus_input_field.content);
+            editor.create_box_active = false;
+        }
+        
+        int spawn_objects_count = 0;
+        for (int i = 0; i < spawn_objects.count; i++){
+            Spawn_Object obj = spawn_objects.get(i);
+            Vector2 obj_position = field_position + Vector2_up * field_size.y * (spawn_objects_count + 1) + Vector2_right * field_size.x * 0.2f;
+            Vector2 obj_size = {field_size.x * 0.6f, field_size.y};
+            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24)){
+                Entity *entity = add_entity(&obj.entity);
+                entity->position = input.mouse_position;
+                editor.create_box_active = false;
+            }
+            
+            spawn_objects_count++;
+        }
     }
     
     if (editor.dragging_entity != NULL){
@@ -1060,12 +1111,8 @@ void update_editor(){
         editor.undo_actions.count++;        
         
         Undo_Action *action = editor.undo_actions.last_ptr();
-        print("REDO");
         
         if (action->entity_was_deleted){ //so we need delete this again
-            //Entity *restored_entity = add_entity(action->entity_was_deleted);
-            //restored_entity->id = action->deleted_entity.id;
-            print("DELETING");
             editor_delete_entity(action->entity, false);
             editor.need_validate_entity_pointers = true;
         } else{
@@ -1115,7 +1162,6 @@ void change_scale(Entity *entity, Vector2 new_scale){
         f32 up_dot    = dot(entity->up,    *vertex);
         f32 right_dot = dot(entity->right, *vertex);
         
-        
         // if (entity->scale.y > 4 && abs(up_dot) < 1){
         //     up_dot = 0;
         // }
@@ -1123,14 +1169,14 @@ void change_scale(Entity *entity, Vector2 new_scale){
         //     right_dot = 0;
         // }
         
-        if (abs(up_dot) >= entity->scale.y * 0.1f){
+        if (old_scale.y == 1 || abs(up_dot) >= entity->scale.y * 0.1f){
             up_dot    = normalized(up_dot);
             *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y;
         }
-        if (abs(right_dot) >= entity->scale.x * 0.1f){
+        if (old_scale.x == 1 || abs(right_dot) >= entity->scale.x * 0.1f){
             right_dot = normalized(right_dot);
             *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x;
-        }
+        } 
     }
     
     calculate_bounds(entity);
@@ -1553,14 +1599,10 @@ void update_entities(){
     for (int i = 0; i < entities->count; i++){
         Entity *e = entities->get_ptr(i);
         
-        if (e->flags == -1){
-            print("WATAHELL");
-            continue;
-        }
+        //assert(e->flags > 0);
         
         if (e->flags & PLAYER){
             if (need_destroy_player){
-                print("WATAHELL");
                 destroy_player(e);   
                 need_destroy_player = false;
             }
@@ -1697,6 +1739,11 @@ void draw_editor(){
             draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
         }
         
+        b32 draw_scale = false;
+        if (draw_scale){
+            draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("SCALE:   {%.2f, %.2f}", e->scale.x, e->scale.y), 20, RED);
+        }
+        
         b32 draw_directions = false;
         if (draw_directions){
             draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("UP:    {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
@@ -1756,14 +1803,14 @@ void draw_ui(){
         draw_rect(button.position, button.size, button.pivot, 0, button.color);
         Vector2 text_horizontal_offset = Vector2_right * button.size.x * button.pivot.x;
         Vector2 text_vertical_offset   = Vector2_up    * (button.size.y - button.font_size) * (button.pivot.y - 0.5f);
-        draw_text(button.text, button.position - text_horizontal_offset - text_vertical_offset, button.font_size, BLACK * 0.9f);
+        draw_text(button.text, button.position - text_horizontal_offset - text_vertical_offset, button.font_size, button.text_color);
     }
     
     for (int i = 0; i < input_fields.count; i++){
         Input_Field input_field = input_fields.get(i);
         
         draw_rect(input_field.position, input_field.size, {0, 0}, 0, GRAY * 0.8f);
-        draw_text(input_field.content, input_field.position, input_field.font_size, BLUE * 0.9f);
+        draw_text(input_field.content, input_field.position, input_field.font_size, WHITE * 0.9f);
     }
     
     ui_context.buttons.clear();

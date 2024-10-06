@@ -103,6 +103,8 @@ struct Entity{
 
     i32 id = -1;
     i32 index = -1;
+    
+    char name[32];
 
     b32 enabled = 1;
     
@@ -133,6 +135,11 @@ struct Entity{
     Ground ground;
     Text_Drawer text_drawer;
     Enemy enemy;
+};
+
+struct Spawn_Object{
+    char name[32];
+    Entity entity;
 };
 
 //scale 150 should be full screen;
@@ -190,6 +197,8 @@ struct Undo_Action{
 struct Editor{
     Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
     int max_undos_added;
+
+    b32 create_box_active = false;
 
     Vector2 dragging_start;
     Vector2 resizing_start;
