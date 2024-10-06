@@ -180,6 +180,8 @@ struct Undo_Action{
     Entity *entity;
     int entity_id;
 
+    Entity deleted_entity;
+    b32    entity_was_deleted = false;
     Vector2 position_change;  
     Vector2 scale_change;
     f32 rotation_change = 0;

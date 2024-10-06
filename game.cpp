@@ -724,15 +724,26 @@ void validate_editor_pointers(){
     for (int i = 0; i < context.entities.count; i++){
         Entity *e = context.entities.get_ptr(i);
         
-        if (editor.selected_entity && e->id == editor.selected_entity_id){
-            editor.selected_entity = e;
-        }
-        if (editor.dragging_entity && e->id == editor.dragging_entity_id){
-            editor.dragging_entity = e;
-        }
-        if (editor.moving_vertex_entity && e->id == editor.moving_vertex_entity_id){
-            //editor.moving_vertex_entity = e;
-            assign_moving_vertex_entity(e, editor.last_selected_vertex_index);
+        //doesnt make any sence
+        // if (editor.selected_entity && e->id == editor.selected_entity_id){
+        //     editor.selected_entity = e;
+        // }
+        // if (editor.dragging_entity && e->id == editor.dragging_entity_id){
+        //     editor.dragging_entity = e;
+        // }
+        // if (editor.moving_vertex_entity && e->id == editor.moving_vertex_entity_id){
+        //     //editor.moving_vertex_entity = e;
+        //     assign_moving_vertex_entity(e, editor.last_selected_vertex_index);
+        // }
+        
+        for (int a = 0; a < editor.max_undos_added; a++){
+            Undo_Action *action = editor.undo_actions.get_ptr(a);
+            print(action->entity_id);
+            
+            if (action->entity_id == e->id){
+                print("validating");
+                action->entity = e;
+            }
         }
     }
 }
@@ -741,12 +752,41 @@ void copy_entity(Entity *dest, Entity *src){
     *dest = *src;
 }
 
+void add_undo_action(Undo_Action undo_action){
+    if (undo_action.entity){
+        undo_action.entity_id = undo_action.entity->id;
+    }
+
+    editor.undo_actions.add(undo_action);
+    
+    if (editor.undo_actions.count >= MAX_UNDOS){
+        editor.undo_actions.remove_first_half();
+    }
+    
+    editor.max_undos_added = editor.undo_actions.count;
+}
+
+void editor_delete_entity(Entity *entity, b32 add_undo){
+    if (add_undo){
+        Undo_Action undo_action;
+        undo_action.entity_was_deleted = true;
+        copy_entity(&undo_action.deleted_entity, editor.selected_entity);
+        undo_action.entity_id = undo_action.deleted_entity.id;
+        add_undo_action(undo_action);
+    }
+    entity->destroyed = true;
+    editor.selected_entity = NULL;
+    editor.dragging_entity = NULL;
+    editor.cursor_entity   = NULL;
+}
+
 void update_editor(){
     Undo_Action undo_action;
     b32 something_in_undo = false;
 
     if (editor.need_validate_entity_pointers){
         validate_editor_pointers();
+        editor.need_validate_entity_pointers = false;
     }
 
     if (IsKeyPressed(KEY_B)){ //spawn block
@@ -879,7 +919,6 @@ void update_editor(){
             }
         }
         
-        
         editor.dragging_time = 0;
         editor.selected_this_click = false;
         
@@ -922,13 +961,9 @@ void update_editor(){
         editor.ruler_active = false;
     }
     
-    
     //editor Delete entity
     if (IsKeyPressed(KEY_X) && editor.selected_entity){
-        editor.selected_entity->destroyed = true;
-        editor.selected_entity = NULL;
-        editor.dragging_entity = NULL;
-        editor.cursor_entity   = NULL;
+        editor_delete_entity(editor.selected_entity, true);
     }
     
     if (make_button({200, 200}, {200, 100}, {0.5f, 0.5f}, "WATAHELL", 24)){
@@ -1003,26 +1038,39 @@ void update_editor(){
     
     //undo logic
     if (something_in_undo){
-        editor.undo_actions.add(undo_action);
-        if (editor.undo_actions.count >= MAX_UNDOS){
-            editor.undo_actions.remove_first_half();
-        }
-        editor.max_undos_added = editor.undo_actions.count;
-        
+        add_undo_action(undo_action);
     }
     
     if (editor.undo_actions.count > 0 && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z) && !IsKeyDown(KEY_LEFT_SHIFT)){
-        Undo_Action action = editor.undo_actions.pop();
+        Undo_Action *action = editor.undo_actions.pop_ptr();
         
-        action.entity->position -= action.position_change;
+        if (action->entity_was_deleted){
+            Entity *restored_entity = add_entity(&action->deleted_entity);
+            restored_entity->id = action->deleted_entity.id;
+            action->entity = restored_entity;
+            
+            editor.need_validate_entity_pointers = true;
+        } else{
+            action->entity->position -= action->position_change;
+        }
     }
     
     b32 need_make_redo = editor.max_undos_added > editor.undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
     if (need_make_redo){
         editor.undo_actions.count++;        
         
-        Undo_Action action = editor.undo_actions.last();
-        action.entity->position += action.position_change;
+        Undo_Action *action = editor.undo_actions.last_ptr();
+        print("REDO");
+        
+        if (action->entity_was_deleted){ //so we need delete this again
+            //Entity *restored_entity = add_entity(action->entity_was_deleted);
+            //restored_entity->id = action->deleted_entity.id;
+            print("DELETING");
+            editor_delete_entity(action->entity, false);
+            editor.need_validate_entity_pointers = true;
+        } else{
+            action->entity->position += action->position_change;
+        }
     }
 }
 
