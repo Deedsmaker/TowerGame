@@ -8,6 +8,7 @@ struct Button{
     Vector2 size;
     Vector2 pivot;
     char text[30];
+    char tag[32];
     f32 font_size = 20;
     
     Color color = BLACK * 0.8f;    
@@ -18,6 +19,7 @@ struct Ui_Image{
     Vector2 position;
     Vector2 size;
     Vector2 pivot;
+    char tag[32];
 
     Color color;
 };
@@ -31,9 +33,11 @@ global_variable Ui_Context ui_context = {};
 
 //all in screen space
 
-b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text, f32 font_size){
+b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text, f32 font_size, const char *tag){
     Button new_button = {position, size, pivot};
     str_copy(new_button.text, text);
+    str_copy(new_button.tag, tag);
+    
     new_button.font_size = font_size;
     ui_context.buttons.add(new_button);
     
@@ -46,9 +50,10 @@ b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text,
     return false;
 }
 
-void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color){
+void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color, const char *tag){
     Ui_Image new_ui_image = {position, size, pivot};
     new_ui_image.color = color;
+    str_copy(new_ui_image.tag, tag);
     
     ui_context.ui_images.add(new_ui_image);
 }

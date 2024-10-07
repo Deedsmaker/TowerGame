@@ -35,9 +35,15 @@ void update_input_field(){
         {
             if ((key >= 32) && (key <= 125) && (focus_input_field.chars_count < INPUT_FIELD_MAX_CHARS))
             {
-                focus_input_field.content[focus_input_field.chars_count] = (char)key;
-                focus_input_field.content[focus_input_field.chars_count+1] = '\0';
-                focus_input_field.chars_count++;
+                int content_len = str_len(focus_input_field.content);
+                char char_key = (char)key;
+                
+                //NO SPACES FIRST
+                if (char_key != ' ' || content_len > 0){
+                    focus_input_field.content[focus_input_field.chars_count] = char_key;
+                    focus_input_field.content[focus_input_field.chars_count+1] = '\0';
+                    focus_input_field.chars_count++;
+                }
             }
 
             key = GetCharPressed();
@@ -45,6 +51,9 @@ void update_input_field(){
 
         if (IsKeyPressed(KEY_BACKSPACE))
         {
+            if (IsKeyDown(KEY_LEFT_CONTROL)){
+                focus_input_field.chars_count = 1;
+            }
             focus_input_field.chars_count--;
             if (focus_input_field.chars_count < 0) focus_input_field.chars_count = 0;
             focus_input_field.content[focus_input_field.chars_count] = '\0';

@@ -9,7 +9,9 @@ enum Flags{
     DRAW_TEXT = 1 << 1,
     PLAYER = 1 << 2,
     ENEMY = 1 << 3,
-    SWORD = 1 << 4
+    SWORD = 1 << 4,
+    
+    TEST = 1 << 31
 };
 
 struct Ground{
@@ -167,6 +169,7 @@ struct Context{
 
 struct Input{
     Vector2 direction;
+    Vector2 tap_direction;
     Vector2 mouse_position;
     Vector2 mouse_delta;
     f32     mouse_wheel;
@@ -204,7 +207,10 @@ struct Editor{
     int max_undos_added;
 
     b32 create_box_active = false;
+    b32 create_box_closing = false;
     i32 create_box_selected_index = 0;
+    f32 create_box_lifetime = 0;
+    f32 create_box_slide_time = 0.25f;
 
     Vector2 dragging_start;
     Vector2 scaling_start;
@@ -250,4 +256,8 @@ struct Debug{
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;
     b32 draw_fps = true;
+    b32 draw_rotation = false;
+    b32 draw_scale = false;
+    b32 draw_directions = false;
+    b32 draw_up_right = false;
 };

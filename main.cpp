@@ -33,6 +33,8 @@ int main(){
 
     SetExitKey(-1);
     
+    screen_size_changed = true;
+    
     init_game();
     while(!WindowShouldClose()){
         dt = GetFrameTime();

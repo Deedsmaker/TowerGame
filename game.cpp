@@ -486,17 +486,22 @@ void enter_editor_state(){
     //copy_context(&context, &saved_level_context);
 }
 
-Vector2 game_mouse_pos(){
+Vector2 screen_to_world(Vector2 pos){
     f32 zoom = context.cam.cam2D.zoom;
 
     f32 width = screen_width   ;
     f32 height = screen_height ;
 
-    Vector2 screen_pos = GetMousePosition();
+    Vector2 screen_pos = pos;
     Vector2 world_pos = {(screen_pos.x - width * 0.5f) / UNIT_SIZE, (height * 0.5f - screen_pos.y) / UNIT_SIZE};
     world_pos /= zoom;
     world_pos = world_pos + context.cam.position;// + ( (Vector2){0, -context.unit_screen_size.y * 0.5f});
+    
     return world_pos;
+}
+
+Vector2 game_mouse_pos(){
+    return screen_to_world(GetMousePosition());
 }
 
 void update_game(){
@@ -515,6 +520,16 @@ void update_game(){
     input.direction.x = 0;
     input.direction.y = 0;
     
+    if (IsKeyDown(KEY_RIGHT)){
+        input.direction.x = 1;
+    } else if (IsKeyDown(KEY_LEFT)){
+        input.direction.x = -1;
+    }
+    if (IsKeyDown(KEY_UP)){
+        input.direction.y = 1;
+    } else if (IsKeyDown(KEY_DOWN)){
+        input.direction.y = -1;
+    }
     if (IsKeyDown(KEY_D)){
         input.direction.x = 1;
     } else if (IsKeyDown(KEY_A)){
@@ -529,6 +544,22 @@ void update_game(){
     if (input.direction.x != 0 || input.direction.y != 0){
         normalize(&input.direction);
     }
+    
+    if (input.tap_direction.x == 0 && IsKeyPressed(KEY_RIGHT)){
+        input.tap_direction.x = 1;
+    } else if (input.tap_direction.x == 0 && IsKeyPressed(KEY_LEFT)){
+        input.tap_direction.x = -1;
+    } else{
+        input.tap_direction.x = 0;
+    }
+    if (input.tap_direction.y == 0 && IsKeyPressed(KEY_UP)){
+        input.tap_direction.y = 1;
+    } else if (input.tap_direction.y == 0 && IsKeyPressed(KEY_DOWN)){
+        input.tap_direction.y = -1;
+    } else{
+        input.tap_direction.y = 0;
+    }
+
     
     if (screen_size_changed){
         context.unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
@@ -844,6 +875,21 @@ void assign_selected_entity(Entity *new_selected){
     editor.selected_entity = new_selected;
 }
 
+void start_closing_create_box(){
+    editor.create_box_closing = true;
+    editor.create_box_lifetime = editor.create_box_slide_time;
+}
+
+void close_create_box(){
+    editor.create_box_active = false;
+    editor.create_box_closing = false;
+    if (str_cmp(focus_input_field.tag, "create_box")){
+        focus_input_field.in_focus = false;
+    }
+
+    editor.create_box_lifetime = 0;
+}
+
 void update_editor(){
     Undo_Action undo_action;
     b32 something_in_undo = false;
@@ -1003,6 +1049,18 @@ void update_editor(){
         editor.moving_vertex_entity = NULL;
     }
     
+    //entity tap moving
+    if (editor.selected_entity){
+        f32 arrows_move_amount = 0.1f;
+        Vector2 move = input.tap_direction * 0.1f;
+        if (move.x != 0 || move.y != 0){
+            editor.selected_entity->position += move;
+            undo_action.position_change = move;
+            undo_action.entity = editor.selected_entity;
+            something_in_undo = true;
+        }
+    }
+    
     if (editor.moving_vertex != NULL){
         *editor.moving_vertex = global(editor.moving_vertex_entity, *editor.moving_vertex);
         editor.moving_vertex->x = input.mouse_position.x;
@@ -1042,23 +1100,27 @@ void update_editor(){
         editor_delete_entity(editor.selected_entity, true);
     }
     
-    if (make_button({200, 200}, {200, 100}, {0.5f, 0.5f}, "WATAHELL", 24)){
-        print("CLICKED LOL");
-    }
-    
     //create box
+    b32 need_close_create_box = false;
+    
     if (IsKeyPressed(KEY_SPACE)){
-        if (editor.create_box_active){
-            editor.create_box_active = false;
-            focus_input_field.in_focus = false;
-        } else{
+        if (editor.create_box_active && !editor.create_box_closing){
+            need_close_create_box = true;
+        } else{ //open create box
             editor.create_box_active = true;
+            editor.create_box_closing = false;
+            editor.create_box_lifetime = 0;
             make_next_input_field_in_focus();
+            assign_selected_entity(NULL);
         }
     }
     
     if (IsKeyPressed(KEY_ESCAPE)){
-        editor.create_box_active = false;
+        if (editor.create_box_active){
+            need_close_create_box = true;
+        } else if (editor.selected_entity){
+            assign_selected_entity(NULL);
+        }
     }
     
     if (editor.create_box_active){
@@ -1076,7 +1138,21 @@ void update_editor(){
         }
     
         Vector2 field_size = {600, 50};
-        Vector2 field_position = {screen_width * 0.5f - field_size.x * 0.5f, 100};
+        Vector2 field_target_position = {screen_width * 0.5f - field_size.x * 0.5f, 100};
+        Vector2 field_start_position = field_target_position - Vector2_up * field_size.y * 6;
+        
+        if (editor.create_box_closing){
+            editor.create_box_lifetime -= dt;
+            if (editor.create_box_lifetime <= 0){
+                need_close_create_box = true;
+            }
+        } else{
+            editor.create_box_lifetime += dt;
+        }
+        
+        f32 create_t = clamp01(editor.create_box_lifetime / editor.create_box_slide_time);
+        
+        Vector2 field_position = lerp(field_start_position, field_target_position, EaseOutBack(create_t));
         
         //auto fitting_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
         int input_len = str_len(focus_input_field.content);
@@ -1093,11 +1169,10 @@ void update_editor(){
             
             b32 this_object_selected = editor.create_box_selected_index == fitting_count;
             
-            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24) || (this_object_selected && IsKeyPressed(KEY_ENTER))){
+            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box") || (this_object_selected && IsKeyPressed(KEY_ENTER))){
                 Entity *entity = add_entity(&obj.entity);
                 entity->position = input.mouse_position;
-                editor.create_box_active = false;
-                focus_input_field.in_focus = false;
+                need_close_create_box = true;
                 
                 Undo_Action undo_action;
                 undo_action.spawned_entity = entity;
@@ -1108,7 +1183,7 @@ void update_editor(){
             }
             
             if (this_object_selected){
-                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, WHITE * 0.9f);
+                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, WHITE * 0.9f, "create_box");
             }
             
             fitting_count++;
@@ -1120,8 +1195,15 @@ void update_editor(){
     
         if (make_input_field("", field_position, field_size, "create_box")){
             //print(focus_input_field.content);
-            editor.create_box_active = false;
-            focus_input_field.in_focus = false;
+            need_close_create_box = true;
+        }
+    }
+    
+    if (need_close_create_box){
+        if (editor.create_box_closing){
+            close_create_box();
+        } else{
+            start_closing_create_box();
         }
     }
     
@@ -1270,6 +1352,13 @@ void update_editor(){
             }
             //rotate(action->entity, action->rotation_change);
         }
+    }
+    
+    //inspector logic
+    if (editor.selected_entity){
+        Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.4f};
+        Vector2 inspector_position = {screen_width - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
+        make_ui_image(inspector_position, inspector_size, {1, 0}, SKYBLUE * 0.7f, "inspector_window");
     }
 }
 
@@ -1838,8 +1927,10 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        b32 draw_up_right = false;
-        if (draw_up_right){
+        if (e->flags & TEST){
+        }
+        
+        if (debug.draw_up_right){
             draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
         }
@@ -1886,18 +1977,15 @@ void draw_editor(){
         
         draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
         
-        b32 draw_rotation = true;
-        if (draw_rotation){
+        if (debug.draw_rotation){
             draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
         }
         
-        b32 draw_scale = true;
-        if (draw_scale){
+        if (debug.draw_scale){
             draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("SCALE:   {%.2f, %.2f}", e->scale.x, e->scale.y), 20, RED);
         }
         
-        b32 draw_directions = false;
-        if (draw_directions){
+        if (debug.draw_directions){
             draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("UP:    {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
             draw_game_text(e->position + ((Vector2){0, -9}), TextFormat("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
         }
@@ -1948,9 +2036,15 @@ void draw_particles(){
     }
 }
 
-void draw_ui(){
+void draw_ui(const char *tag){
+    int tag_len = str_len(tag);
+
     for (int i = 0; i < ui_context.buttons.count; i++){
         Button button = ui_context.buttons.get(i);
+        
+        if (tag_len > 0 && !str_cmp(button.tag, tag)){
+            continue;
+        }
         
         draw_rect(button.position, button.size, button.pivot, 0, button.color);
         Vector2 text_horizontal_offset = Vector2_right * button.size.x * button.pivot.x;
@@ -1961,19 +2055,29 @@ void draw_ui(){
     for (int i = 0; i < ui_context.ui_images.count; i++){
         Ui_Image ui_image = ui_context.ui_images.get(i);
         
+        if (tag_len > 0 && !str_cmp(ui_image.tag, tag)){
+            continue;
+        }
+        
         draw_rect(ui_image.position, ui_image.size, ui_image.pivot, 0, ui_image.color);
     }
     
     for (int i = 0; i < input_fields.count; i++){
         Input_Field input_field = input_fields.get(i);
         
+        if (tag_len > 0 && !str_cmp(input_field.tag, tag)){
+            continue;
+        }
+        
         draw_rect(input_field.position, input_field.size, {0, 0}, 0, GRAY * 0.8f);
         draw_text(input_field.content, input_field.position, input_field.font_size, WHITE * 0.9f);
     }
     
-    ui_context.buttons.clear();
-    ui_context.ui_images.clear();
-    input_fields.clear();
+    if (tag_len == 0){
+        ui_context.buttons.clear();
+        ui_context.ui_images.clear();
+        input_fields.clear();
+    }
 }
 
 void draw_game(){
@@ -2007,7 +2111,7 @@ void draw_game(){
     
     EndMode2D();
     
-    draw_ui();
+    draw_ui("");
     
     f32 v_pos = 10;
     f32 font_size = 18;

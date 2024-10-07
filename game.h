@@ -18,6 +18,7 @@ void update_color_changer(Entity *entity);
 
 void draw_game();
 
+void draw_ui(const char *tag);
 void draw_entities();
 
 Vector2 global(Entity *e, Vector2 local_pos);
