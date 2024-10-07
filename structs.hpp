@@ -212,6 +212,7 @@ struct Editor{
     Array<Vector2, MAX_VERTICES> vertices_start = Array<Vector2, MAX_VERTICES>();
     
     b32 is_scaling_entity = false;
+    b32 is_rotating_entity = false;
 
     Entity  *selected_entity;
     int selected_entity_id;

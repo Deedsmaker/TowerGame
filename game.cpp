@@ -1008,6 +1008,13 @@ void update_editor(){
         pasted_entity->position = input.mouse_position;
         editor.selected_entity = pasted_entity;
         editor.selected_entity_id = pasted_entity->id;
+        
+        Undo_Action undo_action;
+        undo_action.spawned_entity = *pasted_entity;
+        undo_action.entity = pasted_entity;
+        undo_action.entity_id = pasted_entity->id;
+        undo_action.entity_was_spawned = true;
+        add_undo_action(undo_action);
     }
     
     //editor ruler
@@ -1126,11 +1133,12 @@ void update_editor(){
     if (can_control_with_single_button && editor.selected_entity != NULL){
         f32 rotation = 0;
         f32 speed = 50;
-        if (IsKeyPressed(KEY_E)){
+        if (!editor.is_rotating_entity && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_Q))){
             editor.rotating_start = editor.selected_entity->rotation;
-        } else if (IsKeyPressed(KEY_Q)){
-            editor.rotating_start = editor.selected_entity->rotation;
-        }
+            undo_remember_vertices_start(editor.selected_entity);
+            editor.is_rotating_entity = true;
+        } 
+        
         if (IsKeyDown(KEY_E)){
             rotation = dt * speed;
         } else if (IsKeyDown(KEY_Q)){
@@ -1141,10 +1149,12 @@ void update_editor(){
             rotate(editor.selected_entity, rotation);
         }
         
-        if (IsKeyReleased(KEY_E) || IsKeyReleased(KEY_Q)){
+        if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))){
             something_in_undo = true;
             undo_action.rotation_change = editor.selected_entity->rotation - editor.rotating_start;
             undo_action.entity = editor.selected_entity;
+            undo_apply_vertices_change(editor.selected_entity, &undo_action);
+            editor.is_rotating_entity = false;
         } 
     }
     
@@ -1214,11 +1224,12 @@ void update_editor(){
             action->entity->position -= action->position_change;
             //add_scale(action->entity, action->scale_change * -1);
             action->entity->scale -= action->scale_change;
+            action->entity->rotation -= action->rotation_change;
             
             for (int i = 0; i < action->vertices_change.count; i++){
                 *action->entity->vertices.get_ptr(i) -= action->vertices_change.get(i);
             }
-            rotate(action->entity,    -action->rotation_change);
+            //rotate(action->entity,    -action->rotation_change);
         }
     }
     
@@ -1241,10 +1252,11 @@ void update_editor(){
             action->entity->position += action->position_change;
             //add_scale(action->entity, action->scale_change);
             action->entity->scale += action->scale_change;
+            action->entity->rotation += action->rotation_change;
             for (int i = 0; i < action->vertices_change.count; i++){
                 *action->entity->vertices.get_ptr(i) += action->vertices_change.get(i);
             }
-            rotate(action->entity, action->rotation_change);
+            //rotate(action->entity, action->rotation_change);
         }
     }
 }
@@ -1862,7 +1874,7 @@ void draw_editor(){
         
         draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
         
-        b32 draw_rotation = false;
+        b32 draw_rotation = true;
         if (draw_rotation){
             draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
         }
