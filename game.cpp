@@ -3,8 +3,7 @@
 //#define assert(a) (if (!a) (int*)void*);
 //#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
-global_variable f32 dt;
-global_variable f32 dt_scale = 1;
+//global_variable f32 dt;
 //f32 game_time;
 
 
@@ -12,6 +11,7 @@ global_variable f32 dt_scale = 1;
 
 global_variable Input input;
 global_variable Level current_level;
+global_variable Core core = {};
 global_variable Context context = {};
 global_variable Context saved_level_context = {};
 global_variable Editor editor  = {};
@@ -394,8 +394,6 @@ void init_spawn_objects(){
 void init_game(){
     game_state = EDITOR;
 
-    game_time = 0;
-    
     recent_player_data.destroyed = true;
 
     input = {};
@@ -504,10 +502,17 @@ Vector2 game_mouse_pos(){
     return screen_to_world(GetMousePosition());
 }
 
-void update_game(){
-    dt *= dt_scale;
+void fixed_game_update(){
+    //update_entities();
+}
 
-    game_time += dt;
+void update_game(){
+    //dt *= dt_scale;
+    
+    core.time.unscaled_dt = GetFrameTime();
+    core.time.dt = GetFrameTime() * core.time.time_scale;
+    
+    core.time.game_time += core.time.dt;
     
     frame_rnd = rnd01();
     frame_on_circle_rnd = rnd_on_circle();
@@ -591,19 +596,48 @@ void update_game(){
     
     //zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
     
+    float full_delta = core.time.unscaled_dt + core.time.previous_dt;
+    core.time.previous_dt = 0;
+    
+    full_delta = Clamp(full_delta, 0, 0.1f);
+    
+    while (full_delta >= TARGET_FRAME_TIME){
+        float dt = TARGET_FRAME_TIME * core.time.time_scale;
+        if (dt == 0){
+            break;
+        }
+        
+        if (core.time.time_scale > 1){
+            while (dt >= TARGET_FRAME_TIME){
+                core.time.fixed_dt = TARGET_FRAME_TIME;
+                fixed_game_update();
+                dt -= TARGET_FRAME_TIME;
+            }
+        
+            //if (dt > 0) update(dt);
+            core.time.previous_dt += dt;
+        } else{
+            core.time.fixed_dt = TARGET_FRAME_TIME;
+            fixed_game_update();
+        }
+        full_delta -= TARGET_FRAME_TIME;
+    }
+    
+    core.time.previous_dt = full_delta;
+    
     update_entities();
     update_emitters();
     update_particles();
     
     if (game_state == GAME && !recent_player_data.destroyed){
         Vector2 target_position = recent_player_data.position + Vector2_up * 10;
-        context.cam.position = lerp(context.cam.position, target_position, dt * 10);
+        context.cam.position = lerp(context.cam.position, target_position, core.time.dt * 10);
     }
     
     draw_game();
 }
 
-void update_color_changer(Entity *entity){
+void update_color_changer(Entity *entity, f32 dt){
     Color_Changer *changer = &entity->color_changer;
     
     if (changer->changing){
@@ -894,6 +928,8 @@ void update_editor(){
     Undo_Action undo_action;
     b32 something_in_undo = false;
     b32 can_control_with_single_button = !focus_input_field.in_focus;
+    
+    f32 dt = core.time.dt;
 
     if (editor.need_validate_entity_pointers){
         validate_editor_pointers();
@@ -1183,7 +1219,8 @@ void update_editor(){
             }
             
             if (this_object_selected){
-                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, WHITE * 0.9f, "create_box");
+                f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(game_time * 3) + 1) * 0.5f);
+                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, WHITE * color_multiplier, "create_box");
             }
             
             fitting_count++;
@@ -1489,7 +1526,7 @@ void rotate(Entity *entity, f32 rotation){
     rotate_to(entity, entity->rotation + rotation);
 }
 
-void player_apply_friction(Entity *entity, f32 max_move_speed){
+void player_apply_friction(Entity *entity, f32 max_move_speed, f32 dt){
     Player *p = &entity->player;
 
     f32 friction = p->friction;
@@ -1505,7 +1542,7 @@ void player_apply_friction(Entity *entity, f32 max_move_speed){
     p->velocity.x += friction_force;
 }
 
-void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 acceleration){
+void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 acceleration, f32 dt){
     Player *p = &entity->player;
 
     // f32 new_move_speed = p->velocity.x + p->acceleration * input.direction.x * dt;
@@ -1533,12 +1570,12 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
     p->velocity.x += dir.x * acceleration_speed;
 }
 
-void player_ground_move(Entity *entity){
+void player_ground_move(Entity *entity, f32 dt){
     Player *p = &entity->player;
 
     f32 max_move_speed = p->base_move_speed;
     
-    player_apply_friction(entity, max_move_speed);
+    player_apply_friction(entity, max_move_speed, dt);
     
     f32 acceleration = p->ground_acceleration;
     if (dot(p->velocity, input.direction) <= 0){
@@ -1550,10 +1587,10 @@ void player_ground_move(Entity *entity){
     
     f32 wish_speed = sqr_magnitude(input.direction) * max_move_speed;
     
-    player_accelerate(entity, input.direction, wish_speed, acceleration);
+    player_accelerate(entity, input.direction, wish_speed, acceleration, dt);
 }
 
-void player_air_move(Entity *entity){
+void player_air_move(Entity *entity, f32 dt){
     Player *p = &entity->player;
 
     f32 max_move_speed = p->base_move_speed;
@@ -1562,7 +1599,7 @@ void player_air_move(Entity *entity){
     
     f32 wish_speed = sqr_magnitude(input.direction) * max_move_speed;
     
-    player_accelerate(entity, input.direction, wish_speed, acceleration);
+    player_accelerate(entity, input.direction, wish_speed, acceleration, dt);
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
@@ -1594,7 +1631,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
     }
 }
 
-void update_player(Entity *entity){
+void update_player(Entity *entity, f32 dt){
     assert(entity->flags & PLAYER);
 
     recent_player_data = *entity;
@@ -1717,7 +1754,7 @@ void update_player(Entity *entity){
     
     if (p->grounded){
         if (!sword_attacking){
-            player_ground_move(entity);
+            player_ground_move(entity, dt);
             
             p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
             p->velocity = p->plane_vector * magnitude(p->velocity);
@@ -1754,7 +1791,7 @@ void update_player(Entity *entity){
         }
         
         if (!sword_attacking){
-            player_air_move(entity);
+            player_air_move(entity, dt);
             
             p->velocity.y -= p->gravity * p->gravity_mult * dt;
         }
@@ -1877,10 +1914,10 @@ void update_entities(){
         }
         
         if (e->flags & PLAYER){
-            update_player(e);
+            update_player(e, core.time.dt);
         }
           
-        update_color_changer(e);            
+        update_color_changer(e, core.time.dt);            
     }
 }
 

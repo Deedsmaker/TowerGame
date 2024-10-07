@@ -37,7 +37,7 @@ int main(){
     
     init_game();
     while(!WindowShouldClose()){
-        dt = GetFrameTime();
+        //dt = GetFrameTime();
         
         if (IsKeyPressed(KEY_ENTER) && IsKeyDown(KEY_LEFT_ALT)){
             ToggleBorderlessWindowed();

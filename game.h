@@ -20,6 +20,7 @@ void draw_game();
 
 void draw_ui(const char *tag);
 void draw_entities();
+void draw_entity(Entity *e);
 
 Vector2 global(Entity *e, Vector2 local_pos);
 Vector2 local (Entity *e, Vector2 global_pos);

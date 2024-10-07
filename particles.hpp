@@ -110,7 +110,7 @@ void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 directio
 }
 
 void update_overtime_emitter(Particle_Emitter *emitter){
-    emitter->emitting_timer += dt;
+    emitter->emitting_timer += core.time.dt;
     f32 emit_delay = 1.0f / (emitter->over_time * emitter->count_multiplier);
     while (emitter->emitting_timer >= emit_delay){
         emitter->emitting_timer -= emit_delay;
@@ -156,7 +156,7 @@ void update_emitters(){
             continue;
         }
         
-        emitter->emitter_lifetime += dt;
+        emitter->emitter_lifetime += core.time.dt;
         
         if (emitter->over_time > 0){
             update_overtime_emitter(emitter);
@@ -170,6 +170,8 @@ void update_emitters(){
 
 
 void update_particles(){
+    f32 dt = core.time.dt;
+
     for (int i = 0; i < context.particles.count; i++){
         Particle *particle = context.particles.get_ptr(i);
         particle->lifetime += dt;

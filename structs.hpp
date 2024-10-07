@@ -1,6 +1,9 @@
 #define FLAGS i32
 //#define EPSILON 0.0000000000000001f
 
+#define FIXED_FPS 240
+#define TARGET_FRAME_TIME (1.0f / FIXED_FPS)
+
 #define MAX_VERTICES 8
 #define MAX_COLLISIONS 32
 
@@ -156,6 +159,20 @@ struct Cam{
 //definition in particles.hpp
 struct Particle;
 struct Particle_Emitter;
+
+struct Core{
+    struct Time{      
+        f32 target_dt = TARGET_FRAME_TIME;
+        f32 previous_dt = 0;
+        f32 dt = 0;  
+        f32 fixed_dt = 0;
+        f32 unscaled_dt = 0;
+        f32 time_scale = 1;
+        f32 game_time = 0;
+    };
+    
+    Time time;
+};
 
 struct Context{
     Dynamic_Array<Entity>           entities  = Dynamic_Array<Entity>(1000);
