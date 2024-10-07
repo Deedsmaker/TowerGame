@@ -11,6 +11,8 @@ void assign_selected_entity(Entity *new_selected);
 
 void close_create_box();
 
+void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
+
 void update_editor();
 void update_entities();
 

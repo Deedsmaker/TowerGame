@@ -864,6 +864,24 @@ void add_undo_action(Undo_Action undo_action){
     editor.max_undos_added = editor.undo_actions.count;
 }
 
+void add_position_undo(Entity *entity, Vector2 position_change){
+    Undo_Action undo_action;
+    undo_action.position_change = position_change;
+    undo_action.entity = entity;
+    add_undo_action(undo_action);
+}
+
+void add_scale_undo(Entity *entity, Vector2 scale_change){
+    Undo_Action undo_action;
+    undo_action.entity = entity;
+    undo_action.scale_change = scale_change;
+    
+    //SHOULD REMEMBER THEM BEFORE
+    undo_apply_vertices_change(editor.selected_entity, &undo_action);
+    
+    add_undo_action(undo_action);
+}
+
 void editor_delete_entity(Entity *entity, b32 add_undo){
     if (add_undo){
         Undo_Action undo_action;
@@ -947,10 +965,10 @@ void update_editor(){
     //     print("spawn ground block");
     // }
     
-    if (IsKeyPressed(KEY_G)){
-        Entity *e = add_entity(input.mouse_position, {3, 3}, {0.5f, 0.5f}, 0, RED * 0.9f, ENEMY);
-        print("spawn enemy");
-    }
+    // if (IsKeyPressed(KEY_G)){
+    //     Entity *e = add_entity(input.mouse_position, {3, 3}, {0.5f, 0.5f}, 0, RED * 0.9f, ENEMY);
+    //     print("spawn enemy");
+    //}
     
     f32 zoom = context.cam.cam2D.zoom;
     
@@ -1257,9 +1275,9 @@ void update_editor(){
     }
     
     //editor Entity to mouse or go to entity
-    if (IsKeyPressed(KEY_F) && editor.dragging_entity != NULL){
+    if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.dragging_entity != NULL){
         editor.dragging_entity->position = input.mouse_position;
-    } else if (IsKeyPressed(KEY_F) && editor.selected_entity != NULL){
+    } else if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.selected_entity != NULL){
         context.cam.position = editor.selected_entity->position;
     }
     
@@ -1322,19 +1340,70 @@ void update_editor(){
         }
         
         if (editor.is_scaling_entity && (IsKeyUp(KEY_W) && IsKeyUp(KEY_S) && IsKeyUp(KEY_A) && IsKeyUp(KEY_D))){
-            something_in_undo = true;
-            undo_action.scale_change = editor.selected_entity->scale - editor.scaling_start;
+            //something_in_undo = true;
+            Vector2 scale_change = editor.selected_entity->scale - editor.scaling_start;
             
             //undo_action.vertices_change.clear();
             //VECTOR2_ARR_FILL_ZERO(undo_action.vertices_change.data, editor.selected_entity->vertices.count)
-            undo_apply_vertices_change(editor.selected_entity, &undo_action);
+            //undo_apply_vertices_change(editor.selected_entity, &undo_action);
+            
+            add_scale_undo(editor.selected_entity, scale_change);
             editor.is_scaling_entity = false;
         } 
     }
     
-    //editor Save level
-    if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
-        save_level("test_level.level");
+    //inspector logic
+    if (editor.selected_entity){
+        Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.4f};
+        Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
+        make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
+        f32 height_add = 30;
+        f32 v_pos = inspector_position.y + height_add + 10;
+        
+        
+        make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 10}, 24, WHITE * 0.9f, "inspector_pos");
+        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
+        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
+        if (make_input_field(TextFormat("%.3f", editor.selected_entity->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
+            || make_input_field(TextFormat("%.3f", editor.selected_entity->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")){
+            Vector2 old_position = editor.selected_entity->position;
+            if (str_cmp(focus_input_field.tag, "inspector_pos_x")){
+                editor.selected_entity->position.x = atof(focus_input_field.content);
+            } else if (str_cmp(focus_input_field.tag, "inspector_pos_y")){
+                editor.selected_entity->position.y = atof(focus_input_field.content);
+            } else{
+                assert(false);
+            }
+            add_position_undo(editor.selected_entity, editor.selected_entity->position - old_position);
+        }
+        v_pos += height_add;
+        
+        make_ui_text("SCALE", {inspector_position.x + 100, inspector_position.y + 20 + v_pos - height_add}, 24, WHITE * 0.9f, "inspector_scale");
+        v_pos += height_add;
+        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
+        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
+        if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
+            || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")){
+            Vector2 old_scale = editor.selected_entity->scale;
+            Vector2 new_scale = old_scale;
+            undo_remember_vertices_start(editor.selected_entity);
+            
+            if (str_cmp(focus_input_field.tag, "inspector_scale_x")){
+                new_scale.x = atof(focus_input_field.content);
+            } else if (str_cmp(focus_input_field.tag, "inspector_scale_y")){
+                new_scale.y = atof(focus_input_field.content);
+            } else{
+                assert(false);
+            }
+            
+            Vector2 scale_add = new_scale - old_scale;
+            if (scale_add != Vector2_zero){
+                add_scale(editor.selected_entity, scale_add);
+            }
+            
+            add_scale_undo(editor.selected_entity, scale_add);
+            v_pos += height_add;
+        }
     }
     
     //undo logic
@@ -1394,12 +1463,11 @@ void update_editor(){
         }
     }
     
-    //inspector logic
-    if (editor.selected_entity){
-        Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.4f};
-        Vector2 inspector_position = {screen_width - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
-        make_ui_image(inspector_position, inspector_size, {1, 0}, SKYBLUE * 0.7f, "inspector_window");
+    //editor Save level
+    if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
+        save_level("test_level.level");
     }
+
 }
 
 void calculate_bounds(Entity *entity){
@@ -2129,6 +2197,17 @@ void draw_ui(const char *tag){
         draw_rect(ui_image.position, ui_image.size, ui_image.pivot, 0, ui_image.color);
     }
     
+    for (int i = 0; i < ui_context.ui_texts.count; i++){
+        Ui_Text ui_text = ui_context.ui_texts.get(i);
+        
+        if (tag_len > 0 && !str_cmp(ui_text.tag, tag)){
+            continue;
+        }
+        
+        //draw_rect(ui_text.position, ui_text.size, ui_text.pivot, 0, ui_text.color);
+        draw_text(ui_text.content, ui_text.position, ui_text.font_size, ui_text.color);
+    }
+    
     for (int i = 0; i < input_fields.count; i++){
         Input_Field input_field = input_fields.get(i);
         
@@ -2143,6 +2222,7 @@ void draw_ui(const char *tag){
     if (tag_len == 0){
         ui_context.buttons.clear();
         ui_context.ui_images.clear();
+        ui_context.ui_texts.clear();
         input_fields.clear();
     }
 }

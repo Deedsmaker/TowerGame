@@ -9,7 +9,7 @@ struct Input_Field{
     //Vector2 pivot;
     
     char content[INPUT_FIELD_MAX_CHARS];
-    char tag[16];
+    char tag[64];
     int chars_count = 0;
     
     f32 font_size = 22;
@@ -116,6 +116,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     
     if (make_next_in_focus || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), field_rect)){
         input_field.in_focus = true;
+        //str_copy(input_field.content, "");
         copy_input_field(&focus_input_field, &input_field);
         make_next_in_focus = false;
     }
