@@ -420,7 +420,7 @@ void init_game(){
     c->cam.cam2D.target = world_to_screen({0, 0});
     c->cam.cam2D.offset = (Vector2){ screen_width/2.0f, (f32)screen_height * 0.5f };
     c->cam.cam2D.rotation = 0.0f;
-    c->cam.cam2D.zoom = 1.0f;
+    c->cam.cam2D.zoom = 0.8f;
     
     //zoom_entity = add_text({-20, 20}, 40, "DSF");
     
@@ -428,6 +428,8 @@ void init_game(){
 }
 
 void enter_game_state(){
+    assign_selected_entity(NULL);
+
     game_state = GAME;
     
     save_level("temp_test_level.level");
@@ -530,6 +532,7 @@ void update_game(){
     
     if (screen_size_changed){
         context.unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
+        context.cam.cam2D.target = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         
         // UnloadRenderTexture(context.up_render_target);
@@ -826,6 +829,21 @@ void undo_remember_vertices_start(Entity *entity){
     editor.vertices_start.count = entity->vertices.count; 
 }
 
+//Could be NULL
+void assign_selected_entity(Entity *new_selected){
+    if (editor.selected_entity){
+        editor.selected_entity->color_changer.changing = 0;
+        editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
+    }
+    
+    if (new_selected){
+        new_selected->color_changer.changing = 1;
+        editor.selected_entity_id = new_selected->id;
+    }
+    
+    editor.selected_entity = new_selected;
+}
+
 void update_editor(){
     Undo_Action undo_action;
     b32 something_in_undo = false;
@@ -941,13 +959,7 @@ void update_editor(){
         if (editor.cursor_entity != NULL){ //selecting entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             if (!is_same_selected_entity){
-                if (editor.selected_entity != NULL){
-                    editor.selected_entity->color_changer.changing = 0;
-                    editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
-                }
-                editor.cursor_entity->color_changer.changing = 1;
-                editor.selected_entity = editor.cursor_entity;
-                editor.selected_entity_id = editor.selected_entity->id;
+                assign_selected_entity(editor.cursor_entity);
                 
                 editor.selected_this_click = true;
             }
@@ -961,11 +973,12 @@ void update_editor(){
             }
         }
     } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){ //stop dragging entity
-        if (editor.selected_entity != NULL && !editor.selected_this_click && editor.cursor_entity != NULL){
+        if (editor.selected_entity && !editor.selected_this_click && editor.cursor_entity){
             if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id){
-                editor.selected_entity->color_changer.changing = 0;
-                editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
-                editor.selected_entity = NULL;        
+                assign_selected_entity(NULL);
+                // editor.selected_entity->color_changer.changing = 0;
+                // editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
+                // editor.selected_entity = NULL;        
             }
         }
         
@@ -1006,8 +1019,7 @@ void update_editor(){
     if (editor.is_copied && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)){
         Entity *pasted_entity = add_entity(&editor.copied_entity);
         pasted_entity->position = input.mouse_position;
-        editor.selected_entity = pasted_entity;
-        editor.selected_entity_id = pasted_entity->id;
+        assign_selected_entity(pasted_entity);
         
         Undo_Action undo_action;
         undo_action.spawned_entity = *pasted_entity;

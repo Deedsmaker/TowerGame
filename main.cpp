@@ -41,6 +41,15 @@ int main(){
             ToggleBorderlessWindowed();
         }
         
+        if (IsWindowResized()){
+            screen_size_changed = true;
+        }
+        
+        if (screen_size_changed){
+            screen_width = GetScreenWidth();
+            screen_height = GetScreenHeight();
+        }
+        
         update_game();
         screen_size_changed = 0;
     }

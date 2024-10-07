@@ -9,6 +9,8 @@ enum Game_State{
 
 global_variable Game_State game_state = EDITOR;
 
+void assign_selected_entity(Entity *new_selected);
+
 void update_editor();
 void update_entities();
 
