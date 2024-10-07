@@ -68,8 +68,12 @@ struct Player{
     f32 jump_force = 60;
     f32 gravity = 100;
     f32 gravity_mult = 1;
+    f32 max_blood_amount = 100;
     
-    Vector2 sword_start_scale = {1.5f, 7};
+    Vector2 sword_start_scale = {1.5f, 6};
+    f32 blood_amount = 0;
+    f32 blood_progress = 0;
+    
     Vector2 plane_vector = {0, 1};
     Vector2 ground_normal = {0, 1};
     b32 grounded = false;
@@ -220,6 +224,8 @@ struct Undo_Action{
 };
 
 struct Editor{
+    f32 in_editor_time = 0;
+
     Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
     int max_undos_added;
 

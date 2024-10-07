@@ -1,7 +1,5 @@
 #pragma once
 
-#include "structs.hpp"
-
 enum Game_State{
     EDITOR,
     GAME
@@ -10,6 +8,8 @@ enum Game_State{
 global_variable Game_State game_state = EDITOR;
 
 void assign_selected_entity(Entity *new_selected);
+
+void close_create_box();
 
 void update_editor();
 void update_entities();

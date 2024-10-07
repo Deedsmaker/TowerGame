@@ -6,12 +6,10 @@
 //global_variable f32 dt;
 //f32 game_time;
 
-
 #include "game.h"
 
 global_variable Input input;
 global_variable Level current_level;
-global_variable Core core = {};
 global_variable Context context = {};
 global_variable Context saved_level_context = {};
 global_variable Editor editor  = {};
@@ -418,7 +416,7 @@ void init_game(){
     c->cam.cam2D.target = world_to_screen({0, 0});
     c->cam.cam2D.offset = (Vector2){ screen_width/2.0f, (f32)screen_height * 0.5f };
     c->cam.cam2D.rotation = 0.0f;
-    c->cam.cam2D.zoom = 0.8f;
+    c->cam.cam2D.zoom = 0.5f;
     
     //zoom_entity = add_text({-20, 20}, 40, "DSF");
     
@@ -475,6 +473,9 @@ void destroy_player(Entity *player_entity){
 
 void enter_editor_state(){
     game_state = EDITOR;
+    
+    editor.in_editor_time = 0;
+    close_create_box();
     
     // need_destroy_player = true;
     recent_player_data.destroyed = true;
@@ -641,7 +642,7 @@ void update_color_changer(Entity *entity, f32 dt){
     Color_Changer *changer = &entity->color_changer;
     
     if (changer->changing){
-        f32 t = abs(sinf(game_time * changer->change_time));
+        f32 t = abs(sinf(core.time.game_time * changer->change_time));
         entity->color = lerp(changer->start_color, changer->target_color, t);
     }
     
@@ -930,6 +931,8 @@ void update_editor(){
     b32 can_control_with_single_button = !focus_input_field.in_focus;
     
     f32 dt = core.time.dt;
+    
+    editor.in_editor_time += dt;
 
     if (editor.need_validate_entity_pointers){
         validate_editor_pointers();
@@ -1139,7 +1142,7 @@ void update_editor(){
     //create box
     b32 need_close_create_box = false;
     
-    if (IsKeyPressed(KEY_SPACE)){
+    if (IsKeyPressed(KEY_SPACE) && editor.in_editor_time > 0.05f){
         if (editor.create_box_active && !editor.create_box_closing){
             need_close_create_box = true;
         } else{ //open create box
@@ -1219,7 +1222,7 @@ void update_editor(){
             }
             
             if (this_object_selected){
-                f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(game_time * 3) + 1) * 0.5f);
+                f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(core.time.game_time * 3) + 1) * 0.5f);
                 make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, WHITE * color_multiplier, "create_box");
             }
             
@@ -1602,6 +1605,15 @@ void player_air_move(Entity *entity, f32 dt){
     player_accelerate(entity, input.direction, wish_speed, acceleration, dt);
 }
 
+void add_blood_amount(Player *player, Entity *sword, f32 added){
+    player->blood_amount += added;
+    clamp(&player->blood_amount, 0, player->max_blood_amount);
+    player->blood_progress = player->blood_amount / player->max_blood_amount;
+    
+    Vector2 sword_target_scale = player->sword_start_scale * 2;
+    change_scale(sword, lerp(player->sword_start_scale, sword_target_scale, player->blood_progress * player->blood_progress));
+}
+
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
     fill_collisions(sword, &player_entity->player.collisions, GROUND | ENEMY);
     
@@ -1627,6 +1639,8 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             f32 spin_t = player->sword_spin_speed_progress;
             player->velocity += Vector2_up    * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
                              + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
+                             
+            add_blood_amount(player, sword, 10);
         }
     }
 }
@@ -1651,16 +1665,13 @@ void update_player(Entity *entity, f32 dt){
     
     
     f32 sword_size_multiplier = 2.0f;
-    f32 sword_dash_power = 70.0f;
     b32 can_attack = p->sword_attack_countdown <= 0 && p->sword_cooldown_countdown <= 0;
     if (can_attack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         p->sword_attack_countdown = p->sword_attack_time;    
         
-        //p->velocity = dir_to_mouse * sword_dash_power;
         change_up(sword, dir_to_mouse);
         
         rifle_bullet_emitter->position = sword_tip;
-//        rifle_bullet_emitter->enabled = true;
         enable_emitter(rifle_bullet_emitter);
     } 
     
@@ -1674,8 +1685,8 @@ void update_player(Entity *entity, f32 dt){
     
     if (p->sword_attack_countdown > 0){
         p->sword_attack_countdown -= dt;
-        f32 attack_progress = clamp01((p->sword_attack_time - p->sword_attack_countdown) / p->sword_attack_time);
-        change_scale(sword, lerp(p->sword_start_scale, p->sword_start_scale * sword_size_multiplier, sqrtf(attack_progress)));
+        // f32 attack_progress = clamp01((p->sword_attack_time - p->sword_attack_countdown) / p->sword_attack_time);
+        // change_scale(sword, lerp(p->sword_start_scale, p->sword_start_scale * sword_size_multiplier, sqrtf(attack_progress)));
         
         //sword attack ended, now cooldown
         if (p->sword_attack_countdown <= 0){
@@ -1691,11 +1702,11 @@ void update_player(Entity *entity, f32 dt){
         change_scale(sword, lerp(p->sword_start_scale * sword_size_multiplier, p->sword_start_scale, cooldown_progress * cooldown_progress));
     }
     
-    b32 sword_attacking = p->sword_attack_countdown > 0;
+    //b32 sword_attacking = p->sword_attack_countdown > 0;
     
     p->sword_angular_velocity *= 1.0f - (dt);
     
-    b32 can_sword_spin = !sword_attacking;
+    b32 can_sword_spin = 1;//!sword_attacking;
     
     f32 sword_spin_sense = 2;
     
@@ -1720,19 +1731,24 @@ void update_player(Entity *entity, f32 dt){
     f32 sword_max_spin_speed = 5000;
     p->sword_spin_speed_progress = clamp01(abs(p->sword_angular_velocity) / sword_max_spin_speed);
     
-    sword->color_changer.progress = p->sword_spin_speed_progress * p->sword_spin_speed_progress;
+    sword->color_changer.progress = p->blood_progress * p->blood_progress;//p->sword_spin_speed_progress * p->sword_spin_speed_progress;
     
     { 
-        f32 progress = p->sword_spin_speed_progress;
+        f32 spin_t = p->sword_spin_speed_progress;
+        f32 blood_t = p->blood_progress;
     
         chainsaw_emitter->position = input.mouse_position;
-        chainsaw_emitter->lifetime_multiplier = 1.0f + progress * progress * 2; //Add blood multiplier and change color
-        chainsaw_emitter->speed_multiplier    = 1.0f + progress * progress * 2; //Add blood multiplier and change color
+        chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; //@VISUAL: change color
+        chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; //@VISUAL: change color
         
         sword_tip_emitter->position = sword_tip;
-        sword_tip_emitter->lifetime_multiplier = 1.0f + progress * progress * 1.0f;
-        sword_tip_emitter->speed_multiplier    = 1.0f + progress * progress * 3.0f;
-        sword_tip_emitter->count_multiplier    = 1.0f + progress * progress * 1.0f;
+        sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 1.0f;
+        sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 3.0f;
+        sword_tip_emitter->count_multiplier    = blood_t * blood_t * 1.0f;
+              
+        f32 blood_decease = 5 + blood_t * 10;
+              
+        add_blood_amount(p, sword, -blood_decease * dt);
     }
     
     f32 sword_min_rotation_amount = 20;
@@ -1753,7 +1769,7 @@ void update_player(Entity *entity, f32 dt){
     p->since_jump_timer += dt;
     
     if (p->grounded){
-        if (!sword_attacking){
+        if (1 /*!sword_attacking*/){
             player_ground_move(entity, dt);
             
             p->plane_vector = get_rotated_vector_90(p->ground_normal, -normalized(p->velocity.x));
@@ -1766,9 +1782,13 @@ void update_player(Entity *entity, f32 dt){
         if (p->sword_spin_speed_progress > 0.3f){
             Vector2 plane = get_rotated_vector_90(p->ground_normal, -p->sword_spin_direction);
             
-            f32 max_ground_sword_spin_acceleration = 400;
-            f32 t = p->sword_spin_speed_progress;
-            p->velocity += plane * lerp(0.0f, max_ground_sword_spin_acceleration, t * t) * dt;
+            f32 spin_t = p->sword_spin_speed_progress;
+            f32 blood_t = p->blood_progress;
+            
+            f32 max_spin_acceleration = 500;
+            f32 min_spin_acceleration = 200;
+            f32 spin_acceleration = lerp(min_spin_acceleration, max_spin_acceleration, blood_t * blood_t);
+            p->velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
         }
         
         p->since_airborn_timer = 0;
@@ -1778,19 +1798,23 @@ void update_player(Entity *entity, f32 dt){
             f32 jump_t = clamp01(p->since_jump_timer / max_height_jump_time);
             p->gravity_mult = lerp(2.0f, 1.0f, jump_t * jump_t * jump_t);
             
-            if (p->since_jump_timer > 0.3f && input.direction.y < 0){
-                p->gravity_mult = 5;
+            if (p->since_jump_timer > 0.3f){ //so we don't care about jump gravity
+                 if (input.direction.y < 0){
+                    p->gravity_mult = 5;
+                 } else{
+                    p->gravity_mult = lerp(1.0f, 0.5f, p->sword_spin_speed_progress * p->sword_spin_speed_progress);
+                 }
             }
             
         } else{
             if (input.direction.y < 0){
                 p->gravity_mult = 5;
             } else{
-                p->gravity_mult = 1;
+                p->gravity_mult = lerp(1.0f, 0.5f, p->sword_spin_speed_progress * p->sword_spin_speed_progress);
             }
         }
         
-        if (!sword_attacking){
+        if (1 /*!sword_attacking*/){
             player_air_move(entity, dt);
             
             p->velocity.y -= p->gravity * p->gravity_mult * dt;
@@ -1799,10 +1823,16 @@ void update_player(Entity *entity, f32 dt){
         p->since_airborn_timer += dt;
         
         if (p->sword_spin_speed_progress > 0.3f){
-            f32 max_air_sword_spin_acceleration = 150;
+            f32 spin_t = p->sword_spin_speed_progress;
+            f32 blood_t = p->blood_progress;
+            
+            f32 max_spin_acceleration = 200;
+            f32 min_spin_acceleration = 50;
+            f32 spin_acceleration = lerp(min_spin_acceleration, max_spin_acceleration, blood_t * blood_t);
+        
             f32 airborn_reduce_spin_acceleration_time = 0.5f;
-            f32 t = clamp01(p->sword_spin_speed_progress - clamp01(airborn_reduce_spin_acceleration_time - p->since_airborn_timer));
-            p->velocity.x += lerp(0.0f, max_air_sword_spin_acceleration, t * t) * dt * -p->sword_spin_direction;
+            f32 t = clamp01(spin_t - clamp01(airborn_reduce_spin_acceleration_time - p->since_airborn_timer));
+            p->velocity.x += lerp(0.0f, spin_acceleration, t * t) * dt * -p->sword_spin_direction;
         }
         
     }
@@ -2163,6 +2193,12 @@ void draw_game(){
             draw_text(TextFormat("Spin progress: %.2f", recent_player_data.player.sword_spin_speed_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
+        
+        b32 draw_blood_progress = true;
+        if (draw_blood_progress){
+            draw_text(TextFormat("Blood progress: %.2f", recent_player_data.player.blood_progress), 10, v_pos, font_size, RED);
+            v_pos += font_size;
+        }
     }
     
     b32 draw_particle_count = true;
@@ -2195,7 +2231,7 @@ void setup_color_changer(Entity *entity){
 Entity* add_entity(Entity *copy){
     Entity e = Entity(copy);
     
-    e.id = context.entities.count + game_time * 10000;
+    e.id = context.entities.count + core.time.game_time * 10000;
     context.entities.add(e);
     return context.entities.last_ptr();
 }
@@ -2203,7 +2239,7 @@ Entity* add_entity(Entity *copy){
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
     //Entity *e = add_entity(pos, scale, rotation, flags);    
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    e.id = context.entities.count + game_time * 10000;
+    e.id = context.entities.count + core.time.game_time * 10000;
     //e.pivot = pivot;
 
     context.entities.add(e);
@@ -2250,7 +2286,7 @@ Entity *add_text(Vector2 pos, f32 size, const char *text){
     e.bounds = {1, 1};
     e.text_drawer.text = text;
     e.text_drawer.size = size;
-    e.id = context.entities.count + game_time * 10000;
+    e.id = context.entities.count + core.time.game_time * 10000;
     context.entities.add(e);
     return context.entities.last_ptr();
 }

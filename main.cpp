@@ -15,7 +15,9 @@
 #include "include\raymath.h"
 #include "include\rlgl.h"
 
-global_variable f32 game_time = 0;
+#include "structs.hpp"
+
+global_variable Core core = {};
 
 #include "utils.cpp"
 #include "render.cpp"

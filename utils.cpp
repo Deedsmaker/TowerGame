@@ -134,26 +134,26 @@ typedef enum {
 } MouseButton;
 
 void print(Vector2 vec){
-    printf("{%f, %f}; %.4f\n", vec.x, vec.y, game_time);
+    printf("{%f, %f}; %.4f\n", vec.x, vec.y, core.time.game_time);
 }
 
 void print(f32 num){
-    printf("%f; %.4f\n", num, game_time);
+    printf("%f; %.4f\n", num, core.time.game_time);
 }
 
 void print(i32 num){
-    printf("%d; %.4f\n", num, game_time);
+    printf("%d; %.4f\n", num, core.time.game_time);
 }
 
 void print(const char *str){
-    printf("%s; %.4f\n", str, game_time);
+    printf("%s; %.4f\n", str, core.time.game_time);
 }
 
 void print(b32 num){
     if (num){
-        printf("true; %.4f\n", game_time);
+        printf("true; %.4f\n", core.time.game_time);
     } else{
-        printf("false; %.4f\n", game_time);
+        printf("false; %.4f\n", core.time.game_time);
     }
 }
 
@@ -167,7 +167,7 @@ void print(Dynamic_Array<Vector2> *arr){
         }
     }
     
-    printf("]; %.4f\n", game_time);
+    printf("]; %.4f\n", core.time.game_time);
 }
 
 char* to_string(int num){
