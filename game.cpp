@@ -204,7 +204,11 @@ int save_level(const char *level_name){
     printf("level saved: %s\n", level_name);
     
     fprintf(fptr, "Entities:\n");
-    for (int i = 0; i < context.entities.count; i++){        
+    for (int i = 0; i < context.entities.max_count; i++){        
+        if (!context.entities.has_index(i)){
+            continue;
+        }
+    
         Entity *e = context.entities.get_ptr(i);
         
         Color color = e->color_changer.start_color;
@@ -355,6 +359,8 @@ int load_level(const char *level_name){
     return 1;
 }
 
+global_variable Array<Collision, MAX_COLLISIONS> collisions_data = Array<Collision, MAX_COLLISIONS>();
+
 #define MAX_SPAWN_OBJECTS 128
 
 global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
@@ -442,12 +448,12 @@ void enter_game_state(){
     
     Entity *player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER);
     
-    player_entity->index = context.entities.count - 1;
+    player_entity->index = player_entity->id % MAX_ENTITIES;
     
     Entity *ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
     ground_checker->color = Fade(PURPLE, 0.8f);
     
-    ground_checker->index = context.entities.count - 1;
+    ground_checker->index = ground_checker->id % MAX_ENTITIES;
     
     Entity *sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
     sword_entity->color   = GRAY + RED * 0.1f;
@@ -456,7 +462,7 @@ void enter_game_state(){
     sword_entity->color_changer.target_color = RED * 0.99f;
     sword_entity->color_changer.interpolating = true;
     
-    sword_entity->index = context.entities.count - 1;
+    sword_entity->index = sword_entity->id % MAX_ENTITIES;
     
     player_entity->player.ground_checker_index_offset = ground_checker->index - player_entity->index;
     player_entity->player.sword_entity_index_offset = sword_entity->index - player_entity->index;
@@ -800,7 +806,11 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, F
         return;
     }
     
-    for (int i = 0; i < context.entities.count; i++){
+    for (int i = 0; i < context.entities.max_count; i++){
+        if (!context.entities.has_index(i)){
+            continue;
+        }
+    
         Entity *other = context.entities.get_ptr(i);
         
         if (other->destroyed || !other->enabled || other == entity || other->flags <= 0 || (other->flags & include_flags) <= 0){
@@ -829,7 +839,12 @@ void assign_moving_vertex_entity(Entity *e, int vertex_index){
 }
 
 void validate_editor_pointers(){
-    for (int i = 0; i < context.entities.count; i++){
+    for (int i = 0; i < context.entities.max_count; i++){
+        if (!context.entities.has_index(i)){
+            continue;
+        }
+
+    
         Entity *e = context.entities.get_ptr(i);
         
         //doesnt make any sence
@@ -1016,7 +1031,7 @@ void update_editor(){
     mouse_entity.position = input.mouse_position;
     
     //editor entities loop
-    for (int i = 0; i < context.entities.count; i++){        
+    for (int i = 0; i < context.entities.max_count; i++){        
         Entity *e = context.entities.get_ptr(i);
         
         if (!e->enabled/* || e->flags == -1*/){
@@ -2013,27 +2028,64 @@ void update_player(Entity *entity, f32 dt){
     recent_player_data = *entity;
 }
 
+void calculate_bird_collisions(Entity *bird_entity){
+    assert(bird_entity->flags & BIRD_ENEMY);
+
+    fill_collisions(bird_entity, &collisions_data, GROUND | BIRD_ENEMY);
+    
+    Bird_Enemy *bird = &bird_entity->bird_enemy ;
+    
+    for (int i = 0; i < collisions_data.count; i++){
+        Collision col = collisions_data.get(i);
+        Entity *other = col.other_entity;
+        
+        if (other->flags & (GROUND | BIRD_ENEMY)){
+            resolve_collision(bird_entity, col);
+            bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
+        }
+    }
+}    
+
 void update_bird_enemy(Entity *entity, f32 dt){
     assert(entity->flags & BIRD_ENEMY);
     
     Bird_Enemy *bird = &entity->bird_enemy;
-    bird->target_position = recent_player_data.position + Vector2_up * 40;        
+    bird->target_position = recent_player_data.position + Vector2_up * 60;        
+    bird->target_position.y += sinf(core.time.game_time * entity->position.y) * 10;
+    bird->target_position.x += cosf(core.time.game_time * entity->position.x) * 50;
     
     if (!bird->charging_attack){
         bird->velocity += (bird->target_position - entity->position) * bird->roam_acceleration * dt;
         clamp_magnitude(&bird->velocity, bird->max_roam_speed);
     }
     
-    change_up(entity, bird->velocity);
+    f32 max_frame_move_len = entity->scale.y * 0.8f;
+    Vector2 this_frame_move_direction = normalized(bird->velocity);
+    f32 this_frame_move_len = magnitude(bird->velocity * dt); 
     
-    entity->position += bird->velocity * dt;
+    while(this_frame_move_len > max_frame_move_len){
+        entity->position += this_frame_move_direction * max_frame_move_len;
+        calculate_bird_collisions(entity);
+        this_frame_move_len -= max_frame_move_len;
+        this_frame_move_direction = normalized(bird->velocity);
+    }
+    
+    entity->position += this_frame_move_direction * this_frame_move_len;
+    calculate_bird_collisions(entity);
+    
+    change_up(entity, bird->velocity);
+    //entity->position += bird->velocity * dt;
 }
 
 void update_entities(){
     Context *c = &context;
-    Dynamic_Array<Entity> *entities = &c->entities;
+    Hash_Table_Int<Entity> *entities = &c->entities;
     
-    for (int i = 0; i < entities->count; i++){
+    for (int i = 0; i < entities->max_count; i++){
+        if (!entities->has_index(i)){
+            continue;
+        }
+    
         Entity *e = entities->get_ptr(i);
         
         //assert(e->flags > 0);
@@ -2057,7 +2109,7 @@ void update_entities(){
             }
             
             free_entity(e);
-            entities->remove(i);    
+            entities->remove_index(i);    
             i--;
             
             if (game_state == EDITOR){
@@ -2102,9 +2154,13 @@ void draw_enemy(Entity *entity){
 }
 
 void draw_entities(){
-    Dynamic_Array<Entity> *entities = &context.entities;
+    Hash_Table_Int<Entity> *entities = &context.entities;
     
-    for (int i = 0; i < entities->count; i++){
+    for (int i = 0; i < entities->max_count; i++){
+        if (!entities->has_index(i)){
+            continue;
+        }
+    
         Entity *e = entities->get_ptr(i);
     
         if (!e->enabled/* || e->flags == -1*/){
@@ -2149,10 +2205,14 @@ void draw_editor(){
     f32 closest_len = 1000000;
     Entity *closest;
 
-    Dynamic_Array<Entity> *entities = &context.entities;
+    Hash_Table_Int<Entity> *entities = &context.entities;
 
-    for (int i = 0; i < entities->count; i++){
+    for (int i = 0; i < entities->max_count; i++){
         Entity *e = entities->get_ptr(i);
+        
+        if (!context.entities.has_index(i)){
+            continue;
+        }
     
         if (!e->enabled || e->flags == -1){
             continue;
@@ -2274,7 +2334,13 @@ void draw_ui(const char *tag){
             continue;
         }
         
-        draw_rect(input_field.position, input_field.size, {0, 0}, 0, GRAY * 0.8f);
+        f32 color_multiplier = 0.8f;
+        if (input_field.in_focus){
+            f32 blink_speed = 4.0f;
+            color_multiplier = lerp(0.5f, 0.8f, (sinf(core.time.game_time * blink_speed) + 1) * 0.5f);
+        }
+        draw_rect(input_field.position, input_field.size, {0, 0}, 0, GRAY * color_multiplier);
+        
         draw_text(input_field.content, input_field.position, input_field.font_size, WHITE * 0.9f);
     }
     
@@ -2354,7 +2420,7 @@ void setup_color_changer(Entity *entity){
 
 // Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
 //     Entity e = Entity(pos, scale, rotation, flags);    
-//     e.id = context.entities.count + game_time * 10000;
+//     e.id = context.entities.max_count + game_time * 10000;
 //     context.entities.add(e);
 //     return context.entities.last_ptr();
 // }
@@ -2362,18 +2428,34 @@ void setup_color_changer(Entity *entity){
 Entity* add_entity(Entity *copy){
     Entity e = Entity(copy);
     
-    e.id = context.entities.count + core.time.game_time * 10000;
-    context.entities.add(e);
+    e.id = context.entities.last_added_key + core.time.game_time * 10000 + 100;
+    
+    int try_count = 0;
+    while (context.entities.has_key(e.id) && try_count <= 1000){
+        e.id++;
+        try_count += 10;
+    }
+    
+    assert(try_count < 100);
+    
+    context.entities.add(e.id, e);
     return context.entities.last_ptr();
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
     //Entity *e = add_entity(pos, scale, rotation, flags);    
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    e.id = context.entities.count + core.time.game_time * 10000;
+    e.id = context.entities.last_added_key + core.time.game_time * 10000 + 100;
     //e.pivot = pivot;
+    
+    int try_count = 0;
+    while (context.entities.has_key(e.id) && try_count <= 100){
+        e.id++;
+        try_count++;
+    }
+    assert(try_count < 100);
 
-    context.entities.add(e);
+    context.entities.add(e.id, e);
     return context.entities.last_ptr();
 }
 
@@ -2412,15 +2494,15 @@ Particle_Emitter* add_emitter(){
     return context.emitters.last_ptr();
 }
 
-Entity *add_text(Vector2 pos, f32 size, const char *text){
-    Entity e = Entity(pos, {1, 1}, {0.5f, 0.5f}, 0, DRAW_TEXT);    
-    e.bounds = {1, 1};
-    e.text_drawer.text = text;
-    e.text_drawer.size = size;
-    e.id = context.entities.count + core.time.game_time * 10000;
-    context.entities.add(e);
-    return context.entities.last_ptr();
-}
+// Entity *add_text(Vector2 pos, f32 size, const char *text){
+//     Entity e = Entity(pos, {1, 1}, {0.5f, 0.5f}, 0, DRAW_TEXT);    
+//     e.bounds = {1, 1};
+//     e.text_drawer.text = text;
+//     e.text_drawer.size = size;
+//     e.id = context.entities.max_count + core.time.game_time * 10000;
+//     context.entities.add(e);
+//     return context.entities.last_ptr();
+// }
 
 Vector2 global(Entity *e, Vector2 local_pos){
     return e->position + local_pos;

@@ -191,8 +191,10 @@ struct Core{
     Time time;
 };
 
+#define MAX_ENTITIES 10000
+
 struct Context{
-    Dynamic_Array<Entity>           entities  = Dynamic_Array<Entity>(1000);
+    Hash_Table_Int<Entity>           entities  = Hash_Table_Int<Entity>();
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(100000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
 

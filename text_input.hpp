@@ -1,7 +1,7 @@
 #pragma once
 
 #define MAX_INPUT_FIELDS 16
-#define INPUT_FIELD_MAX_CHARS 100
+#define INPUT_FIELD_MAX_CHARS 256
 
 struct Input_Field{
     Vector2 position;
@@ -19,6 +19,7 @@ struct Input_Field{
 
 global_variable Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Array<Input_Field, MAX_INPUT_FIELDS>();
 global_variable Input_Field focus_input_field;
+global_variable b32 just_focused = false;
 
 void update_input_field(){
     if (focus_input_field.in_focus && IsKeyPressed(KEY_ESCAPE)){
@@ -35,6 +36,11 @@ void update_input_field(){
         {
             if ((key >= 32) && (key <= 125) && (focus_input_field.chars_count < INPUT_FIELD_MAX_CHARS))
             {
+                if (just_focused){
+                    just_focused = false;
+                    focus_input_field.chars_count = 0;
+                }
+            
                 int content_len = str_len(focus_input_field.content);
                 char char_key = (char)key;
                 
@@ -48,7 +54,7 @@ void update_input_field(){
 
             key = GetCharPressed();
         }
-
+        
         if (IsKeyPressed(KEY_BACKSPACE))
         {
             if (IsKeyDown(KEY_LEFT_CONTROL)){
@@ -73,10 +79,10 @@ void update_input_field(){
 //     return false;
 // }
 
-void make_last_in_focus(){
-    input_fields.last_ptr()->in_focus = true;
-    focus_input_field = input_fields.last();
-}
+// void make_last_in_focus(){
+//     input_fields.last_ptr()->in_focus = true;
+//     focus_input_field = input_fields.last();
+// }
 
 global_variable b32 make_next_in_focus = false;
 void make_next_input_field_in_focus(){
@@ -119,6 +125,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         //str_copy(input_field.content, "");
         copy_input_field(&focus_input_field, &input_field);
         make_next_in_focus = false;
+        just_focused = true;
     }
     
     input_fields.add(input_field);
