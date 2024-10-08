@@ -49,11 +49,21 @@ void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->add({pivot.x, pivot.y - 1.0f});
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
+
+void pick_vertices(Entity *entity){
+    if (entity->flags & (SWORD | BIRD_ENEMY)){
+        add_sword_vertices(&entity->vertices, entity->pivot);
+    } else{
+        add_rect_vertices(&entity->vertices, entity->pivot);
+    }
+}
+
 Entity::Entity(){
     
 }
 
 Entity::Entity(Vector2 _pos){
+    flags = 0;
     position = _pos;
     // vertices.add({-0.5f, 0.5f});
     // vertices.add({0.5f, 0.5f});
@@ -65,11 +75,11 @@ Entity::Entity(Vector2 _pos){
     up = {0, 1};
     right = {1, 0};
     
-    flags = 0;
     change_scale(this, {1, 1});
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale){
+    flags = 0;
     position = _pos;
     
     add_rect_vertices(&vertices, pivot);
@@ -79,62 +89,49 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
     rotation = 0;
     up = {0, 1};
     right = {1, 0};
-    flags = 0;
     change_scale(this, _scale);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
+    flags    = _flags;
     position = _pos;
-    if (_flags & SWORD){
-        add_sword_vertices(&vertices, pivot);
-    } else{
-        add_rect_vertices(&vertices, pivot);
-    }
-
+    pick_vertices(this);
     rotation = 0;
     
     rotate_to(this, _rotation);
-    flags    = _flags;
     change_scale(this, _scale);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
+    flags    = _flags;
     position = _pos;
     pivot = _pivot;
     
-    if (_flags & SWORD){
-        add_sword_vertices(&vertices, pivot);
-    } else{
-        add_rect_vertices(&vertices, pivot);
-    }
+    pick_vertices(this);
     
     rotation = 0;
     
     rotate_to(this, _rotation);
-    flags    = _flags;
     
     change_scale(this, _scale);
 }
 
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
+    flags    = _flags;
     id = _id;
     position = _pos;
     pivot = _pivot;
     
-    if (_flags & SWORD){
-        add_sword_vertices(&vertices, pivot);
-    } else{
-        add_rect_vertices(&vertices, pivot);
-    }
+    pick_vertices(this);
     
     rotation = 0;
     rotate_to(this, _rotation);
-    flags    = _flags;
     change_scale(this, _scale);
 }
 
 
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices){
+    flags    = _flags;
     id = _id;
     position = _pos;
     pivot = _pivot;
@@ -145,7 +142,6 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     
     rotation = 0;
     rotate_to(this, _rotation);
-    flags    = _flags;
     change_scale(this, _scale);
 }
 
@@ -387,6 +383,18 @@ void init_spawn_objects(){
     str_copy(enemy_base_object.name, enemy_base_entity.name);
     
     spawn_objects.add(enemy_base_object);
+    
+    Entity enemy_bird_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY);
+    enemy_bird_entity.color = YELLOW * 0.9f;
+    enemy_bird_entity.color_changer.start_color = enemy_bird_entity.color;
+    enemy_bird_entity.color_changer.target_color = enemy_bird_entity.color * 1.5f;
+    str_copy(enemy_bird_entity.name, "enemy_bird"); 
+    
+    Spawn_Object enemy_bird_object;
+    copy_entity(&enemy_bird_object.entity, &enemy_bird_entity);
+    str_copy(enemy_bird_object.name, enemy_bird_entity.name);
+    
+    spawn_objects.add(enemy_bird_object);
 }
 
 void init_game(){
@@ -397,8 +405,8 @@ void init_game(){
     input = {};
 
     current_level = {};
-    current_level.context = (Context*)malloc(sizeof(Context));
-    context = *current_level.context;
+    //current_level.context = (Context*)malloc(sizeof(Context));
+    //context = *current_level.context;
     context = {};    
     
     init_spawn_objects();
@@ -1847,9 +1855,9 @@ void update_player(Entity *entity, f32 dt){
         chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; //@VISUAL: change color
         
         sword_tip_emitter->position = sword_tip;
-        sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 1.0f;
-        sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 3.0f;
-        sword_tip_emitter->count_multiplier    = blood_t * blood_t * 1.0f;
+        sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
+        sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 5.0f;
+        sword_tip_emitter->count_multiplier    = blood_t * blood_t * 2.0f;
               
         f32 blood_decease = 5 + blood_t * 10;
               
@@ -2005,6 +2013,22 @@ void update_player(Entity *entity, f32 dt){
     recent_player_data = *entity;
 }
 
+void update_bird_enemy(Entity *entity, f32 dt){
+    assert(entity->flags & BIRD_ENEMY);
+    
+    Bird_Enemy *bird = &entity->bird_enemy;
+    bird->target_position = recent_player_data.position + Vector2_up * 40;        
+    
+    if (!bird->charging_attack){
+        bird->velocity += (bird->target_position - entity->position) * bird->roam_acceleration * dt;
+        clamp_magnitude(&bird->velocity, bird->max_roam_speed);
+    }
+    
+    change_up(entity, bird->velocity);
+    
+    entity->position += bird->velocity * dt;
+}
+
 void update_entities(){
     Context *c = &context;
     Dynamic_Array<Entity> *entities = &c->entities;
@@ -2048,11 +2072,19 @@ void update_entities(){
             continue;
         }
         
+        update_color_changer(e, core.time.dt);            
+        
+        if (game_state == EDITOR){
+            continue;
+        }
+        
         if (e->flags & PLAYER){
             update_player(e, core.time.dt);
         }
           
-        update_color_changer(e, core.time.dt);            
+        if (e->flags & BIRD_ENEMY){
+            update_bird_enemy(e, core.time.dt);
+        }
     }
 }
 
@@ -2079,7 +2111,7 @@ void draw_entities(){
             continue;
         }
     
-        if (e->flags & GROUND || e->flags == 0 || e->flags & SWORD){
+        if (e->flags & GROUND || e->flags == 0 || e->flags & SWORD || e->flags & BIRD_ENEMY){
             if (e->vertices.count > 0){
                 draw_game_triangle_strip(e);
             } else{

@@ -27,6 +27,8 @@ struct Particle_Emitter{
     Vector2 last_emitted_position = {0, 0};
     Vector2 direction = Vector2_up;
     
+    f32 spawn_radius = 1;
+    
     b32 emitting;
     f32 emitting_timer;
     f32 over_time;
@@ -59,7 +61,10 @@ struct Particle_Emitter{
 
 void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
     Particle particle = {};
-    particle.position = position + rnd_on_circle() * 1;
+    particle.position = position;
+    if (emitter.spawn_radius > 0){
+        particle.position += rnd_on_circle() * emitter.spawn_radius;
+    }
     
     particle.shape = emitter.shape;
     
@@ -217,6 +222,7 @@ void free_emitter(Particle_Emitter *emitter){
 void setup_particles(){
     free_emitter(chainsaw_emitter);
     chainsaw_emitter = add_emitter();
+    chainsaw_emitter->spawn_radius = 0.2f;
     chainsaw_emitter->over_distance = 3;
     chainsaw_emitter->over_time     = 0;
     chainsaw_emitter->speed_min     = 5;
@@ -245,6 +251,7 @@ void setup_particles(){
 
     free_emitter(blood_emitter);
     blood_emitter = add_emitter();
+    blood_emitter->spawn_radius      = 2;
     blood_emitter->over_distance     = 0;
     blood_emitter->direction_to_move = 0;
     blood_emitter->over_time         = 0;
@@ -262,11 +269,12 @@ void setup_particles(){
 
     free_emitter(rifle_bullet_emitter);
     rifle_bullet_emitter = add_emitter();
+    rifle_bullet_emitter->spawn_radius      = 3;
     rifle_bullet_emitter->over_distance     = 3;
     rifle_bullet_emitter->direction_to_move = 0;
     rifle_bullet_emitter->over_time         = 0;
-    rifle_bullet_emitter->speed_min         = 5;
-    rifle_bullet_emitter->speed_max         = 20;
+    rifle_bullet_emitter->speed_min         = 1;
+    rifle_bullet_emitter->speed_max         = 5;
     rifle_bullet_emitter->count_min         = 10;
     rifle_bullet_emitter->count_max         = 40;
     rifle_bullet_emitter->scale_min         = 0.1f;

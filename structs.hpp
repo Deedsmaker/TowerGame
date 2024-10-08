@@ -13,6 +13,7 @@ enum Flags{
     PLAYER = 1 << 2,
     ENEMY = 1 << 3,
     SWORD = 1 << 4,
+    BIRD_ENEMY = 1 << 5,
     
     TEST = 1 << 31
 };
@@ -23,6 +24,17 @@ struct Ground{
 
 struct Enemy{
     b32 dead_man = false;  
+};
+
+struct Bird_Enemy{
+    f32 max_roam_speed = 120;
+    f32 roam_acceleration = 10;
+
+    Vector2 target_position;  
+    Vector2 velocity;
+    Vector2 speed;
+    
+    b32 charging_attack = false;
 };
 
 struct Color_Changer{
@@ -144,6 +156,7 @@ struct Entity{
     Ground ground;
     Text_Drawer text_drawer;
     Enemy enemy;
+    Bird_Enemy bird_enemy;
 };
 
 struct Spawn_Object{
@@ -197,7 +210,7 @@ struct Input{
 };
 
 struct Level{
-    Context *context;  
+    Context context;  
 };
 
 struct Circle{
