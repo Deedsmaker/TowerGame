@@ -871,10 +871,21 @@ void add_position_undo(Entity *entity, Vector2 position_change){
     add_undo_action(undo_action);
 }
 
-void add_scale_undo(Entity *entity, Vector2 scale_change){
+void undo_add_scaling(Entity *entity, Vector2 scale_change){
     Undo_Action undo_action;
     undo_action.entity = entity;
     undo_action.scale_change = scale_change;
+    
+    //SHOULD REMEMBER THEM BEFORE
+    undo_apply_vertices_change(editor.selected_entity, &undo_action);
+    
+    add_undo_action(undo_action);
+}
+
+void undo_add_rotation(Entity *entity, f32 rotation_change){
+    Undo_Action undo_action;
+    undo_action.entity = entity;
+    undo_action.rotation_change = rotation_change;
     
     //SHOULD REMEMBER THEM BEFORE
     undo_apply_vertices_change(editor.selected_entity, &undo_action);
@@ -1302,10 +1313,11 @@ void update_editor(){
         }
         
         if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))){
-            something_in_undo = true;
-            undo_action.rotation_change = editor.selected_entity->rotation - editor.rotating_start;
-            undo_action.entity = editor.selected_entity;
-            undo_apply_vertices_change(editor.selected_entity, &undo_action);
+            // something_in_undo = true;
+            // undo_action.rotation_change = editor.selected_entity->rotation - editor.rotating_start;
+            // undo_action.entity = editor.selected_entity;
+            // undo_apply_vertices_change(editor.selected_entity, &undo_action);
+            undo_add_rotation(editor.selected_entity, editor.selected_entity->rotation - editor.rotating_start);
             editor.is_rotating_entity = false;
         } 
     }
@@ -1347,7 +1359,7 @@ void update_editor(){
             //VECTOR2_ARR_FILL_ZERO(undo_action.vertices_change.data, editor.selected_entity->vertices.count)
             //undo_apply_vertices_change(editor.selected_entity, &undo_action);
             
-            add_scale_undo(editor.selected_entity, scale_change);
+            undo_add_scaling(editor.selected_entity, scale_change);
             editor.is_scaling_entity = false;
         } 
     }
@@ -1401,7 +1413,29 @@ void update_editor(){
                 add_scale(editor.selected_entity, scale_add);
             }
             
-            add_scale_undo(editor.selected_entity, scale_add);
+            undo_add_scaling(editor.selected_entity, scale_add);
+        }
+        v_pos += height_add;
+        
+        make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
+        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 120, v_pos}, {75, 25}, "inspector_rotation")){
+            f32 old_rotation = editor.selected_entity->rotation;
+            f32 new_rotation = old_rotation;
+            
+            undo_remember_vertices_start(editor.selected_entity);
+            
+            if (str_cmp(focus_input_field.tag, "inspector_rotation")){
+                new_rotation = atof(focus_input_field.content);
+            } else{
+                assert(false);
+            }
+            
+            f32 rotation_add = new_rotation - old_rotation;
+            if (rotation_add != 0){
+                rotate(editor.selected_entity, rotation_add);
+            }
+            
+            undo_add_rotation(editor.selected_entity, rotation_add);
             v_pos += height_add;
         }
     }
