@@ -1699,11 +1699,14 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             other->destroyed = true;
             //dt_scale = 0.002f;
             
-            f32 max_speed_boost = 10 * player->sword_spin_direction;
+            f32 max_speed_boost = 6 * player->sword_spin_direction;
             if (!player->grounded){
                 max_speed_boost *= -1;
             }
-            f32 max_vertical_speed_boost = player->grounded ? 0 : 10;
+            f32 max_vertical_speed_boost = player->grounded ? 0 : 20;
+            if (player_entity->player.velocity.y > 0){
+                max_vertical_speed_boost *= 0.3f;   
+            }
             f32 spin_t = player->sword_spin_speed_progress;
             player->velocity += Vector2_up    * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
                              + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
@@ -2174,40 +2177,30 @@ void draw_particles(){
 void draw_ui(const char *tag){
     int tag_len = str_len(tag);
 
-    for (int i = 0; i < ui_context.buttons.count; i++){
-        Button button = ui_context.buttons.get(i);
+    for (int i = 0; i < ui_context.elements.count; i++){
+        Ui_Element element = ui_context.elements.get(i);
         
-        if (tag_len > 0 && !str_cmp(button.tag, tag)){
+        if (tag_len > 0 && !str_cmp(element.tag, tag)){
             continue;
         }
         
-        draw_rect(button.position, button.size, button.pivot, 0, button.color);
-        Vector2 text_horizontal_offset = Vector2_right * button.size.x * button.pivot.x;
-        Vector2 text_vertical_offset   = Vector2_up    * (button.size.y - button.font_size) * (button.pivot.y - 0.5f);
-        draw_text(button.text, button.position - text_horizontal_offset - text_vertical_offset, button.font_size, button.text_color);
-    }
-    
-    for (int i = 0; i < ui_context.ui_images.count; i++){
-        Ui_Image ui_image = ui_context.ui_images.get(i);
-        
-        if (tag_len > 0 && !str_cmp(ui_image.tag, tag)){
-            continue;
+        if (element.ui_flags & BUTTON){
+            Button button = element.button;
+            
+            draw_rect(element.position, element.size, element.pivot, 0, element.color);
         }
         
-        draw_rect(ui_image.position, ui_image.size, ui_image.pivot, 0, ui_image.color);
-    }
-    
-    for (int i = 0; i < ui_context.ui_texts.count; i++){
-        Ui_Text ui_text = ui_context.ui_texts.get(i);
-        
-        if (tag_len > 0 && !str_cmp(ui_text.tag, tag)){
-            continue;
+        if (element.ui_flags & UI_IMAGE){
+            Ui_Image ui_image = element.ui_image;
+            draw_rect(element.position, element.size, element.pivot, 0, element.color);
         }
         
-        //draw_rect(ui_text.position, ui_text.size, ui_text.pivot, 0, ui_text.color);
-        draw_text(ui_text.content, ui_text.position, ui_text.font_size, ui_text.color);
+        if (element.ui_flags & UI_TEXT){
+            Ui_Text ui_text = element.text;
+            draw_text(ui_text.content, element.position, ui_text.font_size, ui_text.text_color);
+        }
     }
-    
+
     for (int i = 0; i < input_fields.count; i++){
         Input_Field input_field = input_fields.get(i);
         
@@ -2220,25 +2213,17 @@ void draw_ui(const char *tag){
     }
     
     if (tag_len == 0){
-        ui_context.buttons.clear();
-        ui_context.ui_images.clear();
-        ui_context.ui_texts.clear();
+        ui_context.elements.clear();
         input_fields.clear();
     }
 }
 
 void draw_game(){
-    //context.cam.cam2D.rotation = 20;
-    //context.cam.cam2D.target = world_to_screen({0, context.unit_screen_size.y * 0.5f});
-    //context.cam.cam2D.target = context.cam.cam2D.target + (context.cam.position * UNIT_SIZE);
-
     BeginDrawing();
     BeginMode2D(context.cam.cam2D);
     Context *c = &context;
     
     ClearBackground(GRAY);
-    
-    //draw_rect({200, 200}, {200, 100}, BLUE);
     
     draw_entities();
     draw_particles();
