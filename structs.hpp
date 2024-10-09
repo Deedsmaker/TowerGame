@@ -175,6 +175,8 @@ struct Spawn_Object{
 
 struct Cam{
     Vector2 position;
+    //For culling
+    Vector2 view_position;
     float rotation;
     
     Camera2D cam2D = {};
@@ -250,6 +252,8 @@ struct Editor{
 
     Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
     int max_undos_added;
+
+    b32 update_cam_view_position = true;
 
     b32 create_box_active = false;
     b32 create_box_closing = false;

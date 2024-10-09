@@ -688,9 +688,26 @@ void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2,
     normals->add(normalized(get_rotated_vector_90(edge4, 1)));
 }
 
-Collision check_rectangles_col(Entity *entity1, Entity *entity2){
+b32 check_rectangles_collision(Vector2 pos1, Vector2 scale1, Vector2 pos2, Vector2 scale2){
+    b32 solution = pos1.x + scale1.x * 0.5f > pos2.x - scale2.x * 0.5f &&
+                   pos1.x - scale1.x * 0.5f < pos2.x + scale2.x * 0.5f &&
+                   pos1.y + scale1.y * 0.5f > pos2.y - scale2.y * 0.5f &&
+                   pos1.y - scale1.y * 0.5f < pos2.y + scale2.y * 0.5f;
+                   
+    return solution;
+}
+
+b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Vector2 position2, Bounds bounds2){
+    return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, position2 + bounds2.offset, bounds2.size);
+}
+
+Collision check_entities_collision(Entity *entity1, Entity *entity2){
     Collision result = {};
     result.other_entity = entity2;
+    
+    if (!check_bounds_collision(entity1->position, entity1->bounds, entity2->position, entity2->bounds)){
+        return result;
+    }
 
     //Array<Vector2> normals = Array<Vector2>(entity1->vertices.count + entity2->vertices.count);
     global_normals.count = 0;
@@ -793,7 +810,7 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, F
             continue;
         }
         
-        Collision col = check_rectangles_col(entity, other);
+        Collision col = check_entities_collision(entity, other);
         
         if (col.collided){
             result->add(col);
@@ -1026,6 +1043,10 @@ void update_editor(){
     
     f32 zoom = context.cam.cam2D.zoom;
     
+    if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_L)){
+        editor.update_cam_view_position = !editor.update_cam_view_position;
+    }
+    
     b32 moving_editor_cam = false;
     
     if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
@@ -1058,7 +1079,7 @@ void update_editor(){
             continue;
         }
         
-        if ((check_rectangles_col(&mouse_entity, e)).collided){
+        if ((check_entities_collision(&mouse_entity, e)).collided){
             editor.cursor_entity = e;
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
@@ -1066,7 +1087,7 @@ void update_editor(){
         }
         
         // if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
-        //     Collision col = check_rectangles_col(editor.dragging_entity, e);
+        //     Collision col = check_entities_collision(editor.dragging_entity, e);
         //     if (col.collided){
         //         //resolve_collision(editor.dragging_entity, col);
         //         e->color = WHITE * abs(sinf(game_time * 10));
@@ -1468,6 +1489,10 @@ void update_editor(){
             
             calculate_bounds(undo_entity);
         }
+    }
+    
+    if (editor.update_cam_view_position){
+        context.cam.view_position = context.cam.position;
     }
     
     //editor Save level
@@ -2074,6 +2099,13 @@ void draw_enemy(Entity *entity){
 void draw_entities(){
     Hash_Table_Int<Entity> *entities = &context.entities;
     
+    Bounds cam_bounds;
+    cam_bounds.size = {(f32)screen_width, (f32)screen_height};
+    cam_bounds.size /= context.cam.cam2D.zoom;
+    cam_bounds.size /= UNIT_SIZE;
+    
+    cam_bounds.offset = {0, 0};
+    
     for (int i = 0; i < entities->max_count; i++){
         if (!entities->has_index(i)){
             continue;
@@ -2082,6 +2114,10 @@ void draw_entities(){
         Entity *e = entities->get_ptr(i);
     
         if (!e->enabled/* || e->flags == -1*/){
+            continue;
+        }
+        
+        if (!check_bounds_collision(context.cam.view_position, cam_bounds, e->position, e->bounds)){
             continue;
         }
     
@@ -2112,7 +2148,7 @@ void draw_entities(){
             draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
         }
-        b32 draw_bounds = true;
+        b32 draw_bounds = false;
         if (draw_bounds){
             draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
             draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
