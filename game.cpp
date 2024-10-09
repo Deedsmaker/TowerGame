@@ -686,18 +686,6 @@ void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2,
     //right
     Vector2 edge4 = vertices.get(2) - vertices.get(0);
     normals->add(normalized(get_rotated_vector_90(edge4, 1)));
-
-    // for (int i = 0; i < vertices.count; i++){
-    //     int add = 1;
-    //     while (dot(vertices.get(i), vertices.get(add)) < 0 && add < vertices.count - i - 1){
-    //         add++;
-    //     }
-    
-    //     Vector2 edge = vertices.get(i) - vertices.get((i + add) % vertices.count);
-        
-    //     //normals->add(get_rotated_vector_90(normalized(edge), -1));
-    //     normals->add(normalized(edge));
-    // }
 }
 
 Collision check_rectangles_col(Entity *entity1, Entity *entity2){
@@ -827,13 +815,6 @@ void assign_moving_vertex_entity(Entity *e, int vertex_index){
 }
 
 void validate_editor_pointers(){
-    // for (int a = 0; a < editor.max_undos_added; a++){
-    //     Undo_Action *action = editor.undo_actions.get_ptr(a);
-        
-    //     if (action->entity_id == e->id){
-    //         action->entity = e;
-    //     }
-    // }
 }
 
 void copy_entity(Entity *dest, Entity *src){
@@ -1448,7 +1429,6 @@ void update_editor(){
             Entity *undo_entity = context.entities.get_by_key_ptr(action->entity_id);
 
             undo_entity->position -= action->position_change;
-            //add_scale(undo_entity, action->scale_change * -1);
             undo_entity->scale -= action->scale_change;
             undo_entity->rotation -= action->rotation_change;
             
@@ -1457,7 +1437,6 @@ void update_editor(){
             }
             
             calculate_bounds(undo_entity);
-            //rotate(action->entity,    -action->rotation_change);
         }
     }
     
@@ -1474,7 +1453,6 @@ void update_editor(){
         } else if (action->entity_was_spawned){ //so we need spawn this again
             Entity *restored_entity = add_entity(&action->spawned_entity, true);
             restored_entity->id = action->spawned_entity.id;
-            //action->entity = restored_entity;
             action->entity_id = restored_entity->id;
             
             editor.need_validate_entity_pointers = true;
@@ -1530,12 +1508,6 @@ void calculate_bounds(Entity *entity){
     entity->bounds = {{right_vertex - left_vertex, top_vertex - bottom_vertex}, middle_position};
 }
 
-// void validate_all_bounds(){
-//     for (int i = 0; i < context.entities.max_count; i++){
-        
-//     }
-// }
-
 void change_scale(Entity *entity, Vector2 new_scale){
     Vector2 old_scale = entity->scale;
     
@@ -1550,13 +1522,6 @@ void change_scale(Entity *entity, Vector2 new_scale){
         Vector2 *vertex = entity->vertices.get_ptr(i);
         f32 up_dot    = dot(entity->up,    *vertex);
         f32 right_dot = dot(entity->right, *vertex);
-        
-        // if (entity->scale.y > 4 && abs(up_dot) < 1){
-        //     up_dot = 0;
-        // }
-        // if (entity->scale.x > 4 && abs(right_dot) < 1){
-        //     right_dot = 0;
-        // }
         
         if (old_scale.y == 1 || abs(up_dot) >= entity->scale.y * 0.1f){
             up_dot    = normalized(up_dot);
@@ -1607,11 +1572,6 @@ void rotate_to(Entity *entity, f32 new_rotation){
         new_rotation += 360;
     }
 
-    // for (int i = 0; i < entity->vertices.count; i++){
-    //     Vector2 *vertex = entity->vertices.get_ptr(i);
-    //     rotate_around_point(vertex, {0, 0}, -entity->rotation);
-    // }
-    
     f32 old_rotation = entity->rotation;
 
     entity->rotation = new_rotation;
@@ -1650,14 +1610,6 @@ void player_apply_friction(Entity *entity, f32 max_move_speed, f32 dt){
 void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 acceleration, f32 dt){
     Player *p = &entity->player;
 
-    // f32 new_move_speed = p->velocity.x + p->acceleration * input.direction.x * dt;
-    
-    // if (abs(new_move_speed) > max_move_speed && new_move_speed * input.direction.x > 0){
-    //     new_move_speed = p->velocity.x;
-    // }
-    
-    // p->velocity.x = new_move_speed;
-    
     f32 speed_in_wish_direction = dot(p->velocity, dir);
     
     f32 speed_difference = wish_speed - speed_in_wish_direction;        
@@ -1940,8 +1892,6 @@ void update_player(Entity *entity, f32 dt){
         
     }
     
-    // p->velocity->x = new_speed;
-    
     if (p->grounded && IsKeyPressed(KEY_SPACE)){
         p->velocity.y = p->jump_force;
         p->since_jump_timer = 0;
@@ -2196,18 +2146,6 @@ void draw_editor(){
             }
         }
         
-        // b32 draw_circles_on_bounds = false;
-        // if (draw_circles_on_bounds){
-        //     Vector2 left_up = world_to_screen(get_left_up(*e));
-        //     Vector2 right_down = world_to_screen(get_right_down(*e));
-        //     Vector2 left_down = world_to_screen(get_left_down(*e));
-        //     Vector2 right_up = world_to_screen(get_right_up(*e));
-        //     DrawCircle(left_up.x, left_up.y, 5, RED);
-        //     DrawCircle(right_down.x, right_down.y, 5, BLUE);
-        //     DrawCircle(left_down.x, left_down.y, 5, GREEN);
-        //     DrawCircle(right_up.x, right_up.y, 5, PURPLE);
-        // }
-        
         draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
         
         if (debug.draw_rotation){
@@ -2387,14 +2325,7 @@ void setup_color_changer(Entity *entity){
     entity->color_changer.target_color = entity->color * 1.4f;
 }
 
-// Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags){
-//     Entity e = Entity(pos, scale, rotation, flags);    
-//     e.id = context.entities.max_count + game_time * 10000;
-//     context.entities.add(e);
-//     return context.entities.last_ptr();
-// }
-
-void check_avaliable_ids(int *id){
+void check_avaliable_ids_and_set_if_found(int *id){
     int try_count = 0;
     while (context.entities.has_key(*id) && try_count <= 1000){
         (*id)++;
@@ -2411,7 +2342,7 @@ Entity* add_entity(Entity *copy, b32 keep_id){
         e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
     }
     
-    check_avaliable_ids(&e.id);
+    check_avaliable_ids_and_set_if_found(&e.id);
         
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
@@ -2423,7 +2354,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
     //e.pivot = pivot;
     
-    check_avaliable_ids(&e.id);
+    check_avaliable_ids_and_set_if_found(&e.id);
 
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
@@ -2441,7 +2372,7 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
     //Entity *e = add_entity(pos, scale, pivot, rotation, flags);    
     e.id = id;
     
-    check_avaliable_ids(&e.id);
+    check_avaliable_ids_and_set_if_found(&e.id);
     
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
@@ -2468,16 +2399,6 @@ Particle_Emitter* add_emitter(){
     context.emitters.add(e);    
     return context.emitters.last_ptr();
 }
-
-// Entity *add_text(Vector2 pos, f32 size, const char *text){
-//     Entity e = Entity(pos, {1, 1}, {0.5f, 0.5f}, 0, DRAW_TEXT);    
-//     e.bounds = {1, 1};
-//     e.text_drawer.text = text;
-//     e.text_drawer.size = size;
-//     e.id = context.entities.max_count + core.time.game_time * 10000;
-//     context.entities.add(e);
-//     return context.entities.last_ptr();
-// }
 
 Vector2 global(Entity *e, Vector2 local_pos){
     return e->position + local_pos;
