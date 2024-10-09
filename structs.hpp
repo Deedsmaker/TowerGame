@@ -90,7 +90,8 @@ struct Player{
     Vector2 ground_normal = {0, 1};
     b32 grounded = false;
     
-    int ground_checker_index_offset = -1;
+    //int ground_checker_index_offset = -1;
+    int ground_checker_id = -1;
     
     Vector2 velocity = {0, 0};
     
@@ -102,7 +103,8 @@ struct Player{
     f32 sword_cooldown = 0.5f;
     f32 sword_spin_direction = 0;
     
-    int sword_entity_index_offset = -1;
+    //int sword_entity_index_offset = -1;
+    int sword_entity_id = -1;
     
     f32 sword_attack_countdown;
     f32 sword_cooldown_countdown;
@@ -110,6 +112,11 @@ struct Player{
     f32 sword_spin_speed_progress = 0;
     
     f32 current_move_speed;
+};
+
+struct Bounds{
+    Vector2 size;  
+    Vector2 offset;
 };
 
 struct Entity{
@@ -123,7 +130,7 @@ struct Entity{
     Entity(Entity *copy);
 
     i32 id = -1;
-    i32 index = -1;
+    //i32 index = -1;
     
     char name[32];
 
@@ -144,7 +151,7 @@ struct Entity{
     
     Vector2 position;
     Vector2 scale = {1, 1};
-    Vector2 bounds = {1, 1};
+    Bounds bounds = {{0, 0}, {0, 0}};
     Vector2 pivot = {0.5f, 0.5f};
     f32 rotation = 0;
     

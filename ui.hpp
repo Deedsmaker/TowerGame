@@ -78,6 +78,7 @@ b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text,
     Rectangle button_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), button_rec)){
+        clicked_ui = true;
         return true;
     }
     

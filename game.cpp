@@ -3,9 +3,6 @@
 //#define assert(a) (if (!a) (int*)void*);
 //#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
-//global_variable f32 dt;
-//f32 game_time;
-
 #include "game.h"
 
 global_variable Input input;
@@ -21,11 +18,13 @@ global_variable Array<Vector2, MAX_VERTICES> global_normals = Array<Vector2, MAX
 
 global_variable Entity mouse_entity;
 
-global_variable Entity recent_player_data = Entity();
+global_variable Entity *player_entity;
 global_variable b32 need_destroy_player = false;
 
 global_variable f32 frame_rnd;
 global_variable Vector2 frame_on_circle_rnd;
+
+global_variable b32 clicked_ui = false;
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
@@ -33,7 +32,7 @@ global_variable Vector2 frame_on_circle_rnd;
 #include "ui.hpp"
 
 void free_entity(Entity *e){
-    //e->vertices.free_arr();
+
 }
 
 void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
@@ -59,16 +58,13 @@ void pick_vertices(Entity *entity){
 }
 
 Entity::Entity(){
-    
+    calculate_bounds(this);
 }
 
 Entity::Entity(Vector2 _pos){
     flags = 0;
     position = _pos;
-    // vertices.add({-0.5f, 0.5f});
-    // vertices.add({0.5f, 0.5f});
-    // vertices.add({0.5f, -0.5f});
-    //vertices.add({-0.5f, -0.5f});
+    
     add_rect_vertices(&vertices, pivot);
 
     rotation = 0;
@@ -136,8 +132,6 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     position = _pos;
     pivot = _pivot;
     
-    //add_rect_vertices(&vertices, pivot);
-    //vertices.free_arr();
     vertices = _vertices;
     
     rotation = 0;
@@ -164,6 +158,8 @@ Entity::Entity(Entity *copy){
     if (flags & ENEMY){
         enemy = copy->enemy;
     }
+    
+    calculate_bounds(this);
 }
 
 void parse_line(char *line, char *result, int *index){ 
@@ -349,7 +345,9 @@ int load_level(const char *level_name){
         //No need to assert every variable. We can add something to entity and old levels should not broke
         assert(found_id && found_position_x && found_position_y);
         
-        add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags, entity_vertices);
+        Entity *added_entity = add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags, entity_vertices);
+        
+        calculate_bounds(added_entity);
     }
     
     fclose(fptr);
@@ -404,9 +402,9 @@ void init_spawn_objects(){
 }
 
 void init_game(){
-    game_state = EDITOR;
+    printf("%zu\n", sizeof(Entity));
 
-    recent_player_data.destroyed = true;
+    game_state = EDITOR;
 
     input = {};
 
@@ -431,10 +429,6 @@ void init_game(){
     c->cam.cam2D.offset = (Vector2){ screen_width/2.0f, (f32)screen_height * 0.5f };
     c->cam.cam2D.rotation = 0.0f;
     c->cam.cam2D.zoom = 0.5f;
-    
-    //zoom_entity = add_text({-20, 20}, 40, "DSF");
-    
-    //add_entity({0, 10}, {10, 3}, 0, GROUND | COLOR_CHANGE);
 }
 
 void enter_game_state(){
@@ -446,14 +440,10 @@ void enter_game_state(){
     
     //copy_context(&saved_level_context, &context);
     
-    Entity *player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER);
-    
-    player_entity->index = player_entity->id % MAX_ENTITIES;
+    player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER);
     
     Entity *ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
     ground_checker->color = Fade(PURPLE, 0.8f);
-    
-    ground_checker->index = ground_checker->id % MAX_ENTITIES;
     
     Entity *sword_entity = add_entity(editor.player_spawn_point, player_entity->player.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
     sword_entity->color   = GRAY + RED * 0.1f;
@@ -462,27 +452,23 @@ void enter_game_state(){
     sword_entity->color_changer.target_color = RED * 0.99f;
     sword_entity->color_changer.interpolating = true;
     
-    sword_entity->index = sword_entity->id % MAX_ENTITIES;
+    //sword_entity->index = sword_entity->id % MAX_ENTITIES;
     
-    player_entity->player.ground_checker_index_offset = ground_checker->index - player_entity->index;
-    player_entity->player.sword_entity_index_offset = sword_entity->index - player_entity->index;
-    
-    assert(player_entity->player.ground_checker_index_offset > 0);
-    assert(player_entity->player.sword_entity_index_offset   > 0);
-
-    
-    recent_player_data = *player_entity;
+    player_entity->player.ground_checker_id = ground_checker->id;
+    player_entity->player.sword_entity_id = sword_entity->id;
 }
 
-void destroy_player(Entity *player_entity){
+void destroy_player(){
+    assert(player_entity);
+
     player_entity->destroyed                 = true;
-    context.entities.get_ptr(player_entity->index + player_entity->player.ground_checker_index_offset)->destroyed = true;
-    context.entities.get_ptr(player_entity->index + player_entity->player.sword_entity_index_offset  )->destroyed = true;
     
-    assert(player_entity->player.ground_checker_index_offset > 0);
-    assert(player_entity->player.sword_entity_index_offset   > 0);
+    assert(context.entities.has_key(player_entity->player.ground_checker_id));
+    context.entities.get_by_key_ptr(player_entity->player.ground_checker_id)->destroyed = true;
+    assert(context.entities.has_key(player_entity->player.sword_entity_id));
+    context.entities.get_by_key_ptr(player_entity->player.sword_entity_id)->destroyed = true;
     
-    recent_player_data = *player_entity;
+    player_entity = NULL;
 }
 
 void enter_editor_state(){
@@ -491,8 +477,9 @@ void enter_editor_state(){
     editor.in_editor_time = 0;
     close_create_box();
     
-    // need_destroy_player = true;
-    recent_player_data.destroyed = true;
+    if (player_entity){
+        destroy_player();
+    }
     
     clear_context(&context);
     load_level("temp_test_level.level");
@@ -606,6 +593,7 @@ void update_game(){
     update_input_field();
     
     if (game_state == EDITOR){
+        update_editor_ui();
         update_editor();
     }
     
@@ -644,8 +632,8 @@ void update_game(){
     update_emitters();
     update_particles();
     
-    if (game_state == GAME && !recent_player_data.destroyed){
-        Vector2 target_position = recent_player_data.position + Vector2_up * 10;
+    if (game_state == GAME && player_entity){
+        Vector2 target_position = player_entity->position + Vector2_up * 10;
         context.cam.position = lerp(context.cam.position, target_position, core.time.dt * 10);
     }
     
@@ -977,10 +965,88 @@ void close_create_box(){
     editor.create_box_lifetime = 0;
 }
 
+void update_editor_ui(){
+    //inspector logic
+    if (editor.selected_entity){
+        Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.4f};
+        Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
+        make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
+        f32 height_add = 30;
+        f32 v_pos = inspector_position.y + height_add + 10;
+        
+        make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 10}, 24, WHITE * 0.9f, "inspector_pos");
+        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
+        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
+        if (make_input_field(TextFormat("%.3f", editor.selected_entity->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
+            || make_input_field(TextFormat("%.3f", editor.selected_entity->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")){
+            Vector2 old_position = editor.selected_entity->position;
+            if (str_cmp(focus_input_field.tag, "inspector_pos_x")){
+                editor.selected_entity->position.x = atof(focus_input_field.content);
+            } else if (str_cmp(focus_input_field.tag, "inspector_pos_y")){
+                editor.selected_entity->position.y = atof(focus_input_field.content);
+            } else{
+                assert(false);
+            }
+            add_position_undo(editor.selected_entity, editor.selected_entity->position - old_position);
+        }
+        v_pos += height_add;
+        
+        make_ui_text("SCALE", {inspector_position.x + 100, inspector_position.y + 20 + v_pos - height_add}, 24, WHITE * 0.9f, "inspector_scale");
+        v_pos += height_add;
+        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
+        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
+        if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
+            || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")){
+            Vector2 old_scale = editor.selected_entity->scale;
+            Vector2 new_scale = old_scale;
+            undo_remember_vertices_start(editor.selected_entity);
+            
+            if (str_cmp(focus_input_field.tag, "inspector_scale_x")){
+                new_scale.x = atof(focus_input_field.content);
+            } else if (str_cmp(focus_input_field.tag, "inspector_scale_y")){
+                new_scale.y = atof(focus_input_field.content);
+            } else{
+                assert(false);
+            }
+            
+            Vector2 scale_add = new_scale - old_scale;
+            if (scale_add != Vector2_zero){
+                add_scale(editor.selected_entity, scale_add);
+            }
+            
+            undo_add_scaling(editor.selected_entity, scale_add);
+        }
+        v_pos += height_add;
+        
+        make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
+        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 120, v_pos}, {75, 25}, "inspector_rotation")){
+            f32 old_rotation = editor.selected_entity->rotation;
+            f32 new_rotation = old_rotation;
+            
+            undo_remember_vertices_start(editor.selected_entity);
+            
+            if (str_cmp(focus_input_field.tag, "inspector_rotation")){
+                new_rotation = atof(focus_input_field.content);
+            } else{
+                assert(false);
+            }
+            
+            f32 rotation_add = new_rotation - old_rotation;
+            if (rotation_add != 0){
+                rotate(editor.selected_entity, rotation_add);
+            }
+            
+            undo_add_rotation(editor.selected_entity, rotation_add);
+            v_pos += height_add;
+        }
+    }
+}
+
 void update_editor(){
     Undo_Action undo_action;
     b32 something_in_undo = false;
     b32 can_control_with_single_button = !focus_input_field.in_focus;
+    b32 can_select = !clicked_ui;
     
     f32 dt = core.time.dt;
     
@@ -1021,7 +1087,7 @@ void update_editor(){
     
     b32 found_cursor_entity_this_frame = false;
     
-    b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select;
     b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
     
     int selected_vertex_index;
@@ -1092,7 +1158,7 @@ void update_editor(){
         editor.moving_vertex_entity = NULL;
     }
     
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select){
         if (editor.cursor_entity != NULL){ //selecting entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             if (!is_same_selected_entity){
@@ -1387,82 +1453,6 @@ void update_editor(){
         } 
     }
     
-    //inspector logic
-    if (editor.selected_entity){
-        Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.4f};
-        Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
-        make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
-        f32 height_add = 30;
-        f32 v_pos = inspector_position.y + height_add + 10;
-        
-        
-        make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 10}, 24, WHITE * 0.9f, "inspector_pos");
-        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
-        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
-        if (make_input_field(TextFormat("%.3f", editor.selected_entity->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
-            || make_input_field(TextFormat("%.3f", editor.selected_entity->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")){
-            Vector2 old_position = editor.selected_entity->position;
-            if (str_cmp(focus_input_field.tag, "inspector_pos_x")){
-                editor.selected_entity->position.x = atof(focus_input_field.content);
-            } else if (str_cmp(focus_input_field.tag, "inspector_pos_y")){
-                editor.selected_entity->position.y = atof(focus_input_field.content);
-            } else{
-                assert(false);
-            }
-            add_position_undo(editor.selected_entity, editor.selected_entity->position - old_position);
-        }
-        v_pos += height_add;
-        
-        make_ui_text("SCALE", {inspector_position.x + 100, inspector_position.y + 20 + v_pos - height_add}, 24, WHITE * 0.9f, "inspector_scale");
-        v_pos += height_add;
-        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
-        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
-        if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
-            || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")){
-            Vector2 old_scale = editor.selected_entity->scale;
-            Vector2 new_scale = old_scale;
-            undo_remember_vertices_start(editor.selected_entity);
-            
-            if (str_cmp(focus_input_field.tag, "inspector_scale_x")){
-                new_scale.x = atof(focus_input_field.content);
-            } else if (str_cmp(focus_input_field.tag, "inspector_scale_y")){
-                new_scale.y = atof(focus_input_field.content);
-            } else{
-                assert(false);
-            }
-            
-            Vector2 scale_add = new_scale - old_scale;
-            if (scale_add != Vector2_zero){
-                add_scale(editor.selected_entity, scale_add);
-            }
-            
-            undo_add_scaling(editor.selected_entity, scale_add);
-        }
-        v_pos += height_add;
-        
-        make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
-        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 120, v_pos}, {75, 25}, "inspector_rotation")){
-            f32 old_rotation = editor.selected_entity->rotation;
-            f32 new_rotation = old_rotation;
-            
-            undo_remember_vertices_start(editor.selected_entity);
-            
-            if (str_cmp(focus_input_field.tag, "inspector_rotation")){
-                new_rotation = atof(focus_input_field.content);
-            } else{
-                assert(false);
-            }
-            
-            f32 rotation_add = new_rotation - old_rotation;
-            if (rotation_add != 0){
-                rotate(editor.selected_entity, rotation_add);
-            }
-            
-            undo_add_rotation(editor.selected_entity, rotation_add);
-            v_pos += height_add;
-        }
-    }
-    
     //undo logic
     if (something_in_undo){
         add_undo_action(undo_action);
@@ -1489,6 +1479,8 @@ void update_editor(){
             for (int i = 0; i < action->vertices_change.count; i++){
                 *action->entity->vertices.get_ptr(i) -= action->vertices_change.get(i);
             }
+            
+            calculate_bounds(action->entity);
             //rotate(action->entity,    -action->rotation_change);
         }
     }
@@ -1516,6 +1508,8 @@ void update_editor(){
             for (int i = 0; i < action->vertices_change.count; i++){
                 *action->entity->vertices.get_ptr(i) += action->vertices_change.get(i);
             }
+            
+            calculate_bounds(action->entity);
             //rotate(action->entity, action->rotation_change);
         }
     }
@@ -1525,6 +1519,7 @@ void update_editor(){
         save_level("test_level.level");
     }
 
+    clicked_ui = false;
 }
 
 void calculate_bounds(Entity *entity){
@@ -1532,6 +1527,9 @@ void calculate_bounds(Entity *entity){
     f32 bottom_vertex =  INFINITY;
     f32 right_vertex  = -INFINITY;
     f32 left_vertex   =  INFINITY;
+    
+    Vector2 middle_position;
+    
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
         
@@ -1549,9 +1547,16 @@ void calculate_bounds(Entity *entity){
         }
     }    
     
-    //this is collision vertex bounds, for culling we'll need something else
-    entity->bounds = {right_vertex - left_vertex, top_vertex - bottom_vertex};
+    middle_position = {0.5f * left_vertex + 0.5f * right_vertex, 0.5f * bottom_vertex + 0.5f * top_vertex};
+    
+    entity->bounds = {{right_vertex - left_vertex, top_vertex - bottom_vertex}, middle_position};
 }
+
+// void validate_all_bounds(){
+//     for (int i = 0; i < context.entities.max_count; i++){
+        
+//     }
+// }
 
 void change_scale(Entity *entity, Vector2 new_scale){
     Vector2 old_scale = entity->scale;
@@ -1594,16 +1599,10 @@ void add_scale(Entity *entity, Vector2 added){
 
 void change_up(Entity *entity, Vector2 new_up){
     rotate_to(entity, (atan2f(new_up.x, new_up.y) * RAD2DEG));
-    // entity->up = normalized(new_up);
-    // entity->rotation = atan2f(new_up.y, new_up.x) * RAD2DEG;
-    //calculate_bounds(entity);
 }
 
 void change_right(Entity *entity, Vector2 new_right){
     rotate_to(entity, atan2f(-new_right.y, new_right.x) * RAD2DEG);
-    // entity->right = normalized(new_right);
-    // entity->rotation = atan2f(new_right.y, new_right.x) * RAD2DEG;
-    // calculate_bounds(entity);
 }
 
 void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation){
@@ -1776,11 +1775,9 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
 void update_player(Entity *entity, f32 dt){
     assert(entity->flags & PLAYER);
 
-    recent_player_data = *entity;
-
     Player *p     = &entity->player;
-    Entity *ground_checker = context.entities.get_ptr(entity->index + entity->player.ground_checker_index_offset);
-    Entity *sword   = context.entities.get_ptr(entity->index + entity->player.sword_entity_index_offset);
+    Entity *ground_checker = context.entities.get_by_key_ptr(p->ground_checker_id);
+    Entity *sword          = context.entities.get_by_key_ptr(p->sword_entity_id);
     
     ground_checker->position = entity->position - entity->up * entity->scale.y * 0.5f;
     sword->position = entity->position;
@@ -2024,8 +2021,6 @@ void update_player(Entity *entity, f32 dt){
     }
     
     p->grounded = found_ground;
-    
-    recent_player_data = *entity;
 }
 
 void calculate_bird_collisions(Entity *bird_entity){
@@ -2050,7 +2045,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
     assert(entity->flags & BIRD_ENEMY);
     
     Bird_Enemy *bird = &entity->bird_enemy;
-    bird->target_position = recent_player_data.position + Vector2_up * 60;        
+    bird->target_position = player_entity->position + Vector2_up * 60;        
     bird->target_position.y += sinf(core.time.game_time * entity->position.y) * 10;
     bird->target_position.x += cosf(core.time.game_time * entity->position.x) * 50;
     
@@ -2092,7 +2087,7 @@ void update_entities(){
         
         if (e->flags & PLAYER){
             if (need_destroy_player){
-                destroy_player(e);   
+                destroy_player();   
                 need_destroy_player = false;
             }
         }
@@ -2102,10 +2097,7 @@ void update_entities(){
             //e->enabled = false;
             
             if (e->flags & PLAYER){
-                // assert(recent_player_data.player.ground_checker->destroyed && recent_player_data.player.sword_entity->destroyed);
-                // recent_player_data.destroyed                 = true;
-                // recent_player_data.player.ground_checker->destroyed = true;
-                // recent_player_data.player.sword_entity->destroyed          = true;
+                
             }
             
             free_entity(e);
@@ -2117,8 +2109,6 @@ void update_entities(){
             }
             continue;
         }
-        
-        e->index = i;
         
         if (!e->enabled || e->flags == -1){
             continue;
@@ -2194,9 +2184,10 @@ void draw_entities(){
             draw_game_line(e->position, e->position + e->right * 3, 0.1f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.1f, GREEN);
         }
-        b32 draw_bounds = false;
+        b32 draw_bounds = true;
         if (draw_bounds){
-            draw_game_rect_lines(e->position, e->bounds, e->pivot, 2, GREEN);
+            draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
+            draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
         }
     }
 }
@@ -2360,9 +2351,9 @@ void draw_game(){
     draw_entities();
     draw_particles();
     
-    if (!recent_player_data.destroyed && debug.draw_player_collisions){
-        for (int i = 0; i < recent_player_data.player.collisions.count; i++){
-            Collision col = recent_player_data.player.collisions.get(i);
+    if (player_entity && debug.draw_player_collisions){
+        for (int i = 0; i < player_entity->player.collisions.count; i++){
+            Collision col = player_entity->player.collisions.get(i);
             
             draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
             draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
@@ -2384,16 +2375,16 @@ void draw_game(){
         v_pos += font_size;
     }
     
-    if (game_state == GAME && !recent_player_data.destroyed){            
+    if (game_state == GAME && player_entity){            
         b32 draw_spin_progress = true;
         if (draw_spin_progress){
-            draw_text(TextFormat("Spin progress: %.2f", recent_player_data.player.sword_spin_speed_progress), 10, v_pos, font_size, RED);
+            draw_text(TextFormat("Spin progress: %.2f", player_entity->player.sword_spin_speed_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
         
         b32 draw_blood_progress = true;
         if (draw_blood_progress){
-            draw_text(TextFormat("Blood progress: %.2f", recent_player_data.player.blood_progress), 10, v_pos, font_size, RED);
+            draw_text(TextFormat("Blood progress: %.2f", player_entity->player.blood_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
     }
@@ -2428,12 +2419,12 @@ void setup_color_changer(Entity *entity){
 Entity* add_entity(Entity *copy){
     Entity e = Entity(copy);
     
-    e.id = context.entities.last_added_key + core.time.game_time * 10000 + 100;
+    e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
     
     int try_count = 0;
     while (context.entities.has_key(e.id) && try_count <= 1000){
         e.id++;
-        try_count += 10;
+        try_count += 1;
     }
     
     assert(try_count < 100);
@@ -2445,7 +2436,7 @@ Entity* add_entity(Entity *copy){
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
     //Entity *e = add_entity(pos, scale, rotation, flags);    
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    e.id = context.entities.last_added_key + core.time.game_time * 10000 + 100;
+    e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
     //e.pivot = pivot;
     
     int try_count = 0;
@@ -2599,11 +2590,11 @@ f32 zoom_unit_size(){
 }
 
 Vector2 get_left_up_no_rot(Entity *e){
-    return {e->position.x - e->pivot.x * e->bounds.x, e->position.y + e->pivot.y * e->bounds.y};
+    return {e->position.x - e->pivot.x * e->bounds.size.x, e->position.y + e->pivot.y * e->bounds.size.y};
 }
 
 Vector2 get_left_up(Entity *e){
-    //f32 x_add = sinf(e->rotation * DEG2RAD) * e->bounds.x;
+    //f32 x_add = sinf(e->rotation * DEG2RAD) * e->bounds.size.x;
     Vector2 lu = get_left_up_no_rot(e);
     
     rotate_around_point(&lu, e->position, e->rotation);
@@ -2612,32 +2603,32 @@ Vector2 get_left_up(Entity *e){
 
 Vector2 get_right_down_no_rot(Entity *e){
     Vector2 lu = get_left_up_no_rot(e);
-    return {lu.x + e->bounds.x, lu.y - e->bounds.y};
+    return {lu.x + e->bounds.size.x, lu.y - e->bounds.size.y};
 }
 
 Vector2 get_right_down(Entity *e){
     Vector2 lu = get_left_up(e);
-    Vector2 rd = lu + e->right * e->bounds.x;
-    rd -= e->up * e->bounds.y;
+    Vector2 rd = lu + e->right * e->bounds.size.x;
+    rd -= e->up * e->bounds.size.y;
     return rd;
 }
 
 Vector2 get_left_down_no_rot(Entity *e){
     Vector2 lu = get_left_up_no_rot(e);
-    return {lu.x, lu.y - e->bounds.y};
+    return {lu.x, lu.y - e->bounds.size.y};
 }
 
 Vector2 get_left_down(Entity *e){
     Vector2 rd = get_right_down(e);
-    return rd - e->right * e->bounds.x;
+    return rd - e->right * e->bounds.size.x;
 }
 
 Vector2 get_right_up_no_rot(Entity *e){
     Vector2 lu = get_left_up_no_rot(e);
-    return {lu.x + e->bounds.x, lu.y};
+    return {lu.x + e->bounds.size.x, lu.y};
 }
 
 Vector2 get_right_up(Entity *e){
     Vector2 lu = get_left_up(e);
-    return lu + e->right * e->bounds.x;
+    return lu + e->right * e->bounds.size.x;
 }

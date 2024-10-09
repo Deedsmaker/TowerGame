@@ -126,6 +126,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         copy_input_field(&focus_input_field, &input_field);
         make_next_in_focus = false;
         just_focused = true;
+        clicked_ui = true;
     }
     
     input_fields.add(input_field);

@@ -13,6 +13,9 @@ void close_create_box();
 
 void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
+void calculate_bounds(Entity *entity);
+
+void update_editor_ui();
 void update_editor();
 void update_entities();
 
