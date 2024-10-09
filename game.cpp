@@ -827,34 +827,13 @@ void assign_moving_vertex_entity(Entity *e, int vertex_index){
 }
 
 void validate_editor_pointers(){
-    for (int i = 0; i < context.entities.max_count; i++){
-        if (!context.entities.has_index(i)){
-            continue;
-        }
-
-    
-        Entity *e = context.entities.get_ptr(i);
+    // for (int a = 0; a < editor.max_undos_added; a++){
+    //     Undo_Action *action = editor.undo_actions.get_ptr(a);
         
-        //doesnt make any sence
-        // if (editor.selected_entity && e->id == editor.selected_entity_id){
-        //     editor.selected_entity = e;
-        // }
-        // if (editor.dragging_entity && e->id == editor.dragging_entity_id){
-        //     editor.dragging_entity = e;
-        // }
-        // if (editor.moving_vertex_entity && e->id == editor.moving_vertex_entity_id){
-        //     //editor.moving_vertex_entity = e;
-        //     assign_moving_vertex_entity(e, editor.last_selected_vertex_index);
-        // }
-        
-        for (int a = 0; a < editor.max_undos_added; a++){
-            Undo_Action *action = editor.undo_actions.get_ptr(a);
-            
-            if (action->entity_id == e->id){
-                action->entity = e;
-            }
-        }
-    }
+    //     if (action->entity_id == e->id){
+    //         action->entity = e;
+    //     }
+    // }
 }
 
 void copy_entity(Entity *dest, Entity *src){
@@ -862,10 +841,6 @@ void copy_entity(Entity *dest, Entity *src){
 }
 
 void add_undo_action(Undo_Action undo_action){
-    if (undo_action.entity){
-        undo_action.entity_id = undo_action.entity->id;
-    }
-
     editor.undo_actions.add(undo_action);
     
     if (editor.undo_actions.count >= MAX_UNDOS){
@@ -875,16 +850,18 @@ void add_undo_action(Undo_Action undo_action){
     editor.max_undos_added = editor.undo_actions.count;
 }
 
-void add_position_undo(Entity *entity, Vector2 position_change){
+void undo_add_position(Entity *entity, Vector2 position_change){
     Undo_Action undo_action;
     undo_action.position_change = position_change;
-    undo_action.entity = entity;
+    //undo_action.entity = entity;
+    undo_action.entity_id = entity->id;
     add_undo_action(undo_action);
 }
 
 void undo_add_scaling(Entity *entity, Vector2 scale_change){
     Undo_Action undo_action;
-    undo_action.entity = entity;
+    //undo_action.entity = entity;
+    undo_action.entity_id = entity->id;
     undo_action.scale_change = scale_change;
     
     //SHOULD REMEMBER THEM BEFORE
@@ -895,7 +872,8 @@ void undo_add_scaling(Entity *entity, Vector2 scale_change){
 
 void undo_add_rotation(Entity *entity, f32 rotation_change){
     Undo_Action undo_action;
-    undo_action.entity = entity;
+    //undo_action.entity = entity;
+    undo_action.entity_id = entity->id;
     undo_action.rotation_change = rotation_change;
     
     //SHOULD REMEMBER THEM BEFORE
@@ -910,7 +888,7 @@ void editor_delete_entity(Entity *entity, b32 add_undo){
         undo_action.entity_was_deleted = true;
         copy_entity(&undo_action.deleted_entity, editor.selected_entity);
         undo_action.entity_id = undo_action.deleted_entity.id;
-        undo_action.entity = NULL;
+        //undo_action.entity = NULL;
         add_undo_action(undo_action);
     }
     entity->destroyed = true;
@@ -919,12 +897,18 @@ void editor_delete_entity(Entity *entity, b32 add_undo){
     editor.cursor_entity   = NULL;
 }
 
+void editor_delete_entity(int entity_id, b32 add_undo){
+    assert(context.entities.has_key(entity_id));
+    editor_delete_entity(context.entities.get_by_key_ptr(entity_id), add_undo);
+}
+
 void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action){
     for (int i = 0; i < entity->vertices.count; i++){
         *undo_action->vertices_change.get_ptr(i) = entity->vertices.get(i) - editor.vertices_start.get(i);
     }
     undo_action->vertices_change.count = entity->vertices.count;
-    undo_action->entity = entity;
+    //undo_action->entity = entity;
+    undo_action->entity_id = entity->id;
 }
 
 void undo_remember_vertices_start(Entity *entity){
@@ -972,9 +956,11 @@ void update_editor_ui(){
         Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
         make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
         f32 height_add = 30;
-        f32 v_pos = inspector_position.y + height_add + 10;
+        f32 v_pos = inspector_position.y + height_add + 40;
         
-        make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 10}, 24, WHITE * 0.9f, "inspector_pos");
+        make_ui_text(TextFormat("ID: %d", editor.selected_entity->id), {inspector_position.x, inspector_position.y + 10}, 24, WHITE, "inspector_id"); 
+        
+        make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
         if (make_input_field(TextFormat("%.3f", editor.selected_entity->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
@@ -987,7 +973,7 @@ void update_editor_ui(){
             } else{
                 assert(false);
             }
-            add_position_undo(editor.selected_entity, editor.selected_entity->position - old_position);
+            undo_add_position(editor.selected_entity, editor.selected_entity->position - old_position);
         }
         v_pos += height_add;
         
@@ -1056,19 +1042,6 @@ void update_editor(){
         validate_editor_pointers();
         editor.need_validate_entity_pointers = false;
     }
-
-    // if (IsKeyPressed(KEY_B)){ //spawn block
-    //     Entity *e = add_entity(input.mouse_position, {5, 5}, {0.5f, 0.5f}, 0, GROUND);
-    //     e->color = BROWN;
-    //     e->color_changer.start_color = e->color;
-    //     e->color_changer.target_color = e->color * 1.5f;
-    //     print("spawn ground block");
-    // }
-    
-    // if (IsKeyPressed(KEY_G)){
-    //     Entity *e = add_entity(input.mouse_position, {3, 3}, {0.5f, 0.5f}, 0, RED * 0.9f, ENEMY);
-    //     print("spawn enemy");
-    //}
     
     f32 zoom = context.cam.cam2D.zoom;
     
@@ -1189,16 +1162,15 @@ void update_editor(){
         editor.selected_this_click = false;
         
         if (editor.dragging_entity){
-            something_in_undo = true;
-            undo_action.position_change = editor.dragging_entity->position - editor.dragging_start;
-            undo_action.entity = editor.dragging_entity;
+            undo_add_position(editor.dragging_entity, editor.dragging_entity->position - editor.dragging_start);
         }
         
         editor.dragging_entity = NULL;
         
         if (editor.moving_vertex_entity){
             something_in_undo = true;
-            undo_action.entity = editor.moving_vertex_entity;
+            //undo_action.entity = editor.moving_vertex_entity;
+            undo_action.entity_id = editor.moving_vertex_entity->id;
             undo_apply_vertices_change(editor.moving_vertex_entity, &undo_action);
         }
         
@@ -1213,7 +1185,8 @@ void update_editor(){
         if (move.x != 0 || move.y != 0){
             editor.selected_entity->position += move;
             undo_action.position_change = move;
-            undo_action.entity = editor.selected_entity;
+            //undo_action.entity = editor.selected_entity;
+            undo_action.entity_id = editor.selected_entity->id;
             something_in_undo = true;
         }
     }
@@ -1238,7 +1211,7 @@ void update_editor(){
         
         Undo_Action undo_action;
         undo_action.spawned_entity = *pasted_entity;
-        undo_action.entity = pasted_entity;
+        //undo_action.entity = pasted_entity;
         undo_action.entity_id = pasted_entity->id;
         undo_action.entity_was_spawned = true;
         add_undo_action(undo_action);
@@ -1333,7 +1306,7 @@ void update_editor(){
                 
                 Undo_Action undo_action;
                 undo_action.spawned_entity = entity;
-                undo_action.entity = entity;
+                //undo_action.entity = entity;
                 undo_action.entity_id = entity->id;
                 undo_action.entity_was_spawned = true;
                 add_undo_action(undo_action);
@@ -1352,7 +1325,6 @@ void update_editor(){
         }
     
         if (make_input_field("", field_position, field_size, "create_box")){
-            //print(focus_input_field.content);
             need_close_create_box = true;
         }
     }
@@ -1462,25 +1434,29 @@ void update_editor(){
         Undo_Action *action = editor.undo_actions.pop_ptr();
         
         if (action->entity_was_deleted){
-            Entity *restored_entity = add_entity(&action->deleted_entity);
+            Entity *restored_entity = add_entity(&action->deleted_entity, true);
             restored_entity->id = action->deleted_entity.id;
-            action->entity = restored_entity;
+            //action->entity = restored_entity;
+            action->entity_id = action->deleted_entity.id;
             
             editor.need_validate_entity_pointers = true;
         } else if (action->entity_was_spawned){
-            editor_delete_entity(action->entity, false);
+            editor_delete_entity(action->entity_id, false);
             editor.need_validate_entity_pointers = true;
         } else{
-            action->entity->position -= action->position_change;
-            //add_scale(action->entity, action->scale_change * -1);
-            action->entity->scale -= action->scale_change;
-            action->entity->rotation -= action->rotation_change;
+            assert(context.entities.has_key(action->entity_id));
+            Entity *undo_entity = context.entities.get_by_key_ptr(action->entity_id);
+
+            undo_entity->position -= action->position_change;
+            //add_scale(undo_entity, action->scale_change * -1);
+            undo_entity->scale -= action->scale_change;
+            undo_entity->rotation -= action->rotation_change;
             
             for (int i = 0; i < action->vertices_change.count; i++){
-                *action->entity->vertices.get_ptr(i) -= action->vertices_change.get(i);
+                *undo_entity->vertices.get_ptr(i) -= action->vertices_change.get(i);
             }
             
-            calculate_bounds(action->entity);
+            calculate_bounds(undo_entity);
             //rotate(action->entity,    -action->rotation_change);
         }
     }
@@ -1492,25 +1468,27 @@ void update_editor(){
         Undo_Action *action = editor.undo_actions.last_ptr();
         
         if (action->entity_was_deleted){ //so we need delete this again
-            editor_delete_entity(action->entity, false);
+            assert(context.entities.has_key(action->entity_id));
+            editor_delete_entity(context.entities.get_by_key_ptr(action->entity_id), false);
             editor.need_validate_entity_pointers = true;
         } else if (action->entity_was_spawned){ //so we need spawn this again
-            Entity *restored_entity = add_entity(&action->spawned_entity);
+            Entity *restored_entity = add_entity(&action->spawned_entity, true);
             restored_entity->id = action->spawned_entity.id;
-            action->entity = restored_entity;
+            //action->entity = restored_entity;
+            action->entity_id = restored_entity->id;
             
             editor.need_validate_entity_pointers = true;
         } else{
-            action->entity->position += action->position_change;
-            //add_scale(action->entity, action->scale_change);
-            action->entity->scale += action->scale_change;
-            action->entity->rotation += action->rotation_change;
+            assert(context.entities.has_key(action->entity_id));
+            Entity *undo_entity = context.entities.get_by_key_ptr(action->entity_id);
+            undo_entity->position += action->position_change;
+            undo_entity->scale += action->scale_change;
+            undo_entity->rotation += action->rotation_change;
             for (int i = 0; i < action->vertices_change.count; i++){
-                *action->entity->vertices.get_ptr(i) += action->vertices_change.get(i);
+                *undo_entity->vertices.get_ptr(i) += action->vertices_change.get(i);
             }
             
-            calculate_bounds(action->entity);
-            //rotate(action->entity, action->rotation_change);
+            calculate_bounds(undo_entity);
         }
     }
     
@@ -2416,19 +2394,25 @@ void setup_color_changer(Entity *entity){
 //     return context.entities.last_ptr();
 // }
 
-Entity* add_entity(Entity *copy){
-    Entity e = Entity(copy);
-    
-    e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
-    
+void check_avaliable_ids(int *id){
     int try_count = 0;
-    while (context.entities.has_key(e.id) && try_count <= 1000){
-        e.id++;
+    while (context.entities.has_key(*id) && try_count <= 1000){
+        (*id)++;
         try_count += 1;
     }
     
-    assert(try_count < 100);
+    assert(try_count < 1000);
+}
+
+Entity* add_entity(Entity *copy, b32 keep_id){
+    Entity e = Entity(copy);
     
+    if (!keep_id){
+        e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
+    }
+    
+    check_avaliable_ids(&e.id);
+        
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
 }
@@ -2439,12 +2423,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
     //e.pivot = pivot;
     
-    int try_count = 0;
-    while (context.entities.has_key(e.id) && try_count <= 100){
-        e.id++;
-        try_count++;
-    }
-    assert(try_count < 100);
+    check_avaliable_ids(&e.id);
 
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
@@ -2458,9 +2437,14 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Colo
 }
 
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
-    Entity *e = add_entity(pos, scale, pivot, rotation, flags);    
-    e->id = id;
-    return e;
+    Entity e = Entity(pos, scale, pivot, rotation, flags);    
+    //Entity *e = add_entity(pos, scale, pivot, rotation, flags);    
+    e.id = id;
+    
+    check_avaliable_ids(&e.id);
+    
+    context.entities.add(e.id, e);
+    return context.entities.last_ptr();
 }
 
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags){

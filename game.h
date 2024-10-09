@@ -59,7 +59,7 @@ Entity* add_text(Vector2 pos, f32 size, const char *text);
 
 void copy_entity(Entity *dest, Entity *src);
 
-Entity* add_entity(Entity *copy);
+Entity* add_entity(Entity *copy, b32 keep_id = false);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);

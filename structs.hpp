@@ -230,8 +230,8 @@ struct Circle{
 #define MAX_UNDOS 256
 
 struct Undo_Action{
-    Entity *entity;
-    int entity_id;
+    //Entity *entity;
+    int entity_id = -1;
 
     Entity deleted_entity;
     b32    entity_was_deleted = false;
