@@ -1062,7 +1062,8 @@ void update_editor_ui(){
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
         if (make_input_field(TextFormat("%.3f", editor.selected_entity->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
-            || make_input_field(TextFormat("%.3f", editor.selected_entity->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")){
+            || make_input_field(TextFormat("%.3f", editor.selected_entity->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
+            || focus_input_field.changed && (str_cmp(focus_input_field.tag, "inspector_pos_x") || str_cmp(focus_input_field.tag, "inspector_pos_y"))){
             Vector2 old_position = editor.selected_entity->position;
             if (str_cmp(focus_input_field.tag, "inspector_pos_x")){
                 editor.selected_entity->position.x = atof(focus_input_field.content);
@@ -1080,7 +1081,8 @@ void update_editor_ui(){
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
         if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
-            || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")){
+            || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
+            /*|| focus_input_field.changed && (str_cmp(focus_input_field.tag, "inspector_scale_x") || str_cmp(focus_input_field.tag, "inspector_scale_y"))*/){
             Vector2 old_scale = editor.selected_entity->scale;
             Vector2 new_scale = old_scale;
             undo_remember_vertices_start(editor.selected_entity);
@@ -1536,6 +1538,8 @@ void update_editor(){
     
     if (editor.undo_actions.count > 0 && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z) && !IsKeyDown(KEY_LEFT_SHIFT)){
         Undo_Action *action = editor.undo_actions.pop_ptr();
+        
+        focus_input_field.in_focus = false;
         
         if (action->entity_was_deleted){
             Entity *restored_entity = add_entity(&action->deleted_entity, true);

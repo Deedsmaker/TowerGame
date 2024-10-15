@@ -15,6 +15,7 @@ struct Input_Field{
     f32 font_size = 22;
     
     b32 in_focus = false;
+    b32 changed = false;
 };
 
 global_variable Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Array<Input_Field, MAX_INPUT_FIELDS>();
@@ -22,6 +23,8 @@ global_variable Input_Field focus_input_field;
 global_variable b32 just_focused = false;
 
 void update_input_field(){
+    focus_input_field.changed = false;
+
     if (focus_input_field.in_focus && IsKeyPressed(KEY_ESCAPE)){
         focus_input_field.in_focus = false;
     }
@@ -49,6 +52,8 @@ void update_input_field(){
                     focus_input_field.content[focus_input_field.chars_count] = char_key;
                     focus_input_field.content[focus_input_field.chars_count+1] = '\0';
                     focus_input_field.chars_count++;
+                    
+                    focus_input_field.changed = true;
                 }
             }
 
