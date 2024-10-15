@@ -8,8 +8,12 @@ void draw_texture(Texture tex, int x, int y, Color tint){
     DrawTexture(tex, x, y, tint);
 }
 
-void draw_texture(Texture tex, Vector2 pos, float rotation, Color tint){
-    DrawTextureEx(tex, pos, rotation, 1, tint);
+void draw_texture(Texture tex, Vector2 pos, Vector2 pivot, float rotation, Color tint){
+    Vector2 origin = {tex.width * pivot.x, tex.height * pivot.y};
+    Rectangle source = {0.0f, 0.0f, (f32)tex.width, (f32)tex.height};
+    Rectangle dest = {pos.x + origin.x, pos.y + origin.y, (f32)tex.width, (f32)tex.height};
+
+    DrawTexturePro(tex, source, dest, origin, rotation, tint);
 }
 
 void draw_rect(Vector2 pos, Vector2 size, Color color){

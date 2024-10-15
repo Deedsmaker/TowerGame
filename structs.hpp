@@ -14,6 +14,7 @@ enum Flags{
     ENEMY = 1 << 3,
     SWORD = 1 << 4,
     BIRD_ENEMY = 1 << 5,
+    TEXTURE = 1 << 6,
     
     TEST = 1 << 31
 };
@@ -136,6 +137,9 @@ struct Entity{
 
     b32 enabled = 1;
     
+    b32 has_texture = false;
+    Texture texture;
+    
     b32 destroyed = 0;
     
     Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
@@ -159,12 +163,14 @@ struct Entity{
     
     Color_Changer color_changer;
     
-    Player player;
+    //Player player;
     Ground ground;
     Text_Drawer text_drawer;
     Enemy enemy;
     Bird_Enemy bird_enemy;
 };
+
+global_variable Player player_data;
 
 struct Spawn_Object{
     char name[32];
