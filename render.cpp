@@ -8,11 +8,13 @@ void draw_texture(Texture tex, int x, int y, Color tint){
     DrawTexture(tex, x, y, tint);
 }
 
-void draw_texture(Texture tex, Vector2 pos, Vector2 pivot, float rotation, Color tint){
-    Vector2 origin = {tex.width * pivot.x, tex.height * pivot.y};
+void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float rotation, Color tint){
+    Vector2 target_size = {tex.width * scale.x, tex.height * scale.y};
+    
+    Vector2 origin = {target_size.x * pivot.x, target_size.y * pivot.y};
     Rectangle source = {0.0f, 0.0f, (f32)tex.width, (f32)tex.height};
-    Rectangle dest = {pos.x + origin.x, pos.y + origin.y, (f32)tex.width, (f32)tex.height};
-
+    Rectangle dest = {pos.x, pos.y, (f32)tex.width * scale.x, (f32)tex.height * scale.y};
+    
     DrawTexturePro(tex, source, dest, origin, rotation, tint);
 }
 

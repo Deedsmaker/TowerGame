@@ -405,7 +405,7 @@ void init_spawn_objects(){
     spawn_objects.add(enemy_bird_object);
     
     cat_texture = LoadTexture("resources/textures/cat.png");
-    Entity cat_entity = Entity({0, 0}, {cat_texture.width / UNIT_SIZE, cat_texture.height / UNIT_SIZE}, {0.5f, 0.5f}, 0, TEXTURE);
+    Entity cat_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, TEXTURE);
     cat_entity.color = WHITE;
     cat_entity.color_changer.start_color = cat_entity.color;
     cat_entity.color_changer.target_color = cat_entity.color * 1.5f;
@@ -421,7 +421,7 @@ void init_spawn_objects(){
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
-    Entity texture_entity = Entity({0, 0}, {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE}, {0.5f, 0.5f}, 0, TEXTURE);
+    Entity texture_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, TEXTURE);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
@@ -2574,12 +2574,9 @@ void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
 }
 
 void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
-    // tex.width *= scale.x;
-    // tex.height *= scale.y;
-    // scale.x *= tex.width  / UNIT_SIZE;
-    // scale.y *= tex.height / UNIT_SIZE;
-    Vector2 screen_pos = rect_screen_pos(position, {(float)tex.width / UNIT_SIZE, (f32)tex.height / UNIT_SIZE}, pivot);
-    draw_texture(tex, screen_pos, pivot, rotation, color);
+    //Vector2 screen_pos = rect_screen_pos(position, {(float)tex.width / UNIT_SIZE, (f32)tex.height / UNIT_SIZE}, pivot);
+    Vector2 screen_pos = world_to_screen(position);
+    draw_texture(tex, screen_pos, scale, pivot, rotation, color);
 }
 
 void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
