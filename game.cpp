@@ -49,7 +49,20 @@ void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
 
+void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture texture, Vector2 pivot){
+    Vector2 scaled_size = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+    vertices->add({pivot.x * scaled_size.x, pivot.y * scaled_size.y});
+    vertices->add({-pivot.x * scaled_size.x, pivot.y * scaled_size.y});
+    vertices->add({pivot.x * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
+    vertices->add({(pivot.x - 1.0f) * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
+}
+
 void pick_vertices(Entity *entity){
+    if (entity->flags & TEXTURE){
+        add_texture_vertices(&entity->vertices, entity->texture, entity->pivot);
+        return;
+    }
+
     if (entity->flags & (SWORD | BIRD_ENEMY)){
         add_sword_vertices(&entity->vertices, entity->pivot);
     } else{
@@ -112,6 +125,22 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAG
     change_scale(this, _scale);
 }
 
+Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture _texture, FLAGS _flags){
+    flags    = _flags;
+    position = _pos;
+    pivot = _pivot;
+    texture = _texture;
+    scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+    
+    pick_vertices(this);
+    
+    rotation = 0;
+    
+    rotate_to(this, _rotation);
+    
+    change_scale(this, _scale);
+}
+
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
     flags    = _flags;
     id = _id;
@@ -150,8 +179,10 @@ Entity::Entity(Entity *copy){
     flags = copy->flags;
     color = copy->color;
     
-    texture = copy->texture;
-    
+    if (flags & TEXTURE){
+        texture = copy->texture;
+        scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+    }
     color_changer = copy->color_changer;
     
     if (flags & DRAW_TEXT){
@@ -405,7 +436,7 @@ void init_spawn_objects(){
     spawn_objects.add(enemy_bird_object);
     
     cat_texture = LoadTexture("resources/textures/cat.png");
-    Entity cat_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, TEXTURE);
+    Entity cat_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, cat_texture, TEXTURE);
     cat_entity.color = WHITE;
     cat_entity.color_changer.start_color = cat_entity.color;
     cat_entity.color_changer.target_color = cat_entity.color * 1.5f;
@@ -421,13 +452,12 @@ void init_spawn_objects(){
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
-    Entity texture_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, TEXTURE);
+    Entity texture_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, texture, TEXTURE);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
     str_copy(texture_entity.name, name); 
     
-    texture_entity.has_texture = true;
     texture_entity.texture = texture;
     
     Spawn_Object texture_object;
@@ -440,7 +470,6 @@ void add_spawn_object_from_texture(Texture texture, char *name){
 Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>(512);
 
 void load_textures(){
-
     FilePathList textures = LoadDirectoryFiles("resources/textures");
     for (int i = 0; i < textures.count; i++){
         char *name = textures.paths[i];
@@ -1310,6 +1339,8 @@ void update_editor(){
         if (editor.create_box_active && !editor.create_box_closing){
             need_close_create_box = true;
         } else{ //open create box
+            editor.create_box_open_mouse_position = input.mouse_position;
+            
             editor.create_box_active = true;
             editor.create_box_closing = false;
             editor.create_box_lifetime = 0;
@@ -1374,7 +1405,7 @@ void update_editor(){
             
             if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box") || (this_object_selected && IsKeyPressed(KEY_ENTER))){
                 Entity *entity = add_entity(&obj.entity);
-                entity->position = input.mouse_position;
+                entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
                 
                 Undo_Action undo_action;
@@ -1571,6 +1602,12 @@ void update_editor(){
 }
 
 void calculate_bounds(Entity *entity){
+    // if (entity->flags & TEXTURE){
+    //     //Vector2 middle_position = {entity->texture.width * (0.5f - p
+    //     entity->bounds = {{(f32)entity->texture.width / UNIT_SIZE, (f32)entity->texture.height / UNIT_SIZE}, {0.0f, 0.0f}};
+    //     return;
+    // }
+
     f32 top_vertex    = -INFINITY;
     f32 bottom_vertex =  INFINITY;
     f32 right_vertex  = -INFINITY;
@@ -1617,11 +1654,11 @@ void change_scale(Entity *entity, Vector2 new_scale){
         
         if (old_scale.y == 1 || abs(up_dot) >= entity->scale.y * 0.1f){
             up_dot    = normalized(up_dot);
-            *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y;
+            *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y * entity->scaling_multiplier.y;
         }
         if (old_scale.x == 1 || abs(right_dot) >= entity->scale.x * 0.1f){
             right_dot = normalized(right_dot);
-            *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x;
+            *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x * entity->scaling_multiplier.x;
         } 
     }
     
@@ -2211,7 +2248,7 @@ void draw_entities(){
             draw_game_line(e->position, e->position + e->right * 3, 0.3f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.3f, GREEN);
         }
-        b32 draw_bounds = false;
+        b32 draw_bounds = true;
         if (draw_bounds){
             draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
             draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);

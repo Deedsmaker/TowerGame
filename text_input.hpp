@@ -117,7 +117,6 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         str_copy(input_field.tag, tag);
     }
     
-    
     Rectangle field_rect = {input_field.position.x, input_field.position.y, input_field.size.x, input_field.size.y};
     
     if (make_next_in_focus || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), field_rect)){
@@ -127,6 +126,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         make_next_in_focus = false;
         just_focused = true;
         clicked_ui = true;
+        
     }
     
     input_fields.add(input_field);

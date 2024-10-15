@@ -126,6 +126,7 @@ struct Entity{
     Entity(Vector2 _pos, Vector2 _scale);
     Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
+    Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture texture, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices);
     Entity(Entity *copy);
@@ -137,8 +138,8 @@ struct Entity{
 
     b32 enabled = 1;
     
-    b32 has_texture = false;
     Texture texture;
+    Vector2 scaling_multiplier = {1, 1};
     
     b32 destroyed = 0;
     
@@ -266,6 +267,7 @@ struct Editor{
     i32 create_box_selected_index = 0;
     f32 create_box_lifetime = 0;
     f32 create_box_slide_time = 0.25f;
+    Vector2 create_box_open_mouse_position = {0, 0};
 
     Vector2 dragging_start;
     Vector2 scaling_start;
