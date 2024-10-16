@@ -143,6 +143,7 @@ struct Entity{
     
     b32 destroyed = 0;
     
+    Array<Vector2, MAX_VERTICES> unscaled_vertices = Array<Vector2, MAX_VERTICES>();
     Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
     
     Vector2 up = {0, 1};
@@ -251,6 +252,7 @@ struct Undo_Action{
     Vector2 position_change = {0, 0};  
     Vector2 scale_change = {0, 0};
     Array<Vector2, MAX_VERTICES> vertices_change = Array<Vector2, MAX_VERTICES>();
+    Array<Vector2, MAX_VERTICES> unscaled_vertices_change = Array<Vector2, MAX_VERTICES>();
     f32 rotation_change = 0;
 };
 
@@ -273,6 +275,7 @@ struct Editor{
     Vector2 scaling_start;
     f32     rotating_start;
     Array<Vector2, MAX_VERTICES> vertices_start = Array<Vector2, MAX_VERTICES>();
+    Array<Vector2, MAX_VERTICES> unscaled_vertices_start = Array<Vector2, MAX_VERTICES>();
     
     b32 is_scaling_entity = false;
     b32 is_rotating_entity = false;

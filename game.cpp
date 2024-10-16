@@ -60,12 +60,15 @@ void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture textur
 void pick_vertices(Entity *entity){
     if (entity->flags & TEXTURE){
         add_texture_vertices(&entity->vertices, entity->texture, entity->pivot);
+        add_texture_vertices(&entity->unscaled_vertices, entity->texture, entity->pivot);
         return;
     }
 
     if (entity->flags & (SWORD | BIRD_ENEMY)){
         add_sword_vertices(&entity->vertices, entity->pivot);
+        add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
     } else{
+        add_rect_vertices(&entity->unscaled_vertices, entity->pivot);
         add_rect_vertices(&entity->vertices, entity->pivot);
     }
 }
@@ -174,6 +177,7 @@ Entity::Entity(Entity *copy){
     pivot = copy->pivot;
     
     vertices = copy->vertices;
+    unscaled_vertices = copy->unscaled_vertices;
     rotation = copy->rotation;
     scale = copy->scale;
     flags = copy->flags;
@@ -923,12 +927,27 @@ void assign_moving_vertex_entity(Entity *e, int vertex_index){
 
     editor.moving_vertex = vertex;
     editor.moving_vertex_index = vertex_index;
-    // editor.last_selected_vertex = vertex;
-    // editor.last_selected_vertex_index = vertex_index;
     editor.moving_vertex_entity = e;
     editor.moving_vertex_entity_id = e->id;
     
     editor.dragging_entity = NULL;
+}
+
+void move_vertex(Entity *entity, Vector2 target_position, int vertex_index){
+    Vector2 *vertex = entity->vertices.get_ptr(vertex_index);
+    Vector2 *unscaled_vertex = entity->unscaled_vertices.get_ptr(vertex_index);
+    
+    Vector2 local_target = local(entity, target_position);
+
+    Vector2 displacement = local_target - *vertex;
+
+    Vector2 unscaled_displacement = {displacement.x / entity->scale.x, displacement.y / entity->scale.y};
+    
+    *vertex = local_target;
+    Vector2 modified_unscaled = *unscaled_vertex + unscaled_displacement;
+    *unscaled_vertex = normalized(*vertex) * magnitude(modified_unscaled);
+    
+    calculate_bounds(entity);
 }
 
 void validate_editor_pointers(){
@@ -951,14 +970,12 @@ void add_undo_action(Undo_Action undo_action){
 void undo_add_position(Entity *entity, Vector2 position_change){
     Undo_Action undo_action;
     undo_action.position_change = position_change;
-    //undo_action.entity = entity;
     undo_action.entity_id = entity->id;
     add_undo_action(undo_action);
 }
 
 void undo_add_scaling(Entity *entity, Vector2 scale_change){
     Undo_Action undo_action;
-    //undo_action.entity = entity;
     undo_action.entity_id = entity->id;
     undo_action.scale_change = scale_change;
     
@@ -970,7 +987,6 @@ void undo_add_scaling(Entity *entity, Vector2 scale_change){
 
 void undo_add_rotation(Entity *entity, f32 rotation_change){
     Undo_Action undo_action;
-    //undo_action.entity = entity;
     undo_action.entity_id = entity->id;
     undo_action.rotation_change = rotation_change;
     
@@ -986,7 +1002,6 @@ void editor_delete_entity(Entity *entity, b32 add_undo){
         undo_action.entity_was_deleted = true;
         copy_entity(&undo_action.deleted_entity, editor.selected_entity);
         undo_action.entity_id = undo_action.deleted_entity.id;
-        //undo_action.entity = NULL;
         add_undo_action(undo_action);
     }
     entity->destroyed = true;
@@ -1003,21 +1018,25 @@ void editor_delete_entity(int entity_id, b32 add_undo){
 void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action){
     for (int i = 0; i < entity->vertices.count; i++){
         *undo_action->vertices_change.get_ptr(i) = entity->vertices.get(i) - editor.vertices_start.get(i);
+        *undo_action->unscaled_vertices_change.get_ptr(i) = entity->unscaled_vertices.get(i) - editor.unscaled_vertices_start.get(i);
     }
     undo_action->vertices_change.count = entity->vertices.count;
-    //undo_action->entity = entity;
+    undo_action->unscaled_vertices_change.count = entity->unscaled_vertices.count;
     undo_action->entity_id = entity->id;
 }
 
 void undo_remember_vertices_start(Entity *entity){
     editor.vertices_start.clear();
+    editor.unscaled_vertices_start.clear();
     for (int i = 0; i < entity->vertices.count; i++){
         *editor.vertices_start.get_ptr(i) = entity->vertices.get(i);
+        *editor.unscaled_vertices_start.get_ptr(i) = entity->unscaled_vertices.get(i);
     }
     editor.vertices_start.count = entity->vertices.count; 
+    editor.unscaled_vertices_start.count = entity->unscaled_vertices.count; 
 }
 
-//Could be NULL
+//new selected could be NULL
 void assign_selected_entity(Entity *new_selected){
     if (editor.selected_entity){
         editor.selected_entity->color_changer.changing = 0;
@@ -1082,7 +1101,7 @@ void update_editor_ui(){
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
         if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
             || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
-            /*|| focus_input_field.changed && (str_cmp(focus_input_field.tag, "inspector_scale_x") || str_cmp(focus_input_field.tag, "inspector_scale_y"))*/){
+            || focus_input_field.changed && (str_cmp(focus_input_field.tag, "inspector_scale_x") || str_cmp(focus_input_field.tag, "inspector_scale_y"))){
             Vector2 old_scale = editor.selected_entity->scale;
             Vector2 new_scale = old_scale;
             undo_remember_vertices_start(editor.selected_entity);
@@ -1105,7 +1124,8 @@ void update_editor_ui(){
         v_pos += height_add;
         
         make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
-        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 120, v_pos}, {75, 25}, "inspector_rotation")){
+        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 120, v_pos}, {75, 25}, "inspector_rotation")
+            || focus_input_field.changed && str_cmp(focus_input_field.tag, "inspector_rotation")){
             f32 old_rotation = editor.selected_entity->rotation;
             f32 new_rotation = old_rotation;
             
@@ -1223,10 +1243,12 @@ void update_editor(){
     }
     
     if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
-        *editor.moving_vertex = global(editor.selected_entity, *editor.moving_vertex);
-        editor.moving_vertex->x = closest_vertex_global.x;
-        editor.moving_vertex->y = closest_vertex_global.y;
-        *editor.moving_vertex = local(editor.selected_entity, *editor.moving_vertex);
+        move_vertex(editor.moving_vertex_entity, closest_vertex_global, editor.moving_vertex_index);
+    
+        // *editor.moving_vertex = global(editor.selected_entity, *editor.moving_vertex);
+        // editor.moving_vertex->x = closest_vertex_global.x;
+        // editor.moving_vertex->y = closest_vertex_global.y;
+        // *editor.moving_vertex = local(editor.selected_entity, *editor.moving_vertex);
         
         undo_apply_vertices_change(editor.selected_entity, &undo_action);
         something_in_undo = true;
@@ -1296,10 +1318,12 @@ void update_editor(){
     }
     
     if (editor.moving_vertex != NULL){
-        *editor.moving_vertex = global(editor.moving_vertex_entity, *editor.moving_vertex);
-        editor.moving_vertex->x = input.mouse_position.x;
-        editor.moving_vertex->y = input.mouse_position.y;
-        *editor.moving_vertex = local(editor.moving_vertex_entity, *editor.moving_vertex);
+        move_vertex(editor.moving_vertex_entity, input.mouse_position, editor.moving_vertex_index);
+        
+        // *editor.moving_vertex = global(editor.moving_vertex_entity, *editor.moving_vertex);
+        // editor.moving_vertex->x = input.mouse_position.x;
+        // editor.moving_vertex->y = input.mouse_position.y;
+        // *editor.moving_vertex = local(editor.moving_vertex_entity, *editor.moving_vertex);
     }
     
     //editor copy/paste
@@ -1561,6 +1585,7 @@ void update_editor(){
             
             for (int i = 0; i < action->vertices_change.count; i++){
                 *undo_entity->vertices.get_ptr(i) -= action->vertices_change.get(i);
+                *undo_entity->unscaled_vertices.get_ptr(i) -= action->unscaled_vertices_change.get(i);
             }
             
             calculate_bounds(undo_entity);
@@ -1591,6 +1616,7 @@ void update_editor(){
             undo_entity->rotation += action->rotation_change;
             for (int i = 0; i < action->vertices_change.count; i++){
                 *undo_entity->vertices.get_ptr(i) += action->vertices_change.get(i);
+                *undo_entity->unscaled_vertices.get_ptr(i) += action->unscaled_vertices_change.get(i);
             }
             
             calculate_bounds(undo_entity);
@@ -1649,21 +1675,33 @@ void change_scale(Entity *entity, Vector2 new_scale){
     clamp(&entity->scale.x, 0.01f, 10000);
     clamp(&entity->scale.y, 0.01f, 10000);
 
-    Vector2 vec_scale_difference = entity->scale - old_scale;
+    //Vector2 vec_scale_difference = entity->scale - old_scale;
+    
+    //auto vertices = entity->unscaled_vertices;
     
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
-        f32 up_dot    = dot(entity->up,    *vertex);
-        f32 right_dot = dot(entity->right, *vertex);
+        Vector2 unscaled_vertex = entity->unscaled_vertices.get(i);
         
-        if (old_scale.y == 1 || abs(up_dot) >= entity->scale.y * 0.1f){
-            up_dot    = normalized(up_dot);
-            *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y * entity->scaling_multiplier.y;
-        }
-        if (old_scale.x == 1 || abs(right_dot) >= entity->scale.x * 0.1f){
-            right_dot = normalized(right_dot);
-            *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x * entity->scaling_multiplier.x;
-        } 
+        Vector2 dir_to_vertex = normalized(unscaled_vertex - entity->position);
+        
+        f32 up_dot    = dot(entity->up,    unscaled_vertex);
+        f32 right_dot = dot(entity->right, unscaled_vertex);
+
+        
+        *vertex = unscaled_vertex + (entity->up * up_dot * entity->scale.y) + (entity->right * right_dot * entity->scale.x);
+        
+        // f32 up_dot    = dot(entity->up,    *vertex);
+        // f32 right_dot = dot(entity->right, *vertex);
+        
+        // if (old_scale.y == 1 || abs(up_dot) >= entity->scale.y * 0.1f){
+        //     up_dot    = normalized(up_dot);
+        //     *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y * entity->scaling_multiplier.y;
+        // }
+        // if (old_scale.x == 1 || abs(right_dot) >= entity->scale.x * 0.1f){
+        //     right_dot = normalized(right_dot);
+        //     *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x * entity->scaling_multiplier.x;
+        // } 
     }
     
     calculate_bounds(entity);
@@ -1715,6 +1753,7 @@ void rotate_to(Entity *entity, f32 new_rotation){
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
         rotate_around_point(vertex, {0, 0}, entity->rotation - old_rotation);
+        rotate_around_point(entity->unscaled_vertices.get_ptr(i), {0, 0}, entity->rotation - old_rotation);
     }
     
     calculate_bounds(entity);
@@ -2252,7 +2291,7 @@ void draw_entities(){
             draw_game_line(e->position, e->position + e->right * 3, 0.3f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.3f, GREEN);
         }
-        b32 draw_bounds = true;
+        b32 draw_bounds = false;
         if (draw_bounds){
             draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
             draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
@@ -2338,7 +2377,9 @@ void draw_editor(){
         Vector2 vec_to_mouse = input.mouse_position - editor.ruler_start_position;
         f32 length = magnitude(vec_to_mouse);
         
-        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), TextFormat("%.2f", length), 20, RED);
+        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), TextFormat("%.2f", length), 24, RED);
+        draw_game_text(input.mouse_position + Vector2_up, TextFormat("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26, GREEN); 
+        
     }
 }
 
@@ -2543,11 +2584,11 @@ Particle_Emitter* add_emitter(){
     return context.emitters.last_ptr();
 }
 
-Vector2 global(Entity *e, Vector2 local_pos){
+inline Vector2 global(Entity *e, Vector2 local_pos){
     return e->position + local_pos;
 }
 
-Vector2 local(Entity *e, Vector2 global_pos){
+inline Vector2 local(Entity *e, Vector2 global_pos){
     return global_pos - e->position;
 }
 
