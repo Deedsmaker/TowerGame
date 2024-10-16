@@ -320,4 +320,5 @@ struct Debug{
     b32 draw_scale = false;
     b32 draw_directions = false;
     b32 draw_up_right = false;
+    b32 draw_bounds = true;
 };

@@ -97,8 +97,6 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
     add_rect_vertices(&vertices, pivot);
 
     rotation = 0;
-    
-    rotation = 0;
     up = {0, 1};
     right = {1, 0};
     change_scale(this, _scale);
@@ -1662,7 +1660,8 @@ void calculate_bounds(Entity *entity){
         }
     }    
     
-    middle_position = {0.5f * left_vertex + 0.5f * right_vertex, 0.5f * bottom_vertex + 0.5f * top_vertex};
+    middle_position = {(1.0f - entity->pivot.x) * left_vertex + entity->pivot.x * right_vertex,
+                       entity->pivot.y * bottom_vertex + (1.0f - entity->pivot.y) * top_vertex};
     
     entity->bounds = {{right_vertex - left_vertex, top_vertex - bottom_vertex}, middle_position};
 }
@@ -1688,9 +1687,8 @@ void change_scale(Entity *entity, Vector2 new_scale){
         f32 up_dot    = dot(entity->up,    unscaled_vertex);
         f32 right_dot = dot(entity->right, unscaled_vertex);
 
-        
-        *vertex = unscaled_vertex + (entity->up * up_dot * entity->scale.y) + (entity->right * right_dot * entity->scale.x);
-        
+        *vertex = normalized(unscaled_vertex) + (entity->up * up_dot * entity->scale.y) + (entity->right * right_dot * entity->scale.x);
+    
         // f32 up_dot    = dot(entity->up,    *vertex);
         // f32 right_dot = dot(entity->right, *vertex);
         
@@ -2291,8 +2289,7 @@ void draw_entities(){
             draw_game_line(e->position, e->position + e->right * 3, 0.3f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.3f, GREEN);
         }
-        b32 draw_bounds = false;
-        if (draw_bounds){
+        if (debug.draw_bounds){
             draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
             draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
         }
