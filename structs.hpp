@@ -139,6 +139,7 @@ struct Entity{
     b32 enabled = 1;
     
     Texture texture;
+    char texture_name[64];
     Vector2 scaling_multiplier = {1, 1};
     
     b32 destroyed = 0;
@@ -315,10 +316,16 @@ struct Editor{
 struct Debug{
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;
-    b32 draw_fps = true;
     b32 draw_rotation = false;
     b32 draw_scale = false;
     b32 draw_directions = false;
     b32 draw_up_right = false;
     b32 draw_bounds = true;
+    b32 draw_position = false;
+    
+    b32 info_fps = true;
+    b32 info_spin_progress = true;
+    b32 info_blood_progress = true;
+    b32 info_particle_count = true;
+    b32 info_emitters_count = true;
 };

@@ -19,6 +19,7 @@ void update_editor_ui();
 void update_editor();
 void update_entities();
 
+void setup_color_changer(Entity *entity);
 void update_color_changer(Entity *entity);
 
 void draw_game();

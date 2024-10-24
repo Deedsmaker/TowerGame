@@ -26,6 +26,8 @@ global_variable Vector2 frame_on_circle_rnd;
 
 global_variable b32 clicked_ui = false;
 
+global_variable Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>(512);
+
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
 #include "text_input.hpp"
@@ -75,6 +77,7 @@ void pick_vertices(Entity *entity){
 
 Entity::Entity(){
     calculate_bounds(this);
+    setup_color_changer(this);
 }
 
 Entity::Entity(Vector2 _pos){
@@ -88,6 +91,7 @@ Entity::Entity(Vector2 _pos){
     right = {1, 0};
     
     change_scale(this, {1, 1});
+    setup_color_changer(this);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale){
@@ -100,6 +104,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale){
     up = {0, 1};
     right = {1, 0};
     change_scale(this, _scale);
+    setup_color_changer(this);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
@@ -110,6 +115,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
     
     rotate_to(this, _rotation);
     change_scale(this, _scale);
+    setup_color_changer(this);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
@@ -124,6 +130,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAG
     rotate_to(this, _rotation);
     
     change_scale(this, _scale);
+    setup_color_changer(this);
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture _texture, FLAGS _flags){
@@ -140,6 +147,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
     rotate_to(this, _rotation);
     
     change_scale(this, _scale);
+    setup_color_changer(this);
 }
 
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
@@ -153,8 +161,8 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     rotation = 0;
     rotate_to(this, _rotation);
     change_scale(this, _scale);
+    setup_color_changer(this);
 }
-
 
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices){
     flags    = _flags;
@@ -167,6 +175,7 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     rotation = 0;
     rotate_to(this, _rotation);
     change_scale(this, _scale);
+    setup_color_changer(this);
 }
 
 Entity::Entity(Entity *copy){
@@ -184,6 +193,7 @@ Entity::Entity(Entity *copy){
     if (flags & TEXTURE){
         texture = copy->texture;
         scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+        str_copy(texture_name, copy->texture_name);
     }
     color_changer = copy->color_changer;
     
@@ -195,6 +205,7 @@ Entity::Entity(Entity *copy){
     }
     
     calculate_bounds(this);
+    setup_color_changer(this);
 }
 
 void parse_line(char *line, char *result, int *index){ 
@@ -245,12 +256,21 @@ int save_level(const char *level_name){
         Color color = e->color_changer.start_color;
         fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d: ", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags);
         
-        fprintf(fptr, "vertices[ ");
+        fprintf(fptr, "vertices [ ");
         for (int v = 0; v < e->vertices.count; v++){
             fprintf(fptr, "{:%f:, :%f:} ", e->vertices.get(v).x, e->vertices.get(v).y); 
         }
-        
         fprintf(fptr, "] "); 
+        
+        fprintf(fptr, "unscaled_vertices [ ");
+        for (int v = 0; v < e->unscaled_vertices.count; v++){
+            fprintf(fptr, "{:%f:, :%f:} ", e->unscaled_vertices.get(v).x, e->unscaled_vertices.get(v).y); 
+        }
+        fprintf(fptr, "] "); 
+        
+        if (e->flags & TEXTURE){
+            fprintf(fptr, "texture_name:%s: ", e->texture_name);
+        }
         
         fprintf(fptr, ";\n"); 
     }
@@ -261,131 +281,151 @@ int save_level(const char *level_name){
     return 1;
 }
 
-int load_level(const char *level_name){
-    FILE *fptr = fopen(level_name, "r");
-    
-    if (fptr == NULL){
-        return 0;
-    }
-    
-    const unsigned MAX_LENGTH = 1000;
-    char buffer[MAX_LENGTH];
+b32 is_digit_or_minus(char ch){
+    return ch == '-' || is_digit(ch);
+}
 
-    while (fptr != NULL && fgets(buffer, MAX_LENGTH, fptr)){
-        if (str_cmp(buffer, "Entities:\n")){
-            continue;   
-        }
+void fill_int_from_string(int *int_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *int_ptr = atoi(str_data);
+}    
+
+void fill_float_from_string(float *float_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *float_ptr = atof(str_data);
+}    
+
+void fill_vector2_from_string(Vector2 *vec_ptr, char *x_str, char *y_str){
+    assert(is_digit_or_minus(*x_str));
+    assert(is_digit_or_minus(*y_str));
     
-        i32 entity_id;
-        Vector2 entity_position;
-        Vector2 entity_scale;
-        Vector2 entity_pivot;
-        f32     entity_rotation;
-        Color   entity_color;
-        FLAGS   entity_flags;
+    vec_ptr->x = atof(x_str);
+    vec_ptr->y = atof(y_str);
+}
+
+void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_str, char *w_str){
+    assert(is_digit_or_minus(*x_str));
+    assert(is_digit_or_minus(*y_str));
+    assert(is_digit_or_minus(*z_str));
+    assert(is_digit_or_minus(*w_str));
+    
+    vec_ptr->r = atof(x_str);
+    vec_ptr->g = atof(y_str);
+    vec_ptr->b = atof(z_str);
+    vec_ptr->a = atof(w_str);
+}
+
+void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dynamic_Array<Medium_Str> line_arr, int *index_ptr){
+    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
+    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+    
+    *index_ptr += 2;
+    
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
+        Medium_Str current = line_arr.get((*index_ptr));
+        Medium_Str next    = line_arr.get((*index_ptr) + 1);
         
-        Array<Vector2, MAX_VERTICES> entity_vertices = Array<Vector2, MAX_VERTICES>(); 
-        Vector2 vertex;
+        fill_vector2_from_string(vertices->get_ptr(vertices->count), current.data, next.data);
+        vertices->count++;
+    }
+}
+
+int load_level(const char *level_name){
+    // FILE *fptr = fopen(level_name, "r");
+    
+    // if (fptr == NULL){
+    //     return 0;
+    // }
+    
+    // const unsigned MAX_LENGTH = 1000;
+    // char buffer[MAX_LENGTH];
+    
+    File file = load_file(level_name, "r");
+    
+    Dynamic_Array<Medium_Str> splitted_line = Dynamic_Array<Medium_Str>(64);
+    
+    for (int line_index = 0; line_index < file.lines.count; line_index++){
+        Long_Str line = file.lines.get(line_index);
         
-        b32 found_id = false;
-        b32 found_position_x = false;
-        b32 found_position_y = false;
-        b32 found_scale_x    = false;
-        b32 found_scale_y    = false;
-        b32 found_pivot_x    = false;
-        b32 found_pivot_y    = false;
-        b32 found_rotation   = false;
-        b32 found_color_r    = false;
-        b32 found_color_g    = false;
-        b32 found_color_b    = false;
-        b32 found_color_a    = false;
-        b32 found_flags      = false;
+        if (str_cmp(line.data, "Entities:")){
+            continue;
+        }
+        split_str(line.data, ":{}, ;", &splitted_line);
         
-        b32 parsing_vertices = false;
-        b32 found_vertex_x   = false;
-        b32 found_vertex_y   = false;
-        b32 found_vertices   = false;
+        Entity entity_to_fill = Entity();
         
-        i32 parsed_count = 50;
-        char parsed_data[parsed_count];
-        
-        for (int i = 0; buffer[i] != NULL && buffer[i] != ';'; i++){
-            if (buffer[i] == '['){
-                parsing_vertices = true;
-            }
-            
-            if (buffer[i] == ']' && parsing_vertices){
-                parsing_vertices = false;
-                found_vertices = true;
-            }
-        
-            if (buffer[i] == ':'){
-                zero_array(parsed_data, parsed_count);
-                parse_line(buffer, parsed_data, &i);
-                
-                if (!found_id){
-                    entity_id = atoi(parsed_data);
-                    found_id = true;
-                } else if (!found_position_x){
-                    entity_position.x = atof(parsed_data);
-                    found_position_x = true;
-                } else if (!found_position_y){
-                    entity_position.y = atof(parsed_data);
-                    found_position_y = true;
-                } else if (!found_scale_x){
-                    entity_scale.x = atof(parsed_data);
-                    found_scale_x = true;
-                } else if (!found_scale_y){
-                    entity_scale.y = atof(parsed_data);
-                    found_scale_y = true;
-                } else if (!found_pivot_x){
-                    entity_pivot.x = atof(parsed_data);
-                    found_pivot_x = true;
-                } else if (!found_pivot_y){
-                    entity_pivot.y = atof(parsed_data);
-                    found_pivot_y = true;
-                } else if (!found_rotation){
-                    entity_rotation = atof(parsed_data);
-                    found_rotation = true;
-                } else if (!found_color_r){
-                    entity_color.r = (char)atoi(parsed_data);
-                    found_color_r = true;
-                } else if (!found_color_g){
-                    entity_color.g = (char)atoi(parsed_data);
-                    found_color_g = true;
-                } else if (!found_color_b){
-                    entity_color.b = (char)atoi(parsed_data);
-                    found_color_b = true;
-                } else if (!found_color_a){
-                    entity_color.a = (char)atoi(parsed_data);
-                    found_color_a = true;
-                } else if (!found_flags){
-                    entity_flags = atoi(parsed_data);
-                    found_flags = true;
-                } else if (!found_vertices && parsing_vertices){
-                    if (!found_vertex_x){
-                        vertex.x = atof(parsed_data);
-                        found_vertex_x = true;
-                        found_vertex_y = false;
-                    } else if (!found_vertex_y){
-                        vertex.y = atof(parsed_data);
-                        entity_vertices.add(vertex);
-                        found_vertex_y = true;
-                        found_vertex_x = false;
-                    }
-                }
+        for (int i = 0; i < splitted_line.count; i++){
+            if (str_cmp(splitted_line.get(i).data, "id")){
+                fill_int_from_string(&entity_to_fill.id, splitted_line.get(i+1).data);
+                i++;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "pos")){
+                fill_vector2_from_string(&entity_to_fill.position, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                i += 2;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "scale")){
+                fill_vector2_from_string(&entity_to_fill.scale, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                i += 2;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "pivot")){
+                fill_vector2_from_string(&entity_to_fill.pivot, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                i += 2;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "rotation")){
+                fill_float_from_string(&entity_to_fill.rotation, splitted_line.get(i+1).data);
+                i += 1;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "color")){
+                fill_vector4_from_string(&entity_to_fill.color, splitted_line.get(i+1).data, splitted_line.get(i+2).data, splitted_line.get(i+3).data, splitted_line.get(i+4).data);
+                i += 4;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "flags")){
+                fill_int_from_string(&entity_to_fill.flags, splitted_line.get(i+1).data);
+                i++;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "vertices")){
+                // fill_int_from_string(&entity_to_fill.rotation);
+                fill_vertices_array_from_string(&entity_to_fill.vertices, splitted_line, &i);
+                // i--;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "unscaled_vertices")){
+                // fill_int_from_string(&entity_to_fill.rotation);
+                fill_vertices_array_from_string(&entity_to_fill.unscaled_vertices, splitted_line, &i);
+                //i--;
+                continue;
+            } else if (str_cmp(splitted_line.get(i).data, "texture_name")){
+                str_copy(entity_to_fill.texture_name, splitted_line.get(i+1).data);
+                i++;
+            } else{
+                assert(false);
             }
         }
         
-        //No need to assert every variable. We can add something to entity and old levels should not broke
-        assert(found_id && found_position_x && found_position_y);
+        if (entity_to_fill.flags & TEXTURE){
+            i64 texture_hash = hash_str(entity_to_fill.texture_name);
+            assert(textures_table.has_key(texture_hash));
+            entity_to_fill.texture = textures_table.get_by_key(texture_hash);
+        }
         
-        Entity *added_entity = add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags, entity_vertices);
+        Entity *added_entity = add_entity(&entity_to_fill, true);
         
         calculate_bounds(added_entity);
     }
     
-    fclose(fptr);
+    //free_string_array(&splitted_line);
+    splitted_line.free_arr();
+    unload_file(&file);
+
+        
+    //     //No need to assert every variable. We can add something to entity and old levels should not broke
+    //     assert(found_id && found_position_x && found_position_y);
+        
+    //     Entity *added_entity = add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags, entity_vertices);
+        
+    //     calculate_bounds(added_entity);
+    // }
+    
+    // fclose(fptr);
     
     setup_particles();
     
@@ -437,20 +477,21 @@ void init_spawn_objects(){
     
     spawn_objects.add(enemy_bird_object);
     
-    cat_texture = LoadTexture("resources/textures/cat.png");
-    Entity cat_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, cat_texture, TEXTURE);
-    cat_entity.color = WHITE;
-    cat_entity.color_changer.start_color = cat_entity.color;
-    cat_entity.color_changer.target_color = cat_entity.color * 1.5f;
-    str_copy(cat_entity.name, "cat"); 
+    // cat_texture = LoadTexture("resources/textures/cat.png");
+    // Entity cat_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, cat_texture, TEXTURE);
+    // cat_entity.color = WHITE;
+    // cat_entity.color_changer.start_color = cat_entity.color;
+    // cat_entity.color_changer.target_color = cat_entity.color * 1.5f;
+    // str_copy(cat_entity.name, "cat_funny"); 
     
-    cat_entity.texture = cat_texture;
+    // cat_entity.texture = cat_texture;
+    // str_copy(cat_entity.texture_name, "cat_funny");
     
-    Spawn_Object cat_object;
-    copy_entity(&cat_object.entity, &cat_entity);
-    str_copy(cat_object.name, cat_entity.name);
+    // Spawn_Object cat_object;
+    // copy_entity(&cat_object.entity, &cat_entity);
+    // str_copy(cat_object.name, cat_entity.name);
     
-    spawn_objects.add(cat_object);
+    //spawn_objects.add(cat_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -461,6 +502,7 @@ void add_spawn_object_from_texture(Texture texture, char *name){
     str_copy(texture_entity.name, name); 
     
     texture_entity.texture = texture;
+    str_copy(texture_entity.texture_name, name);
     
     Spawn_Object texture_object;
     copy_entity(&texture_object.entity, &texture_entity);
@@ -469,10 +511,8 @@ void add_spawn_object_from_texture(Texture texture, char *name){
     spawn_objects.add(texture_object);
 }
 
-Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>(512);
-
 void load_textures(){
-    FilePathList textures = LoadDirectoryFiles("resources/textures");
+    FilePathList textures = LoadDirectoryFiles("resources\\textures");
     for (int i = 0; i < textures.count; i++){
         char *name = textures.paths[i];
         
@@ -480,22 +520,28 @@ void load_textures(){
             continue;
         }
         
-        int hash = hash_str(name);
         Texture texture = LoadTexture(name);
-        int try_count = 0;
-        while (!textures_table.add(hash, texture) && try_count < 1000){
-            hash++;
-            try_count++;
-        }
-        //assert(try_count < 1000);
-        if (try_count >= 1000){
+        
+        substring_after_line(name, "resources\\textures\\");
+        
+        i64 hash = hash_str(name);
+        //assert(!textures_table.has_key(hash));
+        if (!textures_table.add(hash, texture)){
+            printf("COULD NOT FIND HASH FOR TEXTURE: %s\n", name);
             continue;
         }
-        
-        //Texture *hash_texture = textures_table.get_by_key_ptr(hash_str(name));
+        // int try_count = 0;
+        // while (!textures_table.add(hash, texture) && try_count < 1000){
+        //     hash *= 2;
+        //     try_count++;
+        // }
+        //assert(try_count < 1000);
+        // if (try_count >= 1000){
+        //     printf("COULD NOT FIND HASH FOR TEXTURE: %s\n", name);
+        //     continue;
+        // }
         
         add_spawn_object_from_texture(texture, name);
-        //printf("%s\n", textures.paths[i]);
     }
     UnloadDirectoryFiles(textures);
 }
@@ -2291,7 +2337,7 @@ void draw_entities(){
         }
         if (debug.draw_bounds){
             draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
-            draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
+            //draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
         }
     }
 }
@@ -2322,8 +2368,7 @@ void draw_editor(){
             }
         }
         
-        b32 draw_position = false;
-        if (draw_position){
+        if (debug.draw_position){
             draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
         }
         
@@ -2467,33 +2512,29 @@ void draw_game(){
     
     f32 v_pos = 10;
     f32 font_size = 18;
-    if (debug.draw_fps){
+    if (debug.info_fps){
         draw_text(TextFormat("FPS: %d", GetFPS()), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
     
     if (game_state == GAME && player_entity){            
-        b32 draw_spin_progress = true;
-        if (draw_spin_progress){
+        if (debug.info_spin_progress){
             draw_text(TextFormat("Spin progress: %.2f", player_data.sword_spin_speed_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
         
-        b32 draw_blood_progress = true;
-        if (draw_blood_progress){
+        if (debug.info_blood_progress){
             draw_text(TextFormat("Blood progress: %.2f", player_data.blood_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
     }
     
-    b32 draw_particle_count = true;
-    if (draw_particle_count){
+    if (debug.info_particle_count){
         draw_text(TextFormat("Particles count: %d", context.particles.count), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
     
-    b32 draw_emitters_count = true;
-    if (draw_emitters_count){
+    if (debug.info_emitters_count){
         draw_text(TextFormat("Emitters count: %d", context.emitters.count), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
@@ -2526,6 +2567,7 @@ Entity* add_entity(Entity *copy, b32 keep_id){
     check_avaliable_ids_and_set_if_found(&e.id);
         
     context.entities.add(e.id, e);
+    //setup_color_changer(
     return context.entities.last_ptr();
 }
 

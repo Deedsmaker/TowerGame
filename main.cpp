@@ -10,6 +10,7 @@
 #include "../my_libs/my_math.cpp"
 #include "../my_libs/string.hpp"
 #include "../my_libs/array.hpp"
+#include "../my_libs/files.hpp"
 
 #include "include\raylib.h"
 #include "include\raymath.h"
