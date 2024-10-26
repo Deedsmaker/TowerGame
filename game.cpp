@@ -189,6 +189,7 @@ Entity::Entity(Entity *copy){
     scale = copy->scale;
     flags = copy->flags;
     color = copy->color;
+    draw_order = copy->draw_order;
     
     if (flags & TEXTURE){
         texture = copy->texture;
@@ -254,7 +255,7 @@ int save_level(const char *level_name){
         Entity *e = context.entities.get_ptr(i);
         
         Color color = e->color_changer.start_color;
-        fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d: ", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags);
+        fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:, draw_order:%d: ", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
         
         fprintf(fptr, "vertices [ ");
         for (int v = 0; v < e->vertices.count; v++){
@@ -396,8 +397,12 @@ int load_level(const char *level_name){
             } else if (str_cmp(splitted_line.get(i).data, "texture_name")){
                 str_copy(entity_to_fill.texture_name, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_cmp(splitted_line.get(i).data, "draw_order")){
+                fill_int_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
+                i++;
             } else{
-                assert(false);
+                //assert(false);
+                print("Something unknown during level load");
             }
         }
         
@@ -1018,6 +1023,13 @@ void undo_add_position(Entity *entity, Vector2 position_change){
     add_undo_action(undo_action);
 }
 
+void undo_add_draw_order(Entity *entity, i32 draw_order_change){
+    Undo_Action undo_action;
+    undo_action.draw_order_change = draw_order_change;
+    undo_action.entity_id = entity->id;
+    add_undo_action(undo_action);
+}
+
 void undo_add_scaling(Entity *entity, Vector2 scale_change){
     Undo_Action undo_action;
     undo_action.entity_id = entity->id;
@@ -1093,6 +1105,8 @@ void assign_selected_entity(Entity *new_selected){
     }
     
     editor.selected_entity = new_selected;
+    
+    focus_input_field.in_focus = false;
 }
 
 void start_closing_create_box(){
@@ -1168,7 +1182,7 @@ void update_editor_ui(){
         v_pos += height_add;
         
         make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
-        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 120, v_pos}, {75, 25}, "inspector_rotation")
+        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
             || focus_input_field.changed && str_cmp(focus_input_field.tag, "inspector_rotation")){
             f32 old_rotation = editor.selected_entity->rotation;
             f32 new_rotation = old_rotation;
@@ -1187,8 +1201,32 @@ void update_editor_ui(){
             }
             
             undo_add_rotation(editor.selected_entity, rotation_add);
-            v_pos += height_add;
         }
+        v_pos += height_add;
+        
+        make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
+        if (make_input_field(TextFormat("%d", editor.selected_entity->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
+            || focus_input_field.changed && str_cmp(focus_input_field.tag, "inspector_draw_order")){
+            i32 old_draw_order = editor.selected_entity->draw_order;
+            i32 new_draw_order = old_draw_order;
+            
+            //undo_remember_vertices_start(editor.selected_entity);
+            
+            if (str_cmp(focus_input_field.tag, "inspector_draw_order")){
+                new_draw_order = atoi(focus_input_field.content);
+            } else{
+                assert(false);
+            }
+            
+            i32 draw_order_add = new_draw_order - old_draw_order;
+            if (draw_order_add != 0){
+                //rotate(editor.selected_entity, draw_order_add);
+                editor.selected_entity->draw_order += draw_order_add;
+            }
+            
+            undo_add_draw_order(editor.selected_entity, draw_order_add);
+        }
+        v_pos += height_add;
     }
 }
 
@@ -1626,6 +1664,7 @@ void update_editor(){
             undo_entity->position -= action->position_change;
             undo_entity->scale -= action->scale_change;
             undo_entity->rotation -= action->rotation_change;
+            undo_entity->draw_order -= action->draw_order_change;
             
             for (int i = 0; i < action->vertices_change.count; i++){
                 *undo_entity->vertices.get_ptr(i) -= action->vertices_change.get(i);
@@ -1658,6 +1697,8 @@ void update_editor(){
             undo_entity->position += action->position_change;
             undo_entity->scale += action->scale_change;
             undo_entity->rotation += action->rotation_change;
+            undo_entity->draw_order += action->draw_order_change;
+            
             for (int i = 0; i < action->vertices_change.count; i++){
                 *undo_entity->vertices.get_ptr(i) += action->vertices_change.get(i);
                 *undo_entity->unscaled_vertices.get_ptr(i) += action->unscaled_vertices_change.get(i);
@@ -2279,20 +2320,57 @@ void draw_enemy(Entity *entity){
     draw_game_triangle_strip(entity);
 }
 
-void draw_entities(){
-    Hash_Table_Int<Entity> *entities = &context.entities;
+int compare_entities_draw_order(const void *first, const void *second){
+    Entity *entity1 = (Entity*)first;
+    Entity *entity2 = (Entity*)second;
     
-    Bounds cam_bounds;
-    cam_bounds.size = {(f32)screen_width, (f32)screen_height};
-    cam_bounds.size /= context.cam.cam2D.zoom;
-    cam_bounds.size /= UNIT_SIZE;
+    if (entity1->draw_order == entity2->draw_order){
+        return 0;
+    }
     
-    cam_bounds.offset = {0, 0};
-    
-    for (int i = 0; i < entities->max_count; i++){
-        if (!entities->has_index(i)){
+    return entity1->draw_order < entity2->draw_order ? 1 : -1;
+}
+
+void fill_entities_draw_queue(){
+    context.entities_draw_queue.clear();
+
+    for (int i = 0; i < context.entities.max_count; i++){
+        if (!context.entities.has_index(i)){
             continue;
         }
+        
+        Entity e = context.entities.get(i);
+        
+        if (!e.enabled){
+            continue;
+        }
+        
+        Bounds cam_bounds;
+        cam_bounds.size = {(f32)screen_width, (f32)screen_height};
+        cam_bounds.size /= context.cam.cam2D.zoom;
+        cam_bounds.size /= UNIT_SIZE;
+        
+        cam_bounds.offset = {0, 0};
+        if (!check_bounds_collision(context.cam.view_position, cam_bounds, e.position, e.bounds)){
+            continue;
+        }
+        
+        context.entities_draw_queue.add(e);
+    }
+    
+    qsort(context.entities_draw_queue.data, context.entities_draw_queue.count, sizeof(Entity), compare_entities_draw_order);
+}
+
+void draw_entities(){
+    fill_entities_draw_queue();
+
+    //Hash_Table_Int<Entity> *entities = &context.entities;
+    Dynamic_Array<Entity> *entities = &context.entities_draw_queue;
+    
+    for (int i = 0; i < entities->count; i++){
+        // if (!entities->has_index(i)){
+        //     continue;
+        // }
     
         Entity *e = entities->get_ptr(i);
     
@@ -2300,10 +2378,6 @@ void draw_entities(){
             continue;
         }
         
-        if (!check_bounds_collision(context.cam.view_position, cam_bounds, e->position, e->bounds)){
-            continue;
-        }
-    
         if (e->flags & TEXTURE){
             draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
         }

@@ -154,7 +154,7 @@ struct Entity{
     //b32 need_to_destroy = 0;
     
     //lower - closer to camera
-    i32 draw_order = 1;
+    i32 draw_order = 100;
     
     Vector2 position;
     Vector2 scale = {1, 1};
@@ -212,7 +212,8 @@ struct Core{
 #define MAX_ENTITIES 10000
 
 struct Context{
-    Hash_Table_Int<Entity>           entities  = Hash_Table_Int<Entity>();
+    Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
+    Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(100000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
 
@@ -255,6 +256,7 @@ struct Undo_Action{
     Array<Vector2, MAX_VERTICES> vertices_change = Array<Vector2, MAX_VERTICES>();
     Array<Vector2, MAX_VERTICES> unscaled_vertices_change = Array<Vector2, MAX_VERTICES>();
     f32 rotation_change = 0;
+    i32 draw_order_change = 0;
 };
 
 struct Editor{
@@ -320,7 +322,7 @@ struct Debug{
     b32 draw_scale = false;
     b32 draw_directions = false;
     b32 draw_up_right = false;
-    b32 draw_bounds = true;
+    b32 draw_bounds = false;
     b32 draw_position = false;
     
     b32 info_fps = true;

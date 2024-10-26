@@ -68,6 +68,7 @@ void update_input_field(){
             focus_input_field.chars_count--;
             if (focus_input_field.chars_count < 0) focus_input_field.chars_count = 0;
             focus_input_field.content[focus_input_field.chars_count] = '\0';
+            focus_input_field.changed = true;
         }
     } else{
          //SetMouseCursor(MOUSE_CURSOR_DEFAULT);
