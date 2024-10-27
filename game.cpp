@@ -348,7 +348,7 @@ int load_level(const char *level_name){
     for (int line_index = 0; line_index < file.lines.count; line_index++){
         Long_Str line = file.lines.get(line_index);
         
-        if (str_cmp(line.data, "Entities:")){
+        if (str_equal(line.data, "Entities:")){
             continue;
         }
         split_str(line.data, ":{}, ;", &splitted_line);
@@ -356,48 +356,48 @@ int load_level(const char *level_name){
         Entity entity_to_fill = Entity();
         
         for (int i = 0; i < splitted_line.count; i++){
-            if (str_cmp(splitted_line.get(i).data, "id")){
+            if (str_equal(splitted_line.get(i).data, "id")){
                 fill_int_from_string(&entity_to_fill.id, splitted_line.get(i+1).data);
                 i++;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "pos")){
+            } else if (str_equal(splitted_line.get(i).data, "pos")){
                 fill_vector2_from_string(&entity_to_fill.position, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
                 i += 2;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "scale")){
+            } else if (str_equal(splitted_line.get(i).data, "scale")){
                 fill_vector2_from_string(&entity_to_fill.scale, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
                 i += 2;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "pivot")){
+            } else if (str_equal(splitted_line.get(i).data, "pivot")){
                 fill_vector2_from_string(&entity_to_fill.pivot, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
                 i += 2;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "rotation")){
+            } else if (str_equal(splitted_line.get(i).data, "rotation")){
                 fill_float_from_string(&entity_to_fill.rotation, splitted_line.get(i+1).data);
                 i += 1;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "color")){
+            } else if (str_equal(splitted_line.get(i).data, "color")){
                 fill_vector4_from_string(&entity_to_fill.color, splitted_line.get(i+1).data, splitted_line.get(i+2).data, splitted_line.get(i+3).data, splitted_line.get(i+4).data);
                 i += 4;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "flags")){
+            } else if (str_equal(splitted_line.get(i).data, "flags")){
                 fill_int_from_string(&entity_to_fill.flags, splitted_line.get(i+1).data);
                 i++;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "vertices")){
+            } else if (str_equal(splitted_line.get(i).data, "vertices")){
                 // fill_int_from_string(&entity_to_fill.rotation);
                 fill_vertices_array_from_string(&entity_to_fill.vertices, splitted_line, &i);
                 // i--;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "unscaled_vertices")){
+            } else if (str_equal(splitted_line.get(i).data, "unscaled_vertices")){
                 // fill_int_from_string(&entity_to_fill.rotation);
                 fill_vertices_array_from_string(&entity_to_fill.unscaled_vertices, splitted_line, &i);
                 //i--;
                 continue;
-            } else if (str_cmp(splitted_line.get(i).data, "texture_name")){
+            } else if (str_equal(splitted_line.get(i).data, "texture_name")){
                 str_copy(entity_to_fill.texture_name, splitted_line.get(i+1).data);
                 i++;
-            } else if (str_cmp(splitted_line.get(i).data, "draw_order")){
+            } else if (str_equal(splitted_line.get(i).data, "draw_order")){
                 fill_int_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
                 i++;
             } else{
@@ -590,9 +590,11 @@ void enter_game_state(){
     //copy_context(&saved_level_context, &context);
     
     player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER);
+    player_entity->draw_order = 30;
     
     Entity *ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
     ground_checker->color = Fade(PURPLE, 0.8f);
+    ground_checker->draw_order = 31;
     
     Entity *sword_entity = add_entity(editor.player_spawn_point, player_data.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
     sword_entity->color   = GRAY + RED * 0.1f;
@@ -600,6 +602,7 @@ void enter_game_state(){
     sword_entity->color_changer.start_color = sword_entity->color;
     sword_entity->color_changer.target_color = RED * 0.99f;
     sword_entity->color_changer.interpolating = true;
+    sword_entity->draw_order = 25;
     
     //sword_entity->index = sword_entity->id % MAX_ENTITIES;
     
@@ -1117,7 +1120,7 @@ void start_closing_create_box(){
 void close_create_box(){
     editor.create_box_active = false;
     editor.create_box_closing = false;
-    if (str_cmp(focus_input_field.tag, "create_box")){
+    if (str_equal(focus_input_field.tag, "create_box")){
         focus_input_field.in_focus = false;
     }
 
@@ -1140,11 +1143,11 @@ void update_editor_ui(){
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
         if (make_input_field(TextFormat("%.3f", editor.selected_entity->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
             || make_input_field(TextFormat("%.3f", editor.selected_entity->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
-            || focus_input_field.changed && (str_cmp(focus_input_field.tag, "inspector_pos_x") || str_cmp(focus_input_field.tag, "inspector_pos_y"))){
+            || focus_input_field.changed && (str_equal(focus_input_field.tag, "inspector_pos_x") || str_equal(focus_input_field.tag, "inspector_pos_y"))){
             Vector2 old_position = editor.selected_entity->position;
-            if (str_cmp(focus_input_field.tag, "inspector_pos_x")){
+            if (str_equal(focus_input_field.tag, "inspector_pos_x")){
                 editor.selected_entity->position.x = atof(focus_input_field.content);
-            } else if (str_cmp(focus_input_field.tag, "inspector_pos_y")){
+            } else if (str_equal(focus_input_field.tag, "inspector_pos_y")){
                 editor.selected_entity->position.y = atof(focus_input_field.content);
             } else{
                 assert(false);
@@ -1159,14 +1162,14 @@ void update_editor_ui(){
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
         if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
             || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
-            || focus_input_field.changed && (str_cmp(focus_input_field.tag, "inspector_scale_x") || str_cmp(focus_input_field.tag, "inspector_scale_y"))){
+            || focus_input_field.changed && (str_equal(focus_input_field.tag, "inspector_scale_x") || str_equal(focus_input_field.tag, "inspector_scale_y"))){
             Vector2 old_scale = editor.selected_entity->scale;
             Vector2 new_scale = old_scale;
             undo_remember_vertices_start(editor.selected_entity);
             
-            if (str_cmp(focus_input_field.tag, "inspector_scale_x")){
+            if (str_equal(focus_input_field.tag, "inspector_scale_x")){
                 new_scale.x = atof(focus_input_field.content);
-            } else if (str_cmp(focus_input_field.tag, "inspector_scale_y")){
+            } else if (str_equal(focus_input_field.tag, "inspector_scale_y")){
                 new_scale.y = atof(focus_input_field.content);
             } else{
                 assert(false);
@@ -1183,13 +1186,13 @@ void update_editor_ui(){
         
         make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
         if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
-            || focus_input_field.changed && str_cmp(focus_input_field.tag, "inspector_rotation")){
+            || focus_input_field.changed && str_equal(focus_input_field.tag, "inspector_rotation")){
             f32 old_rotation = editor.selected_entity->rotation;
             f32 new_rotation = old_rotation;
             
             undo_remember_vertices_start(editor.selected_entity);
             
-            if (str_cmp(focus_input_field.tag, "inspector_rotation")){
+            if (str_equal(focus_input_field.tag, "inspector_rotation")){
                 new_rotation = atof(focus_input_field.content);
             } else{
                 assert(false);
@@ -1206,13 +1209,13 @@ void update_editor_ui(){
         
         make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
         if (make_input_field(TextFormat("%d", editor.selected_entity->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
-            || focus_input_field.changed && str_cmp(focus_input_field.tag, "inspector_draw_order")){
+            || focus_input_field.changed && str_equal(focus_input_field.tag, "inspector_draw_order")){
             i32 old_draw_order = editor.selected_entity->draw_order;
             i32 new_draw_order = old_draw_order;
             
             //undo_remember_vertices_start(editor.selected_entity);
             
-            if (str_cmp(focus_input_field.tag, "inspector_draw_order")){
+            if (str_equal(focus_input_field.tag, "inspector_draw_order")){
                 new_draw_order = atoi(focus_input_field.content);
             } else{
                 assert(false);
@@ -1275,6 +1278,8 @@ void update_editor(){
     
     mouse_entity.position = input.mouse_position;
     
+    Entity *cursor_entity_candidate = NULL;
+    
     //editor entities loop
     for (int i = 0; i < context.entities.max_count; i++){        
         Entity *e = context.entities.get_ptr(i);
@@ -1284,19 +1289,23 @@ void update_editor(){
         }
         
         if ((check_entities_collision(&mouse_entity, e)).collided){
-            editor.cursor_entity = e;
+            
+            
+        
+            if (editor.last_click_position == input.mouse_position){
+                if (!cursor_entity_candidate){
+                    cursor_entity_candidate = e;
+                } else if (!editor.place_cursor_entities.contains(e)){
+                    cursor_entity_candidate = e;
+                }
+            } else{
+                cursor_entity_candidate = e;
+                editor.place_cursor_entities.clear();
+            }
             found_cursor_entity_this_frame = true;
         } else if (!found_cursor_entity_this_frame){
             editor.cursor_entity = NULL;
         }
-        
-        // if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
-        //     Collision col = check_entities_collision(editor.dragging_entity, e);
-        //     if (col.collided){
-        //         //resolve_collision(editor.dragging_entity, col);
-        //         e->color = WHITE * abs(sinf(game_time * 10));
-        //     }
-        // }
         
         //editor vertices
         for (int v = 0; v < e->vertices.count && (need_move_vertices || need_snap_vertex); v++){
@@ -1324,14 +1333,11 @@ void update_editor(){
          //editor snap closest vertex to closest vertex
     }
     
+    editor.cursor_entity = cursor_entity_candidate;
+    
     if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
         move_vertex(editor.moving_vertex_entity, closest_vertex_global, editor.moving_vertex_index);
     
-        // *editor.moving_vertex = global(editor.selected_entity, *editor.moving_vertex);
-        // editor.moving_vertex->x = closest_vertex_global.x;
-        // editor.moving_vertex->y = closest_vertex_global.y;
-        // *editor.moving_vertex = local(editor.selected_entity, *editor.moving_vertex);
-        
         undo_apply_vertices_change(editor.selected_entity, &undo_action);
         something_in_undo = true;
         
@@ -1344,6 +1350,7 @@ void update_editor(){
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             if (!is_same_selected_entity){
                 assign_selected_entity(editor.cursor_entity);
+                editor.place_cursor_entities.add(editor.selected_entity);
                 
                 editor.selected_this_click = true;
             }
@@ -1360,9 +1367,6 @@ void update_editor(){
         if (editor.selected_entity && !editor.selected_this_click && editor.cursor_entity){
             if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id){
                 assign_selected_entity(NULL);
-                // editor.selected_entity->color_changer.changing = 0;
-                // editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
-                // editor.selected_entity = NULL;        
             }
         }
         
@@ -1502,7 +1506,7 @@ void update_editor(){
         
         for (int i = 0; i < spawn_objects.count; i++){
             Spawn_Object obj = spawn_objects.get(i);
-            if (input_len > 0 && !str_start_with(obj.name, focus_input_field.content)){
+            if (input_len > 0 && !str_contains(obj.name, focus_input_field.content)){
                 continue;
             }
             
@@ -1711,6 +1715,10 @@ void update_editor(){
     //editor Save level
     if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
         save_level("test_level.level");
+    }
+    
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        editor.last_click_position = input.mouse_position;
     }
 
     clicked_ui = false;
@@ -2409,7 +2417,8 @@ void draw_entities(){
             draw_game_line(e->position, e->position + e->right * 3, 0.3f, RED);
             draw_game_line(e->position, e->position + e->up    * 3, 0.3f, GREEN);
         }
-        if (debug.draw_bounds){
+        
+        if (debug.draw_bounds || editor.selected_entity && game_state == EDITOR && e->id == editor.selected_entity->id){
             draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
             //draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
         }
@@ -2513,7 +2522,7 @@ void draw_ui(const char *tag){
     for (int i = 0; i < ui_context.elements.count; i++){
         Ui_Element element = ui_context.elements.get(i);
         
-        if (tag_len > 0 && !str_cmp(element.tag, tag)){
+        if (tag_len > 0 && !str_equal(element.tag, tag)){
             continue;
         }
         
@@ -2537,7 +2546,7 @@ void draw_ui(const char *tag){
     for (int i = 0; i < input_fields.count; i++){
         Input_Field input_field = input_fields.get(i);
         
-        if (tag_len > 0 && !str_cmp(input_field.tag, tag)){
+        if (tag_len > 0 && !str_equal(input_field.tag, tag)){
             continue;
         }
         

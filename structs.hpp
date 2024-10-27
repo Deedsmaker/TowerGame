@@ -262,6 +262,8 @@ struct Undo_Action{
 struct Editor{
     f32 in_editor_time = 0;
 
+    Array<Entity*, 30> place_cursor_entities = Array<Entity*, 30>();
+    
     Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
     int max_undos_added;
 
@@ -313,6 +315,7 @@ struct Editor{
     Collision last_collision;
     
     Vector2 player_spawn_point = {0, 0};
+    Vector2 last_click_position = {0, 0};
 };
 
 struct Debug{

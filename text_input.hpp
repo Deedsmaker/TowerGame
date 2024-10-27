@@ -105,7 +105,7 @@ void copy_input_field(Input_Field *dest, Input_Field *src){
 b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag){
     //means it's the same and we want to keep all contents
     Input_Field input_field = {position, size};
-    if (focus_input_field.in_focus && str_cmp(focus_input_field.tag, tag)){
+    if (focus_input_field.in_focus && str_equal(focus_input_field.tag, tag)){
         input_field.in_focus = true;
         copy_input_field(&input_field, &focus_input_field);
         
