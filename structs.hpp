@@ -99,18 +99,20 @@ struct Player{
     f32 since_jump_timer = 0;
     f32 since_airborn_timer = 0;
     //Sword
+    int sword_entity_id = -1;
     f32 sword_rotation_speed = 5.0f;
-    f32 sword_attack_time = 0.15f;
-    f32 sword_cooldown = 0.5f;
+    
     f32 sword_spin_direction = 0;
+    f32 sword_angular_velocity = 0;  
+    f32 sword_spin_progress = 0;
     
     //int sword_entity_index_offset = -1;
-    int sword_entity_id = -1;
     
-    f32 sword_attack_countdown;
-    f32 sword_cooldown_countdown;
-    f32 sword_angular_velocity = 0;  
-    f32 sword_spin_speed_progress = 0;
+    //Rifle
+    b32 rifle_active = false;
+    f32 rifle_current_power = 0;
+    f32 rifle_max_power = 100;
+    f32 rifle_power_progress = 0;
     
     f32 current_move_speed;
 };

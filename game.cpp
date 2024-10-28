@@ -136,8 +136,8 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAG
 Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture _texture, FLAGS _flags){
     flags    = _flags;
     position = _pos;
-    pivot = _pivot;
-    texture = _texture;
+    pivot    = _pivot;
+    texture  = _texture;
     scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
     
     pick_vertices(this);
@@ -275,7 +275,6 @@ int save_level(const char *level_name){
         
         fprintf(fptr, ";\n"); 
     }
-
     
     fclose(fptr);
     
@@ -1289,9 +1288,6 @@ void update_editor(){
         }
         
         if ((check_entities_collision(&mouse_entity, e)).collided){
-            
-            
-        
             if (editor.last_click_position == input.mouse_position){
                 if (!cursor_entity_candidate){
                     cursor_entity_candidate = e;
@@ -1950,7 +1946,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             if (player_data.velocity.y > 0){
                 max_vertical_speed_boost *= 0.3f;   
             }
-            f32 spin_t = player->sword_spin_speed_progress;
+            f32 spin_t = player->sword_spin_progress;
             player->velocity += Vector2_up    * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
                              + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
                              
@@ -1975,78 +1971,53 @@ void update_player(Entity *entity, f32 dt){
     Vector2 dir_to_mouse = normalized(vec_to_mouse);
     //Vector2 vec_tip_to_mouse = input.mouse_position - sword_tip;
     
-    
-    f32 sword_size_multiplier = 2.0f;
-    b32 can_attack = player_data.sword_attack_countdown <= 0 && player_data.sword_cooldown_countdown <= 0;
-    if (can_attack && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-        player_data.sword_attack_countdown = player_data.sword_attack_time;    
-        
-        change_up(sword, dir_to_mouse);
-        
-        rifle_bullet_emitter->position = sword_tip;
-        enable_emitter(rifle_bullet_emitter);
-    } 
-    
-    if (rifle_bullet_emitter->enabled){
-        if (rifle_bullet_emitter->emitter_lifetime > 0.5f){
-            rifle_bullet_emitter->enabled = false;
-        } else{
-            rifle_bullet_emitter->position += sword->up * 500 * dt;
-        }
-    }
-    
-    if (player_data.sword_attack_countdown > 0){
-        player_data.sword_attack_countdown -= dt;
-        // f32 attack_progress = clamp01((player_data.sword_attack_time - player_data.sword_attack_countdown) / player_data.sword_attack_time);
-        // change_scale(sword, lerp(player_data.sword_start_scale, player_data.sword_start_scale * sword_size_multiplier, sqrtf(attack_progress)));
-        
-        //sword attack ended, now cooldown
-        if (player_data.sword_attack_countdown <= 0){
-            player_data.sword_cooldown_countdown = player_data.sword_cooldown;
-        }
-    }
-    
-    if (player_data.sword_cooldown_countdown > 0){
-        player_data.sword_cooldown_countdown -= dt;
-        
-        f32 cooldown_progress = clamp01((player_data.sword_cooldown - player_data.sword_cooldown_countdown) / player_data.sword_cooldown);
-        
-        change_scale(sword, lerp(player_data.sword_start_scale * sword_size_multiplier, player_data.sword_start_scale, cooldown_progress * cooldown_progress));
-    }
-    
-    //b32 sword_attacking = player_data.sword_attack_countdown > 0;
-    
-    player_data.sword_angular_velocity *= 1.0f - (dt);
-    
-    b32 can_sword_spin = 1;//!sword_attacking;
-    
-    f32 sword_spin_sense = 2;
-    
-    if (can_sword_spin && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
         chainsaw_emitter->position = input.mouse_position;
         chainsaw_emitter->last_emitted_position = input.mouse_position;
         chainsaw_emitter->enabled = true;
     }
-    
-    if (can_sword_spin && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
-        player_data.sword_angular_velocity += input.mouse_delta.x * sword_spin_sense;
-    } else{
-        //chainsaw_emitter->last_emitted_position = input.mouse_position;
-    }
-    
     if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
         chainsaw_emitter->enabled = false;
     }
     
+    
+    player_data.sword_angular_velocity *= 1.0f - (dt);
+    
+    b32 can_sword_spin = !player_data.rifle_active;
+    
+    if (can_sword_spin){
+        f32 sword_spin_sense = 2;
+        if (can_sword_spin && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
+            player_data.sword_angular_velocity += input.mouse_delta.x * sword_spin_sense;
+        } else{
+            //chainsaw_emitter->last_emitted_position = input.mouse_position;
+        }
+    }
+    
+    b32 can_shoot_rifle = player_data.rifle_active;
+    if (can_shoot_rifle && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        player_data.rifle_active = false;
+    }
+    
+    b32 can_activate_rifle = !player_data.rifle_active && !can_shoot_rifle;
+    if (can_activate_rifle && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        player_data.rifle_active = true;
+        print("fasd");
+        
+        player_data.rifle_current_power += player_data.sword_spin_progress * 50;
+        player_data.sword_spin_progress *= 0.1f;
+    }
+    
+    
     Vector2 velocity_norm = normalized(player_data.velocity);
     
     f32 sword_max_spin_speed = 5000;
-    player_data.sword_spin_speed_progress = clamp01(abs(player_data.sword_angular_velocity) / sword_max_spin_speed);
+    player_data.sword_spin_progress = clamp01(abs(player_data.sword_angular_velocity) / sword_max_spin_speed);
     
-    sword->color_changer.progress = player_data.blood_progress * player_data.blood_progress;//player_data.sword_spin_speed_progress * player_data.sword_spin_speed_progress;
+    sword->color_changer.progress = player_data.blood_progress * player_data.blood_progress;//player_data.sword_spin_progress * player_data.sword_spin_progress;
     
     { 
-        f32 spin_t = player_data.sword_spin_speed_progress;
+        f32 spin_t = player_data.sword_spin_progress;
         f32 blood_t = player_data.blood_progress;
     
         chainsaw_emitter->position = input.mouse_position;
@@ -2078,8 +2049,7 @@ void update_player(Entity *entity, f32 dt){
         calculate_sword_collisions(sword, entity);
     }
     
-    player_data.since_jump_timer += dt;
-    
+    //player movement
     if (player_data.grounded){
         if (1 /*!sword_attacking*/){
             player_ground_move(entity, dt);
@@ -2091,10 +2061,10 @@ void update_player(Entity *entity, f32 dt){
             player_data.velocity -= player_data.ground_normal * dt;
         }
         
-        if (player_data.sword_spin_speed_progress > 0.3f){
+        if (player_data.sword_spin_progress > 0.3f){
             Vector2 plane = get_rotated_vector_90(player_data.ground_normal, -player_data.sword_spin_direction);
             
-            f32 spin_t = player_data.sword_spin_speed_progress;
+            f32 spin_t = player_data.sword_spin_progress;
             f32 blood_t = player_data.blood_progress;
             
             f32 max_spin_acceleration = 500;
@@ -2114,7 +2084,7 @@ void update_player(Entity *entity, f32 dt){
                  if (input.direction.y < 0){
                     player_data.gravity_mult = 5;
                  } else{
-                    player_data.gravity_mult = lerp(1.0f, 0.5f, player_data.sword_spin_speed_progress * player_data.sword_spin_speed_progress);
+                    player_data.gravity_mult = lerp(1.0f, 0.5f, player_data.sword_spin_progress * player_data.sword_spin_progress);
                  }
             }
             
@@ -2122,7 +2092,7 @@ void update_player(Entity *entity, f32 dt){
             if (input.direction.y < 0){
                 player_data.gravity_mult = 5;
             } else{
-                player_data.gravity_mult = lerp(1.0f, 0.5f, player_data.sword_spin_speed_progress * player_data.sword_spin_speed_progress);
+                player_data.gravity_mult = lerp(1.0f, 0.5f, player_data.sword_spin_progress * player_data.sword_spin_progress);
             }
         }
         
@@ -2134,8 +2104,8 @@ void update_player(Entity *entity, f32 dt){
         
         player_data.since_airborn_timer += dt;
         
-        if (player_data.sword_spin_speed_progress > 0.3f){
-            f32 spin_t = player_data.sword_spin_speed_progress;
+        if (player_data.sword_spin_progress > 0.3f){
+            f32 spin_t = player_data.sword_spin_progress;
             f32 blood_t = player_data.blood_progress;
             
             f32 max_spin_acceleration = 200;
@@ -2602,7 +2572,7 @@ void draw_game(){
     
     if (game_state == GAME && player_entity){            
         if (debug.info_spin_progress){
-            draw_text(TextFormat("Spin progress: %.2f", player_data.sword_spin_speed_progress), 10, v_pos, font_size, RED);
+            draw_text(TextFormat("Spin progress: %.2f", player_data.sword_spin_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
         
