@@ -15,6 +15,8 @@ enum Flags{
     SWORD = 1 << 4,
     BIRD_ENEMY = 1 << 5,
     TEXTURE = 1 << 6,
+    PROJECTILE = 1 << 7,
+    PARTICLE_EMITTER = 1 << 8,
     
     TEST = 1 << 31
 };
@@ -122,6 +124,70 @@ struct Bounds{
     Vector2 offset;
 };
 
+enum Particle_Shape{
+    RECT
+};
+
+struct Particle{
+    Particle_Shape shape = RECT;
+    Vector2 position;
+    Vector2 scale = {1, 1};
+    Vector2 velocity;
+    Vector2 original_scale;
+    f32 lifetime;
+    f32 max_lifetime;
+    
+    //b32 colliding;
+    
+    Color color = YELLOW;
+};
+
+struct Particle_Emitter{
+    Particle_Shape shape = RECT;
+    
+    b32 enabled = true;
+    b32 destroyed = false;
+    
+    Vector2 position = {0, 0};
+    Vector2 last_emitted_position = {0, 0};
+    Vector2 direction = Vector2_up;
+    
+    f32 spawn_radius = 1;
+    
+    b32 emitting;
+    f32 emitting_timer;
+    f32 over_time;
+    f32 over_distance;
+    b32 direction_to_move = false;
+    
+    u32 count_min = 10;
+    u32 count_max = 50;
+    f32 count_multiplier = 1;
+    
+    f32 speed_min = 10;
+    f32 speed_max = 50;  
+    f32 speed_multiplier = 1;
+    
+    f32 scale_min = 0.1f;
+    f32 scale_max = 0.5f;
+    f32 spread = 0.2f;
+    
+    f32 lifetime_min = 0.5f;
+    f32 lifetime_max = 2;
+    f32 lifetime_multiplier = 1;
+    
+    f32 emitter_lifetime = 0;
+    
+    //f32 colliding_chance = 1.0f;
+    
+    Color color = YELLOW;
+};
+
+struct Projectile{
+    Vector2 velocity = {0, 0};
+    //Particle_Emitter trail_emitter;
+};
+
 struct Entity{
     Entity();
     Entity(Vector2 _pos);
@@ -173,6 +239,8 @@ struct Entity{
     Text_Drawer text_drawer;
     Enemy enemy;
     Bird_Enemy bird_enemy;
+    Projectile projectile;
+    Particle_Emitter emitter;
 };
 
 global_variable Player player_data;

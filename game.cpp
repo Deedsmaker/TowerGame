@@ -1996,20 +1996,30 @@ void update_player(Entity *entity, f32 dt){
     
     b32 can_shoot_rifle = player_data.rifle_active;
     if (can_shoot_rifle && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        //rifle shoot
         player_data.rifle_active = false;
+        
+        f32 shoot_power = 600;
+        
+        Entity *projectile_entity = add_entity(sword_tip, {2, 2}, {0.5f, 0.5f}, 0, PINK, PROJECTILE | PARTICLE_EMITTER);
+        projectile_entity->projectile.velocity = sword->up * shoot_power;
+        copy_emitter(&projectile_entity->emitter, rifle_bullet_emitter);
+        
+        int a = 0;
+        print(a);
+    }
+    
+    if (player_data.rifle_active){
+        change_up(sword, lerp(sword->up, dir_to_mouse, dt * 100));        
     }
     
     b32 can_activate_rifle = !player_data.rifle_active && !can_shoot_rifle;
     if (can_activate_rifle && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         player_data.rifle_active = true;
-        print("fasd");
         
         player_data.rifle_current_power += player_data.sword_spin_progress * 50;
-        player_data.sword_spin_progress *= 0.1f;
+        //player_data.sword_spin_progress *= 0.1f;
     }
-    
-    
-    Vector2 velocity_norm = normalized(player_data.velocity);
     
     f32 sword_max_spin_speed = 5000;
     player_data.sword_spin_progress = clamp01(abs(player_data.sword_angular_velocity) / sword_max_spin_speed);
@@ -2048,6 +2058,8 @@ void update_player(Entity *entity, f32 dt){
         rotate(sword, need_to_rotate);
         calculate_sword_collisions(sword, entity);
     }
+    
+    player_data.since_jump_timer += dt;
     
     //player movement
     if (player_data.grounded){
@@ -2227,6 +2239,22 @@ void update_bird_enemy(Entity *entity, f32 dt){
     //entity->position += bird->velocity * dt;
 }
 
+void update_projectile(Entity *entity, f32 dt){
+    assert(entity->flags & PROJECTILE);
+    
+    Vector2 move = entity->projectile.velocity * dt;
+    Vector2 move_dir = normalized(move);
+    f32 move_len = magnitude(move);
+    f32 max_move_len = entity->scale.y * 0.5f;
+    
+    while (move_len > max_move_len){
+        entity->position += move_dir * max_move_len;
+        move_len -= max_move_len;
+    }
+    
+    entity->position += move_dir * move_len;
+}
+
 void update_entities(){
     Context *c = &context;
     Hash_Table_Int<Entity> *entities = &c->entities;
@@ -2281,6 +2309,15 @@ void update_entities(){
           
         if (e->flags & BIRD_ENEMY){
             update_bird_enemy(e, core.time.dt);
+        }
+        
+        if (e->flags & PROJECTILE){
+            update_projectile(e, core.time.dt);
+        }
+        
+        if (e->flags & PARTICLE_EMITTER){
+            e->emitter.position = e->position;
+            update_emitter(&e->emitter);
         }
     }
 }
@@ -2360,7 +2397,7 @@ void draw_entities(){
             draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
         }
         
-        if (e->flags & GROUND || e->flags == 0 || e->flags & SWORD){
+        if (e->flags & GROUND || e->flags == 0 || e->flags & SWORD || e->flags & PROJECTILE){
             if (e->vertices.count > 0){
                 draw_game_triangle_strip(e);
             } else{
@@ -2671,6 +2708,14 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
 
 Particle_Emitter* add_emitter(){
     Particle_Emitter e = Particle_Emitter();
+    
+    context.emitters.add(e);    
+    return context.emitters.last_ptr();
+}
+
+Particle_Emitter* add_emitter(Particle_Emitter *copy){
+    Particle_Emitter e = Particle_Emitter();
+    e = *copy;
     
     context.emitters.add(e);    
     return context.emitters.last_ptr();

@@ -1,64 +1,5 @@
 #pragma once
 
-enum Particle_Shape{
-    RECT
-};
-
-struct Particle{
-    Particle_Shape shape = RECT;
-    Vector2 position;
-    Vector2 scale = {1, 1};
-    Vector2 velocity;
-    Vector2 original_scale;
-    f32 lifetime;
-    f32 max_lifetime;
-    
-    //b32 colliding;
-    
-    Color color = YELLOW;
-};
-
-struct Particle_Emitter{
-    Particle_Shape shape = RECT;
-    
-    b32 enabled = true;
-    
-    Vector2 position = {0, 0};
-    Vector2 last_emitted_position = {0, 0};
-    Vector2 direction = Vector2_up;
-    
-    f32 spawn_radius = 1;
-    
-    b32 emitting;
-    f32 emitting_timer;
-    f32 over_time;
-    f32 over_distance;
-    b32 direction_to_move = false;
-    
-    u32 count_min = 10;
-    u32 count_max = 50;
-    f32 count_multiplier = 1;
-    
-    f32 speed_min = 10;
-    f32 speed_max = 50;  
-    f32 speed_multiplier = 1;
-    
-    f32 scale_min = 0.1f;
-    f32 scale_max = 0.5f;
-    f32 spread = 0.2f;
-    
-    f32 lifetime_min = 0.5f;
-    f32 lifetime_max = 2;
-    f32 lifetime_multiplier = 1;
-    
-    f32 emitter_lifetime = 0;
-    
-    //f32 colliding_chance = 1.0f;
-    
-    Color color = YELLOW;
-};
-
-
 void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
     Particle particle = {};
     particle.position = position;
@@ -152,24 +93,30 @@ void enable_emitter(Particle_Emitter *emitter){
     emitter->last_emitted_position = emitter->position;
 }
 
+void update_emitter(Particle_Emitter *emitter){
+    emitter->emitter_lifetime += core.time.dt;
+    
+    if (emitter->over_time > 0){
+        update_overtime_emitter(emitter);
+    }
+    
+    if (emitter->over_distance > 0){
+        update_overdistance_emitter(emitter);
+    }
+}
+
 void update_emitters(){
     for (int i = 0; i < context.emitters.count; i++){
         Particle_Emitter *emitter = context.emitters.get_ptr(i);
+        
+        if (emitter->destroyed){
+        }
         
         if (!emitter->enabled){
             emitter->emitter_lifetime = 0;
             continue;
         }
-        
-        emitter->emitter_lifetime += core.time.dt;
-        
-        if (emitter->over_time > 0){
-            update_overtime_emitter(emitter);
-        }
-        
-        if (emitter->over_distance > 0){
-            update_overdistance_emitter(emitter);
-        }
+        update_emitter(emitter);        
     }
 }
 
@@ -217,6 +164,10 @@ global_variable Particle_Emitter *rifle_bullet_emitter;
 
 void free_emitter(Particle_Emitter *emitter){
     emitter = NULL;
+}
+
+void copy_emitter(Particle_Emitter *dest, Particle_Emitter *src){
+    *dest = *src;
 }
 
 void setup_particles(){
