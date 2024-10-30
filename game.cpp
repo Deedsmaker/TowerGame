@@ -1931,11 +1931,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         Entity *other = col.other_entity;
         
         if (other->flags & ENEMY && !other->enemy.dead_man){
-            emit_particles(*blood_emitter, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal, 1, 1);
-            
-            other->enemy.dead_man = true;
-            other->enabled = false;
-            other->destroyed = true;
+            kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal);
             //dt_scale = 0.002f;
             
             f32 max_speed_boost = 6 * player->sword_spin_direction;
@@ -1999,26 +1995,26 @@ void update_player(Entity *entity, f32 dt){
         //rifle shoot
         player_data.rifle_active = false;
         
-        f32 shoot_power = 600;
+        f32 projectile_speed = 1800;
         
         Entity *projectile_entity = add_entity(sword_tip, {2, 2}, {0.5f, 0.5f}, 0, PINK, PROJECTILE | PARTICLE_EMITTER);
-        projectile_entity->projectile.velocity = sword->up * shoot_power;
-        copy_emitter(&projectile_entity->emitter, rifle_bullet_emitter);
-        
-        int a = 0;
-        print(a);
+        projectile_entity->projectile.velocity = sword->up * projectile_speed;
+        projectile_entity->projectile.max_lifetime = 1;
+        copy_emitter(&projectile_entity->emitter, &rifle_bullet_emitter, sword_tip);
     }
     
     if (player_data.rifle_active){
-        change_up(sword, lerp(sword->up, dir_to_mouse, dt * 100));        
+        change_up(sword, move_towards(sword->up, dir_to_mouse, 100, dt));        
     }
     
+    //rifle activate
     b32 can_activate_rifle = !player_data.rifle_active && !can_shoot_rifle;
     if (can_activate_rifle && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         player_data.rifle_active = true;
         
         player_data.rifle_current_power += player_data.sword_spin_progress * 50;
         //player_data.sword_spin_progress *= 0.1f;
+        player_data.sword_angular_velocity = 0;
     }
     
     f32 sword_max_spin_speed = 5000;
@@ -2239,20 +2235,61 @@ void update_bird_enemy(Entity *entity, f32 dt){
     //entity->position += bird->velocity * dt;
 }
 
+void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction){
+    assert(enemy_entity->flags & ENEMY);
+    
+    if (!enemy_entity->enemy.dead_man){
+        emit_particles(*blood_emitter, kill_position, kill_direction, 1, 1);
+    
+        enemy_entity->enemy.dead_man = true;
+        enemy_entity->enabled = false;
+        enemy_entity->destroyed = true;
+    }
+}
+
+void calculate_projectile_collisions(Entity *projectile){
+    fill_collisions(projectile, &player_data.collisions, GROUND | ENEMY);
+    
+    Player *player = &player_data;
+    
+    for (int i = 0; i < player->collisions.count; i++){
+        Collision col = player->collisions.get(i);
+        Entity *other = col.other_entity;
+        
+        if (other->flags & ENEMY && !other->enemy.dead_man){
+            kill_enemy(other, projectile->position, col.normal);    
+        }
+        
+        if (other->flags & GROUND){
+            projectile->destroyed = true;
+        }
+    }
+}
+
 void update_projectile(Entity *entity, f32 dt){
     assert(entity->flags & PROJECTILE);
     
-    Vector2 move = entity->projectile.velocity * dt;
+    Projectile *projectile = &entity->projectile;
+    
+    projectile->lifetime += dt;
+    
+    if (projectile->max_lifetime > 0 && projectile->lifetime > projectile->max_lifetime){
+        entity->destroyed = true;    
+    }
+    
+    Vector2 move = projectile->velocity * dt;
     Vector2 move_dir = normalized(move);
     f32 move_len = magnitude(move);
     f32 max_move_len = entity->scale.y * 0.5f;
     
     while (move_len > max_move_len){
         entity->position += move_dir * max_move_len;
+        calculate_projectile_collisions(entity);
         move_len -= max_move_len;
     }
     
     entity->position += move_dir * move_len;
+    calculate_projectile_collisions(entity);
 }
 
 void update_entities(){
@@ -2322,11 +2359,39 @@ void update_entities(){
     }
 }
 
+void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt){
+    *current = move_towards(*current, target, speed, dt);
+}
+
+Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt){
+    Vector2 vec = (target - current);
+    f32 len = magnitude(vec);
+    Vector2 dir = normalized(vec);
+    
+    f32 target_move_len = speed * dt;
+    if (target_move_len > len){
+        target_move_len = len;
+    }
+    
+    current += dir * target_move_len;
+    
+    return current;
+}
+
 void draw_player(Entity *entity){
     assert(entity->flags & PLAYER);
-    Player *plaplayer_data;
     
     draw_game_triangle_strip(entity);
+}
+
+void draw_sword(Entity *entity){
+    assert(entity->flags & SWORD);
+    
+    Entity visual_entity = *entity;
+    if (player_data.rifle_active){
+        visual_entity.position += rnd_in_circle() * 0.5f;
+    }
+    draw_game_triangle_strip(&visual_entity);
 }
 
 void draw_enemy(Entity *entity){
@@ -2397,7 +2462,7 @@ void draw_entities(){
             draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
         }
         
-        if (e->flags & GROUND || e->flags == 0 || e->flags & SWORD || e->flags & PROJECTILE){
+        if (e->flags & GROUND || e->flags == 0 || e->flags & PROJECTILE){
             if (e->vertices.count > 0){
                 draw_game_triangle_strip(e);
             } else{
@@ -2407,6 +2472,10 @@ void draw_entities(){
         
         if (e->flags & PLAYER){
             draw_player(e);
+        }
+        
+        if (e->flags & SWORD){
+            draw_sword(e);
         }
         
         if (e->flags & ENEMY){
@@ -2713,13 +2782,13 @@ Particle_Emitter* add_emitter(){
     return context.emitters.last_ptr();
 }
 
-Particle_Emitter* add_emitter(Particle_Emitter *copy){
-    Particle_Emitter e = Particle_Emitter();
-    e = *copy;
+// Particle_Emitter* add_emitter(Particle_Emitter *copy){
+//     Particle_Emitter e = Particle_Emitter();
+//     e = *copy;
     
-    context.emitters.add(e);    
-    return context.emitters.last_ptr();
-}
+//     context.emitters.add(e);    
+//     return context.emitters.last_ptr();
+// }
 
 inline Vector2 global(Entity *e, Vector2 local_pos){
     return e->position + local_pos;

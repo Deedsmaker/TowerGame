@@ -148,6 +148,7 @@ struct Particle_Emitter{
     b32 enabled = true;
     b32 destroyed = false;
     
+    Vector2 local_position = {0, 0};
     Vector2 position = {0, 0};
     Vector2 last_emitted_position = {0, 0};
     Vector2 direction = Vector2_up;
@@ -185,6 +186,8 @@ struct Particle_Emitter{
 
 struct Projectile{
     Vector2 velocity = {0, 0};
+    f32 lifetime = 0;
+    f32 max_lifetime = 5;
     //Particle_Emitter trail_emitter;
 };
 

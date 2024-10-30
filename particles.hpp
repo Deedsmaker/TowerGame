@@ -160,14 +160,16 @@ void update_particles(){
 global_variable Particle_Emitter *chainsaw_emitter;
 global_variable Particle_Emitter *sword_tip_emitter;
 global_variable Particle_Emitter *blood_emitter;
-global_variable Particle_Emitter *rifle_bullet_emitter;
+global_variable Particle_Emitter rifle_bullet_emitter;
 
 void free_emitter(Particle_Emitter *emitter){
     emitter = NULL;
 }
 
-void copy_emitter(Particle_Emitter *dest, Particle_Emitter *src){
+void copy_emitter(Particle_Emitter *dest, Particle_Emitter *src, Vector2 start_position){
     *dest = *src;
+    dest->last_emitted_position = start_position;
+    dest->position              = start_position;
 }
 
 void setup_particles(){
@@ -218,21 +220,21 @@ void setup_particles(){
     blood_emitter->color             = RED * 0.7f;
     blood_emitter->enabled           = true;
 
-    free_emitter(rifle_bullet_emitter);
-    rifle_bullet_emitter = add_emitter();
-    rifle_bullet_emitter->spawn_radius      = 3;
-    rifle_bullet_emitter->over_distance     = 3;
-    rifle_bullet_emitter->direction_to_move = 0;
-    rifle_bullet_emitter->over_time         = 0;
-    rifle_bullet_emitter->speed_min         = 1;
-    rifle_bullet_emitter->speed_max         = 5;
-    rifle_bullet_emitter->count_min         = 10;
-    rifle_bullet_emitter->count_max         = 40;
-    rifle_bullet_emitter->scale_min         = 0.1f;
-    rifle_bullet_emitter->scale_max         = 0.4f;
-    rifle_bullet_emitter->lifetime_min      = 0.5f;
-    rifle_bullet_emitter->lifetime_max      = 2.5f;
-    rifle_bullet_emitter->spread            = 1.0f;
-    rifle_bullet_emitter->color             = GRAY * 0.7f;
-    rifle_bullet_emitter->enabled           = false;
+    //free_emitter(rifle_bullet_emitter);
+    //rifle_bullet_emitter = add_emitter();
+    rifle_bullet_emitter.spawn_radius      = 0.5f;
+    rifle_bullet_emitter.over_distance     = 3;
+    rifle_bullet_emitter.direction_to_move = 0;
+    rifle_bullet_emitter.over_time         = 0;
+    rifle_bullet_emitter.speed_min         = 1;
+    rifle_bullet_emitter.speed_max         = 5;
+    rifle_bullet_emitter.count_min         = 10;
+    rifle_bullet_emitter.count_max         = 40;
+    rifle_bullet_emitter.scale_min         = 0.3f;
+    rifle_bullet_emitter.scale_max         = 0.8f;
+    rifle_bullet_emitter.lifetime_min      = 0.3f;
+    rifle_bullet_emitter.lifetime_max      = 0.9f;
+    rifle_bullet_emitter.spread            = 1.0f;
+    rifle_bullet_emitter.color             = WHITE * 0.9f;
+    rifle_bullet_emitter.enabled           = false;
 }

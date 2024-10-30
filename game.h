@@ -19,6 +19,12 @@ void update_editor_ui();
 void update_editor();
 void update_entities();
 
+void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt);
+Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt);
+//void rotate_towards(f32 *rotate_angle, f32 target, f32 speed, f32 dt);
+
+void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction);
+
 void setup_color_changer(Entity *entity);
 void update_color_changer(Entity *entity);
 
