@@ -152,9 +152,9 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
 
 Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
     flags    = _flags;
-    id = _id;
+    id       = _id;
     position = _pos;
-    pivot = _pivot;
+    pivot    = _pivot;
     
     pick_vertices(this);
     
@@ -181,7 +181,7 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
 Entity::Entity(Entity *copy){
     id = copy->id;
     position = copy->position;
-    pivot = copy->pivot;
+    pivot    = copy->pivot;
     
     vertices = copy->vertices;
     unscaled_vertices = copy->unscaled_vertices;
@@ -607,6 +607,12 @@ void enter_game_state(){
     
     player_data.ground_checker_id = ground_checker->id;
     player_data.sword_entity_id = sword_entity->id;
+    player_data.dead_man = false;
+}
+
+void kill_player(){
+    emit_particles(big_blood_emitter, player_entity->position, player_entity->up, 1, 1);
+    player_data.dead_man = true;
 }
 
 void destroy_player(){
@@ -630,6 +636,7 @@ void enter_editor_state(){
     
     if (player_entity){
         destroy_player();
+        player_data.dead_man = false;
     }
     
     clear_context(&context);
@@ -1930,9 +1937,8 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         Collision col = player->collisions.get(i);
         Entity *other = col.other_entity;
         
-        if (other->flags & ENEMY && !other->enemy.dead_man){
+        if (other->flags & ENEMY && player->sword_spin_progress > 0.12f && !other->enemy.dead_man){
             kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal);
-            //dt_scale = 0.002f;
             
             f32 max_speed_boost = 6 * player->sword_spin_direction;
             if (!player->grounded){
@@ -1943,7 +1949,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
                 max_vertical_speed_boost *= 0.3f;   
             }
             f32 spin_t = player->sword_spin_progress;
-            player->velocity += Vector2_up    * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
+            player->velocity += Vector2_up   * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
                              + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
                              
             add_blood_amount(player, sword, 10);
@@ -1953,6 +1959,10 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
 
 void update_player(Entity *entity, f32 dt){
     assert(entity->flags & PLAYER);
+
+    if (player_data.dead_man){
+        return;
+    }
 
     //Player *p player_data;
     Entity *ground_checker = context.entities.get_by_key_ptr(player_data.ground_checker_id);
@@ -1999,7 +2009,7 @@ void update_player(Entity *entity, f32 dt){
         
         Entity *projectile_entity = add_entity(sword_tip, {2, 2}, {0.5f, 0.5f}, 0, PINK, PROJECTILE | PARTICLE_EMITTER);
         projectile_entity->projectile.velocity = sword->up * projectile_speed;
-        projectile_entity->projectile.max_lifetime = 1;
+        projectile_entity->projectile.max_lifetime = 0.5f;
         copy_emitter(&projectile_entity->emitter, &rifle_bullet_emitter, sword_tip);
     }
     
@@ -2189,49 +2199,132 @@ void update_player(Entity *entity, f32 dt){
 void calculate_bird_collisions(Entity *bird_entity){
     assert(bird_entity->flags & BIRD_ENEMY);
 
-    fill_collisions(bird_entity, &collisions_data, GROUND | BIRD_ENEMY);
+    fill_collisions(bird_entity, &collisions_data, GROUND | BIRD_ENEMY | PLAYER);
     
-    Bird_Enemy *bird = &bird_entity->bird_enemy ;
+    Bird_Enemy *bird = &bird_entity->bird_enemy;
     
     for (int i = 0; i < collisions_data.count; i++){
         Collision col = collisions_data.get(i);
         Entity *other = col.other_entity;
         
-        if (other->flags & (GROUND | BIRD_ENEMY)){
+        if (other->flags & GROUND){
+            resolve_collision(bird_entity, col);
+            bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
+            bird->attacking = false;
+            bird->attack_timer = 0;
+            bird->roaming = true;
+        }
+        
+        if (other->flags & BIRD_ENEMY && !bird->attacking){
             resolve_collision(bird_entity, col);
             bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
         }
+        
+        if (other->flags & PLAYER && !player_data.dead_man){
+            if (player_data.sword_spin_progress < 0.4f){
+                kill_player();
+            } else if (player_data.sword_spin_progress >= 0.4f){
+                kill_enemy(bird_entity, bird_entity->position, bird->velocity);
+            }
+        }
     }
 }    
+
+void move_by_velocity_with_collisions(Entity *entity, Vector2 velocity, f32 max_frame_move_len, void (calculate_collisions_func)(Entity*), f32 dt){
+    Vector2 this_frame_move_direction = normalized(velocity);
+    f32 this_frame_move_len = magnitude(velocity * dt); 
+    
+    while(this_frame_move_len > max_frame_move_len){
+        entity->position += this_frame_move_direction * max_frame_move_len;
+        calculate_collisions_func(entity);
+        this_frame_move_len -= max_frame_move_len;
+        this_frame_move_direction = normalized(velocity);
+    }
+    
+    entity->position += this_frame_move_direction * this_frame_move_len;
+    calculate_collisions_func(entity);
+}
 
 void update_bird_enemy(Entity *entity, f32 dt){
     assert(entity->flags & BIRD_ENEMY);
     
     Bird_Enemy *bird = &entity->bird_enemy;
-    bird->target_position = player_entity->position + Vector2_up * 60;        
-    bird->target_position.y += sinf(core.time.game_time * entity->position.y) * 10;
-    bird->target_position.x += cosf(core.time.game_time * entity->position.x) * 50;
     
-    if (!bird->charging_attack){
+    Vector2 vec_to_player = player_entity->position - entity->position;
+    Vector2 dir_to_player = normalized(vec_to_player);
+    f32    distance_to_player = magnitude(vec_to_player);
+    
+    if (bird->roaming){
+        bird->roam_timer += dt;
+        
+        if (bird->roam_timer >= bird->max_roam_time){
+            bird->roam_timer = 0;
+            bird->roaming = false;
+            bird->charging_attack = true;
+            bird->velocity = Vector2_zero;
+        }
+    }
+    
+    if (bird->charging_attack){
+        bird->charging_attack_timer += dt;
+        if (bird->charging_attack_timer >= bird->max_charging_attack_time){
+            change_up(entity, dir_to_player);         
+            bird->charging_attack_timer = 0;            
+            bird->charging_attack = false;
+            bird->attacking = true;
+            
+            f32 bird_attack_speed = 300;
+            bird->velocity = dir_to_player * bird_attack_speed;
+            
+        } else{
+            change_up(entity, dir_to_player);         
+            f32 charging_back_movement_amount = 3.0f;
+            
+            entity->position -= entity->up * charging_back_movement_amount * dt;
+        }
+    }
+    
+    if (bird->attacking){
+        bird->attack_timer += dt;
+        if (bird->attack_timer >= bird->max_attack_time){
+            bird->attack_timer = 0;
+            bird->attacking = false;
+            bird->roaming = true;
+        } else{
+            f32 speed = magnitude(bird->velocity);
+            change_up(entity, lerp(entity->up, dir_to_player, dt));
+            bird->velocity = entity->up * speed;
+            move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &calculate_bird_collisions, dt);
+        }
+    }
+    
+    if (bird->roaming){
+        bird->target_position = player_entity->position + Vector2_up * 60;        
+        bird->target_position.y += sinf(core.time.game_time * entity->position.y) * 10;
+        bird->target_position.x += cosf(core.time.game_time * entity->position.x) * 50;
         bird->velocity += (bird->target_position - entity->position) * bird->roam_acceleration * dt;
         clamp_magnitude(&bird->velocity, bird->max_roam_speed);
+        
+        move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &calculate_bird_collisions, dt);
+        
+        change_up(entity, bird->velocity);
     }
     
-    f32 max_frame_move_len = entity->scale.y * 0.8f;
-    Vector2 this_frame_move_direction = normalized(bird->velocity);
-    f32 this_frame_move_len = magnitude(bird->velocity * dt); 
+    // f32 max_frame_move_len = entity->scale.y * 0.8f;
+    // Vector2 this_frame_move_direction = normalized(bird->velocity);
+    // f32 this_frame_move_len = magnitude(bird->velocity * dt); 
     
-    while(this_frame_move_len > max_frame_move_len){
-        entity->position += this_frame_move_direction * max_frame_move_len;
-        calculate_bird_collisions(entity);
-        this_frame_move_len -= max_frame_move_len;
-        this_frame_move_direction = normalized(bird->velocity);
-    }
+    // while(this_frame_move_len > max_frame_move_len){
+    //     entity->position += this_frame_move_direction * max_frame_move_len;
+    //     calculate_bird_collisions(entity);
+    //     this_frame_move_len -= max_frame_move_len;
+    //     this_frame_move_direction = normalized(bird->velocity);
+    // }
     
-    entity->position += this_frame_move_direction * this_frame_move_len;
-    calculate_bird_collisions(entity);
+    // entity->position += this_frame_move_direction * this_frame_move_len;
+    // calculate_bird_collisions(entity);
     
-    change_up(entity, bird->velocity);
+    //change_up(entity, bird->velocity);
     //entity->position += bird->velocity * dt;
 }
 
@@ -2247,21 +2340,26 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     }
 }
 
-void calculate_projectile_collisions(Entity *projectile){
-    fill_collisions(projectile, &player_data.collisions, GROUND | ENEMY);
+void calculate_projectile_collisions(Entity *entity){
+    fill_collisions(entity, &player_data.collisions, GROUND | ENEMY);
     
     Player *player = &player_data;
+    Projectile *projectile = &entity->projectile;
     
     for (int i = 0; i < player->collisions.count; i++){
         Collision col = player->collisions.get(i);
         Entity *other = col.other_entity;
         
         if (other->flags & ENEMY && !other->enemy.dead_man){
-            kill_enemy(other, projectile->position, col.normal);    
+            kill_enemy(other, entity->position, col.normal);    
         }
         
         if (other->flags & GROUND){
-            projectile->destroyed = true;
+            if (fangle(col.normal, entity->projectile.velocity) - 90 < 40){
+                projectile->velocity = reflected_vector(projectile->velocity, col.normal);
+            } else{
+                entity->destroyed = true;
+            }
         }
     }
 }
@@ -2381,6 +2479,10 @@ Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt){
 void draw_player(Entity *entity){
     assert(entity->flags & PLAYER);
     
+    if (player_data.dead_man){
+        return;
+    }
+    
     draw_game_triangle_strip(entity);
 }
 
@@ -2398,6 +2500,18 @@ void draw_enemy(Entity *entity){
     assert(entity->flags & ENEMY);
     
     draw_game_triangle_strip(entity);
+}
+
+void draw_bird_enemy(Entity *entity){
+    assert(entity->flags & BIRD_ENEMY);
+    
+    Entity visual_entity = *entity;
+    if (entity->bird_enemy.charging_attack){
+        f32 charging_progress = entity->bird_enemy.charging_attack_timer / entity->bird_enemy.max_charging_attack_time;
+        visual_entity.position += rnd_in_circle() * lerp(0.0f, 1.0f, charging_progress * charging_progress);
+    }
+    
+    draw_game_triangle_strip(&visual_entity);
 }
 
 int compare_entities_draw_order(const void *first, const void *second){
@@ -2478,7 +2592,9 @@ void draw_entities(){
             draw_sword(e);
         }
         
-        if (e->flags & ENEMY){
+        if (e->flags & BIRD_ENEMY){
+            draw_bird_enemy(e);
+        } else if (e->flags & ENEMY){
             draw_enemy(e);
         }
         

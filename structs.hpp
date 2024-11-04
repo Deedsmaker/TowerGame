@@ -30,6 +30,20 @@ struct Enemy{
 };
 
 struct Bird_Enemy{
+    //Attacking state
+    b32 attacking = false;
+    f32 attack_timer = 0;
+    f32 max_attack_time = 3.0f;
+
+    //Charging attack state
+    b32 charging_attack = false;
+    f32 charging_attack_timer = 0;
+    f32 max_charging_attack_time = 2.0f;
+
+    //Roam state
+    b32 roaming = true;
+    f32 roam_timer = 0;
+    f32 max_roam_time = 3.0f;
     f32 max_roam_speed = 120;
     f32 roam_acceleration = 10;
 
@@ -37,7 +51,6 @@ struct Bird_Enemy{
     Vector2 velocity;
     Vector2 speed;
     
-    b32 charging_attack = false;
 };
 
 struct Color_Changer{
@@ -71,6 +84,8 @@ struct Collision{
 
 struct Player{
     Array<Collision, MAX_COLLISIONS> collisions = Array<Collision, MAX_COLLISIONS>();
+    
+    b32 dead_man = false;
     
     f32 max_ground_angle = 45;
     
@@ -136,6 +151,7 @@ struct Particle{
     Vector2 original_scale;
     f32 lifetime;
     f32 max_lifetime;
+    f32 gravity_multiplier = 1;
     
     //b32 colliding;
     
@@ -154,6 +170,8 @@ struct Particle_Emitter{
     Vector2 direction = Vector2_up;
     
     f32 spawn_radius = 1;
+    
+    f32 gravity_multiplier = 1;
     
     b32 emitting;
     f32 emitting_timer;

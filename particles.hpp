@@ -13,8 +13,10 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
     particle.scale = {scale, scale};
     particle.original_scale = {scale, scale};
     
+    particle.gravity_multiplier = emitter.gravity_multiplier;
+    
     f32 x_direction = rnd(direction.x - emitter.spread, direction.x + emitter.spread);
-    f32 y_direction = rnd(direction.y - 0.2f, direction.y + 0.2f);
+    f32 y_direction = rnd(direction.y - 0.4f, direction.y + 0.4f);
     Vector2 randomized_direction = {x_direction, y_direction};
                                     
     f32 randomized_speed = rnd(emitter.speed_min * speed_multiplier, emitter.speed_max * speed_multiplier);
@@ -136,7 +138,7 @@ void update_particles(){
         f32 t_lifetime = particle->lifetime / particle->max_lifetime;
         particle->scale = lerp(particle->original_scale, Vector2_zero, t_lifetime * t_lifetime);
         
-        f32 gravity = -50;
+        f32 gravity = -50 * particle->gravity_multiplier;
         particle->velocity.y += gravity * dt;
         
         particle->velocity += frame_on_circle_rnd * 100 * dt;
@@ -160,6 +162,7 @@ void update_particles(){
 global_variable Particle_Emitter *chainsaw_emitter;
 global_variable Particle_Emitter *sword_tip_emitter;
 global_variable Particle_Emitter *blood_emitter;
+global_variable Particle_Emitter big_blood_emitter;
 global_variable Particle_Emitter rifle_bullet_emitter;
 
 void free_emitter(Particle_Emitter *emitter){
@@ -219,6 +222,22 @@ void setup_particles(){
     blood_emitter->spread            = 1.0f;
     blood_emitter->color             = RED * 0.7f;
     blood_emitter->enabled           = true;
+    
+    big_blood_emitter.spawn_radius      = 3;
+    big_blood_emitter.over_distance     = 0;
+    big_blood_emitter.direction_to_move = 0;
+    big_blood_emitter.over_time         = 0;
+    big_blood_emitter.speed_min         = 10;
+    big_blood_emitter.speed_max         = 80;
+    big_blood_emitter.count_min         = 40;
+    big_blood_emitter.count_max         = 100;
+    big_blood_emitter.scale_min         = 1.0f;
+    big_blood_emitter.scale_max         = 2.0f;
+    big_blood_emitter.lifetime_min      = 0.4f;
+    big_blood_emitter.lifetime_max      = 1.5f;
+    big_blood_emitter.spread            = 1.0f;
+    big_blood_emitter.color             = RED * 0.8f;
+    big_blood_emitter.enabled           = true;
 
     //free_emitter(rifle_bullet_emitter);
     //rifle_bullet_emitter = add_emitter();
@@ -235,6 +254,7 @@ void setup_particles(){
     rifle_bullet_emitter.lifetime_min      = 0.3f;
     rifle_bullet_emitter.lifetime_max      = 0.9f;
     rifle_bullet_emitter.spread            = 1.0f;
+    rifle_bullet_emitter.gravity_multiplier = 0;
     rifle_bullet_emitter.color             = WHITE * 0.9f;
     rifle_bullet_emitter.enabled           = false;
 }
