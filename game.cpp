@@ -255,7 +255,7 @@ int save_level(const char *level_name){
         Entity *e = context.entities.get_ptr(i);
         
         Color color = e->color_changer.start_color;
-        fprintf(fptr, "id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:, draw_order:%d: ", e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
+        fprintf(fptr, "name:%s: id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:, draw_order:%d: ", e->name, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
         
         fprintf(fptr, "vertices [ ");
         for (int v = 0; v < e->vertices.count; v++){
@@ -355,7 +355,11 @@ int load_level(const char *level_name){
         Entity entity_to_fill = Entity();
         
         for (int i = 0; i < splitted_line.count; i++){
-            if (str_equal(splitted_line.get(i).data, "id")){
+            if (str_equal(splitted_line.get(i).data, "name")){
+                str_copy(entity_to_fill.name, splitted_line.get(i+1).data);  
+                i++;
+                continue;
+            } else if (str_equal(splitted_line.get(i).data, "id")){
                 fill_int_from_string(&entity_to_fill.id, splitted_line.get(i+1).data);
                 i++;
                 continue;
@@ -1135,30 +1139,36 @@ void close_create_box(){
 
 void update_editor_ui(){
     //inspector logic
-    if (editor.selected_entity){
+    Entity *selected = editor.selected_entity;
+    if (selected){
         Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.4f};
         Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
         make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
         f32 height_add = 30;
         f32 v_pos = inspector_position.y + height_add + 40;
         
-        make_ui_text(TextFormat("ID: %d", editor.selected_entity->id), {inspector_position.x, inspector_position.y + 10}, 24, WHITE, "inspector_id"); 
+        make_ui_text(TextFormat("ID: %d", selected->id), {inspector_position.x + 100, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
+        
+        make_ui_text(TextFormat("Name: ", selected->id), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
+        if (make_input_field(TextFormat("%s", selected->name), {inspector_position.x + 65, inspector_position.y + 10}, {200, 25}, "inspector_name") || focus_input_field.changed && (str_equal(focus_input_field.tag, "inspector_name"))){
+            str_copy(selected->name, focus_input_field.content);
+        }
         
         make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
-        if (make_input_field(TextFormat("%.3f", editor.selected_entity->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
-            || make_input_field(TextFormat("%.3f", editor.selected_entity->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
+        if (make_input_field(TextFormat("%.3f", selected->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
+            || make_input_field(TextFormat("%.3f", selected->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
             || focus_input_field.changed && (str_equal(focus_input_field.tag, "inspector_pos_x") || str_equal(focus_input_field.tag, "inspector_pos_y"))){
-            Vector2 old_position = editor.selected_entity->position;
+            Vector2 old_position = selected->position;
             if (str_equal(focus_input_field.tag, "inspector_pos_x")){
-                editor.selected_entity->position.x = atof(focus_input_field.content);
+                selected->position.x = atof(focus_input_field.content);
             } else if (str_equal(focus_input_field.tag, "inspector_pos_y")){
-                editor.selected_entity->position.y = atof(focus_input_field.content);
+                selected->position.y = atof(focus_input_field.content);
             } else{
                 assert(false);
             }
-            undo_add_position(editor.selected_entity, editor.selected_entity->position - old_position);
+            undo_add_position(selected, selected->position - old_position);
         }
         v_pos += height_add;
         

@@ -223,7 +223,7 @@ struct Entity{
     i32 id = -1;
     //i32 index = -1;
     
-    char name[32];
+    char name[128] = "unknown_name";
 
     b32 enabled = 1;
     
