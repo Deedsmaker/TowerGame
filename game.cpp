@@ -119,6 +119,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags){
 }
 
 Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags){
+    // *this = Entity(_pos, _scale, _rotation, _flags);
     flags    = _flags;
     position = _pos;
     pivot = _pivot;
@@ -190,6 +191,7 @@ Entity::Entity(Entity *copy){
     flags = copy->flags;
     color = copy->color;
     draw_order = copy->draw_order;
+    str_copy(name, copy->name);
     
     if (flags & TEXTURE){
         texture = copy->texture;
@@ -484,6 +486,18 @@ void init_spawn_objects(){
     str_copy(enemy_bird_object.name, enemy_bird_entity.name);
     
     spawn_objects.add(enemy_bird_object);
+    
+    Entity win_block_entity = Entity({0, 0}, {3, 3}, {0.5f, 0.5f}, 0, WIN_BLOCK);
+    win_block_entity.color = GREEN * 0.9f;
+    win_block_entity.color_changer.start_color = win_block_entity.color;
+    win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
+    str_copy(win_block_entity.name, "win_block"); 
+    
+    Spawn_Object win_block_object;
+    copy_entity(&win_block_object.entity, &win_block_entity);
+    str_copy(win_block_object.name, win_block_entity.name);
+    
+    spawn_objects.add(win_block_object);
     
     // cat_texture = LoadTexture("resources/textures/cat.png");
     // Entity cat_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, cat_texture, TEXTURE);
@@ -1938,8 +1952,15 @@ void add_blood_amount(Player *player, Entity *sword, f32 added){
     change_scale(sword, lerp(player->sword_start_scale, sword_target_scale, player->blood_progress * player->blood_progress));
 }
 
+void win_level(){
+    if (!context.we_got_a_winner){    
+        kill_player();
+        //context.we_got_a_winner = true;
+    }
+}
+
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
-    fill_collisions(sword, &player_data.collisions, GROUND | ENEMY);
+    fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK);
     
     Player *player = &player_data;
     
@@ -1963,6 +1984,10 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
                              + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
                              
             add_blood_amount(player, sword, 10);
+        }
+        
+        if (other->flags & WIN_BLOCK){
+            win_level();
         }
     }
 }
@@ -2351,7 +2376,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
 }
 
 void calculate_projectile_collisions(Entity *entity){
-    fill_collisions(entity, &player_data.collisions, GROUND | ENEMY);
+    fill_collisions(entity, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK);
     
     Player *player = &player_data;
     Projectile *projectile = &entity->projectile;
@@ -2370,6 +2395,10 @@ void calculate_projectile_collisions(Entity *entity){
             } else{
                 entity->destroyed = true;
             }
+        }
+        
+        if (other->flags & WIN_BLOCK){
+            win_level();
         }
     }
 }
@@ -2606,6 +2635,13 @@ void draw_entities(){
             draw_bird_enemy(e);
         } else if (e->flags & ENEMY){
             draw_enemy(e);
+        }
+        
+        if (e->flags & WIN_BLOCK){
+            draw_game_triangle_strip(e);
+            Vector2 line_from = e->position - e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f - e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
+            Vector2 line_to   = e->position + e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f + e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
+            draw_game_line(line_from, line_to, 0.8f, PURPLE * 0.9f);
         }
         
         if (e-> flags & DRAW_TEXT){

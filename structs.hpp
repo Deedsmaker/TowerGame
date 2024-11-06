@@ -17,6 +17,7 @@ enum Flags{
     TEXTURE = 1 << 6,
     PROJECTILE = 1 << 7,
     PARTICLE_EMITTER = 1 << 8,
+    WIN_BLOCK = 1 << 9,
     
     TEST = 1 << 31
 };
@@ -27,6 +28,10 @@ struct Ground{
 
 struct Enemy{
     b32 dead_man = false;  
+};
+
+struct Win_Block{
+    Vector2 kill_direction = Vector2_up;
 };
 
 struct Bird_Enemy{
@@ -44,7 +49,7 @@ struct Bird_Enemy{
     b32 roaming = true;
     f32 roam_timer = 0;
     f32 max_roam_time = 3.0f;
-    f32 max_roam_speed = 120;
+    f32 max_roam_speed = 300;
     f32 roam_acceleration = 10;
 
     Vector2 target_position;  
@@ -262,6 +267,7 @@ struct Entity{
     Bird_Enemy bird_enemy;
     Projectile projectile;
     Particle_Emitter emitter;
+    Win_Block win_block;
 };
 
 global_variable Player player_data;
@@ -307,7 +313,8 @@ struct Context{
     Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(100000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
-
+    
+    b32 we_got_a_winner = false;
     Vector2 unit_screen_size;
     
     Cam cam = {};
