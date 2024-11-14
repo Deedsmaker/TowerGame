@@ -189,6 +189,7 @@ Entity::Entity(Entity *copy){
     rotation = copy->rotation;
     scale = copy->scale;
     flags = copy->flags;
+    collision_flags = copy->collision_flags;
     color = copy->color;
     draw_order = copy->draw_order;
     str_copy(name, copy->name);
@@ -236,6 +237,9 @@ void clear_context(Context *c){
     c->entities.clear();
     c->particles.clear();
     c->emitters.clear();
+    
+    c ->we_got_a_winner = false;
+    player_data = {};
 }
 
 int save_level(const char *level_name){
@@ -247,6 +251,13 @@ int save_level(const char *level_name){
     }
     
     printf("level saved: %s\n", level_name);
+    
+    
+    fprintf(fptr, "Setup Data:\n");
+    
+    fprintf(fptr, "player_spawn_point:{:%f:, :%f:} ", editor.player_spawn_point.x, editor.player_spawn_point.y);
+    
+    fprintf(fptr, ";\n");
     
     fprintf(fptr, "Entities:\n");
     for (int i = 0; i < context.entities.max_count; i++){        
@@ -333,30 +344,44 @@ void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dyn
 }
 
 int load_level(const char *level_name){
-    // FILE *fptr = fopen(level_name, "r");
-    
-    // if (fptr == NULL){
-    //     return 0;
-    // }
-    
-    // const unsigned MAX_LENGTH = 1000;
-    // char buffer[MAX_LENGTH];
-    
     File file = load_file(level_name, "r");
     
     Dynamic_Array<Medium_Str> splitted_line = Dynamic_Array<Medium_Str>(64);
     
+    b32 parsing_setup_data = false;
+    b32 parsing_entities   = false;
+    
     for (int line_index = 0; line_index < file.lines.count; line_index++){
         Long_Str line = file.lines.get(line_index);
         
+        if (str_equal(line.data, "Setup Data:")){
+            parsing_setup_data = true;
+            parsing_entities = false;
+        }
+        
         if (str_equal(line.data, "Entities:")){
+            parsing_setup_data = false;
+            parsing_entities = true;
             continue;
         }
         split_str(line.data, ":{}, ;", &splitted_line);
         
+        
         Entity entity_to_fill = Entity();
         
         for (int i = 0; i < splitted_line.count; i++){
+            if (parsing_setup_data){
+                if (str_equal(splitted_line.get(i).data, "player_spawn_point")){
+                    fill_vector2_from_string(&editor.player_spawn_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                    i += 2;
+                    continue;
+                }
+            }
+        
+            if (!parsing_entities){
+                continue;
+            }
+
             if (str_equal(splitted_line.get(i).data, "name")){
                 str_copy(entity_to_fill.name, splitted_line.get(i+1).data);  
                 i++;
@@ -411,15 +436,17 @@ int load_level(const char *level_name){
             }
         }
         
-        if (entity_to_fill.flags & TEXTURE){
-            i64 texture_hash = hash_str(entity_to_fill.texture_name);
-            assert(textures_table.has_key(texture_hash));
-            entity_to_fill.texture = textures_table.get_by_key(texture_hash);
+        if (parsing_entities){
+            if (entity_to_fill.flags & TEXTURE){
+                i64 texture_hash = hash_str(entity_to_fill.texture_name);
+                assert(textures_table.has_key(texture_hash));
+                entity_to_fill.texture = textures_table.get_by_key(texture_hash);
+            }
+            
+            Entity *added_entity = add_entity(&entity_to_fill, true);
+            
+            calculate_bounds(added_entity);
         }
-        
-        Entity *added_entity = add_entity(&entity_to_fill, true);
-        
-        calculate_bounds(added_entity);
     }
     
     //free_string_array(&splitted_line);
@@ -437,6 +464,8 @@ int load_level(const char *level_name){
     
     // fclose(fptr);
     
+    loop_entities(init_loaded_entity);
+    
     setup_particles();
     
     return 1;
@@ -449,6 +478,8 @@ global_variable Array<Collision, MAX_COLLISIONS> collisions_data = Array<Collisi
 global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
 
 Texture cat_texture;
+
+#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY)
 
 void init_spawn_objects(){
     Entity block_base_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, GROUND);
@@ -476,6 +507,7 @@ void init_spawn_objects(){
     spawn_objects.add(enemy_base_object);
     
     Entity enemy_bird_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY);
+    enemy_bird_entity.collision_flags = BIRD_ENEMY_COLLISION_FLAGS;//GROUND | PLAYER | BIRD_ENEMY;
     enemy_bird_entity.color = YELLOW * 0.9f;
     enemy_bird_entity.color_changer.start_color = enemy_bird_entity.color;
     enemy_bird_entity.color_changer.target_color = enemy_bird_entity.color * 1.5f;
@@ -499,21 +531,17 @@ void init_spawn_objects(){
     
     spawn_objects.add(win_block_object);
     
-    // cat_texture = LoadTexture("resources/textures/cat.png");
-    // Entity cat_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, cat_texture, TEXTURE);
-    // cat_entity.color = WHITE;
-    // cat_entity.color_changer.start_color = cat_entity.color;
-    // cat_entity.color_changer.target_color = cat_entity.color * 1.5f;
-    // str_copy(cat_entity.name, "cat_funny"); 
+    Entity agro_area_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, AGRO_AREA);
+    agro_area_entity.color = RED * 0.9f;
+    agro_area_entity.color_changer.start_color = agro_area_entity.color;
+    agro_area_entity.color_changer.target_color = agro_area_entity.color * 1.5f;
+    str_copy(agro_area_entity.name, "agro_area"); 
     
-    // cat_entity.texture = cat_texture;
-    // str_copy(cat_entity.texture_name, "cat_funny");
+    Spawn_Object argo_area_object;
+    copy_entity(&argo_area_object.entity, &agro_area_entity);
+    str_copy(argo_area_object.name, agro_area_entity.name);
     
-    // Spawn_Object cat_object;
-    // copy_entity(&cat_object.entity, &cat_entity);
-    // str_copy(cat_object.name, cat_entity.name);
-    
-    //spawn_objects.add(cat_object);
+    spawn_objects.add(argo_area_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -552,20 +580,31 @@ void load_textures(){
             printf("COULD NOT FIND HASH FOR TEXTURE: %s\n", name);
             continue;
         }
-        // int try_count = 0;
-        // while (!textures_table.add(hash, texture) && try_count < 1000){
-        //     hash *= 2;
-        //     try_count++;
-        // }
-        //assert(try_count < 1000);
-        // if (try_count >= 1000){
-        //     printf("COULD NOT FIND HASH FOR TEXTURE: %s\n", name);
-        //     continue;
-        // }
         
         add_spawn_object_from_texture(texture, name);
     }
     UnloadDirectoryFiles(textures);
+}
+
+inline void loop_entities(void (func)(Entity*)){
+    for (int i = 0; i < context.entities.max_count; i++){
+        if (!context.entities.has_index(i)){
+            continue;
+        }
+    
+        Entity *e = context.entities.get_ptr(i);
+        if (!e->enabled){
+            continue;
+        }
+        
+        func(e);
+    }
+}
+
+inline void init_loaded_entity(Entity *entity){
+    if (entity->flags & BIRD_ENEMY){
+        entity->collision_flags = BIRD_ENEMY_COLLISION_FLAGS;
+    }
 }
 
 void init_game(){
@@ -607,13 +646,16 @@ void enter_game_state(){
     //copy_context(&saved_level_context, &context);
     
     player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER);
+    player_entity->collision_flags = GROUND | ENEMY;
     player_entity->draw_order = 30;
     
     Entity *ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
+    ground_checker->collision_flags = GROUND;
     ground_checker->color = Fade(PURPLE, 0.8f);
     ground_checker->draw_order = 31;
     
     Entity *sword_entity = add_entity(editor.player_spawn_point, player_data.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
+    sword_entity->collision_flags = ENEMY;
     sword_entity->color   = GRAY + RED * 0.1f;
     sword_entity->color.a = 255;
     sword_entity->color_changer.start_color = sword_entity->color;
@@ -1260,7 +1302,55 @@ void update_editor_ui(){
             undo_add_draw_order(editor.selected_entity, draw_order_add);
         }
         v_pos += height_add;
+        
+        if (editor.selected_entity->flags & AGRO_AREA){
+            if (make_button({inspector_position.x + 5, v_pos}, {75, 50}, {0, 0}, "Assign enemies", 22, "agro_area_assign_button")){
+                
+            }
+        }
     }
+}
+
+Entity *get_cursor_entity(){
+    Entity *cursor_entity_candidate = NULL;
+    
+    b32 mouse_on_selected_entity = editor.selected_entity && check_entities_collision(&mouse_entity, editor.selected_entity).collided;
+
+    for (int i = 0; i < context.entities.max_count; i++){        
+        Entity *e = context.entities.get_ptr(i);
+        
+        if (!e->enabled/* || e->flags == -1*/){
+            continue;
+        }
+        
+        if ((check_entities_collision(&mouse_entity, e)).collided){
+            if (editor.last_click_position == input.mouse_position){
+                //If we long enough on one entity we assume that we want to pick it up and not to cycle
+                f32 time_since_last_click = core.time.game_time - editor.last_click_time;
+                if (time_since_last_click >= 0.5f && mouse_on_selected_entity){
+                    if (e->id == editor.selected_entity->id){
+                        cursor_entity_candidate = e;
+                    }
+                } else if (!cursor_entity_candidate && editor.selected_entity && e->id != editor.selected_entity->id){
+                    cursor_entity_candidate = e;
+                } else if (!editor.place_cursor_entities.contains(e)){
+                    cursor_entity_candidate = e;
+                }
+            } else{ //Mouse moved from last click
+                //If mouse moved we always want cursor entity to be a selected entity
+                if (mouse_on_selected_entity){
+                    if (e->id == editor.selected_entity->id){
+                        cursor_entity_candidate = e;
+                    }
+                } else{
+                    cursor_entity_candidate = e;
+                }
+                editor.place_cursor_entities.clear();
+            }
+        }
+    }        
+    
+    return cursor_entity_candidate;
 }
 
 void update_editor(){
@@ -1297,8 +1387,6 @@ void update_editor(){
         }
     }
     
-    b32 found_cursor_entity_this_frame = false;
-    
     b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select;
     b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
     
@@ -1308,7 +1396,9 @@ void update_editor(){
     
     mouse_entity.position = input.mouse_position;
     
-    Entity *cursor_entity_candidate = NULL;
+    //Entity *cursor_entity_candidate = NULL;
+    
+    int cursor_entities_count = 0;
     
     //editor entities loop
     for (int i = 0; i < context.entities.max_count; i++){        
@@ -1319,19 +1409,27 @@ void update_editor(){
         }
         
         if ((check_entities_collision(&mouse_entity, e)).collided){
-            if (editor.last_click_position == input.mouse_position){
-                if (!cursor_entity_candidate){
-                    cursor_entity_candidate = e;
-                } else if (!editor.place_cursor_entities.contains(e)){
-                    cursor_entity_candidate = e;
-                }
-            } else{
-                cursor_entity_candidate = e;
-                editor.place_cursor_entities.clear();
-            }
-            found_cursor_entity_this_frame = true;
-        } else if (!found_cursor_entity_this_frame){
-            editor.cursor_entity = NULL;
+            cursor_entities_count++;
+        //     if (editor.last_click_position == input.mouse_position){
+        //         if (!cursor_entity_candidate){
+        //             cursor_entity_candidate = e;
+        //         } else if (!editor.place_cursor_entities.contains(e)){
+        //             cursor_entity_candidate = e;
+        //         }
+        //     } else{ //Mouse moved from last click
+        //         //If mouse moved we always want cursor entity to be a selected entity
+        //         if (editor.selected_entity && check_entities_collision(&mouse_entity, editor.selected_entity).collided){
+        //             if (e->id == editor.selected_entity->id){
+        //                 cursor_entity_candidate = e;
+        //             }
+        //         } else{
+        //             cursor_entity_candidate = e;
+        //         }
+        //         editor.place_cursor_entities.clear();
+        //     }
+        // } else if (cursor_entities_count == 0){
+        //     editor.cursor_entity = NULL;
+        // }
         }
         
         //editor vertices
@@ -1360,7 +1458,12 @@ void update_editor(){
          //editor snap closest vertex to closest vertex
     }
     
-    editor.cursor_entity = cursor_entity_candidate;
+    // if (cursor_entity_candidate == NULL){
+    //     //something to think about
+    //     editor.place_cursor_entities.clear();
+    // } else{
+    //     editor.cursor_entity = cursor_entity_candidate;
+    // }
     
     if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
         move_vertex(editor.moving_vertex_entity, closest_vertex_global, editor.moving_vertex_index);
@@ -1371,6 +1474,13 @@ void update_editor(){
         editor.moving_vertex = NULL;
         editor.moving_vertex_entity = NULL;
     }
+    
+    //This means we clicked all entities in one mouse position, so we want to cycle
+    if (cursor_entities_count <= editor.place_cursor_entities.count){
+        editor.place_cursor_entities.clear();
+    }
+    
+    editor.cursor_entity = get_cursor_entity();
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select){
         if (editor.cursor_entity != NULL){ //selecting entity
@@ -1692,13 +1802,13 @@ void update_editor(){
             assert(context.entities.has_key(action->entity_id));
             Entity *undo_entity = context.entities.get_by_key_ptr(action->entity_id);
 
-            undo_entity->position -= action->position_change;
-            undo_entity->scale -= action->scale_change;
-            undo_entity->rotation -= action->rotation_change;
+            undo_entity->position   -= action->position_change;
+            undo_entity->scale      -= action->scale_change;
+            undo_entity->rotation   -= action->rotation_change;
             undo_entity->draw_order -= action->draw_order_change;
             
             for (int i = 0; i < action->vertices_change.count; i++){
-                *undo_entity->vertices.get_ptr(i) -= action->vertices_change.get(i);
+                *undo_entity->vertices.get_ptr(i)          -= action->vertices_change.get(i);
                 *undo_entity->unscaled_vertices.get_ptr(i) -= action->unscaled_vertices_change.get(i);
             }
             
@@ -1725,13 +1835,13 @@ void update_editor(){
         } else{
             assert(context.entities.has_key(action->entity_id));
             Entity *undo_entity = context.entities.get_by_key_ptr(action->entity_id);
-            undo_entity->position += action->position_change;
-            undo_entity->scale += action->scale_change;
-            undo_entity->rotation += action->rotation_change;
+            undo_entity->position   += action->position_change;
+            undo_entity->scale      += action->scale_change;
+            undo_entity->rotation   += action->rotation_change;
             undo_entity->draw_order += action->draw_order_change;
             
             for (int i = 0; i < action->vertices_change.count; i++){
-                *undo_entity->vertices.get_ptr(i) += action->vertices_change.get(i);
+                *undo_entity->vertices.get_ptr(i)          += action->vertices_change.get(i);
                 *undo_entity->unscaled_vertices.get_ptr(i) += action->unscaled_vertices_change.get(i);
             }
             
@@ -1746,10 +1856,15 @@ void update_editor(){
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         editor.last_click_position = input.mouse_position;
+        editor.last_click_time = core.time.game_time;
+    }
+    
+    if (IsKeyPressed(KEY_P) && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL)){
+        editor.player_spawn_point = input.mouse_position;
     }
 
     clicked_ui = false;
-}
+} // update editor end
 
 void calculate_bounds(Entity *entity){
     // if (entity->flags & TEXTURE){
@@ -1796,10 +1911,6 @@ void change_scale(Entity *entity, Vector2 new_scale){
     clamp(&entity->scale.x, 0.01f, 10000);
     clamp(&entity->scale.y, 0.01f, 10000);
 
-    //Vector2 vec_scale_difference = entity->scale - old_scale;
-    
-    //auto vertices = entity->unscaled_vertices;
-    
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
         Vector2 unscaled_vertex = entity->unscaled_vertices.get(i);
@@ -1810,18 +1921,6 @@ void change_scale(Entity *entity, Vector2 new_scale){
         f32 right_dot = dot(entity->right, unscaled_vertex);
 
         *vertex = normalized(unscaled_vertex) + (entity->up * up_dot * entity->scale.y) + (entity->right * right_dot * entity->scale.x);
-    
-        // f32 up_dot    = dot(entity->up,    *vertex);
-        // f32 right_dot = dot(entity->right, *vertex);
-        
-        // if (old_scale.y == 1 || abs(up_dot) >= entity->scale.y * 0.1f){
-        //     up_dot    = normalized(up_dot);
-        //     *vertex += entity->up    * up_dot    * vec_scale_difference.y * entity->pivot.y * entity->scaling_multiplier.y;
-        // }
-        // if (old_scale.x == 1 || abs(right_dot) >= entity->scale.x * 0.1f){
-        //     right_dot = normalized(right_dot);
-        //     *vertex += entity->right * right_dot * vec_scale_difference.x * entity->pivot.x * entity->scaling_multiplier.x;
-        // } 
     }
     
     calculate_bounds(entity);
@@ -1955,7 +2054,7 @@ void add_blood_amount(Player *player, Entity *sword, f32 added){
 void win_level(){
     if (!context.we_got_a_winner){    
         kill_player();
-        //context.we_got_a_winner = true;
+        context.we_got_a_winner = true;
     }
 }
 
@@ -2020,7 +2119,6 @@ void update_player(Entity *entity, f32 dt){
     if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
         chainsaw_emitter->enabled = false;
     }
-    
     
     player_data.sword_angular_velocity *= 1.0f - (dt);
     
@@ -2231,53 +2329,61 @@ void update_player(Entity *entity, f32 dt){
     player_data.grounded = found_ground;
 }
 
-void calculate_bird_collisions(Entity *bird_entity){
-    assert(bird_entity->flags & BIRD_ENEMY);
-
-    fill_collisions(bird_entity, &collisions_data, GROUND | BIRD_ENEMY | PLAYER);
-    
-    Bird_Enemy *bird = &bird_entity->bird_enemy;
+inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity){
+    fill_collisions(entity, &collisions_data, entity->collision_flags);
     
     for (int i = 0; i < collisions_data.count; i++){
         Collision col = collisions_data.get(i);
-        Entity *other = col.other_entity;
-        
-        if (other->flags & GROUND){
-            resolve_collision(bird_entity, col);
-            bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
-            bird->attacking = false;
-            bird->attack_timer = 0;
-            bird->roaming = true;
-        }
-        
-        if (other->flags & BIRD_ENEMY && !bird->attacking){
-            resolve_collision(bird_entity, col);
-            bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
-        }
-        
-        if (other->flags & PLAYER && !player_data.dead_man){
-            if (player_data.sword_spin_progress < 0.4f){
-                kill_player();
-            } else if (player_data.sword_spin_progress >= 0.4f){
-                kill_enemy(bird_entity, bird_entity->position, bird->velocity);
-            }
+        respond_func(entity, col);
+    }
+}
+
+void respond_bird_collision(Entity *bird_entity, Collision col){
+    assert(bird_entity->flags & BIRD_ENEMY);
+
+    Bird_Enemy *bird = &bird_entity->bird_enemy;
+    Entity *other = col.other_entity;
+    
+    if (other->flags & GROUND){
+        resolve_collision(bird_entity, col);
+        bird->velocity = reflected_vector(bird->velocity * 0.4f, col.normal);
+        bird->attacking = false;
+        bird->attack_timer = 0;
+        bird->roaming = true;
+    }
+    
+    if (other->flags & BIRD_ENEMY && !bird->attacking){
+        resolve_collision(bird_entity, col);
+        bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
+    }
+    
+    if (other->flags & PLAYER && !player_data.dead_man){
+        if (player_data.sword_spin_progress < 0.4f){
+            kill_player();
+        } else if (player_data.sword_spin_progress >= 0.4f){
+            kill_enemy(bird_entity, bird_entity->position, bird->velocity);
         }
     }
-}    
+}
 
-void move_by_velocity_with_collisions(Entity *entity, Vector2 velocity, f32 max_frame_move_len, void (calculate_collisions_func)(Entity*), f32 dt){
+// inline void calculate_bird_collisions(Entity *bird_entity){
+//     calculate_collisions(&respond_bird_collision, bird_entity, GROUND | BIRD_ENEMY | PLAYER);
+// }    
+
+void move_by_velocity_with_collisions(Entity *entity, Vector2 velocity, f32 max_frame_move_len, void (respond_collision_func)(Entity*, Collision), f32 dt){
     Vector2 this_frame_move_direction = normalized(velocity);
     f32 this_frame_move_len = magnitude(velocity * dt); 
     
     while(this_frame_move_len > max_frame_move_len){
         entity->position += this_frame_move_direction * max_frame_move_len;
-        calculate_collisions_func(entity);
+        calculate_collisions(respond_collision_func, entity);
         this_frame_move_len -= max_frame_move_len;
         this_frame_move_direction = normalized(velocity);
     }
     
     entity->position += this_frame_move_direction * this_frame_move_len;
-    calculate_collisions_func(entity);
+    //respond_collision_func(entity);
+    calculate_collisions(respond_collision_func, entity);
 }
 
 void update_bird_enemy(Entity *entity, f32 dt){
@@ -2329,7 +2435,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
             f32 speed = magnitude(bird->velocity);
             change_up(entity, lerp(entity->up, dir_to_player, dt));
             bird->velocity = entity->up * speed;
-            move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &calculate_bird_collisions, dt);
+            move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
         }
     }
     
@@ -2340,7 +2446,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
         bird->velocity += (bird->target_position - entity->position) * bird->roam_acceleration * dt;
         clamp_magnitude(&bird->velocity, bird->max_roam_speed);
         
-        move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &calculate_bird_collisions, dt);
+        move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
         
         change_up(entity, bird->velocity);
     }
@@ -2646,6 +2752,11 @@ void draw_entities(){
         
         if (e-> flags & DRAW_TEXT){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
+        }
+        
+        if (e->flags & AGRO_AREA){
+            draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
+            draw_game_triangle_strip(e, e->color * 0.1f);
         }
         
         if (e->flags & TEST){
@@ -3003,14 +3114,18 @@ void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 th
     draw_rect_lines(screen_pos, scale * UNIT_SIZE, thick, color);
 }
 
-void draw_game_triangle_strip(Entity *entity){
+void draw_game_triangle_strip(Entity *entity, Color color){
     Vector2 screen_positions[entity->vertices.count];
     
     for (int i = 0; i < entity->vertices.count; i++){
         screen_positions[i] = world_to_screen(global(entity, entity->vertices.get(i)));
     }
     
-    draw_triangle_strip(screen_positions, entity->vertices.count, entity->color);
+    draw_triangle_strip(screen_positions, entity->vertices.count, color);
+}
+
+inline void draw_game_triangle_strip(Entity *entity){
+    draw_game_triangle_strip(entity, entity->color);
 }
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
