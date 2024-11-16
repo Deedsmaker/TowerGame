@@ -5,6 +5,9 @@
 
 #include "game.h"
 
+#define ForTable(table, xx) for(int xx = table_next_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+1))
+//#define For(arr, type, value) for(int ii = 0; ii < arr.count; ii++){ type value = arr.get(ii);
+
 global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
@@ -34,7 +37,9 @@ global_variable Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>
 #include "ui.hpp"
 
 void free_entity(Entity *e){
-
+    if (e->flags & AGRO_AREA){
+        e->agro_area.connected.free_arr();
+    }
 }
 
 void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
@@ -208,6 +213,10 @@ Entity::Entity(Entity *copy){
         enemy = copy->enemy;
     }
     
+    if (flags & AGRO_AREA){
+        agro_area = copy->agro_area;
+    }
+    
     calculate_bounds(this);
     setup_color_changer(this);
 }
@@ -282,6 +291,14 @@ int save_level(const char *level_name){
         }
         fprintf(fptr, "] "); 
         
+        if (e->flags & AGRO_AREA){
+            fprintf(fptr, "agro_connected [ ");
+            for (int v = 0; v < e->agro_area.connected.count; v++){
+                fprintf(fptr, ":%d: ", e->agro_area.connected.get(v)); 
+            }
+            fprintf(fptr, "] "); 
+        }
+        
         if (e->flags & TEXTURE){
             fprintf(fptr, "texture_name:%s: ", e->texture_name);
         }
@@ -340,6 +357,23 @@ void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dyn
         
         fill_vector2_from_string(vertices->get_ptr(vertices->count), current.data, next.data);
         vertices->count++;
+    }
+}
+
+void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_Str> line_arr, int *index_ptr){
+    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
+    //assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+    
+    *index_ptr += 2;
+    
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 1){
+        Medium_Str current = line_arr.get((*index_ptr));
+        //Medium_Str next    = line_arr.get((*index_ptr) + 1);
+        int value = -1;
+        fill_int_from_string(&value, current.data);  
+        arr->add(value);
+        //fill_vector2_from_string(arr->get_ptr(arr->count), current.data, next.data);
+        //arr->count++;
     }
 }
 
@@ -430,6 +464,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "draw_order")){
                 fill_int_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "agro_connected")){
+                print("iove tried");
+                fill_int_array_from_string(&entity_to_fill.agro_area.connected, splitted_line, &i);
             } else{
                 //assert(false);
                 print("Something unknown during level load");
@@ -607,6 +644,30 @@ inline void init_loaded_entity(Entity *entity){
     }
 }
 
+
+inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index){
+    for (int i = index; i < table.max_count; i++){
+        if (table.has_index(i)){
+            return i;
+        }
+    }
+    
+    return table.max_count;
+}
+
+void init_entity(Entity *entity){
+    setup_color_changer(entity);
+    
+    if (entity->flags & AGRO_AREA){
+        // ForTable(context.entities, i){
+        //     Entity *e = context.entities.get_ptr(i);
+        //     if (e->flags & ENEMY){
+        //         entity->agro_area.connected.add(e->id);
+        //     }
+        // }
+    }
+}
+
 void init_game(){
     game_state = EDITOR;
 
@@ -624,6 +685,10 @@ void init_game(){
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
     load_level("test_level.level");
+    
+    ForTable(context.entities, i){
+        init_entity(context.entities.get_ptr(i));
+    }
     
     Context *c = &context;
     
@@ -1303,10 +1368,10 @@ void update_editor_ui(){
         }
         v_pos += height_add;
         
-        if (editor.selected_entity->flags & AGRO_AREA){
-            if (make_button({inspector_position.x + 5, v_pos}, {75, 50}, {0, 0}, "Assign enemies", 22, "agro_area_assign_button")){
-                
-            }
+        if (selected->flags & AGRO_AREA){
+            make_ui_text(TextFormat("Connected: %d", selected->agro_area.connected.count), {inspector_position.x + 5, (f32)screen_height - 100}, 24, RED * 0.9f, "agro_count");
+            make_ui_text("Assign New: Alt+A", {inspector_position.x + 5, (f32)screen_height - 75}, 24, RED * 0.9f, "agro_assign");
+            make_ui_text("Clear Connected: Alt+G", {inspector_position.x + 5, (f32)screen_height - 50}, 24, RED * 0.9f, "agro_clear");
         }
     }
 }
@@ -1356,7 +1421,7 @@ Entity *get_cursor_entity(){
 void update_editor(){
     Undo_Action undo_action;
     b32 something_in_undo = false;
-    b32 can_control_with_single_button = !focus_input_field.in_focus;
+    b32 can_control_with_single_button = !focus_input_field.in_focus && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_LEFT_ALT);
     b32 can_select = !clicked_ui;
     
     f32 dt = core.time.dt;
@@ -1739,11 +1804,11 @@ void update_editor(){
     //editor entity scaling
     if (can_control_with_single_button && editor.selected_entity != NULL){
         Vector2 scaling = {};
-        f32 speed = 5;
+        f32 speed = 40;
         
-        if (IsKeyDown(KEY_LEFT_SHIFT)){
-            speed *= 3.0f;
-        }
+        // if (IsKeyDown(KEY_LEFT_SHIFT)){
+        //     speed *= 3.0f;
+        //}
         
         if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))){
             editor.scaling_start = editor.selected_entity->scale;
@@ -1776,6 +1841,34 @@ void update_editor(){
             undo_add_scaling(editor.selected_entity, scale_change);
             editor.is_scaling_entity = false;
         } 
+    }
+    
+    //editor components management
+    if (editor.selected_entity){
+        Entity *selected = editor.selected_entity;
+        if (selected->flags & AGRO_AREA){
+            //agro assign
+            if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A)){
+                fill_collisions(&mouse_entity, &collisions_data, ENEMY);
+                
+                for (int i = 0; i < collisions_data.count; i++){
+                    Collision col = collisions_data.get(i);
+                    
+                    if (!selected->agro_area.connected.contains(col.other_entity->id)){
+                        selected->agro_area.connected.add(col.other_entity->id);
+                        break;
+                    }
+                }
+                
+                // for (int ii = 0; ii < collisions_data.count; ii++){
+                    
+                // }
+            }
+            //agro clear
+            if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_G)){
+                selected->agro_area.connected.clear();
+            }
+        }
     }
     
     //undo logic
@@ -2565,7 +2658,7 @@ void update_entities(){
             
             free_entity(e);
             entities->remove_index(i);    
-            i--;
+            //i--;
             
             if (game_state == EDITOR){
                 editor.need_validate_entity_pointers = true;
@@ -2755,8 +2848,25 @@ void draw_entities(){
         }
         
         if (e->flags & AGRO_AREA){
-            draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
+            //draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
+            draw_game_line_strip(e, e->color);
             draw_game_triangle_strip(e, e->color * 0.1f);
+            
+            b32 agro_selected = editor.selected_entity && editor.selected_entity->id == e->id;
+            for (int ii = 0; agro_selected && ii < e->agro_area.connected.count; ii++){
+                int id = e->agro_area.connected.get(ii);
+                
+                //@BROKEN don't work and this anyway should be in agro update, not in drawing
+                if (!context.entities.has_key(id)){
+                    e->agro_area.connected.remove(ii);
+                    ii--;
+                    continue;
+                }
+                
+                Entity *connected_enemy = context.entities.get_by_key_ptr(id);
+                
+                draw_game_line(e->position, connected_enemy->position, 0.2f, RED);
+            }
         }
         
         if (e->flags & TEST){
@@ -3011,6 +3121,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     
     check_avaliable_ids_and_set_if_found(&e.id);
 
+
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
 }
@@ -3028,6 +3139,7 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
     e.id = id;
     
     check_avaliable_ids_and_set_if_found(&e.id);
+    
     
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
@@ -3089,7 +3201,7 @@ Vector2 world_to_screen(Vector2 position){
     return to_center;
 }
 
-Vector2 rect_screen_pos(Vector2 position, Vector2 scale, Vector2 pivot){
+inline Vector2 rect_screen_pos(Vector2 position, Vector2 scale, Vector2 pivot){
     Vector2 pivot_add = multiply(pivot, scale);
     Vector2 with_pivot_pos = {position.x - pivot_add.x, position.y + pivot_add.y};
     Vector2 screen_pos = world_to_screen(with_pivot_pos);
@@ -3108,10 +3220,20 @@ void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color)
     draw_rect(screen_pos, multiply(scale, UNIT_SIZE), color);
 }
 
-void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color){
+inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
     //Vector2 screen_pos = world_to_screen(position);
     draw_rect_lines(screen_pos, scale * UNIT_SIZE, thick, color);
+}
+
+void draw_game_line_strip(Entity *entity, Color color){
+    Vector2 screen_positions[entity->vertices.count];
+    
+    for (int i = 0; i < entity->vertices.count; i++){
+        screen_positions[i] = world_to_screen(global(entity, entity->vertices.get(i)));
+    }
+    
+    draw_line_strip(screen_positions, entity->vertices.count, color);
 }
 
 void draw_game_triangle_strip(Entity *entity, Color color){

@@ -18,6 +18,7 @@ enum Flags{
     PROJECTILE = 1 << 7,
     PARTICLE_EMITTER = 1 << 8,
     WIN_BLOCK = 1 << 9,
+    AGRO_AREA = 1 << 10,
     
     TEST = 1 << 31
 };
@@ -56,6 +57,10 @@ struct Bird_Enemy{
     Vector2 velocity;
     Vector2 speed;
     
+};
+
+struct Agro_Area{
+    Dynamic_Array<int> connected;  
 };
 
 struct Color_Changer{
@@ -245,6 +250,7 @@ struct Entity{
     Vector2 right = {1, 0};
     
     FLAGS flags;
+    FLAGS collision_flags = 0;
     //b32 need_to_destroy = 0;
     
     //lower - closer to camera
@@ -268,6 +274,7 @@ struct Entity{
     Projectile projectile;
     Particle_Emitter emitter;
     Win_Block win_block;
+    Agro_Area agro_area;
 };
 
 global_variable Player player_data;
@@ -414,6 +421,7 @@ struct Editor{
     
     Vector2 player_spawn_point = {0, 0};
     Vector2 last_click_position = {0, 0};
+    f32 last_click_time = 0;
 };
 
 struct Debug{

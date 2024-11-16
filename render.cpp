@@ -36,6 +36,10 @@ void draw_rect_lines(Vector2 pos, Vector2 scale, f32 thick, Color color){
     DrawRectangleLinesEx(rec, thick, color);
 }
 
+void draw_line_strip(Vector2 *points, int count, Color color){
+    DrawLineStrip(points, count, color);
+}
+
 void draw_triangle_strip(Vector2 *points, int count, Color color){
     DrawTriangleStrip(points, count, color);
 }
