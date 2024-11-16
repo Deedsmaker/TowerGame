@@ -22,6 +22,11 @@ global_variable Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Array<Input_
 global_variable Input_Field focus_input_field;
 global_variable b32 just_focused = false;
 
+void clear_focus_input_field(){
+    focus_input_field.content[0] = '\0';
+    focus_input_field.chars_count = 0;
+}
+
 void update_input_field(){
     focus_input_field.changed = false;
 
@@ -102,7 +107,7 @@ void copy_input_field(Input_Field *dest, Input_Field *src){
     dest->in_focus = src->in_focus;
 }
 
-b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag){
+b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag, bool remove_focus_after_enter = true){
     //means it's the same and we want to keep all contents
     Input_Field input_field = {position, size};
     if (focus_input_field.in_focus && str_equal(focus_input_field.tag, tag)){
@@ -112,7 +117,10 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         input_fields.add(input_field);
         
         if (IsKeyPressed(KEY_ENTER)){
-            focus_input_field.in_focus = false;
+            if (remove_focus_after_enter){
+                focus_input_field.in_focus = false;
+            }
+            
             return true;
         }
     
@@ -139,3 +147,4 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     
     return false;
 }
+

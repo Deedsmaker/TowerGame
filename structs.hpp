@@ -442,3 +442,11 @@ struct Debug{
     b32 info_particle_count = true;
     b32 info_emitters_count = true;
 };
+
+struct Console{   
+    b32 open = false;
+    
+    String str = String();
+    f32 closed_time = 0;
+    f32 opened_time = 0;
+};

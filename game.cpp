@@ -12,6 +12,7 @@ global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
 global_variable Context saved_level_context = {};
+global_variable Console console = {};
 global_variable Editor editor  = {};
 global_variable Debug  debug  = {};
 //global_variable Entity *player_entity;
@@ -465,7 +466,6 @@ int load_level(const char *level_name){
                 fill_int_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "agro_connected")){
-                print("iove tried");
                 fill_int_array_from_string(&entity_to_fill.agro_area.connected, splitted_line, &i);
             } else{
                 //assert(false);
@@ -672,6 +672,7 @@ void init_game(){
     game_state = EDITOR;
 
     input = {};
+    console.str = init_string();
 
     current_level = {};
     //current_level.context = (Context*)malloc(sizeof(Context));
@@ -791,6 +792,33 @@ void fixed_game_update(){
     //update_entities();
 }
 
+void update_console(){
+    b32 can_control_console = !editor.create_box_active;
+    if (can_control_console && IsKeyPressed(KEY_SLASH)){
+        if (console.open){
+            console.open = false;
+            console.closed_time = core.time.game_time;
+            
+            if (str_equal(focus_input_field.tag, "console_input_field")){
+                focus_input_field.in_focus = false;
+            }
+        } else{
+            console.open = true;
+            console.opened_time = core.time.game_time;
+            make_next_input_field_in_focus();
+        }
+    }
+            
+    if (console.open && can_control_console){
+        if (make_input_field("", {0.0f, (f32)screen_height * 0.5f}, {(f32)screen_width, 30.0f}, "console_input_field", false)){
+            console.str += focus_input_field.content;
+            console.str += "\n";
+            
+            clear_focus_input_field();
+        }
+    }
+}
+
 void update_game(){
     //dt *= dt_scale;
     
@@ -874,6 +902,7 @@ void update_game(){
     }
     
     update_input_field();
+    update_console();
     
     if (game_state == EDITOR){
         update_editor_ui();
@@ -1648,9 +1677,10 @@ void update_editor(){
     }
     
     //create box
+    b32 can_control_create_box = !console.open;
     b32 need_close_create_box = false;
     
-    if (IsKeyPressed(KEY_SPACE) && editor.in_editor_time > 0.05f){
+    if (can_control_create_box && IsKeyPressed(KEY_SPACE) && editor.in_editor_time > 0.05f){
         if (editor.create_box_active && !editor.create_box_closing){
             need_close_create_box = true;
         } else{ //open create box
@@ -1664,7 +1694,7 @@ void update_editor(){
         }
     }
     
-    if (IsKeyPressed(KEY_ESCAPE)){
+    if (can_control_create_box && IsKeyPressed(KEY_ESCAPE)){
         if (editor.create_box_active){
             need_close_create_box = true;
         } else if (editor.selected_entity){
@@ -1672,7 +1702,7 @@ void update_editor(){
         }
     }
     
-    if (editor.create_box_active){
+    if (can_control_create_box && editor.create_box_active){
         if (IsKeyPressed(KEY_DOWN)){
             editor.create_box_selected_index++;
             if (editor.create_box_selected_index < 0){
@@ -2635,16 +2665,20 @@ void update_projectile(Entity *entity, f32 dt){
     calculate_projectile_collisions(entity);
 }
 
+void agro_area_verify_connected(Entity *e){
+    for (int i = 0; i < e->agro_area.connected.count; i++){   
+        //So if entiity was somehow destoyed, annighilated
+        if (!context.entities.has_key(e->agro_area.connected.get(i))){
+            e->agro_area.connected.remove(i);
+            i--;
+            continue;
+        }
+    }
+}
+
 void update_editor_entity(Entity *e){
     if (e->flags & AGRO_AREA){
-        for (int i = 0; i < e->agro_area.connected.count; i++){   
-            //So if entiity was somehow destoyed, annighilated
-            if (!context.entities.has_key(e->agro_area.connected.get(i))){
-                e->agro_area.connected.remove(i);
-                i--;
-                continue;
-            }
-        }
+        agro_area_verify_connected(e);
     }
 }
 
@@ -2656,6 +2690,13 @@ void update_agro_area(Entity *e){
     if (check_entities_collision(e, player_entity).collided){
         for (int i = 0; i < area->connected.count; i++){
             int id = area->connected.get(i);
+            
+            if (!context.entities.has_key(e->agro_area.connected.get(i))){
+                e->agro_area.connected.remove(i);
+                i--;
+                continue;
+            }
+            
             assert(context.entities.has_key(id));
             
             Entity *connected_entity = context.entities.get_by_key_ptr(id);
@@ -3115,6 +3156,12 @@ void draw_game(){
     if (debug.info_emitters_count){
         draw_text(TextFormat("Emitters count: %d", context.emitters.count), 10, v_pos, font_size, RED);
         v_pos += font_size;
+    }
+    
+    if (console.open){
+        //draw console
+        draw_rect({0, 0}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
+        draw_text_boxed(console.str.data, {4, 4, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, GREEN);
     }
     
     EndDrawing();
