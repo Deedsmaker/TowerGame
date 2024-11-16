@@ -1371,7 +1371,8 @@ void update_editor_ui(){
         if (selected->flags & AGRO_AREA){
             make_ui_text(TextFormat("Connected: %d", selected->agro_area.connected.count), {inspector_position.x + 5, (f32)screen_height - 100}, 24, RED * 0.9f, "agro_count");
             make_ui_text("Assign New: Alt+A", {inspector_position.x + 5, (f32)screen_height - 75}, 24, RED * 0.9f, "agro_assign");
-            make_ui_text("Clear Connected: Alt+G", {inspector_position.x + 5, (f32)screen_height - 50}, 24, RED * 0.9f, "agro_clear");
+            make_ui_text("Remove selected: Alt+D", {inspector_position.x + 5, (f32)screen_height - 50}, 24, RED * 0.9f, "agro_remove");
+            make_ui_text("Clear Connected: Alt+L", {inspector_position.x + 5, (f32)screen_height - 25}, 24, RED * 0.9f, "agro_clear");
         }
     }
 }
@@ -1847,25 +1848,26 @@ void update_editor(){
     if (editor.selected_entity){
         Entity *selected = editor.selected_entity;
         if (selected->flags & AGRO_AREA){
-            //agro assign
-            if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A)){
+            b32 wanna_assign = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
+            b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
+            //agro assign or remove
+            if (wanna_assign || wanna_remove){
                 fill_collisions(&mouse_entity, &collisions_data, ENEMY);
                 
                 for (int i = 0; i < collisions_data.count; i++){
                     Collision col = collisions_data.get(i);
                     
-                    if (!selected->agro_area.connected.contains(col.other_entity->id)){
+                    if (wanna_assign && !wanna_remove && !selected->agro_area.connected.contains(col.other_entity->id)){
                         selected->agro_area.connected.add(col.other_entity->id);
+                        break;
+                    } else if (wanna_remove && !wanna_assign && selected->agro_area.connected.contains(col.other_entity->id)){
+                        selected->agro_area.connected.remove(i);
                         break;
                     }
                 }
-                
-                // for (int ii = 0; ii < collisions_data.count; ii++){
-                    
-                // }
             }
             //agro clear
-            if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_G)){
+            if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_L)){
                 selected->agro_area.connected.clear();
             }
         }
@@ -2481,6 +2483,11 @@ void move_by_velocity_with_collisions(Entity *entity, Vector2 velocity, f32 max_
 
 void update_bird_enemy(Entity *entity, f32 dt){
     assert(entity->flags & BIRD_ENEMY);
+    assert(entity->flags & ENEMY);
+    
+    if (!entity->enemy.in_agro){
+        return;
+    }
     
     Bird_Enemy *bird = &entity->bird_enemy;
     
@@ -2628,6 +2635,37 @@ void update_projectile(Entity *entity, f32 dt){
     calculate_projectile_collisions(entity);
 }
 
+void update_editor_entity(Entity *e){
+    if (e->flags & AGRO_AREA){
+        for (int i = 0; i < e->agro_area.connected.count; i++){   
+            //So if entiity was somehow destoyed, annighilated
+            if (!context.entities.has_key(e->agro_area.connected.get(i))){
+                e->agro_area.connected.remove(i);
+                i--;
+                continue;
+            }
+        }
+    }
+}
+
+void update_agro_area(Entity *e){
+    assert(e->flags & AGRO_AREA);
+    
+    Agro_Area *area = &e->agro_area;
+    
+    if (check_entities_collision(e, player_entity).collided){
+        for (int i = 0; i < area->connected.count; i++){
+            int id = area->connected.get(i);
+            assert(context.entities.has_key(id));
+            
+            Entity *connected_entity = context.entities.get_by_key_ptr(id);
+            assert(connected_entity->flags & ENEMY);
+            
+            connected_entity->enemy.in_agro = true;
+        }
+    }
+}
+
 void update_entities(){
     Context *c = &context;
     Hash_Table_Int<Entity> *entities = &c->entities;
@@ -2673,6 +2711,7 @@ void update_entities(){
         update_color_changer(e, core.time.dt);            
         
         if (game_state == EDITOR){
+            update_editor_entity(e);
             continue;
         }
         
@@ -2691,6 +2730,10 @@ void update_entities(){
         if (e->flags & PARTICLE_EMITTER){
             e->emitter.position = e->position;
             update_emitter(&e->emitter);
+        }
+        
+        if (e->flags & AGRO_AREA){
+            update_agro_area(e);
         }
     }
 }
@@ -2847,7 +2890,7 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        if (e->flags & AGRO_AREA){
+        if (e->flags & AGRO_AREA && (game_state == EDITOR || debug.draw_areas_in_game)){
             //draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
             draw_game_line_strip(e, e->color);
             draw_game_triangle_strip(e, e->color * 0.1f);
@@ -2855,13 +2898,6 @@ void draw_entities(){
             b32 agro_selected = editor.selected_entity && editor.selected_entity->id == e->id;
             for (int ii = 0; agro_selected && ii < e->agro_area.connected.count; ii++){
                 int id = e->agro_area.connected.get(ii);
-                
-                //@BROKEN don't work and this anyway should be in agro update, not in drawing
-                if (!context.entities.has_key(id)){
-                    e->agro_area.connected.remove(ii);
-                    ii--;
-                    continue;
-                }
                 
                 Entity *connected_enemy = context.entities.get_by_key_ptr(id);
                 
