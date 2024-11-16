@@ -810,7 +810,12 @@ void update_console(){
     }
             
     if (console.open && can_control_console){
-        if (make_input_field("", {0.0f, (f32)screen_height * 0.5f}, {(f32)screen_width, 30.0f}, "console_input_field", false)){
+        f32 time_since_open = core.time.game_time - console.opened_time;
+        console.open_progress = clamp01(time_since_open / 0.3f);
+        
+        Color color = lerp(WHITE * 0, GRAY, console.open_progress * console.open_progress);
+        
+        if (make_input_field("", {0.0f, (f32)screen_height * 0.5f}, {(f32)screen_width, 30.0f}, "console_input_field", color, false)){
             console.str += focus_input_field.content;
             console.str += "\n";
             
@@ -3091,7 +3096,7 @@ void draw_ui(const char *tag){
             f32 blink_speed = 4.0f;
             color_multiplier = lerp(0.5f, 0.8f, (sinf(core.time.game_time * blink_speed) + 1) * 0.5f);
         }
-        draw_rect(input_field.position, input_field.size, {0, 0}, 0, GRAY * color_multiplier);
+        draw_rect(input_field.position, input_field.size, {0, 0}, 0, input_field.color * color_multiplier);
         
         draw_text(input_field.content, input_field.position, input_field.font_size, WHITE * 0.9f);
     }
@@ -3160,8 +3165,24 @@ void draw_game(){
     
     if (console.open){
         //draw console
-        draw_rect({0, 0}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
-        draw_text_boxed(console.str.data, {4, 4, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, GREEN);
+        
+        Color text_color = lerp(GREEN * 0, GREEN, console.open_progress * console.open_progress);
+        f32 y_position = lerp(-screen_height * 0.6f, 0.0f, EaseOutQuint(console.open_progress));
+        
+        draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
+        draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color);
+    } else{
+        f32 since_console_closed = core.time.game_time - console.closed_time;
+        
+        if (since_console_closed <= 0.4f){
+            f32 t = clamp01(since_console_closed / 0.4f);
+            
+            Color text_color = lerp(GREEN, GREEN * 0, t * t);
+            f32 y_position = lerp(0.0f, -screen_height * 0.6f, EaseOutQuint(t));
+            
+            draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
+            draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color);
+        }
     }
     
     EndDrawing();

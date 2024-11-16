@@ -449,4 +449,5 @@ struct Console{
     String str = String();
     f32 closed_time = 0;
     f32 opened_time = 0;
+    f32 open_progress = 0;
 };

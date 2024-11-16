@@ -12,6 +12,8 @@ struct Input_Field{
     char tag[64];
     int chars_count = 0;
     
+    Color color = GRAY;
+    
     f32 font_size = 22;
     
     b32 in_focus = false;
@@ -107,9 +109,10 @@ void copy_input_field(Input_Field *dest, Input_Field *src){
     dest->in_focus = src->in_focus;
 }
 
-b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag, bool remove_focus_after_enter = true){
+b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag, Color color = GRAY, bool remove_focus_after_enter = true){
     //means it's the same and we want to keep all contents
     Input_Field input_field = {position, size};
+    input_field.color = color;
     if (focus_input_field.in_focus && str_equal(focus_input_field.tag, tag)){
         input_field.in_focus = true;
         copy_input_field(&input_field, &focus_input_field);
