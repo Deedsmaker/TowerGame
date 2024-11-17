@@ -50,6 +50,8 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_VERTICES> *result);
 Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 b32 check_col_circles(Circle a, Circle b);
 
+void print_hotkeys_to_console();
+
 inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index);
 
 Vector2 world_to_screen(Vector2 pos);

@@ -24,6 +24,11 @@ global_variable Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Array<Input_
 global_variable Input_Field focus_input_field;
 global_variable b32 just_focused = false;
 
+void set_focus_input_field(char *data){
+    str_copy(focus_input_field.content, data);
+    focus_input_field.chars_count = str_len(data);
+}
+
 void clear_focus_input_field(){
     focus_input_field.content[0] = '\0';
     focus_input_field.chars_count = 0;

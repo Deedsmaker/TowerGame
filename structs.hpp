@@ -325,6 +325,8 @@ struct Context{
     b32 we_got_a_winner = false;
     Vector2 unit_screen_size;
     
+    char current_level_name[256];
+    
     Cam cam = {};
 };
 
@@ -443,11 +445,21 @@ struct Debug{
     b32 info_emitters_count = true;
 };
 
+struct Console_Command{
+    char name[MEDIUM_STR_LEN];
+    void (*func)() = NULL;
+    void (*func_arg)(char*) = NULL;
+};
+
 struct Console{   
-    b32 open = false;
+    b32 is_open = false;
+    Dynamic_Array<Console_Command> commands;
+    Dynamic_Array<Medium_Str> args;
     
     String str = String();
     f32 closed_time = 0;
     f32 opened_time = 0;
     f32 open_progress = 0;
 };
+
+

@@ -253,15 +253,23 @@ void clear_context(Context *c){
 }
 
 int save_level(const char *level_name){
+    String level_path = init_string();
+    level_path += "levels/";
+    level_path += level_name;
     FILE *fptr;
-    fptr = fopen(level_name, "w");
+    fptr = fopen(level_path.data, "w");
     
     if (fptr == NULL){
         return 0;
     }
     
-    printf("level saved: %s\n", level_name);
+    console.str += "Level saved: ";
+    console.str += level_name;
+    console.str += "\n";
     
+    printf("level saved: %s\n", level_path.data);
+    
+    level_path.free_str();
     
     fprintf(fptr, "Setup Data:\n");
     
@@ -309,7 +317,15 @@ int save_level(const char *level_name){
     
     fclose(fptr);
     
+    if (!str_start_with_const(level_name, "TEMP_")){
+        str_copy(context.current_level_name, level_name);
+    }
+    
     return 1;
+}
+
+inline void save_level_by_name(char *name){
+    save_level(name);
 }
 
 b32 is_digit_or_minus(char ch){
@@ -379,7 +395,20 @@ void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_St
 }
 
 int load_level(const char *level_name){
-    File file = load_file(level_name, "r");
+    String level_path = init_string();
+    level_path += "levels/";
+    level_path += level_name;
+    
+    File file = load_file(level_path.data, "r");
+    
+    if (!file.loaded){
+        console.str += "Could not load level: ";
+        console.str += level_name;
+        console.str += "\n";
+        return 0;
+    }
+    
+    clear_context(&context);
     
     Dynamic_Array<Medium_Str> splitted_line = Dynamic_Array<Medium_Str>(64);
     
@@ -399,8 +428,8 @@ int load_level(const char *level_name){
             parsing_entities = true;
             continue;
         }
-        split_str(line.data, ":{}, ;", &splitted_line);
         
+        split_str(line.data, ":{}, ;", &splitted_line);
         
         Entity entity_to_fill = Entity();
         
@@ -486,22 +515,23 @@ int load_level(const char *level_name){
         }
     }
     
+    if (!str_start_with_const(level_name, "TEMP_")){
+        str_copy(context.current_level_name, level_name);
+    }
+    
     //free_string_array(&splitted_line);
     splitted_line.free_arr();
     unload_file(&file);
 
+    {  
+        console.str += "Loaded level: ";
+        console.str += level_name;
+        console.str += "\n";
+    }
         
-    //     //No need to assert every variable. We can add something to entity and old levels should not broke
-    //     assert(found_id && found_position_x && found_position_y);
-        
-    //     Entity *added_entity = add_entity(entity_id, entity_position, entity_scale, entity_pivot, entity_rotation, entity_color, entity_flags, entity_vertices);
-        
-    //     calculate_bounds(added_entity);
-    // }
-    
-    // fclose(fptr);
-    
     loop_entities(init_loaded_entity);
+    
+    level_path.free_str();
     
     setup_particles();
     
@@ -638,6 +668,16 @@ inline void loop_entities(void (func)(Entity*)){
     }
 }
 
+void print_to_console(char *text){
+    console.str += text;
+    console.str += "\n";
+}
+
+void print_to_console(const char *text){
+    console.str += text;
+    console.str += "\n";
+}
+
 inline void init_loaded_entity(Entity *entity){
     if (entity->flags & BIRD_ENEMY){
         entity->collision_flags = BIRD_ENEMY_COLLISION_FLAGS;
@@ -668,16 +708,55 @@ void init_entity(Entity *entity){
     }
 }
 
+inline void save_current_level(){
+    save_level(context.current_level_name);
+}
+
+inline void load_level_by_name(char *name){
+    if (load_level(name)){
+    } else{
+    }
+}
+
+Console_Command make_console_command(const char *name, void (func)() = NULL, void (func_arg)(char*) = NULL){
+    Console_Command command;
+    str_copy(command.name, name);
+    command.func = func;
+    command.func_arg = func_arg;
+    return command;
+}
+
+void print_current_level(){
+    console.str += context.current_level_name;
+    console.str += "\n";
+}
+
+void init_console(){
+    console.str = init_string();
+
+    console.commands.add(make_console_command("hotkeys", print_hotkeys_to_console));
+    console.commands.add(make_console_command("hotkey",  print_hotkeys_to_console));
+    console.commands.add(make_console_command("key",     print_hotkeys_to_console));
+    console.commands.add(make_console_command("keys",    print_hotkeys_to_console));
+    console.commands.add(make_console_command("help",    print_hotkeys_to_console));
+    
+    console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
+    console.commands.add(make_console_command("load",    NULL, load_level_by_name));
+    console.commands.add(make_console_command("level",    print_current_level, load_level_by_name));
+}
+
 void init_game(){
     game_state = EDITOR;
 
+    context = {};    
+    str_copy(context.current_level_name, "test_level.level");
+
     input = {};
-    console.str = init_string();
+    init_console();
 
     current_level = {};
     //current_level.context = (Context*)malloc(sizeof(Context));
     //context = *current_level.context;
-    context = {};    
     
     init_spawn_objects();
     load_textures();
@@ -707,7 +786,12 @@ void enter_game_state(){
 
     game_state = GAME;
     
-    save_level("temp_test_level.level");
+    String temp_level_name = init_string();
+    temp_level_name += "TEMP_";
+    temp_level_name += context.current_level_name;
+    
+    save_level(temp_level_name.data);
+    temp_level_name.free_str();
     
     //copy_context(&saved_level_context, &context);
     
@@ -766,7 +850,14 @@ void enter_editor_state(){
     }
     
     clear_context(&context);
-    load_level("temp_test_level.level");
+    
+    String temp_level_name = init_string();
+    temp_level_name += "TEMP_";
+    temp_level_name += context.current_level_name;
+    
+    load_level(temp_level_name.data);
+    temp_level_name.free_str();
+
     //copy_context(&context, &saved_level_context);
 }
 
@@ -792,32 +883,81 @@ void fixed_game_update(){
     //update_entities();
 }
 
+void print_hotkeys_to_console(){
+    console.str += "Ctrl+Shift+Space - Toggle Game/Editor\n";
+    console.str += "Ctrl+Shift+J - Save current level\n";
+    console.str += "Alt - See and move vertices\n";
+    console.str += "Space - Create menu\n";
+    console.str += "P - Move player spawn point\n";
+}
+
 void update_console(){
     b32 can_control_console = !editor.create_box_active;
-    if (can_control_console && IsKeyPressed(KEY_SLASH)){
-        if (console.open){
-            console.open = false;
+    if (can_control_console && (IsKeyPressed(KEY_SLASH) || (console.is_open && IsKeyPressed(KEY_ESCAPE)))){
+        if (console.is_open){
+            console.is_open = false;
             console.closed_time = core.time.game_time;
             
             if (str_equal(focus_input_field.tag, "console_input_field")){
                 focus_input_field.in_focus = false;
             }
         } else{
-            console.open = true;
+            console.is_open = true;
             console.opened_time = core.time.game_time;
             make_next_input_field_in_focus();
         }
     }
             
-    if (console.open && can_control_console){
+    if (console.is_open && can_control_console){
         f32 time_since_open = core.time.game_time - console.opened_time;
         console.open_progress = clamp01(time_since_open / 0.3f);
         
         Color color = lerp(WHITE * 0, GRAY, console.open_progress * console.open_progress);
         
+        console.args.clear();
+        split_str(focus_input_field.content, " ", &console.args);
+        
+        b32 content_changed = false;
+        for (int i = 0; i < console.commands.count && console.args.count > 0; i++){
+            if (str_start_with(console.commands.get(i).name, console.args.get(0).data)){
+                make_ui_text(console.commands.get(i).name, {0.0f, (f32)screen_height * 0.5f}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
+                
+                if (IsKeyPressed(KEY_TAB) && console.args.count == 1){
+                    set_focus_input_field(console.commands.get(i).name);
+                    content_changed = true;
+                }
+                break;
+            }
+        }
+        
         if (make_input_field("", {0.0f, (f32)screen_height * 0.5f}, {(f32)screen_width, 30.0f}, "console_input_field", color, false)){
             console.str += focus_input_field.content;
             console.str += "\n";
+            
+            //if we used hint while input
+            if (content_changed){
+                console.args.clear();
+                split_str(focus_input_field.content, " ", &console.args);
+            }
+            
+            b32 found_command = false;
+            
+            for (int i = 0; i < console.commands.count && console.args.count > 0; i++){
+                Console_Command command = console.commands.get(i);
+                if (str_equal(command.name, console.args.get(0).data)){
+                    if (command.func_arg && console.args.count > 1){
+                        command.func_arg(console.args.get(1).data);
+                    } else if (command.func){
+                        command.func();   
+                    }
+                    found_command = true;
+                    break;
+                }
+            }
+            
+            if (!found_command && console.args.count > 0){
+                console.str += "Command was not found :D\n";
+            }
             
             clear_focus_input_field();
         }
@@ -1682,7 +1822,7 @@ void update_editor(){
     }
     
     //create box
-    b32 can_control_create_box = !console.open;
+    b32 can_control_create_box = !console.is_open;
     b32 need_close_create_box = false;
     
     if (can_control_create_box && IsKeyPressed(KEY_SPACE) && editor.in_editor_time > 0.05f){
@@ -3163,7 +3303,7 @@ void draw_game(){
         v_pos += font_size;
     }
     
-    if (console.open){
+    if (console.is_open){
         //draw console
         
         Color text_color = lerp(GREEN * 0, GREEN, console.open_progress * console.open_progress);

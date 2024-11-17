@@ -162,7 +162,7 @@ void draw_text_boxed(const char *text, Rectangle rec, float fontSize, float spac
             }
 
             // When text overflows rectangle height limit, just stop drawing
-            if ((textOffsetY + font.baseSize*scaleFactor) > rec.height) break;
+            //if ((textOffsetY + font.baseSize*scaleFactor) > rec.height) break;
 
             // Draw current character glyph
             if ((codepoint != ' ') && (codepoint != '\t'))
