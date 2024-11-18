@@ -1,6 +1,6 @@
 #pragma once
 
-#define MAX_INPUT_FIELDS 16
+#define MAX_INPUT_FIELDS 32
 #define INPUT_FIELD_MAX_CHARS 256
 
 struct Input_Field{

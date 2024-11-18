@@ -196,7 +196,7 @@ Entity::Entity(Entity *copy){
     scale = copy->scale;
     flags = copy->flags;
     collision_flags = copy->collision_flags;
-    color = copy->color;
+    color = copy->color_changer.start_color;
     draw_order = copy->draw_order;
     str_copy(name, copy->name);
     
@@ -220,6 +220,8 @@ Entity::Entity(Entity *copy){
     
     calculate_bounds(this);
     setup_color_changer(this);
+    
+    init_entity(this);
 }
 
 void parse_line(char *line, char *result, int *index){ 
@@ -253,9 +255,13 @@ void clear_context(Context *c){
 }
 
 int save_level(const char *level_name){
+    char *name;
+    name = get_substring_before_symbol(level_name, '.');
+
     String level_path = init_string();
     level_path += "levels/";
-    level_path += level_name;
+    level_path += name;
+    level_path += ".level";
     FILE *fptr;
     fptr = fopen(level_path.data, "w");
     
@@ -264,7 +270,7 @@ int save_level(const char *level_name){
     }
     
     console.str += "Level saved: ";
-    console.str += level_name;
+    console.str += name;
     console.str += "\n";
     
     printf("level saved: %s\n", level_path.data);
@@ -317,8 +323,8 @@ int save_level(const char *level_name){
     
     fclose(fptr);
     
-    if (!str_start_with_const(level_name, "TEMP_")){
-        str_copy(context.current_level_name, level_name);
+    if (!str_start_with_const(name, "TEMP_")){
+        str_copy(context.current_level_name, name);
     }
     
     return 1;
@@ -395,20 +401,26 @@ void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_St
 }
 
 int load_level(const char *level_name){
+    char *name;
+    name = get_substring_before_symbol(level_name, '.');
+
     String level_path = init_string();
     level_path += "levels/";
-    level_path += level_name;
+    level_path += name;
+    level_path += ".level";
     
     File file = load_file(level_path.data, "r");
     
     if (!file.loaded){
         console.str += "Could not load level: ";
-        console.str += level_name;
+        console.str += name;
         console.str += "\n";
         return 0;
     }
     
+    
     clear_context(&context);
+    setup_particles();
     
     Dynamic_Array<Medium_Str> splitted_line = Dynamic_Array<Medium_Str>(64);
     
@@ -509,14 +521,15 @@ int load_level(const char *level_name){
                 entity_to_fill.texture = textures_table.get_by_key(texture_hash);
             }
             
+            setup_color_changer(&entity_to_fill);
             Entity *added_entity = add_entity(&entity_to_fill, true);
             
             calculate_bounds(added_entity);
         }
     }
     
-    if (!str_start_with_const(level_name, "TEMP_")){
-        str_copy(context.current_level_name, level_name);
+    if (!str_start_with_const(name, "TEMP_")){
+        str_copy(context.current_level_name, name);
     }
     
     //free_string_array(&splitted_line);
@@ -525,16 +538,13 @@ int load_level(const char *level_name){
 
     {  
         console.str += "Loaded level: ";
-        console.str += level_name;
+        console.str += name;
         console.str += "\n";
     }
         
     loop_entities(init_loaded_entity);
     
     level_path.free_str();
-    
-    setup_particles();
-    
     return 1;
 }
 
@@ -548,17 +558,28 @@ Texture cat_texture;
 
 #define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY)
 
+void init_bird_entity(Entity *entity){
+    entity->flags = ENEMY | BIRD_ENEMY | PARTICLE_EMITTER;
+    entity->collision_flags = BIRD_ENEMY_COLLISION_FLAGS;//GROUND | PLAYER | BIRD_ENEMY;
+    entity->color = YELLOW * 0.9f;
+    entity->color_changer.start_color = entity->color;
+    entity->color_changer.target_color = entity->color * 1.5f;
+    entity->emitter = rifle_bullet_emitter;
+    str_copy(entity->name, "enemy_bird"); 
+    setup_color_changer(entity);
+}
+
 void init_spawn_objects(){
     Entity block_base_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, GROUND);
     block_base_entity.color = BROWN;
     block_base_entity.color_changer.start_color = block_base_entity.color;
     block_base_entity.color_changer.target_color = block_base_entity.color * 1.5f;
     str_copy(block_base_entity.name, "block_base"); 
+    setup_color_changer(&block_base_entity);
     
     Spawn_Object block_base_object;
     copy_entity(&block_base_object.entity, &block_base_entity);
     str_copy(block_base_object.name, block_base_entity.name);
-    
     spawn_objects.add(block_base_object);
     
     Entity enemy_base_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY);
@@ -566,24 +587,19 @@ void init_spawn_objects(){
     enemy_base_entity.color_changer.start_color = enemy_base_entity.color;
     enemy_base_entity.color_changer.target_color = enemy_base_entity.color * 1.5f;
     str_copy(enemy_base_entity.name, "enemy_base"); 
+    setup_color_changer(&enemy_base_entity);
     
     Spawn_Object enemy_base_object;
     copy_entity(&enemy_base_object.entity, &enemy_base_entity);
     str_copy(enemy_base_object.name, enemy_base_entity.name);
-    
     spawn_objects.add(enemy_base_object);
     
-    Entity enemy_bird_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY);
-    enemy_bird_entity.collision_flags = BIRD_ENEMY_COLLISION_FLAGS;//GROUND | PLAYER | BIRD_ENEMY;
-    enemy_bird_entity.color = YELLOW * 0.9f;
-    enemy_bird_entity.color_changer.start_color = enemy_bird_entity.color;
-    enemy_bird_entity.color_changer.target_color = enemy_bird_entity.color * 1.5f;
-    str_copy(enemy_bird_entity.name, "enemy_bird"); 
+    Entity bird_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
+    init_bird_entity(&bird_entity);
     
     Spawn_Object enemy_bird_object;
-    copy_entity(&enemy_bird_object.entity, &enemy_bird_entity);
-    str_copy(enemy_bird_object.name, enemy_bird_entity.name);
-    
+    copy_entity(&enemy_bird_object.entity, &bird_entity);
+    str_copy(enemy_bird_object.name, bird_entity.name);
     spawn_objects.add(enemy_bird_object);
     
     Entity win_block_entity = Entity({0, 0}, {3, 3}, {0.5f, 0.5f}, 0, WIN_BLOCK);
@@ -591,11 +607,11 @@ void init_spawn_objects(){
     win_block_entity.color_changer.start_color = win_block_entity.color;
     win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
     str_copy(win_block_entity.name, "win_block"); 
+    setup_color_changer(&win_block_entity);
     
     Spawn_Object win_block_object;
     copy_entity(&win_block_object.entity, &win_block_entity);
     str_copy(win_block_object.name, win_block_entity.name);
-    
     spawn_objects.add(win_block_object);
     
     Entity agro_area_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, AGRO_AREA);
@@ -603,11 +619,11 @@ void init_spawn_objects(){
     agro_area_entity.color_changer.start_color = agro_area_entity.color;
     agro_area_entity.color_changer.target_color = agro_area_entity.color * 1.5f;
     str_copy(agro_area_entity.name, "agro_area"); 
+    setup_color_changer(&agro_area_entity);
     
     Spawn_Object argo_area_object;
     copy_entity(&argo_area_object.entity, &agro_area_entity);
     str_copy(argo_area_object.name, agro_area_entity.name);
-    
     spawn_objects.add(argo_area_object);
 }
 
@@ -680,7 +696,7 @@ void print_to_console(const char *text){
 
 inline void init_loaded_entity(Entity *entity){
     if (entity->flags & BIRD_ENEMY){
-        entity->collision_flags = BIRD_ENEMY_COLLISION_FLAGS;
+        init_bird_entity(entity);
     }
 }
 
@@ -705,6 +721,10 @@ void init_entity(Entity *entity){
         //         entity->agro_area.connected.add(e->id);
         //     }
         // }
+    }
+    
+    if (entity->flags & ENEMY){
+        entity->enemy.original_scale = entity->scale;
     }
 }
 
@@ -749,7 +769,7 @@ void init_game(){
     game_state = EDITOR;
 
     context = {};    
-    str_copy(context.current_level_name, "test_level.level");
+    str_copy(context.current_level_name, "test_level");
 
     input = {};
     init_console();
@@ -764,11 +784,11 @@ void init_game(){
     //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
-    load_level("test_level.level");
+    load_level("test_level");
     
-    ForTable(context.entities, i){
-        init_entity(context.entities.get_ptr(i));
-    }
+    // ForTable(context.entities, i){
+    //     init_entity(context.entities.get_ptr(i));
+    // }
     
     Context *c = &context;
     
@@ -781,8 +801,32 @@ void init_game(){
     c->cam.cam2D.zoom = 0.5f;
 }
 
-void enter_game_state(){
+void destroy_player(){
+    assert(player_entity);
+
+    player_entity->destroyed                 = true;
+    
+    assert(context.entities.has_key(player_data.ground_checker_id));
+    context.entities.get_by_key_ptr(player_data.ground_checker_id)->destroyed = true;
+    assert(context.entities.has_key(player_data.sword_entity_id));
+    context.entities.get_by_key_ptr(player_data.sword_entity_id)->destroyed = true;
+    
+    player_entity = NULL;
+}
+
+void clean_up_scene(){
     assign_selected_entity(NULL);
+    editor.in_editor_time = 0;
+    close_create_box();
+    
+    if (player_entity){
+        destroy_player();
+        player_data.dead_man = false;
+    }
+}
+
+void enter_game_state(){
+    clean_up_scene();
 
     game_state = GAME;
     
@@ -825,30 +869,10 @@ void kill_player(){
     player_data.dead_man = true;
 }
 
-void destroy_player(){
-    assert(player_entity);
-
-    player_entity->destroyed                 = true;
-    
-    assert(context.entities.has_key(player_data.ground_checker_id));
-    context.entities.get_by_key_ptr(player_data.ground_checker_id)->destroyed = true;
-    assert(context.entities.has_key(player_data.sword_entity_id));
-    context.entities.get_by_key_ptr(player_data.sword_entity_id)->destroyed = true;
-    
-    player_entity = NULL;
-}
-
 void enter_editor_state(){
     game_state = EDITOR;
     
-    editor.in_editor_time = 0;
-    close_create_box();
-    
-    if (player_entity){
-        destroy_player();
-        player_data.dead_man = false;
-    }
-    
+    clean_up_scene();
     clear_context(&context);
     
     String temp_level_name = init_string();
@@ -887,8 +911,10 @@ void print_hotkeys_to_console(){
     console.str += "Ctrl+Shift+Space - Toggle Game/Editor\n";
     console.str += "Ctrl+Shift+J - Save current level\n";
     console.str += "Alt - See and move vertices\n";
+    console.str += "Alt+V - While moving vertex for snap it to closest";
     console.str += "Space - Create menu\n";
     console.str += "P - Move player spawn point\n";
+    console.str += "Ctrl+Space - Pause in game";
 }
 
 void update_console(){
@@ -896,20 +922,20 @@ void update_console(){
     if (can_control_console && (IsKeyPressed(KEY_SLASH) || (console.is_open && IsKeyPressed(KEY_ESCAPE)))){
         if (console.is_open){
             console.is_open = false;
-            console.closed_time = core.time.game_time;
+            console.closed_time = core.time.app_time;
             
             if (str_equal(focus_input_field.tag, "console_input_field")){
                 focus_input_field.in_focus = false;
             }
         } else{
             console.is_open = true;
-            console.opened_time = core.time.game_time;
+            console.opened_time = core.time.app_time;
             make_next_input_field_in_focus();
         }
     }
             
     if (console.is_open && can_control_console){
-        f32 time_since_open = core.time.game_time - console.opened_time;
+        f32 time_since_open = core.time.app_time - console.opened_time;
         console.open_progress = clamp01(time_since_open / 0.3f);
         
         Color color = lerp(WHITE * 0, GRAY, console.open_progress * console.open_progress);
@@ -919,7 +945,7 @@ void update_console(){
         
         b32 content_changed = false;
         for (int i = 0; i < console.commands.count && console.args.count > 0; i++){
-            if (str_start_with(console.commands.get(i).name, console.args.get(0).data)){
+            if (console.args.count == 1 && str_start_with(console.commands.get(i).name, console.args.get(0).data)){
                 make_ui_text(console.commands.get(i).name, {0.0f, (f32)screen_height * 0.5f}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
                 
                 if (IsKeyPressed(KEY_TAB) && console.args.count == 1){
@@ -967,11 +993,18 @@ void update_console(){
 void update_game(){
     //dt *= dt_scale;
     
-    core.time.unscaled_dt = GetFrameTime();
-    core.time.dt = GetFrameTime() * core.time.time_scale;
+    core.time.app_time += GetFrameTime();
+    core.time.real_dt = GetFrameTime();
     
-    core.time.game_time += core.time.dt;
-    
+    if (game_state == GAME){
+        core.time.unscaled_dt = GetFrameTime();
+        core.time.dt = GetFrameTime() * core.time.time_scale;
+        
+        core.time.game_time += core.time.dt;
+    } else if (game_state == EDITOR || game_state == PAUSE){
+        core.time.unscaled_dt = 0;
+        core.time.dt          = 0;
+    }
     frame_rnd = rnd01();
     frame_on_circle_rnd = rnd_on_circle();
 
@@ -983,46 +1016,49 @@ void update_game(){
     input.direction.x = 0;
     input.direction.y = 0;
     
-    if (IsKeyDown(KEY_RIGHT)){
-        input.direction.x = 1;
-    } else if (IsKeyDown(KEY_LEFT)){
-        input.direction.x = -1;
-    }
-    if (IsKeyDown(KEY_UP)){
-        input.direction.y = 1;
-    } else if (IsKeyDown(KEY_DOWN)){
-        input.direction.y = -1;
-    }
-    if (IsKeyDown(KEY_D)){
-        input.direction.x = 1;
-    } else if (IsKeyDown(KEY_A)){
-        input.direction.x = -1;
-    }
-    if (IsKeyDown(KEY_W)){
-        input.direction.y = 1;
-    } else if (IsKeyDown(KEY_S)){
-        input.direction.y = -1;
-    }
+    b32 can_player_input = !console.is_open;
     
-    if (input.direction.x != 0 || input.direction.y != 0){
-        normalize(&input.direction);
+    if (can_player_input){
+        if (IsKeyDown(KEY_RIGHT)){
+            input.direction.x = 1;
+        } else if (IsKeyDown(KEY_LEFT)){
+            input.direction.x = -1;
+        }
+        if (IsKeyDown(KEY_UP)){
+            input.direction.y = 1;
+        } else if (IsKeyDown(KEY_DOWN)){
+            input.direction.y = -1;
+        }
+        if (IsKeyDown(KEY_D)){
+            input.direction.x = 1;
+        } else if (IsKeyDown(KEY_A)){
+            input.direction.x = -1;
+        }
+        if (IsKeyDown(KEY_W)){
+            input.direction.y = 1;
+        } else if (IsKeyDown(KEY_S)){
+            input.direction.y = -1;
+        }
+        
+        if (input.direction.x != 0 || input.direction.y != 0){
+            normalize(&input.direction);
+        }
+        
+        if (input.tap_direction.x == 0 && IsKeyPressed(KEY_RIGHT)){
+            input.tap_direction.x = 1;
+        } else if (input.tap_direction.x == 0 && IsKeyPressed(KEY_LEFT)){
+            input.tap_direction.x = -1;
+        } else{
+            input.tap_direction.x = 0;
+        }
+        if (input.tap_direction.y == 0 && IsKeyPressed(KEY_UP)){
+            input.tap_direction.y = 1;
+        } else if (input.tap_direction.y == 0 && IsKeyPressed(KEY_DOWN)){
+            input.tap_direction.y = -1;
+        } else{
+            input.tap_direction.y = 0;
+        }
     }
-    
-    if (input.tap_direction.x == 0 && IsKeyPressed(KEY_RIGHT)){
-        input.tap_direction.x = 1;
-    } else if (input.tap_direction.x == 0 && IsKeyPressed(KEY_LEFT)){
-        input.tap_direction.x = -1;
-    } else{
-        input.tap_direction.x = 0;
-    }
-    if (input.tap_direction.y == 0 && IsKeyPressed(KEY_UP)){
-        input.tap_direction.y = 1;
-    } else if (input.tap_direction.y == 0 && IsKeyPressed(KEY_DOWN)){
-        input.tap_direction.y = -1;
-    } else{
-        input.tap_direction.y = 0;
-    }
-
     
     if (screen_size_changed){
         context.unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
@@ -1041,15 +1077,24 @@ void update_game(){
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)){
         if (game_state == EDITOR){
             enter_game_state();
-        } else if (game_state == GAME){
+        } else if (game_state == GAME || game_state == PAUSE){
             enter_editor_state();
+        }
+    } 
+    
+    if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_SPACE) && IsKeyUp(KEY_LEFT_SHIFT)){
+        if (game_state == GAME){
+            game_state = PAUSE;
+            editor.in_editor_time = 0;
+        } else if (game_state == PAUSE){
+            game_state = GAME;
         }
     }
     
     update_input_field();
     update_console();
     
-    if (game_state == EDITOR){
+    if (game_state == EDITOR || game_state == PAUSE){
         update_editor_ui();
         update_editor();
     }
@@ -1061,7 +1106,7 @@ void update_game(){
     
     full_delta = Clamp(full_delta, 0, 0.1f);
     
-    while (full_delta >= TARGET_FRAME_TIME){
+    while (full_delta >= TARGET_FRAME_TIME && game_state == GAME){
         float dt = TARGET_FRAME_TIME * core.time.time_scale;
         if (dt == 0){
             break;
@@ -1105,7 +1150,7 @@ void update_color_changer(Entity *entity, f32 dt){
     Color_Changer *changer = &entity->color_changer;
     
     if (changer->changing){
-        f32 t = abs(sinf(core.time.game_time * changer->change_time));
+        f32 t = abs(sinf(core.time.app_time * changer->change_time));
         entity->color = lerp(changer->start_color, changer->target_color, t);
     }
     
@@ -1566,7 +1611,7 @@ Entity *get_cursor_entity(){
         if ((check_entities_collision(&mouse_entity, e)).collided){
             if (editor.last_click_position == input.mouse_position){
                 //If we long enough on one entity we assume that we want to pick it up and not to cycle
-                f32 time_since_last_click = core.time.game_time - editor.last_click_time;
+                f32 time_since_last_click = core.time.app_time - editor.last_click_time;
                 if (time_since_last_click >= 0.5f && mouse_on_selected_entity){
                     if (e->id == editor.selected_entity->id){
                         cursor_entity_candidate = e;
@@ -1599,7 +1644,7 @@ void update_editor(){
     b32 can_control_with_single_button = !focus_input_field.in_focus && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_LEFT_ALT);
     b32 can_select = !clicked_ui;
     
-    f32 dt = core.time.dt;
+    f32 dt = core.time.real_dt;
     
     editor.in_editor_time += dt;
 
@@ -1907,7 +1952,7 @@ void update_editor(){
             }
             
             if (this_object_selected){
-                f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(core.time.game_time * 3) + 1) * 0.5f);
+                f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(core.time.app_time * 3) + 1) * 0.5f);
                 make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, WHITE * color_multiplier, "create_box");
             }
             
@@ -2121,7 +2166,7 @@ void update_editor(){
     
     //editor Save level
     if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
-        save_level("test_level.level");
+        save_level("test_level");
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
@@ -2618,8 +2663,9 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         resolve_collision(bird_entity, col);
         bird->velocity = reflected_vector(bird->velocity * 0.4f, col.normal);
         bird->attacking = false;
-        bird->attack_timer = 0;
+        bird_entity->emitter.enabled = false;
         bird->roaming = true;
+        bird->start_roam_time = core.time.game_time;
     }
     
     if (other->flags & BIRD_ENEMY && !bird->attacking){
@@ -2660,60 +2706,65 @@ void update_bird_enemy(Entity *entity, f32 dt){
     assert(entity->flags & BIRD_ENEMY);
     assert(entity->flags & ENEMY);
     
+    Bird_Enemy *bird = &entity->bird_enemy;
+    
     if (!entity->enemy.in_agro){
         return;
+    } else if (entity->enemy.just_awake){
+        entity->enemy.just_awake = false;
+        bird->roaming = true;
+        bird->start_roam_time = core.time.game_time;
     }
     
-    Bird_Enemy *bird = &entity->bird_enemy;
     
     Vector2 vec_to_player = player_entity->position - entity->position;
     Vector2 dir_to_player = normalized(vec_to_player);
     f32    distance_to_player = magnitude(vec_to_player);
     
+    //update bird states
     if (bird->roaming){
-        bird->roam_timer += dt;
+        //bird->roam_timer += dt;
+        f32 roam_time = core.time.game_time - bird->start_roam_time;
         
-        if (bird->roam_timer >= bird->max_roam_time){
-            bird->roam_timer = 0;
+        if (roam_time >= bird->max_roam_time){
             bird->roaming = false;
-            bird->charging_attack = true;
-            bird->velocity = Vector2_zero;
+            bird->charging = true;
+            bird->start_charging_time = core.time.game_time;
+            //bird->velocity = Vector2_zero;
         }
     }
     
-    if (bird->charging_attack){
-        bird->charging_attack_timer += dt;
-        if (bird->charging_attack_timer >= bird->max_charging_attack_time){
+    if (bird->charging){
+        f32 charging_time = core.time.game_time - bird->start_charging_time;
+        if (charging_time >= bird->max_charging_time){
+            change_scale(entity, entity->enemy.original_scale);
+        
             change_up(entity, dir_to_player);         
-            bird->charging_attack_timer = 0;            
-            bird->charging_attack = false;
+            bird->charging = false;
             bird->attacking = true;
+            bird->start_attack_time = core.time.game_time;
             
             f32 bird_attack_speed = 300;
             bird->velocity = dir_to_player * bird_attack_speed;
             
-        } else{
-            change_up(entity, dir_to_player);         
-            f32 charging_back_movement_amount = 3.0f;
-            
-            entity->position -= entity->up * charging_back_movement_amount * dt;
-        }
+            emit_particles(entity->emitter, entity->position, entity->up, 4, 10);
+            enable_emitter(&entity->emitter);
+        } 
     }
     
     if (bird->attacking){
-        bird->attack_timer += dt;
-        if (bird->attack_timer >= bird->max_attack_time){
-            bird->attack_timer = 0;
+        f32 attack_time = core.time.game_time - bird->start_attack_time;
+        if (attack_time >= bird->max_attack_time){
             bird->attacking = false;
             bird->roaming = true;
-        } else{
-            f32 speed = magnitude(bird->velocity);
-            change_up(entity, lerp(entity->up, dir_to_player, dt));
-            bird->velocity = entity->up * speed;
-            move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
-        }
+            bird->start_roam_time = core.time.game_time;
+            entity->emitter.enabled = false;
+        } 
     }
     
+    f32 bird_speed = magnitude(bird->velocity);
+    
+    //update bird
     if (bird->roaming){
         bird->target_position = player_entity->position + Vector2_up * 60;        
         bird->target_position.y += sinf(core.time.game_time * entity->position.y) * 10;
@@ -2724,24 +2775,31 @@ void update_bird_enemy(Entity *entity, f32 dt){
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
         
         change_up(entity, bird->velocity);
+    } else if (bird->charging){
+        f32 charging_time = core.time.game_time - bird->start_charging_time;
+        f32 t = charging_time / bird->max_charging_time;
+        
+        change_scale(entity, lerp(entity->enemy.original_scale, {entity->enemy.original_scale.x * 1.2f, entity->enemy.original_scale.y * 2.0f}, t * t));
+        
+        bird->velocity = move_towards(bird->velocity, Vector2_zero, bird_speed * 0.8f, dt);
+        if (t < 0.4f){
+            rotate(entity, bird_speed * 0.2f * normalized(bird->velocity.x));
+        } else{
+            change_up(entity, move_towards(entity->up, dir_to_player, lerp(0.0f, 30.0f, t * t), dt));         
+            f32 charging_back_movement_amount = 3.0f;
+            entity->position -= entity->up * charging_back_movement_amount * dt;
+        }
+        
+        move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
+    } else if (bird->attacking){
+        f32 speed = magnitude(bird->velocity);
+        change_up(entity, lerp(entity->up, dir_to_player, dt));
+        bird->velocity = entity->up * speed;
+        move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
+    } else{
+        assert(false);
+        //what a state
     }
-    
-    // f32 max_frame_move_len = entity->scale.y * 0.8f;
-    // Vector2 this_frame_move_direction = normalized(bird->velocity);
-    // f32 this_frame_move_len = magnitude(bird->velocity * dt); 
-    
-    // while(this_frame_move_len > max_frame_move_len){
-    //     entity->position += this_frame_move_direction * max_frame_move_len;
-    //     calculate_bird_collisions(entity);
-    //     this_frame_move_len -= max_frame_move_len;
-    //     this_frame_move_direction = normalized(bird->velocity);
-    // }
-    
-    // entity->position += this_frame_move_direction * this_frame_move_len;
-    // calculate_bird_collisions(entity);
-    
-    //change_up(entity, bird->velocity);
-    //entity->position += bird->velocity * dt;
 }
 
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction){
@@ -2884,7 +2942,7 @@ void update_entities(){
             entities->remove_index(i);    
             //i--;
             
-            if (game_state == EDITOR){
+            if (game_state == EDITOR || game_state == PAUSE){
                 editor.need_validate_entity_pointers = true;
             }
             continue;
@@ -2894,9 +2952,9 @@ void update_entities(){
             continue;
         }
         
-        update_color_changer(e, core.time.dt);            
+        update_color_changer(e, core.time.real_dt);            
         
-        if (game_state == EDITOR){
+        if (game_state == EDITOR || game_state == PAUSE){
             update_editor_entity(e);
             continue;
         }
@@ -2973,8 +3031,9 @@ void draw_bird_enemy(Entity *entity){
     assert(entity->flags & BIRD_ENEMY);
     
     Entity visual_entity = *entity;
-    if (entity->bird_enemy.charging_attack){
-        f32 charging_progress = entity->bird_enemy.charging_attack_timer / entity->bird_enemy.max_charging_attack_time;
+    if (entity->bird_enemy.charging){
+        f32 charge_time = core.time.game_time - entity->bird_enemy.start_charging_time;
+        f32 charging_progress = charge_time / entity->bird_enemy.max_charging_time;
         visual_entity.position += rnd_in_circle() * lerp(0.0f, 1.0f, charging_progress * charging_progress);
     }
     
@@ -3076,7 +3135,7 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        if (e->flags & AGRO_AREA && (game_state == EDITOR || debug.draw_areas_in_game)){
+        if (e->flags & AGRO_AREA && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
             //draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
             draw_game_line_strip(e, e->color);
             draw_game_triangle_strip(e, e->color * 0.1f);
@@ -3234,11 +3293,15 @@ void draw_ui(const char *tag){
         f32 color_multiplier = 0.8f;
         if (input_field.in_focus){
             f32 blink_speed = 4.0f;
-            color_multiplier = lerp(0.5f, 0.8f, (sinf(core.time.game_time * blink_speed) + 1) * 0.5f);
+            color_multiplier = lerp(0.5f, 0.8f, (sinf(core.time.app_time * blink_speed) + 1) * 0.5f);
         }
         draw_rect(input_field.position, input_field.size, {0, 0}, 0, input_field.color * color_multiplier);
         
-        draw_text(input_field.content, input_field.position, input_field.font_size, WHITE * 0.9f);
+        if (input_field.in_focus){
+            draw_text(TextFormat("%s_", input_field.content), input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);
+        } else{
+            draw_text(input_field.content, input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);
+        }
     }
     
     if (tag_len == 0){
@@ -3266,7 +3329,7 @@ void draw_game(){
         }
     }
     
-    if (game_state == EDITOR){
+    if (game_state == EDITOR || game_state == PAUSE){
         draw_editor();
     }
     
@@ -3312,7 +3375,7 @@ void draw_game(){
         draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
         draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color);
     } else{
-        f32 since_console_closed = core.time.game_time - console.closed_time;
+        f32 since_console_closed = core.time.app_time - console.closed_time;
         
         if (since_console_closed <= 0.4f){
             f32 t = clamp01(since_console_closed / 0.4f);
@@ -3347,7 +3410,7 @@ Entity* add_entity(Entity *copy, b32 keep_id){
     Entity e = Entity(copy);
     
     if (!keep_id){
-        e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
+        e.id = context.entities.total_added_count + core.time.app_time * 10000 + 100;
     }
     
     check_avaliable_ids_and_set_if_found(&e.id);
@@ -3360,7 +3423,7 @@ Entity* add_entity(Entity *copy, b32 keep_id){
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags){
     //Entity *e = add_entity(pos, scale, rotation, flags);    
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    e.id = context.entities.total_added_count + core.time.game_time * 10000 + 100;
+    e.id = context.entities.total_added_count + core.time.app_time * 10000 + 100;
     //e.pivot = pivot;
     
     check_avaliable_ids_and_set_if_found(&e.id);

@@ -2,7 +2,8 @@
 
 enum Game_State{
     EDITOR,
-    GAME
+    GAME,
+    PAUSE
 };
 
 global_variable Game_State game_state = EDITOR;
@@ -76,6 +77,7 @@ void copy_entity(Entity *dest, Entity *src);
 
 inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
+void init_entity(Entity *entity);
 
 Entity* add_entity(Entity *copy, b32 keep_id = false);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);

@@ -96,6 +96,10 @@ void enable_emitter(Particle_Emitter *emitter){
 }
 
 void update_emitter(Particle_Emitter *emitter){
+    if (!emitter->enabled){
+        emitter->emitter_lifetime = 0;
+    }
+
     emitter->emitter_lifetime += core.time.dt;
     
     if (emitter->over_time > 0){
