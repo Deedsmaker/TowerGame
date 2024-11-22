@@ -71,9 +71,9 @@ static void init_ui_text(Ui_Text *ui_text, const char *content, f32 font_size, C
     ui_text->font_size = font_size;
 }
 
-b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text, f32 font_size, const char *tag){
-    Ui_Element *new_ui_element = init_ui_element(position, size, pivot, BLACK * 0.9f, tag, BUTTON | UI_TEXT);
-    init_ui_text(&new_ui_element->text, text, font_size, WHITE * 0.9f);
+b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text, f32 font_size, const char *tag, Color button_color = BLACK * 0.9f, Color text_color = WHITE * 0.9f){
+    Ui_Element *new_ui_element = init_ui_element(position, size, pivot, button_color, tag, BUTTON | UI_TEXT);
+    init_ui_text(&new_ui_element->text, text, font_size, text_color);
     
     Rectangle button_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
     

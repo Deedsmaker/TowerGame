@@ -8,6 +8,12 @@ enum Game_State{
 
 global_variable Game_State game_state = EDITOR;
 
+void clean_up_scene();
+void enter_game_state();
+void enter_editor_state();
+
+void reload_level_files();
+
 void assign_selected_entity(Entity *new_selected);
 
 void close_create_box();
@@ -25,6 +31,7 @@ Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt);
 //void rotate_towards(f32 *rotate_angle, f32 target, f32 speed, f32 dt);
 
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction);
+void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious = false);
 
 void setup_color_changer(Entity *entity);
 void update_color_changer(Entity *entity);
@@ -79,6 +86,8 @@ inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
 void init_entity(Entity *entity);
 
+void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_Type type);
+
 Entity* add_entity(Entity *copy, b32 keep_id = false);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
@@ -102,6 +111,7 @@ Vector2 get_right_up_no_rot(Entity *e);
 Vector2 get_right_up(Entity *e);
 
 void change_scale(Entity *entity, Vector2 new_scale);
+void change_color(Entity *entity, Color new_color);
 void add_scale(Entity *entity, Vector2 added);
 
 void change_up(Entity *entity, Vector2 new_up);

@@ -6,6 +6,71 @@
 
 #define MAX_VERTICES 8
 #define MAX_COLLISIONS 32
+#define MAX_ENTITY_EMITTERS 4
+
+enum Particle_Shape{
+    SQUARE
+};
+
+struct Particle{
+    Particle_Shape shape = SQUARE;
+    Vector2 position;
+    Vector2 scale = {1, 1};
+    Vector2 velocity;
+    Vector2 original_scale;
+    f32 lifetime;
+    f32 max_lifetime;
+    f32 gravity_multiplier = 1;
+    
+    //b32 colliding;
+    
+    Color color = YELLOW;
+};
+
+struct Particle_Emitter{
+    Particle_Shape shape = SQUARE;
+    
+    b32 just_born = true;
+    b32 enabled = true;
+    b32 destroyed = false;
+    
+    Vector2 local_position = {0, 0};
+    Vector2 position = {0, 0};
+    Vector2 last_emitted_position = {0, 0};
+    Vector2 direction = Vector2_up;
+    
+    f32 spawn_radius = 1;
+    
+    f32 gravity_multiplier = 1;
+    
+    b32 emitting;
+    f32 emitting_timer;
+    f32 over_time;
+    f32 over_distance;
+    b32 direction_to_move = false;
+    
+    u32 count_min = 10;
+    u32 count_max = 50;
+    f32 count_multiplier = 1;
+    
+    f32 speed_min = 10;
+    f32 speed_max = 50;  
+    f32 speed_multiplier = 1;
+    
+    f32 scale_min = 0.1f;
+    f32 scale_max = 0.5f;
+    f32 spread = 0.2f;
+    
+    f32 lifetime_min = 0.5f;
+    f32 lifetime_max = 2;
+    f32 lifetime_multiplier = 1;
+    
+    f32 emitter_lifetime = 0;
+    
+    //f32 colliding_chance = 1.0f;
+    
+    Color color = YELLOW;
+};
 
 enum Flags{
     GROUND = 1 << 0,
@@ -19,6 +84,7 @@ enum Flags{
     PARTICLE_EMITTER = 1 << 8,
     WIN_BLOCK = 1 << 9,
     AGRO_AREA = 1 << 10,
+    EXPLOSIVE = 1 << 11,
     
     TEST = 1 << 31
 };
@@ -30,7 +96,14 @@ struct Ground{
 struct Enemy{
     b32 dead_man = false;  
     b32 in_agro = false;
+    b32 in_stun = false;
     b32 just_awake = true;
+    
+    i32 hits_taken = 0;
+    i32 max_hits_taken = 3;
+    
+    f32 stun_start_time = 0;
+    f32 max_stun_time = 1.0f;
     
     Vector2 original_scale = {1, 1};
 };
@@ -42,27 +115,31 @@ struct Win_Block{
 struct Bird_Enemy{
     //Attacking state
     b32 attacking = false;
-    f32 start_attack_time = 0;
+    f32 attack_start_time = 0;
     //f32 attack_timer = 0;
     f32 max_attack_time = 3.0f;
 
     //Charging attack state
     b32 charging = false;
     //f32 charging_attack_timer = 0;
-    f32 start_charging_time = 0;
+    f32 charging_start_time = 0;
     f32 max_charging_time = 3.0f;
 
     //Roam state
     b32 roaming = true;
     //f32 roam_timer = 0;
-    f32 start_roam_time = 0;
-    f32 max_roam_time = 3.0f;
+    f32 roam_start_time = 0;
+    f32 max_roam_time = 6.0f;
     f32 max_roam_speed = 300;
     f32 roam_acceleration = 10;
 
     Vector2 target_position;  
     Vector2 velocity;
     Vector2 speed;
+    
+    Particle_Emitter *attack_emitter;
+    Particle_Emitter *trail_emitter;
+    Particle_Emitter *fire_emitter;
 };
 
 struct Agro_Area{
@@ -98,8 +175,15 @@ struct Collision{
     Vector2 dir_to_first;
 };
 
+struct Bounds{
+    Vector2 size;  
+    Vector2 offset;
+};
+
 struct Player{
     Array<Collision, MAX_COLLISIONS> collisions = Array<Collision, MAX_COLLISIONS>();
+    
+    Particle_Emitter *stun_emitter;
     
     b32 dead_man = false;
     
@@ -143,85 +227,42 @@ struct Player{
     
     //Rifle
     b32 rifle_active = false;
+    b32 rifle_perfect_shot_avaliable = false;
+    f32 rifle_weak_speed = 800;
     f32 rifle_current_power = 0;
     f32 rifle_max_power = 100;
     f32 rifle_power_progress = 0;
+    f32 rifle_shake_start_time = 0;
+    f32 rifle_activate_time = 0;
+    f32 rifle_max_active_time = 3.0f;
+    i32 rifle_perfect_shots_made = 0;
+    i32 rifle_max_perfect_shots = 3;
     
-    f32 current_move_speed;
+    f32 strong_recoil_stun_start_time = 0;
+    f32 weak_recoil_stun_start_time = 0;
+    b32 in_stun = false;
+    
+    f32 current_move_speed = 0;
 };
 
-struct Bounds{
-    Vector2 size;  
-    Vector2 offset;
+enum Projectile_Flags{
+    DEFAULT = 1 << 1,  
+    PLAYER_RIFLE = 1 << 2
 };
 
-enum Particle_Shape{
-    SQUARE
-};
-
-struct Particle{
-    Particle_Shape shape = SQUARE;
-    Vector2 position;
-    Vector2 scale = {1, 1};
-    Vector2 velocity;
-    Vector2 original_scale;
-    f32 lifetime;
-    f32 max_lifetime;
-    f32 gravity_multiplier = 1;
-    
-    //b32 colliding;
-    
-    Color color = YELLOW;
-};
-
-struct Particle_Emitter{
-    Particle_Shape shape = SQUARE;
-    
-    b32 enabled = true;
-    b32 destroyed = false;
-    
-    Vector2 local_position = {0, 0};
-    Vector2 position = {0, 0};
-    Vector2 last_emitted_position = {0, 0};
-    Vector2 direction = Vector2_up;
-    
-    f32 spawn_radius = 1;
-    
-    f32 gravity_multiplier = 1;
-    
-    b32 emitting;
-    f32 emitting_timer;
-    f32 over_time;
-    f32 over_distance;
-    b32 direction_to_move = false;
-    
-    u32 count_min = 10;
-    u32 count_max = 50;
-    f32 count_multiplier = 1;
-    
-    f32 speed_min = 10;
-    f32 speed_max = 50;  
-    f32 speed_multiplier = 1;
-    
-    f32 scale_min = 0.1f;
-    f32 scale_max = 0.5f;
-    f32 spread = 0.2f;
-    
-    f32 lifetime_min = 0.5f;
-    f32 lifetime_max = 2;
-    f32 lifetime_multiplier = 1;
-    
-    f32 emitter_lifetime = 0;
-    
-    //f32 colliding_chance = 1.0f;
-    
-    Color color = YELLOW;
+enum Projectile_Type{  
+    WEAK = 0,
+    MEDIUM = 1,
+    STRONG = 2
 };
 
 struct Projectile{
+    FLAGS flags;
+    Projectile_Type type = WEAK;
     Vector2 velocity = {0, 0};
-    f32 lifetime = 0;
+    f32 birth_time = 0;
     f32 max_lifetime = 5;
+    b32 dying = false;
     //Particle_Emitter trail_emitter;
 };
 
@@ -278,7 +319,7 @@ struct Entity{
     Enemy enemy;
     Bird_Enemy bird_enemy;
     Projectile projectile;
-    Particle_Emitter emitter;
+    Array<Particle_Emitter, MAX_ENTITY_EMITTERS> emitters = Array<Particle_Emitter, MAX_ENTITY_EMITTERS>();
     Win_Block win_block;
     Agro_Area agro_area;
 };
@@ -448,8 +489,9 @@ struct Debug{
     b32 info_fps = true;
     b32 info_spin_progress = true;
     b32 info_blood_progress = true;
-    b32 info_particle_count = true;
-    b32 info_emitters_count = true;
+    b32 info_particle_count = false;
+    b32 info_emitters_count = false;
+    b32 info_player_speed = true;
 };
 
 struct Console_Command{
@@ -462,6 +504,11 @@ struct Console{
     b32 is_open = false;
     Dynamic_Array<Console_Command> commands;
     Dynamic_Array<Medium_Str> args;
+    
+    Dynamic_Array<Medium_Str> level_files;
+    
+    Dynamic_Array<Medium_Str> history;
+    int history_max = 0;
     
     String str = String();
     f32 closed_time = 0;
