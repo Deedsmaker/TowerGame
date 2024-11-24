@@ -105,6 +105,8 @@ struct Enemy{
     f32 stun_start_time = 0;
     f32 max_stun_time = 1.0f;
     
+    f32 birth_time = 0;
+    
     Vector2 original_scale = {1, 1};
 };
 

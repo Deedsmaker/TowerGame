@@ -743,6 +743,10 @@ void init_entity(Entity *entity){
     if (entity->flags & BIRD_ENEMY){
         init_bird_entity(entity);
     }
+
+    if (entity->flags & EXPLOSIVE){
+        entity->color_changer.change_time = 5.0f;
+    }
     
     setup_color_changer(entity);
 }
@@ -1289,9 +1293,11 @@ void update_color_changer(Entity *entity, f32 dt){
     if (changer->changing){
         f32 t = abs(sinf(core.time.app_time * changer->change_time));
         entity->color = lerp(changer->start_color, changer->target_color, t);
-    }
-    
-    if (changer->interpolating){
+    } else if (entity->flags & EXPLOSIVE){
+        Color target_color = ColorBrightness(entity->color, 2);
+        f32 t = abs(sinf(core.time.game_time * changer->change_time));
+        entity->color = lerp(changer->start_color, target_color, t);
+    } else if (changer->interpolating) {
         entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
     }
 }
@@ -2298,7 +2304,7 @@ void update_editor(){
         editor.last_click_time = core.time.game_time;
     }
     
-    if (IsKeyPressed(KEY_P) && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL)){
+    if (can_control_with_single_button && IsKeyPressed(KEY_P) && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL)){
         editor.player_spawn_point = input.mouse_position;
     }
 
@@ -2998,6 +3004,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
         entity->enemy.just_awake = false;
         bird->roaming = true;
         bird->roam_start_time = core.time.game_time;
+        enemy->birth_time = core.time.game_time;
     }
     
     Vector2 vec_to_player = player_entity->position - entity->position;
@@ -3070,12 +3077,14 @@ void update_bird_enemy(Entity *entity, f32 dt){
     
     f32 bird_speed = magnitude(bird->velocity);
     
+    f32 time_since_birth = core.time.game_time - enemy->birth_time;
+    
     //update bird
     if (bird->roaming){
         f32 roam_time = core.time.game_time - bird->roam_start_time;
         f32 roam_t = roam_time / bird->max_roam_time;
     
-        if (roam_t <= 0.2f){
+        if (roam_t <= 0.2f && time_since_birth > 5){
             rotate(entity, bird_speed * 0.2f * normalized(bird->velocity.x));
             bird->velocity = move_towards(bird->velocity, Vector2_zero, bird_speed * 0.8f, dt);
         } else{
