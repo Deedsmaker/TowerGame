@@ -849,6 +849,10 @@ inline void debug_toggle_player_speed(){
     debug.info_player_speed = !debug.info_player_speed;
 }
 
+inline void debug_print_entities_count(){
+    console.str += TextFormat("\t>Entities count: %d\n", context.entities.total_added_count);
+}
+
 void init_console(){
     reload_level_files();    
 
@@ -862,6 +866,7 @@ void init_console(){
     
     console.commands.add(make_console_command("debug",    print_debug_commands_to_console));
     console.commands.add(make_console_command("player_speed", debug_toggle_player_speed));
+    console.commands.add(make_console_command("entities_count", debug_print_entities_count));
     
     console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",    NULL, load_level_by_name));
@@ -1760,9 +1765,8 @@ Entity *get_cursor_entity(){
     
     b32 mouse_on_selected_entity = editor.selected_entity && check_entities_collision(&mouse_entity, editor.selected_entity).collided;
 
-    for (int i = 0; i < context.entities.max_count; i++){        
+    ForTable(context.entities, i){
         Entity *e = context.entities.get_ptr(i);
-        
         if (!e->enabled/* || e->flags == -1*/){
             continue;
         }
@@ -1899,6 +1903,7 @@ void update_editor(){
     
     editor.cursor_entity = get_cursor_entity();
     
+    // mouse select
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select){
         if (editor.cursor_entity != NULL){ //selecting entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
@@ -2552,6 +2557,17 @@ void push_player_up(f32 power){
     player_data.grounded = false;
 }
 
+void push_or_set_player_up(f32 power){
+    if (player_data.velocity.y > power){
+        power *= 0.25f;
+    }
+
+    player_data.velocity.y += power;
+    
+    player_data.since_jump_timer = 0;
+    player_data.grounded = false;
+}
+
 void update_player(Entity *entity, f32 dt){
     assert(entity->flags & PLAYER);
 
@@ -2686,9 +2702,10 @@ void update_player(Entity *entity, f32 dt){
         //     player_data.rifle_active = false;
         // } else{
             //perfect shot
-            add_rifle_projectile(sword_tip, sword->up * player_data.rifle_weak_speed, STRONG);
+            add_rifle_projectile(sword_tip, sword->up * player_data.rifle_strong_speed, STRONG);
             
-            push_player_up(60);
+            //push_player_up(60);
+            push_or_set_player_up(20);
             
             // player_data.rifle_perfect_shots_made++;
             // if (player_data.rifle_perfect_shots_made == player_data.rifle_max_perfect_shots){
@@ -2794,24 +2811,20 @@ void update_player(Entity *entity, f32 dt){
         
         player_data.since_airborn_timer = 0;
     } else{
-        if (player_data.velocity.y > 0){
+        if (player_data.velocity.y > 0 && player_data.since_jump_timer <= 0.3f){ //so we make jump gravity
             f32 max_height_jump_time = 0.2f;
             f32 jump_t = clamp01(player_data.since_jump_timer / max_height_jump_time);
-            player_data.gravity_mult = lerp(2.0f, 1.0f, jump_t * jump_t * jump_t);
-            
-            if (player_data.since_jump_timer > 0.3f){ //so we don't care about jump gravity
-                 if (input.direction.y < 0){
-                    player_data.gravity_mult = 5;
-                 } else{
-                    player_data.gravity_mult = lerp(1.0f, 0.5f, player_data.sword_spin_progress * player_data.sword_spin_progress);
-                 }
-            }
-            
-        } else if (!player_data.in_stun){
-            if (input.direction.y < 0){
+            player_data.gravity_mult = lerp(3.0f, 1.0f, jump_t * jump_t * jump_t);
+        } else{
+            if (input.direction.y < 0 && !player_data.in_stun){
                 player_data.gravity_mult = 5;
             } else{
                 player_data.gravity_mult = lerp(1.0f, 0.5f, player_data.sword_spin_progress * player_data.sword_spin_progress);
+                if (player_data.velocity.y > 0){
+                    f32 up_velocity_t = clamp01(player_data.velocity.y / 200.0f);
+                    f32 additional_gravity = lerp(0.0f, 2.0f, up_velocity_t * up_velocity_t);
+                    player_data.gravity_mult += additional_gravity;
+                }
             }
         }
         
@@ -2820,6 +2833,8 @@ void update_player(Entity *entity, f32 dt){
             
         }
         player_data.velocity.y -= player_data.gravity * player_data.gravity_mult * dt;
+        
+        clamp(&player_data.velocity.y, -300, 300);
         
         player_data.since_airborn_timer += dt;
         

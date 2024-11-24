@@ -197,7 +197,7 @@ struct Player{
     f32 air_acceleration    = 15;
     f32 air_deceleration    = 3;
     f32 friction = 30;
-    f32 jump_force = 60;
+    f32 jump_force = 80;
     f32 gravity = 100;
     f32 gravity_mult = 1;
     f32 max_blood_amount = 100;
@@ -231,6 +231,7 @@ struct Player{
     b32 rifle_active = false;
     b32 rifle_perfect_shot_avaliable = false;
     f32 rifle_weak_speed = 800;
+    f32 rifle_strong_speed = 1400;
     f32 rifle_current_power = 0;
     f32 rifle_max_power = 100;
     f32 rifle_power_progress = 0;
@@ -443,13 +444,13 @@ struct Editor{
     b32 is_scaling_entity = false;
     b32 is_rotating_entity = false;
 
-    Entity  *selected_entity;
+    Entity  *selected_entity = NULL;
     int selected_entity_id;
-    Entity  *dragging_entity;
+    Entity  *dragging_entity = NULL;
     int dragging_entity_id;
-    Entity  *moving_vertex_entity;
+    Entity  *moving_vertex_entity = NULL;
     int moving_vertex_entity_id;
-    Entity  *cursor_entity;
+    Entity  *cursor_entity = NULL;
     
     Entity copied_entity;
     b32 is_copied;
