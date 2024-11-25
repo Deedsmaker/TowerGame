@@ -26,8 +26,11 @@ void update_editor_ui();
 void update_editor();
 void update_entities();
 
+void add_hitstop(f32 added);
+
 void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt);
 Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt);
+Vector2 move_by_velocity(Vector2 position, Vector2 target, Velocity_Move* settings, f32 dt);
 //void rotate_towards(f32 *rotate_angle, f32 target, f32 speed, f32 dt);
 
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction);
@@ -62,6 +65,10 @@ void print_hotkeys_to_console();
 
 inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index);
 
+inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
+
+void add_hitmark(Entity *entity, b32 need_to_follow);
+
 Vector2 world_to_screen(Vector2 pos);
 void draw_game_circle(Vector2 position, f32 radius, Color color);
 void draw_game_triangle_strip(Entity *entity);
@@ -72,6 +79,7 @@ void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 th
 void draw_game_line_strip(Entity *entity, Color color);
 void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
+void draw_game_line(Vector2 start, Vector2 end, Color color);
 
 void draw_game_text(Vector2 position, const char *text, f32 size, Color color);
 
@@ -100,6 +108,8 @@ Particle_Emitter* add_emitter();
 Particle_Emitter* add_emitter(Particle_Emitter *copy);
 
 f32 zoom_unit_size();
+
+inline Vector2 get_perlin_in_circle(f32 speed);
 
 Vector2 get_left_up_no_rot(Entity *e);
 Vector2 get_left_up(Entity *e);

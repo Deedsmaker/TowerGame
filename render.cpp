@@ -48,6 +48,10 @@ void draw_circle(Vector2 pos, f32 radius, Color color){
     DrawCircle(pos.x, pos.y, radius, color);
 }
 
+void draw_line(Vector2 start, Vector2 end, Color color){
+    DrawLineV(start, end, color);
+}
+
 void draw_line(Vector2 start, Vector2 end, f32 thick, Color color){
     DrawLineEx(start, end, fmax(3, thick), color);
 }

@@ -4,6 +4,7 @@
 //#define assert(Expression) if(!(Expression)) {*(int *)0 = 0;}
 
 #include "game.h"
+#include "../my_libs/perlin.h"
 
 #define ForTable(table, xx) for(int xx = table_next_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+1))
 //#define For(arr, type, value) for(int ii = 0; ii < arr.count; ii++){ type value = arr.get(ii);
@@ -296,6 +297,10 @@ int save_level(const char *level_name){
         }
     
         Entity *e = context.entities.get_ptr(i);
+        
+        if (!e->need_to_save){
+            continue;
+        }
         
         Color color = e->color_changer.start_color;
         fprintf(fptr, "name:%s: id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:, draw_order:%d: ", e->name, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
@@ -649,6 +654,7 @@ void add_spawn_object_from_texture(Texture texture, char *name){
     
     texture_entity.texture = texture;
     str_copy(texture_entity.texture_name, name);
+    // assign_texture(&texture_entity, texture, name);
     
     Spawn_Object texture_object;
     copy_entity(&texture_object.entity, &texture_entity);
@@ -656,6 +662,10 @@ void add_spawn_object_from_texture(Texture texture, char *name){
     
     spawn_objects.add(texture_object);
 }
+
+Texture spiral_clockwise_texture;
+Texture spiral_counterclockwise_texture;
+Texture hitmark_small_texture;
 
 void load_textures(){
     FilePathList textures = LoadDirectoryFiles("resources\\textures");
@@ -675,6 +685,16 @@ void load_textures(){
         if (!textures_table.add(hash, texture)){
             printf("COULD NOT FIND HASH FOR TEXTURE: %s\n", name);
             continue;
+        }
+        
+        if (str_contains(name, "_clockwise")){
+            spiral_clockwise_texture = texture;
+        }
+        if (str_contains(name, "_counterclockwise")){
+            spiral_counterclockwise_texture = texture;
+        }
+        if (str_contains(name, "hitmark_small")){
+            hitmark_small_texture = texture;
         }
         
         add_spawn_object_from_texture(texture, name);
@@ -726,6 +746,11 @@ inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index){
     return table.max_count;
 }
 
+// inline void assign_texture(Entity *entity, Texture texture, const char *texture_name){
+//     entity->texture = texture;
+//     str_copy(entity->texture_name, texture_name);
+// }
+
 void init_entity(Entity *entity){
     if (entity->flags & AGRO_AREA){
         // ForTable(context.entities, i){
@@ -746,6 +771,25 @@ void init_entity(Entity *entity){
 
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
+    }
+    
+    if (entity->flags & BLOCKER){
+        if (entity->enemy.blocker_sticky_id != -1 && context.entities.has_key(entity->enemy.blocker_sticky_id)){
+            context.entities.get_by_key_ptr(entity->enemy.blocker_sticky_id)->destroyed = true;
+        }
+        
+        Texture texture = entity->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+        Entity *sticky_entity = add_entity(entity->position, transform_texture_scale(texture, {8, 8}), {0.5f, 0.5f}, 0, WHITE, TEXTURE | STICKY_TEXTURE);
+        init_entity(sticky_entity);
+        str_copy(sticky_entity->name, "blocker_attack_mark");
+        sticky_entity->need_to_save = false;
+        sticky_entity->texture = texture;
+        sticky_entity->draw_order = 1;
+        sticky_entity->sticky_texture.max_lifetime = 0;
+        sticky_entity->sticky_texture.line_color = ORANGE;
+        sticky_entity->sticky_texture.need_to_follow = true;
+        sticky_entity->sticky_texture.follow_id = entity->id;
+        sticky_entity->sticky_texture.birth_time = core.time.game_time;
     }
     
     setup_color_changer(entity);
@@ -1144,6 +1188,13 @@ void update_game(){
     
     if (game_state == GAME){
         core.time.unscaled_dt = GetFrameTime();
+        if (core.time.hitstop > 0){
+            core.time.time_scale = 0.1f;
+            core.time.hitstop -= core.time.real_dt;
+        } else{
+            core.time.time_scale = 1;
+        }
+        
         core.time.dt = GetFrameTime() * core.time.time_scale;
         
         core.time.game_time += core.time.dt;
@@ -1281,8 +1332,30 @@ void update_game(){
     update_particles();
     
     if (game_state == GAME && player_entity){
-        Vector2 target_position = player_entity->position + Vector2_up * 10;
-        context.cam.position = lerp(context.cam.position, target_position, core.time.dt * 10);
+        Vector2 player_velocity = player_data.velocity;
+        f32 player_speed = magnitude(player_data.velocity);
+        f32 target_speed_multiplier = 1;
+    
+        f32 time_since_heavy_collision = core.time.game_time - player_data.heavy_collision_time;
+        if (magnitude(player_data.velocity) < 80 && core.time.game_time > 5 && time_since_heavy_collision <= 1.0f){
+            player_velocity = player_data.heavy_collision_velocity;
+            target_speed_multiplier = 0.2f;
+        }
+    
+        Vector2 target_position = player_entity->position + Vector2_up * 10 + player_velocity * 0.25f;
+        
+        Vector2 vec_to_target = target_position - context.cam.target;
+        Vector2 vec_to_player = player_entity->position - context.cam.target;
+        
+        f32 target_dot = dot(vec_to_target, vec_to_player);
+        
+        f32 speed = target_dot > 0 ? 3 : 3;
+        speed *= target_speed_multiplier;
+        
+        context.cam.target = lerp(context.cam.target, target_position, core.time.dt * speed);
+        
+        context.cam.position = lerp(context.cam.position, context.cam.target, core.time.dt * 30);
+        //context.cam.position = move_by_velocity(context.cam.position, target_position, &context.cam.move_settings, core.time.dt);
     }
     
     if (editor.update_cam_view_position){
@@ -1304,6 +1377,11 @@ void update_color_changer(Entity *entity, f32 dt){
         entity->color = lerp(changer->start_color, target_color, t);
     } else if (changer->interpolating) {
         entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
+    }
+    
+    if (entity->flags & BLOCKER){
+        entity->color = ColorTint(entity->color, RAYWHITE);
+        //entity->color = ColorBrightness(entity->color, 1.1f);
     }
 }
 
@@ -1738,23 +1816,30 @@ void update_editor_ui(){
         f32 type_font_size = 24;
         f32 type_info_v_pos = type_font_size;
         if (selected->flags & AGRO_AREA){
-            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 50, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_clear");
+            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_clear");
             type_info_v_pos += type_font_size;
-            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 50, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_remove");
+            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_remove");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign New: Alt+A", {inspector_position.x - 50, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_assign");
+            make_ui_text("Assign New: Alt+A", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Connected: %d", selected->agro_area.connected.count), {inspector_position.x - 50, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_count");
+            make_ui_text(TextFormat("Connected: %d", selected->agro_area.connected.count), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_count");
             type_info_v_pos += type_font_size;
-            make_ui_text("Agro settings:", {inspector_position.x - 50, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "agro_settings");
+            make_ui_text("Agro settings:", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "agro_settings");
             type_info_v_pos += type_font_size;
         }
         
         if (selected->flags & ENEMY){
-            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 50, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "explosive_toggle");
+            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "explosive_toggle");
             type_info_v_pos += type_font_size;
-
-            make_ui_text("Enemy settings:", {inspector_position.x - 50, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
+            
+            make_ui_text(TextFormat("Alt+B Blocker: %s", selected->flags & BLOCKER ? "ON" : "OFF"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
+            type_info_v_pos += type_font_size;
+            
+            if (selected->flags & BLOCKER){
+                make_ui_text(TextFormat("Alt+N Block direction: %s", selected->enemy.blocker_clockwise ? "Clockwise" : "Not Clockwise"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
+                type_info_v_pos += type_font_size;
+            }
+            make_ui_text("Enemy settings:", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
             type_info_v_pos += type_font_size;
         }
     }
@@ -1791,7 +1876,11 @@ Entity *get_cursor_entity(){
                         cursor_entity_candidate = e;
                     }
                 } else{
-                    cursor_entity_candidate = e;
+                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & ENEMY);
+                    //We want to pick most valuable entity for selection and not background if there's something more around
+                    if (!cursor_entity_candidate || other_entity_preferable){
+                        cursor_entity_candidate = e;
+                    }
                 }
                 editor.place_cursor_entities.clear();
             }
@@ -2218,12 +2307,23 @@ void update_editor(){
         
         //enemy components
         if (selected->flags & ENEMY){
-            b32 wanna_toggle_explosive = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_E);
+            b32 wanna_toggle_explosive           = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_E);
+            b32 wanna_toggle_blocker             = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_B);
+            b32 wanna_toggle_blocker_clockwise   = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_N);
             
             if (wanna_toggle_explosive){
                 selected->flags ^= EXPLOSIVE;
                 //change_color(selected, selected->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
                 init_entity(selected);
+            }
+            
+            if (wanna_toggle_blocker){
+                selected->flags ^= BLOCKER;
+                init_entity(selected);
+            }
+            
+            if (selected->flags & BLOCKER && wanna_toggle_blocker_clockwise){
+                selected->enemy.blocker_clockwise = !selected->enemy.blocker_clockwise;
             }
         }
     }
@@ -2498,6 +2598,21 @@ void player_air_move(Entity *entity, f32 dt){
     player_accelerate(entity, input.direction, wish_speed, acceleration, dt);
 }
 
+void add_hitstop(f32 added){
+    if (core.time.hitstop < 0){
+        core.time.hitstop = 0;
+    }
+
+    core.time.hitstop += added;
+    
+    clamp(&core.time.hitstop, 0, 0.1f);
+}
+
+void shake_camera(f32 trauma){
+    context.cam.trauma += trauma;
+    context.cam.trauma = clamp01(context.cam.trauma);
+}
+
 void add_blood_amount(Player *player, Entity *sword, f32 added){
     player->blood_amount += added;
     clamp(&player->blood_amount, 0, player->max_blood_amount);
@@ -2514,6 +2629,13 @@ void win_level(){
     }
 }
 
+void set_sword_velocity(f32 value){
+    player_data.sword_angular_velocity = value;
+    player_data.sword_spin_direction = normalized(player_data.sword_angular_velocity);
+    f32 sword_max_spin_speed = 5000;
+    player_data.sword_spin_progress = clamp01(abs(player_data.sword_angular_velocity) / sword_max_spin_speed);
+}
+
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
     fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK);
     
@@ -2523,7 +2645,21 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         Collision col = player->collisions.get(i);
         Entity *other = col.other_entity;
         
-        if (other->flags & ENEMY && player->sword_spin_progress > 0.12f && !other->enemy.dead_man){
+        if (other->flags & BLOCKER && !player->in_stun){
+            b32 is_right_spin_direction = other->enemy.blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0;
+            
+            if (!is_right_spin_direction){
+                player->velocity = player->velocity * -0.5f;
+                emit_particles(rifle_bullet_emitter, col.point, col.normal, 3, 5);
+                set_sword_velocity(-player->sword_angular_velocity * 0.1f);
+                player_data.weak_recoil_stun_start_time = core.time.game_time;
+                add_hitstop(0.1f);
+                shake_camera(0.7f);
+                continue;
+            }
+        }
+        
+        if (other->flags & ENEMY && player->sword_spin_progress > 0.12f && !other->enemy.dead_man && !player->in_stun){
             kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal);
             
             f32 max_speed_boost = 6 * player->sword_spin_direction;
@@ -2539,9 +2675,11 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
                              + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
                              
             add_blood_amount(player, sword, 10);
+            add_hitstop(0.01f);
+            shake_camera(0.1f);
         }
         
-        if (other->flags & WIN_BLOCK){
+        if (other->flags & WIN_BLOCK && !player->in_stun){
             win_level();
         }
     }
@@ -2706,6 +2844,8 @@ void update_player(Entity *entity, f32 dt){
             
             //push_player_up(60);
             push_or_set_player_up(20);
+            shake_camera(0.1f);
+            player_data.rifle_shake_start_time = core.time.game_time;
             
             // player_data.rifle_perfect_shots_made++;
             // if (player_data.rifle_perfect_shots_made == player_data.rifle_max_perfect_shots){
@@ -2834,7 +2974,7 @@ void update_player(Entity *entity, f32 dt){
         }
         player_data.velocity.y -= player_data.gravity * player_data.gravity_mult * dt;
         
-        clamp(&player_data.velocity.y, -300, 300);
+        clamp(&player_data.velocity.y, -500, 500);
         
         player_data.since_airborn_timer += dt;
         
@@ -2878,6 +3018,14 @@ void update_player(Entity *entity, f32 dt){
         
         entity->position.y += col.overlap;
         
+        f32 before_speed = magnitude(player_data.velocity);
+        
+        if (before_speed > 200){
+            // player_data.heavy_collision_time = core.time.game_time;
+            // player_data.heavy_collision_velocity = player_data.velocity;
+            emit_particles(air_dust_emitter, col.point, col.normal, 0.2f, 1);
+        }
+        
         if (dot(((Vector2){0, 1}), col.normal) > 0.5f){
             player_data.velocity -= col.normal * dot(player_data.velocity, col.normal);
         }
@@ -2893,6 +3041,14 @@ void update_player(Entity *entity, f32 dt){
                 player_data.plane_vector = get_rotated_vector_90(player_data.ground_normal, -normalized(player_data.velocity.x));
                 player_data.velocity = player_data.plane_vector * magnitude(player_data.velocity);
                 just_grounded = true;
+                
+                //heavy landing
+                if (before_speed > 200 && magnitude(player_data.velocity) < 100){
+                    player_data.heavy_collision_time = core.time.game_time;
+                    player_data.heavy_collision_velocity = player_data.velocity;
+                    emit_particles(air_dust_emitter, col.point, col.normal, 4, 3);
+                    shake_camera(0.7f);
+                }
             }
         }
     }
@@ -2909,13 +3065,28 @@ void update_player(Entity *entity, f32 dt){
         
         resolve_collision(entity, col);
         
+        f32 before_speed = magnitude(player_data.velocity);
+        
+        if (before_speed > 200){
+            emit_particles(air_dust_emitter, col.point, col.normal, 0.5f, 1.0f);
+        }
+        
         if (player_data.in_stun){
             player_data.velocity = reflected_vector(player_data.velocity * 0.5f, col.normal);
+            shake_camera(0.2f);
             continue;
         }
 
         
         player_data.velocity -= col.normal * dot(player_data.velocity, col.normal);
+        
+        //heavy collision
+        if (before_speed > 200 && magnitude(player_data.velocity) < 100){
+            player_data.heavy_collision_time = core.time.game_time;
+            player_data.heavy_collision_velocity = player_data.velocity;
+            emit_particles(air_dust_emitter, col.point, col.normal, 10, 2);
+            shake_camera(0.7f);
+        }
     }
     
     player_data.grounded = found_ground;
@@ -2946,6 +3117,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
             bird_entity->destroyed = true;
             bird_entity->enabled = false;
+            shake_camera(0.6f);
             return;
         }
         
@@ -2974,13 +3146,22 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         }
         
         bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
+        
+        other->bird_enemy.velocity += reflected_vector(bird->velocity * 0.3f, col.normal * -1);
+        
         emit_particles(rifle_bullet_emitter, col.point, col.normal, 0.5f, 1);
     }
     
-    if (other->flags & PLAYER && !player_data.dead_man){
-        if (player_data.sword_spin_progress < 0.4f){
+    if (other->flags & PLAYER && !player_data.dead_man && bird->attacking && !enemy->dead_man){
+        b32 should_kill_player = player_data.sword_spin_progress < 0.4f;
+        if (bird_entity->flags & BLOCKER){
+            b32 is_right_spin_direction = enemy->blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0;
+            should_kill_player = should_kill_player && !is_right_spin_direction;
+        }
+    
+        if (should_kill_player){
             kill_player();
-        } else if (player_data.sword_spin_progress >= 0.4f){
+        } else{
             kill_enemy(bird_entity, bird_entity->position, bird->velocity);
         }
     }
@@ -3156,7 +3337,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         enemy_entity->destroyed = true;
         
         if (enemy_entity->flags & EXPLOSIVE){
-            f32 explosion_radius = 30;
+            f32 explosion_radius = 40;
             emit_particles(explosion_emitter, enemy_entity->position);
             ForTable(context.entities, i){
                 Entity *other_entity = context.entities.get_ptr(i);
@@ -3179,11 +3360,16 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     }
                 }
                 
-                if (other_entity->flags & PLAYER && !player_data.dead_man){
+                if (other_entity->flags & PLAYER && !player_data.dead_man && distance_to_other < explosion_radius * 0.75f){
                     kill_player();
                 }
             }
+            
+            add_hitstop(0.1f);
+            shake_camera(0.5f);
         }
+        
+        add_hitmark(enemy_entity, false); 
     }
 }
 
@@ -3207,7 +3393,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     
     if (is_enemy_can_take_damage(enemy_entity)){
         enemy->hits_taken++;
-        if (enemy->hits_taken >= enemy->max_hits_taken || serious){
+        b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
+        if (enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit){
             emit_particles(*blood_emitter, kill_position, kill_direction, 1, 1);
         
             enemy->dead_man = true;
@@ -3218,6 +3405,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         } else{
             enemy->stun_start_time = core.time.game_time;
         }
+        add_hitmark(enemy_entity, true); 
     }
 }
 
@@ -3234,6 +3422,26 @@ void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_T
     enable_emitter(bullet_emitter);
 }
 
+inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale){
+    Vector2 real_scale = {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE};
+    
+    return {wish_scale.x / real_scale.x, wish_scale.y / real_scale.y};
+}
+
+void add_hitmark(Entity *entity, b32 need_to_follow){
+    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {6, 6}), {0.5f, 0.5f}, rnd(-90.0f, 90.0f), WHITE, TEXTURE | STICKY_TEXTURE);
+    hitmark->need_to_save = false;
+    //hitmark->color = WHITE;
+    init_entity(hitmark);    
+    hitmark->draw_order = 1;
+    str_copy(hitmark->name, "hitmark_small");
+    hitmark->texture = hitmark_small_texture;
+    
+    hitmark->sticky_texture.need_to_follow = need_to_follow;
+    hitmark->sticky_texture.follow_id = entity->id;
+    hitmark->sticky_texture.birth_time = core.time.game_time;
+}
+
 void calculate_projectile_collisions(Entity *entity){
     fill_collisions(entity, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK);
     
@@ -3247,9 +3455,10 @@ void calculate_projectile_collisions(Entity *entity){
         b32 need_bounce = false;
         
         if (other->flags & ENEMY && is_enemy_can_take_damage(other) && (projectile->type != WEAK || !projectile->dying)){
-        
+            b32 killed = false;
             if (other->flags & BIRD_ENEMY){
                 other->bird_enemy.velocity += projectile->velocity * 0.05f;
+                //other->bird_enemy.velocity = projectile->velocity * 0.05f;
                 projectile->velocity = reflected_vector(projectile->velocity * 0.3f, col.normal);
                 projectile->type = WEAK;
                 emit_particles(sparks_emitter, col.point, normalized(projectile->velocity), 1, 2);
@@ -3257,7 +3466,11 @@ void calculate_projectile_collisions(Entity *entity){
             } else{
                 emit_particles(sparks_emitter, col.point, normalized(projectile->velocity), 1, 1);
                 kill_enemy(other, entity->position, col.normal);
+                killed = true;
             }
+            
+            add_hitstop(0.03f);
+            shake_camera(0.1f);
         
         } else if (other->flags & ENEMY && projectile->type == WEAK){
             need_bounce = true;
@@ -3448,6 +3661,23 @@ void update_entities(){
     }
 }
 
+Vector2 move_by_velocity(Vector2 position, Vector2 target, Velocity_Move* settings, f32 dt){
+    Vector2 vec = target - position;
+    Vector2 dir = normalized(vec);
+    f32     len = magnitude(vec);
+    
+    f32 velocity_dot = dot(dir, settings->velocity);
+    
+    f32 acceleration = velocity_dot >= 0 ? settings->acceleration : settings->deceleration;
+    f32 damping      = velocity_dot >= 0 ? settings->accel_damping : settings->decel_damping;
+    
+    settings->velocity += dir * acceleration * dt;
+    //settings->velocity *= (1.0f - damping * dt);
+    clamp_magnitude(&settings->velocity, settings->max_speed);
+    
+    return position + settings->velocity * dt;
+}
+
 void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt){
     *current = move_towards(*current, target, speed, dt);
 }
@@ -3477,6 +3707,10 @@ void draw_player(Entity *entity){
     draw_game_triangle_strip(entity);
 }
 
+inline Vector2 get_perlin_in_circle(f32 speed){
+    return {perlin_noise3_seed(core.time.game_time * speed, 1, 2, rnd(0, 10000)), perlin_noise3_seed(1, core.time.game_time * speed, 3, rnd(0, 10000))};
+}
+
 void draw_sword(Entity *entity){
     assert(entity->flags & SWORD);
     
@@ -3484,13 +3718,19 @@ void draw_sword(Entity *entity){
     
     f32 time_since_shake = core.time.game_time - player_data.rifle_shake_start_time;
     
-    if (player_data.rifle_active){
+    if (0 && player_data.rifle_active){
         f32 activated_time = core.time.game_time - player_data.rifle_activate_time;
         f32 activate_t = clamp01(activated_time / player_data.rifle_max_active_time);
-        visual_entity.position += rnd_in_circle() * lerp(0.2f, 1.3f, activate_t * activate_t);
+        
+        Vector2 perlin_rnd = {perlin_noise3(core.time.game_time * 30, 1, 2), perlin_noise3(1, core.time.game_time * 30, 3)};
+        
+        //visual_entity.position += rnd_in_circle() * lerp(0.2f, 1.3f, activate_t * activate_t);
+        visual_entity.position += perlin_rnd * lerp(0.2f, 1.3f, activate_t * activate_t);
     } else if (time_since_shake <= 0.2f){
         //Failed chainsaw start sound!!!!!
-        visual_entity.position += rnd_on_circle() * 0.8f;
+        Vector2 perlin_rnd = {perlin_noise3(core.time.game_time * 30, 1, 2), perlin_noise3(1, core.time.game_time * 30, 3)};
+        //visual_entity.position += rnd_on_circle() * 0.8f;
+        visual_entity.position += perlin_rnd * 0.8f;
     }
     
     draw_game_triangle_strip(&visual_entity);
@@ -3509,7 +3749,7 @@ void draw_bird_enemy(Entity *entity){
     if (entity->bird_enemy.charging){
         f32 charge_time = core.time.game_time - entity->bird_enemy.charging_start_time;
         f32 charging_progress = charge_time / entity->bird_enemy.max_charging_time;
-        visual_entity.position += rnd_in_circle() * lerp(0.0f, 1.0f, charging_progress * charging_progress);
+        visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, charging_progress * charging_progress);
     }
     
     draw_game_triangle_strip(&visual_entity);
@@ -3622,6 +3862,40 @@ void draw_entities(){
                 Entity *connected_enemy = context.entities.get_by_key_ptr(id);
                 
                 draw_game_line(e->position, connected_enemy->position, 0.2f, RED);
+            }
+        }
+        
+        if (e->flags & BLOCKER){
+            // Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+            // Vector2 real_scale = {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE};
+            
+            // draw_game_texture(texture, e->position, {10.0f / real_scale.x, 10.0f / real_scale.y}, {0.5f, 0.5f}, 0, WHITE);
+        }
+        
+        if (e->flags & STICKY_TEXTURE){
+            Entity *real_entity = context.entities.get_by_key_ptr(e->id);
+            Sticky_Texture *st = &real_entity->sticky_texture;
+            b32 need_to_follow = st->need_to_follow && context.entities.has_key(st->follow_id) && context.entities.get_by_key_ptr(st->follow_id)->enabled;
+            f32 lifetime = core.time.game_time - st->birth_time;
+            f32 lifetime_t = lifetime / st->max_lifetime;
+            if (lifetime >= st->max_lifetime && st->max_lifetime > 0){
+                real_entity->destroyed = true;
+            } else{
+                //change_color(real_entity, lerp(real_entity->
+                real_entity->color = lerp(real_entity->color_changer.start_color, Fade(WHITE, 0), EaseOutExpo(lifetime_t));
+            }
+            
+            if (need_to_follow){
+                Entity *follow_entity = context.entities.get_by_key_ptr(st->follow_id);
+                real_entity->position = lerp(real_entity->position, follow_entity->position, core.time.dt * 40);
+                if (player_entity){
+                    Color line_color = st->line_color;
+                    if (follow_entity->flags & ENEMY){
+                        line_color = follow_entity->enemy.dead_man ? SKYBLUE : RED;
+                    }
+                    
+                    draw_game_line(player_entity->position, e->position, lerp(Fade(line_color, 0.8f), Fade(line_color, 0), lifetime_t * lifetime_t));
+                }
             }
         }
         
@@ -3785,7 +4059,29 @@ void draw_ui(const char *tag){
     }
 }
 
+void apply_shake(){
+    if (context.cam.trauma <= 0){    
+        return;
+    }
+    
+    f32 x_shake_power = 10;
+    f32 y_shake_power = 7;
+    f32 x_shake_speed = 7;
+    f32 y_shake_speed = 10;
+    
+    f32 x_offset = perlin_noise3(core.time.game_time * x_shake_speed, 0, 1) * x_shake_power;
+    f32 y_offset = perlin_noise3(0, core.time.game_time * y_shake_speed, 2) * y_shake_power;
+    
+    context.cam.position += ((Vector2){x_offset, y_offset}) * context.cam.trauma * context.cam.trauma;
+}
+
+Cam saved_cam;
+
 void draw_game(){
+    saved_cam = context.cam;
+
+    apply_shake();
+
     BeginDrawing();
     BeginMode2D(context.cam.cam2D);
     Context *c = &context;
@@ -3811,6 +4107,10 @@ void draw_game(){
     EndMode2D();
     
     draw_ui("");
+    
+    context.cam = saved_cam;
+    context.cam.trauma -= core.time.dt * context.cam.trauma_decrease_rate;
+    context.cam.trauma = clamp01(context.cam.trauma);
     
     f32 v_pos = 10;
     f32 font_size = 18;
@@ -4066,6 +4366,10 @@ void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 piv
 
 void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
     draw_line(world_to_screen(start), world_to_screen(end), thick * UNIT_SIZE, color);
+}
+
+void draw_game_line(Vector2 start, Vector2 end, Color color){
+    draw_line(world_to_screen(start), world_to_screen(end), color);
 }
 
 f32 zoom_unit_size(){

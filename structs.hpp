@@ -73,24 +73,37 @@ struct Particle_Emitter{
 };
 
 enum Flags{
-    GROUND = 1 << 0,
-    DRAW_TEXT = 1 << 1,
-    PLAYER = 1 << 2,
-    ENEMY = 1 << 3,
-    SWORD = 1 << 4,
-    BIRD_ENEMY = 1 << 5,
-    TEXTURE = 1 << 6,
-    PROJECTILE = 1 << 7,
+    GROUND           = 1 << 0,
+    DRAW_TEXT        = 1 << 1,
+    PLAYER           = 1 << 2,
+    ENEMY            = 1 << 3,
+    SWORD            = 1 << 4,
+    BIRD_ENEMY       = 1 << 5,
+    TEXTURE          = 1 << 6,
+    PROJECTILE       = 1 << 7,
     PARTICLE_EMITTER = 1 << 8,
-    WIN_BLOCK = 1 << 9,
-    AGRO_AREA = 1 << 10,
-    EXPLOSIVE = 1 << 11,
+    WIN_BLOCK        = 1 << 9,
+    AGRO_AREA        = 1 << 10,
+    EXPLOSIVE        = 1 << 11,
+    BLOCKER          = 1 << 12,
+    STICKY_TEXTURE   = 1 << 13,
     
     TEST = 1 << 31
 };
 
 struct Ground{
       
+};
+
+struct Velocity_Move{
+    f32 acceleration = 150;  
+    f32 deceleration = 1000;
+    
+    f32 accel_damping = 100.0f;
+    f32 decel_damping = 50.0f;
+    
+    f32 max_speed = 300;
+    Vector2 velocity = Vector2_zero;
 };
 
 struct Enemy{
@@ -106,6 +119,9 @@ struct Enemy{
     f32 max_stun_time = 1.0f;
     
     f32 birth_time = 0;
+    
+    b32 blocker_clockwise = false;
+    i32 blocker_sticky_id = -1;
     
     Vector2 original_scale = {1, 1};
 };
@@ -146,6 +162,15 @@ struct Bird_Enemy{
 
 struct Agro_Area{
     Dynamic_Array<int> connected;  
+};
+
+struct Sticky_Texture{
+    b32 need_to_follow = false;
+    i32 follow_id = -1;  
+    f32 max_lifetime = 2.0f;
+    Color line_color = SKYBLUE;
+    
+    f32 birth_time = 0;
 };
 
 struct Color_Changer{
@@ -201,6 +226,9 @@ struct Player{
     f32 gravity = 100;
     f32 gravity_mult = 1;
     f32 max_blood_amount = 100;
+    
+    f32 heavy_collision_time = 0;
+    Vector2 heavy_collision_velocity = Vector2_zero;
     
     Vector2 sword_start_scale = {1.5f, 6};
     f32 blood_amount = 0;
@@ -281,6 +309,7 @@ struct Entity{
     Entity(Entity *copy);
 
     i32 id = -1;
+    b32 need_to_save = true;
     //i32 index = -1;
     
     char name[128] = "unknown_name";
@@ -325,6 +354,7 @@ struct Entity{
     Array<Particle_Emitter, MAX_ENTITY_EMITTERS> emitters = Array<Particle_Emitter, MAX_ENTITY_EMITTERS>();
     Win_Block win_block;
     Agro_Area agro_area;
+    Sticky_Texture sticky_texture;
 };
 
 global_variable Player player_data;
@@ -337,12 +367,18 @@ struct Spawn_Object{
 //scale 150 should be full screen;
 
 struct Cam{
-    Vector2 position;
+    Vector2 position = Vector2_zero;
+    Vector2 target = Vector2_zero;
     //For culling
-    Vector2 view_position;
-    float rotation;
+    Vector2 view_position = Vector2_zero;
+    float rotation = 0;
+    
+    //Shake
+    f32 trauma = 0;
+    f32 trauma_decrease_rate = 1.5f;
     
     Camera2D cam2D = {};
+    Velocity_Move move_settings = {};
 };
 
 //definition in particles.hpp
@@ -360,6 +396,7 @@ struct Core{
         f32 time_scale = 1;
         f32 game_time = 0;
         f32 app_time = 0;
+        f32 hitstop = 0;
     };
     
     Time time;

@@ -48,10 +48,10 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
 
 void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1){
     normalize(&direction);
-    int count = rnd((int)emitter.count_min, (int)emitter.count_max);
-    count *= count_multiplier; 
+    i32 count = rnd((int)emitter.count_min, (int)emitter.count_max);
+    count = (i32)((f32)count * count_multiplier); 
     
-    for (int i = 0; i < count; i++){
+    for (i32 i = 0; i < count; i++){
         shoot_particle(emitter, position, direction, speed_multiplier);
     }
 }
@@ -136,10 +136,15 @@ void update_emitters(){
 
 
 void update_particles(){
-    f32 dt = core.time.dt;
 
     for (int i = 0; i < context.particles.count; i++){
         Particle *particle = context.particles.get_ptr(i);
+        f32 dt = core.time.dt;
+        
+        if (particle->lifetime <= 0.2f){
+            dt = core.time.real_dt;
+        }
+        
         particle->lifetime += dt;
         
         if (particle->lifetime >= particle->max_lifetime){
