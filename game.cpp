@@ -325,6 +325,10 @@ int save_level(const char *level_name){
             fprintf(fptr, "] "); 
         }
         
+        if (e->flags & BLOCKER){
+            fprintf(fptr, "blocker_clockwise:%d: ", e->enemy.blocker_clockwise);
+        }
+        
         if (e->flags & TEXTURE){
             fprintf(fptr, "texture_name:%s: ", e->texture_name);
         }
@@ -353,6 +357,11 @@ b32 is_digit_or_minus(char ch){
 void fill_int_from_string(int *int_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
     *int_ptr = atoi(str_data);
+}    
+
+void fill_b32_from_string(b32 *b32_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *b32_ptr = atoi(str_data);
 }    
 
 void fill_float_from_string(float *float_ptr, char *str_data){
@@ -520,6 +529,9 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "agro_connected")){
                 fill_int_array_from_string(&entity_to_fill.agro_area.connected, splitted_line, &i);
+            } else if (str_equal(splitted_line.get(i).data, "blocker_clockwise")){
+                fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get(i+1).data);
+                i++;
             } else{
                 //assert(false);
                 print("Something unknown during level load");
@@ -790,6 +802,8 @@ void init_entity(Entity *entity){
         sticky_entity->sticky_texture.need_to_follow = true;
         sticky_entity->sticky_texture.follow_id = entity->id;
         sticky_entity->sticky_texture.birth_time = core.time.game_time;
+        
+        entity->enemy.blocker_sticky_id = sticky_entity->id;
     }
     
     setup_color_changer(entity);
@@ -2324,6 +2338,7 @@ void update_editor(){
             
             if (selected->flags & BLOCKER && wanna_toggle_blocker_clockwise){
                 selected->enemy.blocker_clockwise = !selected->enemy.blocker_clockwise;
+                init_entity(selected);
             }
         }
     }
@@ -3543,6 +3558,30 @@ void update_projectile(Entity *entity, f32 dt){
     calculate_projectile_collisions(entity);
 }
 
+void update_sticky_texture(Entity *real_entity){
+    Sticky_Texture *st = &real_entity->sticky_texture;
+    
+    b32 need_to_follow = st->need_to_follow && context.entities.has_key(st->follow_id) && context.entities.get_by_key_ptr(st->follow_id)->enabled;
+    f32 lifetime = core.time.game_time - st->birth_time;
+    f32 lifetime_t = 0;
+    if (st->max_lifetime > EPSILON){
+        lifetime_t = lifetime / st->max_lifetime;
+        if (lifetime >= st->max_lifetime){
+            real_entity->destroyed = true;
+        } else{
+            real_entity->color = lerp(real_entity->color_changer.start_color, Fade(WHITE, 0), EaseOutExpo(lifetime_t));
+        }
+    }
+    
+    if (need_to_follow){
+        Entity *follow_entity = context.entities.get_by_key_ptr(st->follow_id);
+        real_entity->position = lerp(real_entity->position, follow_entity->position, core.time.dt * 40);
+    } else if (st->max_lifetime <= EPSILON){
+        real_entity->destroyed = true;
+    }
+    st->need_to_follow = need_to_follow;
+}
+
 void agro_area_verify_connected(Entity *e){
     for (int i = 0; i < e->agro_area.connected.count; i++){   
         //So if entiity was somehow destoyed, annighilated
@@ -3653,6 +3692,10 @@ void update_entities(){
                 e->emitters.get_ptr(em)->position = e->position;
                 update_emitter(e->emitters.get_ptr(em));
             }
+        }
+        
+        if (e->flags & STICKY_TEXTURE){
+            update_sticky_texture(e);
         }
         
         if (e->flags & AGRO_AREA){
@@ -3873,29 +3916,20 @@ void draw_entities(){
         }
         
         if (e->flags & STICKY_TEXTURE){
-            Entity *real_entity = context.entities.get_by_key_ptr(e->id);
-            Sticky_Texture *st = &real_entity->sticky_texture;
-            b32 need_to_follow = st->need_to_follow && context.entities.has_key(st->follow_id) && context.entities.get_by_key_ptr(st->follow_id)->enabled;
-            f32 lifetime = core.time.game_time - st->birth_time;
-            f32 lifetime_t = lifetime / st->max_lifetime;
-            if (lifetime >= st->max_lifetime && st->max_lifetime > 0){
-                real_entity->destroyed = true;
-            } else{
-                //change_color(real_entity, lerp(real_entity->
-                real_entity->color = lerp(real_entity->color_changer.start_color, Fade(WHITE, 0), EaseOutExpo(lifetime_t));
+            f32 lifetime = core.time.game_time - e->sticky_texture.birth_time;
+            f32 lifetime_t = 0;
+            if (e->sticky_texture.max_lifetime > EPSILON){
+                lifetime_t = lifetime / e->sticky_texture.max_lifetime;
             }
-            
-            if (need_to_follow){
-                Entity *follow_entity = context.entities.get_by_key_ptr(st->follow_id);
-                real_entity->position = lerp(real_entity->position, follow_entity->position, core.time.dt * 40);
-                if (player_entity){
-                    Color line_color = st->line_color;
-                    if (follow_entity->flags & ENEMY){
-                        line_color = follow_entity->enemy.dead_man ? SKYBLUE : RED;
-                    }
-                    
-                    draw_game_line(player_entity->position, e->position, lerp(Fade(line_color, 0.8f), Fade(line_color, 0), lifetime_t * lifetime_t));
+        
+            if (e->sticky_texture.need_to_follow && player_entity){
+                Entity *follow_entity = context.entities.get_by_key_ptr(e->sticky_texture.follow_id);
+                Color line_color = e->sticky_texture.line_color;
+                if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0){
+                    line_color = follow_entity->enemy.dead_man ? SKYBLUE : RED;
                 }
+
+                draw_game_line(player_entity->position, e->position, lerp(Fade(line_color, 0.8f), Fade(line_color, 0), lifetime_t * lifetime_t));
             }
         }
         
