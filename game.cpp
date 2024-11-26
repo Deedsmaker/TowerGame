@@ -1976,6 +1976,12 @@ void update_editor_ui(){
             make_ui_text("Enemy settings:", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
             type_info_v_pos += type_font_size;
         }
+        
+        if (selected->flags & PROPELLER){
+            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "explosive_toggle");
+            type_info_v_pos += type_font_size;
+        }
+
     }
 }
 
@@ -3237,14 +3243,16 @@ void update_player(Entity *entity, f32 dt){
                 
                 Vector2 to_player = player_entity->position - other->position;
                 
-                f32 deceleration_power = lerp(0.0f, 600.0f, sqrtf(power_t));
+                f32 deceleration_power = lerp(0.0f, 300.0f, sqrtf(power_t));
                 f32 acceleration_power = lerp(0.0f, other->propeller.power, sqrtf(power_t));
                 
                 //f32 deceleration_sign = dot(deceleration_plane, player_data.velocity) > 0 ? -1 : 1;
                 f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
                 
+                f32 damping_factor = lerp(0.0f, 10.0f, sqrtf(power_t));
+                
                 player_data.velocity += deceleration_plane * deceleration_power * deceleration_sign * dt;
-                player_data.velocity *= 1.0f - (10.0f * dt);
+                player_data.velocity *= 1.0f - (damping_factor * dt);
                 player_data.velocity += acceleration_dir * acceleration_power * dt;
                 
                 f32 new_dot = dot(deceleration_plane, player_data.velocity);
