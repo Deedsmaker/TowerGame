@@ -1,4 +1,4 @@
-#define FLAGS i32
+#define FLAGS u64
 //#define EPSILON 0.0000000000000001f
 
 #define FIXED_FPS 240
@@ -33,6 +33,7 @@ struct Particle_Emitter{
     b32 just_born = true;
     b32 enabled = true;
     b32 destroyed = false;
+    b32 follow_entity = true;
     
     Vector2 local_position = {0, 0};
     Vector2 position = {0, 0};
@@ -72,7 +73,7 @@ struct Particle_Emitter{
     Color color = YELLOW;
 };
 
-enum Flags{
+enum Flags : u64{
     GROUND           = 1 << 0,
     DRAW_TEXT        = 1 << 1,
     PLAYER           = 1 << 2,
@@ -87,8 +88,10 @@ enum Flags{
     EXPLOSIVE        = 1 << 11,
     BLOCKER          = 1 << 12,
     STICKY_TEXTURE   = 1 << 13,
+    KILL_TRIGGER     = 1 << 14,
+    PROPELLER        = 1 << 15,
     
-    TEST = 1 << 31
+    TEST = 1 << 30
 };
 
 struct Ground{
@@ -124,6 +127,12 @@ struct Enemy{
     i32 blocker_sticky_id = -1;
     
     Vector2 original_scale = {1, 1};
+};
+
+struct Propeller{
+    f32 power = 100;  
+    
+    Particle_Emitter *air_emitter = NULL;
 };
 
 struct Win_Block{
@@ -260,20 +269,27 @@ struct Player{
     b32 rifle_perfect_shot_avaliable = false;
     f32 rifle_weak_speed = 800;
     f32 rifle_strong_speed = 1400;
-    f32 rifle_current_power = 0;
-    f32 rifle_max_power = 100;
-    f32 rifle_power_progress = 0;
+    //f32 rifle_current_power = 0;
+    //f32 rifle_max_power = 100;
+    //f32 rifle_power_progress = 0;
     f32 rifle_shake_start_time = 0;
     f32 rifle_activate_time = 0;
     f32 rifle_max_active_time = 3.0f;
+    f32 rifle_shoot_time = 0;
+    
     i32 rifle_perfect_shots_made = 0;
     i32 rifle_max_perfect_shots = 3;
+    
+    
+    i32 ammo_count = 0;
     
     f32 strong_recoil_stun_start_time = 0;
     f32 weak_recoil_stun_start_time = 0;
     b32 in_stun = false;
     
     f32 current_move_speed = 0;
+    
+    Particle_Emitter *rifle_trail_emitter;
 };
 
 enum Projectile_Flags{
@@ -355,6 +371,7 @@ struct Entity{
     Win_Block win_block;
     Agro_Area agro_area;
     Sticky_Texture sticky_texture;
+    Propeller propeller;
 };
 
 global_variable Player player_data;
@@ -510,6 +527,8 @@ struct Editor{
     
     Collision last_collision;
     
+    f32 last_autosave_time = 0;
+    
     Vector2 player_spawn_point = {0, 0};
     Vector2 last_click_position = {0, 0};
     f32 last_click_time = 0;
@@ -532,6 +551,10 @@ struct Debug{
     b32 info_particle_count = false;
     b32 info_emitters_count = false;
     b32 info_player_speed = true;
+    
+    b32 infinite_ammo = false;
+    b32 enemy_ai = true;
+    b32 god_mode = false;
 };
 
 struct Console_Command{

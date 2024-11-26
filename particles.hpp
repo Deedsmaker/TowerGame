@@ -4,7 +4,7 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
     Particle particle = {};
     particle.position = position;
     if (emitter.spawn_radius > 0){
-        particle.position += rnd_on_circle() * emitter.spawn_radius;
+        particle.position += rnd_in_circle() * emitter.spawn_radius;
     }
     
     particle.shape = emitter.shape;
@@ -186,6 +186,8 @@ global_variable Particle_Emitter explosion_emitter;
 global_variable Particle_Emitter fire_emitter;
 global_variable Particle_Emitter little_fire_emitter;
 global_variable Particle_Emitter sparks_emitter;
+global_variable Particle_Emitter gunpowder_emitter;
+global_variable Particle_Emitter air_emitter;
 
 void free_emitter(Particle_Emitter *emitter){
     emitter = NULL;
@@ -364,4 +366,38 @@ void setup_particles(){
     sparks_emitter.gravity_multiplier = 0.1f;
     sparks_emitter.color              = Fade(YELLOW, 0.9f);
     sparks_emitter.enabled            = false;
+    
+    gunpowder_emitter.spawn_radius       = 1.0f;
+    gunpowder_emitter.over_distance      = 1;
+    gunpowder_emitter.direction_to_move  = 0;
+    gunpowder_emitter.over_time          = 0;
+    gunpowder_emitter.speed_min          = 5;
+    gunpowder_emitter.speed_max          = 10;
+    gunpowder_emitter.count_min          = 10;
+    gunpowder_emitter.count_max          = 20;
+    gunpowder_emitter.scale_min          = 0.2f;
+    gunpowder_emitter.scale_max          = 0.5f;
+    gunpowder_emitter.lifetime_min       = 1.0f;
+    gunpowder_emitter.lifetime_max       = 4.0f;
+    gunpowder_emitter.spread             = 0.2f;
+    gunpowder_emitter.gravity_multiplier = 0.1f;
+    gunpowder_emitter.color              = Fade(BLACK, 0.4f);
+    gunpowder_emitter.enabled            = false;
+    
+    air_emitter.spawn_radius       = 10.0f;
+    air_emitter.over_distance      = 1;
+    air_emitter.direction_to_move  = 0;
+    air_emitter.over_time          = 10;
+    air_emitter.speed_min          = 5;
+    air_emitter.speed_max          = 10;
+    air_emitter.count_min          = 10;
+    air_emitter.count_max          = 20;
+    air_emitter.scale_min          = 0.2f;
+    air_emitter.scale_max          = 1.5f;
+    air_emitter.lifetime_min       = 1.0f;
+    air_emitter.lifetime_max       = 10.0f;
+    air_emitter.spread             = 0.0f;
+    air_emitter.gravity_multiplier = -0.01f;
+    air_emitter.color              = Fade(WHITE, 0.4f);
+    air_emitter.enabled            = false;
 }

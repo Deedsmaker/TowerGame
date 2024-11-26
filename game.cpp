@@ -219,11 +219,17 @@ Entity::Entity(Entity *copy){
         agro_area = copy->agro_area;
     }
     
+    if (flags & PROPELLER){
+        propeller = copy->propeller;
+    }
+    
     // if (flags & PARTICLE_EMITTER){
     //     for (int i = 0; i < copy->emitters.count; i++){
     //         emitters.add(copy->emitters.get(i));
     //     }
     // }
+    
+    rotate_to(this, rotation);
     
     setup_color_changer(this);
     
@@ -276,14 +282,6 @@ int save_level(const char *level_name){
         return 0;
     }
     
-    console.str += "\t>Level saved: ";
-    console.str += name;
-    console.str += "\n";
-    
-    printf("level saved: %s\n", level_path.data);
-    
-    level_path.free_str();
-    
     fprintf(fptr, "Setup Data:\n");
     
     fprintf(fptr, "player_spawn_point:{:%f:, :%f:} ", editor.player_spawn_point.x, editor.player_spawn_point.y);
@@ -303,7 +301,7 @@ int save_level(const char *level_name){
         }
         
         Color color = e->color_changer.start_color;
-        fprintf(fptr, "name:%s: id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%d:, draw_order:%d: ", e->name, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
+        fprintf(fptr, "name:%s: id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%llu:, draw_order:%d: ", e->name, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
         
         fprintf(fptr, "vertices [ ");
         for (int v = 0; v < e->vertices.count; v++){
@@ -329,6 +327,10 @@ int save_level(const char *level_name){
             fprintf(fptr, "blocker_clockwise:%d: ", e->enemy.blocker_clockwise);
         }
         
+        if (e->flags & PROPELLER){
+            fprintf(fptr, "propeller_power:%f: ", e->propeller.power);
+        }
+        
         if (e->flags & TEXTURE){
             fprintf(fptr, "texture_name:%s: ", e->texture_name);
         }
@@ -338,10 +340,34 @@ int save_level(const char *level_name){
     
     fclose(fptr);
     
-    if (!str_start_with_const(name, "TEMP_")){
+    b32 is_temp_level = str_start_with_const(name, "TEMP_");
+    b32 is_autosave   = str_start_with_const(name, "AUTOSAVE_");
+    if (!is_temp_level && !is_autosave){
         str_copy(context.current_level_name, name);
         reload_level_files();
+        console.str += "\t>Level saved: ";
+        console.str += name;
+        console.str += "\n";
+        printf("level saved: %s\n", level_path.data);
     }
+    
+    if (is_temp_level){
+        // console.str += "\t>Temp level saved: ";
+        // console.str += name;
+        // console.str += "\n";
+        printf("Temp level saved: %s\n", level_path.data);
+    }
+    
+    if (is_autosave){
+        // console.str += "\t>Autosaved: ";
+        // console.str += name;
+        // console.str += "\n";
+        printf("Temp level saved: %s\n", level_path.data);
+    }
+    
+    
+    level_path.free_str();
+
     
     return 1;
 }
@@ -355,6 +381,11 @@ b32 is_digit_or_minus(char ch){
 }
 
 void fill_int_from_string(int *int_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *int_ptr = atoi(str_data);
+}    
+
+void fill_int_from_string(u64 *int_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
     *int_ptr = atoi(str_data);
 }    
@@ -532,6 +563,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "blocker_clockwise")){
                 fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "propeller_power")){
+                fill_float_from_string(&entity_to_fill.propeller.power, splitted_line.get(i+1).data);
+                i++;
             } else{
                 //assert(false);
                 print("Something unknown during level load");
@@ -547,24 +581,24 @@ int load_level(const char *level_name){
             
             setup_color_changer(&entity_to_fill);
             Entity *added_entity = add_entity(&entity_to_fill, true);
+            //rotate_to(added_entity, added_entity->rotation);
             
             calculate_bounds(added_entity);
         }
     }
     
-    if (!str_start_with_const(name, "TEMP_")){
+    b32 is_temp_level = str_start_with_const(name, "TEMP_");
+    b32 is_autosave   = str_start_with_const(name, "AUTOSAVE_");
+    if (!is_temp_level && !is_autosave){
         str_copy(context.current_level_name, name);
+        console.str += "\t>Loaded level: ";
+        console.str += name;
+        console.str += "\n";
     }
     
     //free_string_array(&splitted_line);
     splitted_line.free_arr();
     unload_file(&file);
-
-    {  
-        console.str += "\t>Loaded level: ";
-        console.str += name;
-        console.str += "\n";
-    }
         
     loop_entities(init_loaded_entity);
     
@@ -645,7 +679,7 @@ void init_spawn_objects(){
     spawn_objects.add(win_block_object);
     
     Entity agro_area_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, AGRO_AREA);
-    agro_area_entity.color = RED * 0.9f;
+    agro_area_entity.color = Fade(VIOLET, 0.6f);
     agro_area_entity.color_changer.start_color = agro_area_entity.color;
     agro_area_entity.color_changer.target_color = agro_area_entity.color * 1.5f;
     str_copy(agro_area_entity.name, "agro_area"); 
@@ -655,6 +689,30 @@ void init_spawn_objects(){
     copy_entity(&argo_area_object.entity, &agro_area_entity);
     str_copy(argo_area_object.name, agro_area_entity.name);
     spawn_objects.add(argo_area_object);
+    
+    Entity kill_trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, KILL_TRIGGER);
+    kill_trigger_entity.color = Fade(RED, 0.6f);
+    kill_trigger_entity.color_changer.start_color = kill_trigger_entity.color;
+    kill_trigger_entity.color_changer.target_color = kill_trigger_entity.color * 1.5f;
+    str_copy(kill_trigger_entity.name, "kill_trigger"); 
+    setup_color_changer(&kill_trigger_entity);
+    
+    Spawn_Object kill_trigger_object;
+    copy_entity(&kill_trigger_object.entity, &kill_trigger_entity);
+    str_copy(kill_trigger_object.name, kill_trigger_entity.name);
+    spawn_objects.add(kill_trigger_object);
+    
+    Entity propeller_entity = Entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
+    propeller_entity.color = Fade(BLUE, 0.4f);
+    propeller_entity.color_changer.start_color = propeller_entity.color;
+    propeller_entity.color_changer.target_color = propeller_entity.color * 1.5f;
+    str_copy(propeller_entity.name, "propeller"); 
+    setup_color_changer(&propeller_entity);
+    
+    Spawn_Object propeller_object;
+    copy_entity(&propeller_object.entity, &propeller_entity);
+    str_copy(propeller_object.name, propeller_entity.name);
+    spawn_objects.add(propeller_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -806,11 +864,31 @@ void init_entity(Entity *entity){
         entity->enemy.blocker_sticky_id = sticky_entity->id;
     }
     
+    if (entity->flags & PROPELLER){
+        entity->emitters.clear();
+        entity->propeller.air_emitter = entity->emitters.add(air_emitter);
+        enable_emitter(entity->propeller.air_emitter);
+        
+        entity->propeller.air_emitter->speed_multiplier = entity->propeller.power / 50.0f;
+        entity->propeller.air_emitter->count_multiplier = entity->propeller.power / 50.0f;
+        entity->propeller.air_emitter->spawn_radius     = entity->scale.x * 0.5f;
+        entity->propeller.air_emitter->direction        = entity->up;
+    }        
+    
     setup_color_changer(entity);
 }
 
 inline void save_current_level(){
     save_level(context.current_level_name);
+}
+
+inline void autosave_level(){
+    String temp_level_name = init_string();
+    temp_level_name += "AUTOSAVE_";
+    temp_level_name += context.current_level_name;
+    
+    save_level(temp_level_name.data);
+    temp_level_name.free_str();
 }
 
 inline void load_level_by_name(char *name){
@@ -870,7 +948,7 @@ void reload_level_files(){
     for (int i = 0; i < levels.count; i++){
         char *name = levels.paths[i];
         
-        if (!str_end_with(name, ".level") || str_contains(name, "TEMP_")){
+        if (!str_end_with(name, ".level") || str_contains(name, "TEMP_") || str_contains(name, "AUTOSAVE_")){
             continue;
         }
         
@@ -900,7 +978,14 @@ void print_hotkeys_to_console(){
 }
 
 void print_debug_commands_to_console(){
+    console.str += "\t\t>Debug Functions:\n";
+    console.str += "\t>infinite_ammo\n";
+    console.str += "\t>enemy_ai\n";
+    console.str += "\t>god_mode\n";
+    
+    console.str += "\t\t>Debug Info:\n";
     console.str += "\t>player_speed\n";
+    console.str += "\t>entities_count\n";
 }
 
 inline void debug_toggle_player_speed(){
@@ -909,6 +994,21 @@ inline void debug_toggle_player_speed(){
 
 inline void debug_print_entities_count(){
     console.str += TextFormat("\t>Entities count: %d\n", context.entities.total_added_count);
+}
+
+inline void debug_infinite_ammo(){
+    debug.infinite_ammo = !debug.infinite_ammo;
+    console.str += TextFormat("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled");
+}
+
+inline void debug_enemy_ai(){
+    debug.enemy_ai = !debug.enemy_ai;
+    console.str += TextFormat("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled");
+}
+
+inline void debug_god_mode(){
+    debug.god_mode = !debug.god_mode;
+    console.str += TextFormat("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled");
 }
 
 void init_console(){
@@ -922,9 +1022,12 @@ void init_console(){
     console.commands.add(make_console_command("keys",    print_hotkeys_to_console));
     console.commands.add(make_console_command("help",    print_hotkeys_to_console));
     
-    console.commands.add(make_console_command("debug",    print_debug_commands_to_console));
-    console.commands.add(make_console_command("player_speed", debug_toggle_player_speed));
+    console.commands.add(make_console_command("debug",          print_debug_commands_to_console));
+    console.commands.add(make_console_command("player_speed",   debug_toggle_player_speed));
     console.commands.add(make_console_command("entities_count", debug_print_entities_count));
+    console.commands.add(make_console_command("infinite_ammo",  debug_infinite_ammo));
+    console.commands.add(make_console_command("enemy_ai",       debug_enemy_ai));
+    console.commands.add(make_console_command("god_mode",       debug_god_mode));
     
     console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",    NULL, load_level_by_name));
@@ -932,7 +1035,6 @@ void init_console(){
     
     console.commands.add(make_console_command("create",    print_create_level_hint, create_level));
     console.commands.add(make_console_command("new_level", print_create_level_hint, create_level));
-    
 }
 
 void init_game(){
@@ -1033,10 +1135,16 @@ void enter_game_state(){
     player_data.sword_entity_id = sword_entity->id;
     player_data.dead_man = false;
     
-    player_data.stun_emitter = player_entity->emitters.add(air_dust_emitter);
+    player_data.stun_emitter        = player_entity->emitters.add(air_dust_emitter);
+    player_data.rifle_trail_emitter = player_entity->emitters.add(gunpowder_emitter);
+    player_data.rifle_trail_emitter->follow_entity = false;
 }
 
 void kill_player(){
+    if (debug.god_mode && !context.we_got_a_winner || player_data.dead_man){ 
+        return;
+    }
+
     emit_particles(big_blood_emitter, player_entity->position, player_entity->up, 1, 1);
     player_data.dead_man = true;
 }
@@ -1347,14 +1455,15 @@ void update_game(){
     
     if (game_state == GAME && player_entity){
         Vector2 player_velocity = player_data.velocity;
-        f32 player_speed = magnitude(player_data.velocity);
         f32 target_speed_multiplier = 1;
     
         f32 time_since_heavy_collision = core.time.game_time - player_data.heavy_collision_time;
         if (magnitude(player_data.velocity) < 80 && core.time.game_time > 5 && time_since_heavy_collision <= 1.0f){
             player_velocity = player_data.heavy_collision_velocity;
-            target_speed_multiplier = 0.2f;
+            target_speed_multiplier = 0.05f;
         }
+        
+        f32 player_speed = magnitude(player_velocity);
     
         Vector2 target_position = player_entity->position + Vector2_up * 10 + player_velocity * 0.25f;
         
@@ -1363,12 +1472,16 @@ void update_game(){
         
         f32 target_dot = dot(vec_to_target, vec_to_player);
         
-        f32 speed = target_dot > 0 ? 3 : 3;
-        speed *= target_speed_multiplier;
+        f32 speed_t = clamp01(player_speed / 200.0f);
         
-        context.cam.target = lerp(context.cam.target, target_position, core.time.dt * speed);
+        f32 target_speed = lerp(3, 10, speed_t * speed_t);
+        target_speed *= target_speed_multiplier;
         
-        context.cam.position = lerp(context.cam.position, context.cam.target, core.time.dt * 30);
+        context.cam.target = lerp(context.cam.target, target_position, core.time.dt * target_speed);
+        
+        f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
+        
+        context.cam.position = lerp(context.cam.position, context.cam.target, core.time.dt * cam_speed);
         //context.cam.position = move_by_velocity(context.cam.position, target_position, &context.cam.move_settings, core.time.dt);
     }
     
@@ -1443,15 +1556,22 @@ b32 check_rectangles_collision(Vector2 pos1, Vector2 scale1, Vector2 pos2, Vecto
     return solution;
 }
 
-b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Vector2 position2, Bounds bounds2){
+inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Vector2 position2, Bounds bounds2){
     return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, position2 + bounds2.offset, bounds2.size);
+}
+
+inline b32 check_bounds_collision(Entity *entity1, Entity *entity2){
+    Vector2 position1 = entity1->position + ((Vector2){(entity1->pivot.x - 0.5f) * entity1->scale.x, (entity1->pivot.y - 0.5f) * entity1->scale.y});
+    Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
+    
+    return check_rectangles_collision(position1 + entity1->bounds.offset, entity1->bounds.size, position2 + entity2->bounds.offset, entity2->bounds.size);
 }
 
 Collision check_entities_collision(Entity *entity1, Entity *entity2){
     Collision result = {};
     result.other_entity = entity2;
     
-    if (!check_bounds_collision(entity1->position, entity1->bounds, entity2->position, entity2->bounds)){
+    if (!check_bounds_collision(entity1, entity2)){
         return result;
     }
 
@@ -1890,7 +2010,7 @@ Entity *get_cursor_entity(){
                         cursor_entity_candidate = e;
                     }
                 } else{
-                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & ENEMY);
+                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & ENEMY || e->flags & PROPELLER || e->flags & AGRO_AREA || e->flags & KILL_TRIGGER);
                     //We want to pick most valuable entity for selection and not background if there's something more around
                     if (!cursor_entity_candidate || other_entity_preferable){
                         cursor_entity_candidate = e;
@@ -2416,7 +2536,14 @@ void update_editor(){
     
     //editor Save level
     if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
-        save_level("test_level");
+        //save_level("test_level");
+        save_current_level();
+    }
+    
+    f32 time_since_autosave = core.time.app_time - editor.last_autosave_time;
+    if (time_since_autosave > 20){
+        autosave_level();
+        editor.last_autosave_time = core.time.app_time;
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
@@ -2639,8 +2766,8 @@ void add_blood_amount(Player *player, Entity *sword, f32 added){
 
 void win_level(){
     if (!context.we_got_a_winner){    
-        kill_player();
         context.we_got_a_winner = true;
+        kill_player();
     }
 }
 
@@ -2649,6 +2776,12 @@ void set_sword_velocity(f32 value){
     player_data.sword_spin_direction = normalized(player_data.sword_angular_velocity);
     f32 sword_max_spin_speed = 5000;
     player_data.sword_spin_progress = clamp01(abs(player_data.sword_angular_velocity) / sword_max_spin_speed);
+}
+
+void add_player_ammo(i32 amount){
+    player_data.ammo_count += amount;
+    
+    player_data.ammo_count = clamp(player_data.ammo_count, 0, 5000);
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
@@ -2692,6 +2825,8 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             add_blood_amount(player, sword, 10);
             add_hitstop(0.01f);
             shake_camera(0.1f);
+            
+            add_player_ammo(1);
         }
         
         if (other->flags & WIN_BLOCK && !player->in_stun){
@@ -2816,7 +2951,10 @@ void update_player(Entity *entity, f32 dt){
     //     }
     // }
     
-    b32 can_shoot_rifle = player_data.rifle_active;
+    player_data.rifle_trail_emitter->position = sword_tip;
+    player_data.rifle_trail_emitter->direction = sword->up;
+    
+    b32 can_shoot_rifle = player_data.rifle_active && (player_data.ammo_count > 0 || debug.infinite_ammo);
     if (can_shoot_rifle && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         //rifle shoot
         // if (!is_rifle_charged){
@@ -2856,23 +2994,37 @@ void update_player(Entity *entity, f32 dt){
         // } else{
             //perfect shot
             add_rifle_projectile(sword_tip, sword->up * player_data.rifle_strong_speed, STRONG);
+            add_player_ammo(-1);
             
             //push_player_up(60);
             push_or_set_player_up(20);
             shake_camera(0.1f);
             player_data.rifle_shake_start_time = core.time.game_time;
+            player_data.rifle_shoot_time = core.time.game_time;
+            
+            enable_emitter(player_data.rifle_trail_emitter);
             
             // player_data.rifle_perfect_shots_made++;
             // if (player_data.rifle_perfect_shots_made == player_data.rifle_max_perfect_shots){
             //     add_blood_amount(&player_data, sword, -player_data.blood_amount * 0.5f);
             //     player_data.rifle_active = false;
             // }
+    } else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        player_data.rifle_shake_start_time = core.time.game_time;
+        emit_particles(gunpowder_emitter, sword_tip, sword->up);
     }
     
     if (player_data.rifle_active){
         change_up(sword, move_towards(sword->up, dir_to_mouse, 100, dt));        
     } else{
         player_data.rifle_perfect_shots_made = 0;
+    }
+    
+    f32 time_since_shoot = core.time.game_time - player_data.rifle_shoot_time;
+    
+    if (time_since_shoot >= 0.5f && core.time.game_time > 1){
+        player_data.rifle_trail_emitter->enabled = false;
+    } else{
     }
     
     //rifle activate
@@ -2888,6 +3040,7 @@ void update_player(Entity *entity, f32 dt){
         player_data.rifle_activate_time = core.time.game_time;
     } else if (!spin_enough_for_shoot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         player_data.rifle_shake_start_time = core.time.game_time;
+        emit_particles(gunpowder_emitter, sword_tip, sword->up);
     }
     
     sword->color_changer.progress = is_sword_filled ? 1 : 0;//player_data.blood_progress * player_data.blood_progress;//player_data.sword_spin_progress * player_data.sword_spin_progress;
@@ -3020,7 +3173,7 @@ void update_player(Entity *entity, f32 dt){
     f32 just_grounded = false;
     
     //player collisions
-    fill_collisions(ground_checker, &player_data.collisions, GROUND);
+    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER);
     
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
@@ -3068,10 +3221,40 @@ void update_player(Entity *entity, f32 dt){
         }
     }
     
-    fill_collisions(entity, &player_data.collisions, GROUND);
+    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | PROPELLER);
     for (int i = 0; i < player_data.collisions.count; i++){
         Collision col = player_data.collisions.get(i);
+        Entity *other = col.other_entity;
         assert(col.collided);
+        
+        //triggers
+        if (other->flags & PROPELLER){
+            if (player_data.sword_spin_progress > EPSILON){
+                Vector2 acceleration_dir = other->up;
+                Vector2 deceleration_plane = other->right;//get_rotated_vector_90(acceleration_dir, 1);
+                
+                f32 power_t = player_data.sword_spin_progress;
+                
+                Vector2 to_player = player_entity->position - other->position;
+                
+                f32 deceleration_power = lerp(0.0f, 600.0f, sqrtf(power_t));
+                f32 acceleration_power = lerp(0.0f, other->propeller.power, sqrtf(power_t));
+                
+                //f32 deceleration_sign = dot(deceleration_plane, player_data.velocity) > 0 ? -1 : 1;
+                f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
+                
+                player_data.velocity += deceleration_plane * deceleration_power * deceleration_sign * dt;
+                player_data.velocity *= 1.0f - (10.0f * dt);
+                player_data.velocity += acceleration_dir * acceleration_power * dt;
+                
+                f32 new_dot = dot(deceleration_plane, player_data.velocity);
+                if (new_dot * deceleration_sign < 0){
+                    player_data.velocity += deceleration_plane * deceleration_sign * -1.0f * new_dot * dt;
+                }
+            }
+            continue; 
+        }
+
         
         f32 dot_velocity = dot(col.normal, player_data.velocity);
         if (dot_velocity >= 0){
@@ -3153,11 +3336,11 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         
         if (enemy->dead_man){
             emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
-            bird_entity->destroyed = true;
-            bird_entity->enabled = false;
+            // bird_entity->destroyed = true;
+            // bird_entity->enabled = false;
             
-            kill_enemy(other, other->position, col.normal);
-            return;
+            stun_enemy(other, other->position, col.normal);
+            //return;
         }
         
         bird->velocity = reflected_vector(bird->velocity * 0.8f, col.normal);
@@ -3624,6 +3807,16 @@ void update_agro_area(Entity *e){
     }
 }
 
+void update_kill_trigger(Entity *e){
+    assert(e->flags & KILL_TRIGGER);
+    
+    //Kill_Trigger *trigger = &e->agro_area;
+    
+    if (check_entities_collision(e, player_entity).collided){
+        kill_player();
+    }
+}
+
 void update_entities(){
     Context *c = &context;
     Hash_Table_Int<Entity> *entities = &c->entities;
@@ -3679,7 +3872,7 @@ void update_entities(){
             // update_emitter(&player_data.stun_emitter);
         }
           
-        if (e->flags & BIRD_ENEMY){
+        if (e->flags & BIRD_ENEMY && debug.enemy_ai){
             update_bird_enemy(e, core.time.dt);
         }
         
@@ -3687,19 +3880,25 @@ void update_entities(){
             update_projectile(e, core.time.dt);
         }
         
-        if (e->flags & PARTICLE_EMITTER){
-            for (int em = 0; em < e->emitters.count; em++){
+        //if (e->flags & PARTICLE_EMITTER){
+        for (int em = 0; em < e->emitters.count; em++){
+            if (e->emitters.get_ptr(em)->follow_entity){
                 e->emitters.get_ptr(em)->position = e->position;
-                update_emitter(e->emitters.get_ptr(em));
             }
+            update_emitter(e->emitters.get_ptr(em));
         }
+        //}
         
         if (e->flags & STICKY_TEXTURE){
             update_sticky_texture(e);
         }
         
-        if (e->flags & AGRO_AREA){
+        if (e->flags & AGRO_AREA && debug.enemy_ai){
             update_agro_area(e);
+        }
+        
+        if (e->flags & KILL_TRIGGER && !debug.god_mode){
+            update_kill_trigger(e);
         }
     }
 }
@@ -3896,7 +4095,7 @@ void draw_entities(){
         if (e->flags & AGRO_AREA && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
             //draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
             draw_game_line_strip(e, e->color);
-            draw_game_triangle_strip(e, e->color * 0.1f);
+            draw_game_triangle_strip(e, Fade(e->color, 0.1f));
             
             b32 agro_selected = editor.selected_entity && editor.selected_entity->id == e->id;
             for (int ii = 0; agro_selected && ii < e->agro_area.connected.count; ii++){
@@ -3908,6 +4107,20 @@ void draw_entities(){
             }
         }
         
+        if (e->flags & KILL_TRIGGER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
+            draw_game_line_strip(e, e->color);
+            draw_game_triangle_strip(e, e->color * 0.1f);
+        }
+        
+        if (e->flags & PROPELLER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
+            draw_game_line_strip(e, e->color);
+            draw_game_triangle_strip(e, e->color * 0.1f);
+            
+            e->propeller.air_emitter->speed_multiplier = e->propeller.power / 50.0f;
+            e->propeller.air_emitter->spawn_radius = e->scale.x * 0.5f;
+            e->propeller.air_emitter->direction        = e->up;
+        }
+        
         if (e->flags & BLOCKER){
             // Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
             // Vector2 real_scale = {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE};
@@ -3917,7 +4130,7 @@ void draw_entities(){
         
         if (e->flags & STICKY_TEXTURE){
             f32 lifetime = core.time.game_time - e->sticky_texture.birth_time;
-            f32 lifetime_t = 0;
+            f32 lifetime_t = 0.5f;
             if (e->sticky_texture.max_lifetime > EPSILON){
                 lifetime_t = lifetime / e->sticky_texture.max_lifetime;
             }
@@ -4181,6 +4394,11 @@ void draw_game(){
         draw_text(TextFormat("Player Velocity: {%.1f, %.1f}", player_data.velocity.x, player_data.velocity.y), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
+    
+    v_pos += font_size;
+    draw_text(TextFormat("Ammo: %d", player_data.ammo_count), 10, v_pos, font_size * 1.5f, VIOLET);
+    v_pos += font_size * 1.5f;
+
     
     if (console.is_open){
         //draw console
