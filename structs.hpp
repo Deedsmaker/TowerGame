@@ -91,12 +91,30 @@ enum Flags : u64{
     KILL_TRIGGER     = 1 << 14,
     PROPELLER        = 1 << 15,
     SHOOT_BLOCKER    = 1 << 16,
+    DOOR             = 1 << 17,
+    TRIGGER          = 1 << 18,
+    ATTACK_TRIGGER   = 1 << 19,
     
     TEST = 1 << 30
 };
 
 struct Ground{
       
+};
+
+struct Door{
+    Vector2 start_position = Vector2_zero;
+    Vector2 open_position  = Vector2_zero;
+    b32 is_open = false;
+    
+    f32 triggered_time = 0;
+    
+    f32 time_to_open = 1.0f;
+    f32 time_to_close = 0.5f;
+};
+
+struct Trigger{
+    Dynamic_Array<Door> doors;
 };
 
 struct Velocity_Move{
