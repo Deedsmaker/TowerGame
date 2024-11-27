@@ -90,6 +90,7 @@ enum Flags : u64{
     STICKY_TEXTURE   = 1 << 13,
     KILL_TRIGGER     = 1 << 14,
     PROPELLER        = 1 << 15,
+    SHOOT_BLOCKER    = 1 << 16,
     
     TEST = 1 << 30
 };
@@ -123,14 +124,20 @@ struct Enemy{
     
     f32 birth_time = 0;
     
+    f32 sword_kill_speed_modifier = 1;
+    
     b32 blocker_clockwise = false;
+    b32 blocker_immortal = false;
     i32 blocker_sticky_id = -1;
     
     Vector2 original_scale = {1, 1};
+    
+    b32 shoot_blocker_immortal = false;
+    Vector2 shoot_blocker_direction = Vector2_up;
 };
 
 struct Propeller{
-    f32 power = 100;  
+    f32 power = 1000;  
     
     Particle_Emitter *air_emitter = NULL;
 };

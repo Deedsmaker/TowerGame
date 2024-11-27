@@ -1,1 +1,18 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
+
+
+[X] propeller ui <done: 27.11.24 - 11:56>
+[X] check level clear on changing level <done: 27.11.24 - 12:00> (Crash was when trying to load level while in game_mode. Scene not cleared up and player asserts because there's no player but gamemode is on)
+[X] blocker sticky texture render <done: 27.11.24 - 14:31> (Sticky texture entities was initialized without textures, so vertices was wrong) 
+[X] better vertex snapping dragging <done: 27.11.24 - 11:33>
+
+[X] Enemy param for speed multiplier on sword kill <done: 27.11.24 - 17:17>
+[ ] Ice block (?)
+[ ] Spikes
+[ ] Surface that stops you if spining
+[ ] Block that if damaged open doors. (Trigger block) 
+[ ] Doors with ability to assign enemies
+[X] Directional modifier for enemies for killing only in specific angle
+[X] Two win blocks - for shooting and melee (Из за неуязвимости на двух блокерах теперь можно считать что есть разные, просто потом отдельно надо будет добавить функционал для движения сущностей по заданным точкам)
+[ ] Slowmo (zombie)
+[X] Blocker immortality for sword <done: 27.11.24 - 18:44>

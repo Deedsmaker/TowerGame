@@ -45,6 +45,7 @@ void free_entity(Entity *e){
 }
 
 void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+    vertices->clear();
     vertices->add({pivot.x, pivot.y});
     vertices->add({-pivot.x, pivot.y});
     vertices->add({pivot.x, pivot.y - 1.0f});
@@ -52,6 +53,7 @@ void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
 }
 
 void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+    vertices->clear();
     vertices->add({pivot.x * 0.3f, pivot.y});
     vertices->add({-pivot.x * 0.3f, pivot.y});
     vertices->add({pivot.x, pivot.y - 1.0f});
@@ -59,6 +61,7 @@ void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
 }
 
 void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture texture, Vector2 pivot){
+    vertices->clear();
     Vector2 scaled_size = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
     vertices->add({pivot.x * scaled_size.x, pivot.y * scaled_size.y});
     vertices->add({-pivot.x * scaled_size.x, pivot.y * scaled_size.y});
@@ -147,6 +150,9 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
     pivot    = _pivot;
     texture  = _texture;
     scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+    //scaling_multiplier = {1, 1};
+    color = WHITE;
+    //scale = transform_texture_scale(texture, _scale);
     
     pick_vertices(this);
     
@@ -154,7 +160,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
     
     rotate_to(this, _rotation);
     
-    change_scale(this, _scale);
+    change_scale(this, scale);
     setup_color_changer(this);
 }
 
@@ -325,10 +331,20 @@ int save_level(const char *level_name){
         
         if (e->flags & BLOCKER){
             fprintf(fptr, "blocker_clockwise:%d: ", e->enemy.blocker_clockwise);
+            fprintf(fptr, "blocker_immortal:%d: ", e->enemy.blocker_immortal);
+        }
+        
+        if (e->flags & ENEMY && e->enemy.sword_kill_speed_modifier != 1){
+            fprintf(fptr, "sword_kill_speed_modifier:%.1f: ", e->enemy.sword_kill_speed_modifier);
         }
         
         if (e->flags & PROPELLER){
             fprintf(fptr, "propeller_power:%f: ", e->propeller.power);
+        }
+        
+        if (e->flags & SHOOT_BLOCKER){
+            fprintf(fptr, "shoot_blocker_direction{:%f:, :%f:} ", e->enemy.shoot_blocker_direction.x, e->enemy.shoot_blocker_direction.y);
+            fprintf(fptr, "shoot_blocker_immortal:%d: ", e->enemy.shoot_blocker_immortal);
         }
         
         if (e->flags & TEXTURE){
@@ -453,6 +469,10 @@ void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_St
 }
 
 int load_level(const char *level_name){
+    game_state = EDITOR;
+    clean_up_scene();
+    clear_context(&context);
+
     char *name;
     name = get_substring_before_symbol(level_name, '.');
 
@@ -563,8 +583,20 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "blocker_clockwise")){
                 fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "blocker_immortal")){
+                fill_b32_from_string(&entity_to_fill.enemy.blocker_immortal, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "propeller_power")){
                 fill_float_from_string(&entity_to_fill.propeller.power, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "sword_kill_speed_modifier")){
+                fill_float_from_string(&entity_to_fill.enemy.sword_kill_speed_modifier, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_direction")){
+                fill_vector2_from_string(&entity_to_fill.enemy.shoot_blocker_direction, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                i += 2;
+            } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_immortal")){
+                fill_b32_from_string(&entity_to_fill.enemy.shoot_blocker_immortal, splitted_line.get(i+1).data);
                 i++;
             } else{
                 //assert(false);
@@ -666,7 +698,7 @@ void init_spawn_objects(){
     str_copy(enemy_bird_object.name, bird_entity.name);
     spawn_objects.add(enemy_bird_object);
     
-    Entity win_block_entity = Entity({0, 0}, {3, 3}, {0.5f, 0.5f}, 0, WIN_BLOCK);
+    Entity win_block_entity = Entity({0, 0}, {3, 3}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | SHOOT_BLOCKER);
     win_block_entity.color = GREEN * 0.9f;
     win_block_entity.color_changer.start_color = win_block_entity.color;
     win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
@@ -843,25 +875,27 @@ void init_entity(Entity *entity){
         entity->color_changer.change_time = 5.0f;
     }
     
-    if (entity->flags & BLOCKER){
+    if (entity->flags & BLOCKER && game_state == GAME){
         if (entity->enemy.blocker_sticky_id != -1 && context.entities.has_key(entity->enemy.blocker_sticky_id)){
             context.entities.get_by_key_ptr(entity->enemy.blocker_sticky_id)->destroyed = true;
         }
         
-        Texture texture = entity->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-        Entity *sticky_entity = add_entity(entity->position, transform_texture_scale(texture, {8, 8}), {0.5f, 0.5f}, 0, WHITE, TEXTURE | STICKY_TEXTURE);
-        init_entity(sticky_entity);
-        str_copy(sticky_entity->name, "blocker_attack_mark");
-        sticky_entity->need_to_save = false;
-        sticky_entity->texture = texture;
-        sticky_entity->draw_order = 1;
-        sticky_entity->sticky_texture.max_lifetime = 0;
-        sticky_entity->sticky_texture.line_color = ORANGE;
-        sticky_entity->sticky_texture.need_to_follow = true;
-        sticky_entity->sticky_texture.follow_id = entity->id;
-        sticky_entity->sticky_texture.birth_time = core.time.game_time;
-        
-        entity->enemy.blocker_sticky_id = sticky_entity->id;
+        if (!entity->enemy.blocker_immortal){
+            Texture texture = entity->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+            Entity *sticky_entity = add_entity(entity->position, transform_texture_scale(texture, {10, 10}), {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
+            init_entity(sticky_entity);
+            str_copy(sticky_entity->name, "blocker_attack_mark");
+            sticky_entity->need_to_save = false;
+            //sticky_entity->texture = texture;
+            sticky_entity->draw_order = 1;
+            sticky_entity->sticky_texture.max_lifetime = 0;
+            sticky_entity->sticky_texture.line_color = ORANGE;
+            sticky_entity->sticky_texture.need_to_follow = true;
+            sticky_entity->sticky_texture.follow_id = entity->id;
+            sticky_entity->sticky_texture.birth_time = core.time.game_time;
+            
+            entity->enemy.blocker_sticky_id = sticky_entity->id;
+        }
     }
     
     if (entity->flags & PROPELLER){
@@ -869,10 +903,11 @@ void init_entity(Entity *entity){
         entity->propeller.air_emitter = entity->emitters.add(air_emitter);
         enable_emitter(entity->propeller.air_emitter);
         
-        entity->propeller.air_emitter->speed_multiplier = entity->propeller.power / 50.0f;
-        entity->propeller.air_emitter->count_multiplier = entity->propeller.power / 50.0f;
-        entity->propeller.air_emitter->spawn_radius     = entity->scale.x * 0.5f;
-        entity->propeller.air_emitter->direction        = entity->up;
+        entity->propeller.air_emitter->speed_multiplier    = entity->propeller.power / 50.0f;
+        entity->propeller.air_emitter->count_multiplier    = entity->propeller.power / 50.0f;
+        entity->propeller.air_emitter->lifetime_multiplier = (1.8f * (entity->scale.y / 120.0f)) / entity->propeller.air_emitter->speed_multiplier;
+        entity->propeller.air_emitter->spawn_radius        = entity->scale.x * 0.5f;
+        entity->propeller.air_emitter->direction           = entity->up;
     }        
     
     setup_color_changer(entity);
@@ -1098,9 +1133,13 @@ void clean_up_scene(){
 }
 
 void enter_game_state(){
-    clean_up_scene();
-
     game_state = GAME;
+    clean_up_scene();
+    
+    ForTable(context.entities, i){
+        init_entity(context.entities.get_ptr(i));
+    }
+    
     
     String temp_level_name = init_string();
     temp_level_name += "TEMP_";
@@ -1151,9 +1190,6 @@ void kill_player(){
 
 void enter_editor_state(){
     game_state = EDITOR;
-    
-    clean_up_scene();
-    clear_context(&context);
     
     String temp_level_name = init_string();
     temp_level_name += "TEMP_";
@@ -1567,6 +1603,12 @@ inline b32 check_bounds_collision(Entity *entity1, Entity *entity2){
     return check_rectangles_collision(position1 + entity1->bounds.offset, entity1->bounds.size, position2 + entity2->bounds.offset, entity2->bounds.size);
 }
 
+inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *entity2){
+    Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
+    
+    return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, position2 + entity2->bounds.offset, entity2->bounds.size);
+}
+
 Collision check_entities_collision(Entity *entity1, Entity *entity2){
     Collision result = {};
     result.other_entity = entity2;
@@ -1950,36 +1992,60 @@ void update_editor_ui(){
         f32 type_font_size = 24;
         f32 type_info_v_pos = type_font_size;
         if (selected->flags & AGRO_AREA){
-            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_clear");
+            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_clear");
             type_info_v_pos += type_font_size;
-            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_remove");
+            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_remove");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign New: Alt+A", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_assign");
+            make_ui_text("Assign New: Alt+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Connected: %d", selected->agro_area.connected.count), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_count");
+            make_ui_text(TextFormat("Connected: %d", selected->agro_area.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_count");
             type_info_v_pos += type_font_size;
-            make_ui_text("Agro settings:", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "agro_settings");
+            make_ui_text("Agro settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "agro_settings");
             type_info_v_pos += type_font_size;
         }
         
         if (selected->flags & ENEMY){
-            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "explosive_toggle");
+            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "explosive_toggle");
             type_info_v_pos += type_font_size;
             
-            make_ui_text(TextFormat("Alt+B Blocker: %s", selected->flags & BLOCKER ? "ON" : "OFF"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
+            make_ui_text(TextFormat("Alt+B Blocker: %s", selected->flags & BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
             type_info_v_pos += type_font_size;
             
             if (selected->flags & BLOCKER){
-                make_ui_text(TextFormat("Alt+N Block direction: %s", selected->enemy.blocker_clockwise ? "Clockwise" : "Not Clockwise"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
+                if (!selected->enemy.blocker_immortal){
+                    make_ui_text(TextFormat("Alt+N Block direction: %s", selected->enemy.blocker_clockwise ? "Clockwise" : "Not Clockwise"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
+                    type_info_v_pos += type_font_size;
+                }
+                make_ui_text(TextFormat("Alt+M Blocker immortality: %s", selected->enemy.blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_immortality");
+                type_info_v_pos += type_font_size;
+
+            }
+            make_ui_text(TextFormat("Alt+A/D Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "sword_kill_speed_modifier_change");
+            type_info_v_pos += type_font_size;
+            
+            make_ui_text(TextFormat("Alt+U Shoot blocker: %s", selected->flags & SHOOT_BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "shoot_blocker_toggle");
+            type_info_v_pos += type_font_size;
+            if (selected->flags & SHOOT_BLOCKER){
+                if (!selected->enemy.shoot_blocker_immortal){
+                    make_ui_text(TextFormat("Alt+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "shoot_blocker_direction");
+                    type_info_v_pos += type_font_size;
+                }
+            
+                make_ui_text(TextFormat("Alt+Y Shoot Block immortality: %s", selected->enemy.shoot_blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "shoot_blocker_immortality");
                 type_info_v_pos += type_font_size;
             }
-            make_ui_text("Enemy settings:", {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
+
+            make_ui_text("Enemy settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
             type_info_v_pos += type_font_size;
         }
         
         if (selected->flags & PROPELLER){
-            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 100, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "explosive_toggle");
+            make_ui_text(TextFormat("Alt+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "propeller_power");
             type_info_v_pos += type_font_size;
+            
+            make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
+            type_info_v_pos += type_font_size;
+
         }
 
     }
@@ -2132,10 +2198,13 @@ void update_editor(){
     
     editor.cursor_entity = get_cursor_entity();
     
+    b32 need_start_dragging = false;
+    
     // mouse select
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select){
         if (editor.cursor_entity != NULL){ //selecting entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
+            need_start_dragging = is_same_selected_entity;
             if (!is_same_selected_entity){
                 assign_selected_entity(editor.cursor_entity);
                 editor.place_cursor_entities.add(editor.selected_entity);
@@ -2143,7 +2212,9 @@ void update_editor(){
                 editor.selected_this_click = true;
             }
         }
-    } else if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL){ 
+    } 
+    
+    if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL && need_start_dragging){ // assign dragging entity
         if (editor.cursor_entity != NULL){
             if (editor.moving_vertex == NULL && editor.selected_entity->id == editor.cursor_entity->id){
                 editor.dragging_entity = editor.selected_entity;
@@ -2448,8 +2519,17 @@ void update_editor(){
         //enemy components
         if (selected->flags & ENEMY){
             b32 wanna_toggle_explosive           = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_E);
+            
             b32 wanna_toggle_blocker             = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_B);
             b32 wanna_toggle_blocker_clockwise   = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_N);
+            b32 wanna_toggle_blocker_immortality = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_M);
+            
+            b32 wanna_increase_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
+            b32 wanna_decrease_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
+            
+            b32 wanna_toggle_shoot_blocker             = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_U);
+            b32 wanna_toggle_shoot_blocker_immortality = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_Y);
+            b32 wanna_rotate_shoot_blocker_direction   = IsKeyDown(KEY_LEFT_ALT) && (IsKeyDown(KEY_F) || IsKeyDown(KEY_G));
             
             if (wanna_toggle_explosive){
                 selected->flags ^= EXPLOSIVE;
@@ -2462,9 +2542,43 @@ void update_editor(){
                 init_entity(selected);
             }
             
+            if (wanna_toggle_blocker_immortality && selected->flags & BLOCKER){
+                selected->enemy.blocker_immortal = !selected->enemy.blocker_immortal;
+                init_entity(selected);
+            }
+            
             if (selected->flags & BLOCKER && wanna_toggle_blocker_clockwise){
                 selected->enemy.blocker_clockwise = !selected->enemy.blocker_clockwise;
                 init_entity(selected);
+            }
+            
+            if (wanna_increase_sword_kill_speed || wanna_decrease_sword_kill_speed){   
+                f32 speed_change = wanna_increase_sword_kill_speed ? 0.5f : -0.5f;
+                selected->enemy.sword_kill_speed_modifier += speed_change;
+            }
+            
+            if (wanna_toggle_shoot_blocker){
+                selected->flags ^= SHOOT_BLOCKER;
+                init_entity(selected);
+            }
+            if (wanna_toggle_shoot_blocker_immortality && selected->flags & SHOOT_BLOCKER){
+                selected->enemy.shoot_blocker_immortal = !selected->enemy.shoot_blocker_immortal;
+                init_entity(selected);
+            }
+            if (wanna_rotate_shoot_blocker_direction && selected->flags & SHOOT_BLOCKER){
+                f32 speed = IsKeyDown(KEY_F) ? -40 : 40;
+                selected->enemy.shoot_blocker_direction = get_rotated_vector(selected->enemy.shoot_blocker_direction, speed * core.time.real_dt);
+            }
+        }
+        
+        // propeller change
+        if (selected->flags & PROPELLER){
+            b32 wanna_increase_power = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_E);
+            b32 wanna_decrease_power = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_Q);
+            
+            if (wanna_increase_power || wanna_decrease_power){
+                f32 power_change = wanna_increase_power ? 100 : -100;
+                selected->propeller.power += power_change;
             }
         }
     }
@@ -2800,7 +2914,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         Entity *other = col.other_entity;
         
         if (other->flags & BLOCKER && !player->in_stun){
-            b32 is_right_spin_direction = other->enemy.blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0;
+            b32 is_right_spin_direction = !other->enemy.blocker_immortal && (other->enemy.blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0);
             
             if (!is_right_spin_direction){
                 player->velocity = player->velocity * -0.5f;
@@ -2816,7 +2930,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         if (other->flags & ENEMY && player->sword_spin_progress > 0.12f && !other->enemy.dead_man && !player->in_stun){
             kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal);
             
-            f32 max_speed_boost = 6 * player->sword_spin_direction;
+            f32 max_speed_boost = 6 * player->sword_spin_direction * other->enemy.sword_kill_speed_modifier;
             if (!player->grounded){
                 max_speed_boost *= -1;
             }
@@ -3361,7 +3475,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     if (other->flags & PLAYER && !player_data.dead_man && bird->attacking && !enemy->dead_man){
         b32 should_kill_player = player_data.sword_spin_progress < 0.4f;
         if (bird_entity->flags & BLOCKER){
-            b32 is_right_spin_direction = enemy->blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0;
+            b32 is_right_spin_direction = !enemy->blocker_immortal && (enemy->blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0);
             should_kill_player = should_kill_player && !is_right_spin_direction;
         }
     
@@ -3635,17 +3749,21 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale){
 }
 
 void add_hitmark(Entity *entity, b32 need_to_follow){
-    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {6, 6}), {0.5f, 0.5f}, rnd(-90.0f, 90.0f), WHITE, TEXTURE | STICKY_TEXTURE);
+    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {6, 6}), {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
     hitmark->need_to_save = false;
     //hitmark->color = WHITE;
     init_entity(hitmark);    
     hitmark->draw_order = 1;
     str_copy(hitmark->name, "hitmark_small");
-    hitmark->texture = hitmark_small_texture;
+    //hitmark->texture = hitmark_small_texture;
     
     hitmark->sticky_texture.need_to_follow = need_to_follow;
     hitmark->sticky_texture.follow_id = entity->id;
     hitmark->sticky_texture.birth_time = core.time.game_time;
+}
+
+inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EPSILON){
+    return abs(first - second) <= allowed_difference;
 }
 
 void calculate_projectile_collisions(Entity *entity){
@@ -3660,21 +3778,43 @@ void calculate_projectile_collisions(Entity *entity){
         
         b32 need_bounce = false;
         
+        Vector2 velocity_dir = normalized(projectile->velocity);
+        
         if (other->flags & ENEMY && is_enemy_can_take_damage(other) && (projectile->type != WEAK || !projectile->dying)){
             b32 killed = false;
-            if (other->flags & BIRD_ENEMY){
+            f32 sparks_speed = 1;
+            f32 sparks_count = 1;
+            b32 can_damage = true;
+            
+            if (other->flags & SHOOT_BLOCKER){
+                Vector2 shoot_blocker_direction = get_rotated_vector(other->enemy.shoot_blocker_direction, other->rotation);
+                f32 velocity_dot_direction = dot(velocity_dir, shoot_blocker_direction);    
+                    
+                can_damage = !other->enemy.shoot_blocker_immortal && (compare_difference(velocity_dot_direction, 1, 0.1f) || compare_difference(velocity_dot_direction, -1, 0.1f));
+                sparks_speed += 2;
+                sparks_count += 2;
+                
+                if (!can_damage){
+                    need_bounce = true;
+                    other->enemy.stun_start_time = core.time.game_time;
+                }
+            }
+            
+            if (other->flags & WIN_BLOCK && can_damage){
+                win_level();
+            } else if (other->flags & BIRD_ENEMY && can_damage){
                 other->bird_enemy.velocity += projectile->velocity * 0.05f;
                 //other->bird_enemy.velocity = projectile->velocity * 0.05f;
                 projectile->velocity = reflected_vector(projectile->velocity * 0.3f, col.normal);
                 projectile->type = WEAK;
-                emit_particles(sparks_emitter, col.point, normalized(projectile->velocity), 1, 2);
                 stun_enemy(other, entity->position, col.normal);    
-            } else{
-                emit_particles(sparks_emitter, col.point, normalized(projectile->velocity), 1, 1);
+                sparks_speed += 1;
+            } else if (can_damage){
                 kill_enemy(other, entity->position, col.normal);
                 killed = true;
             }
             
+            emit_particles(sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
             add_hitstop(0.03f);
             shake_camera(0.1f);
         
@@ -3688,10 +3828,6 @@ void calculate_projectile_collisions(Entity *entity){
             } else{
                 entity->destroyed = true;
             }
-        }
-        
-        if (other->flags & WIN_BLOCK){
-            win_level();
         }
         
         if (need_bounce){
@@ -4036,7 +4172,7 @@ void fill_entities_draw_queue(){
         cam_bounds.size /= UNIT_SIZE;
         
         cam_bounds.offset = {0, 0};
-        if (!check_bounds_collision(context.cam.view_position, cam_bounds, e.position, e.bounds)){
+        if (!check_bounds_collision(context.cam.view_position, cam_bounds, &e)){
             continue;
         }
         
@@ -4090,10 +4226,10 @@ void draw_entities(){
         }
         
         if (e->flags & WIN_BLOCK){
-            draw_game_triangle_strip(e);
-            Vector2 line_from = e->position - e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f - e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
-            Vector2 line_to   = e->position + e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f + e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
-            draw_game_line(line_from, line_to, 0.8f, PURPLE * 0.9f);
+            // draw_game_triangle_strip(e);
+            // Vector2 line_from = e->position - e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f - e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
+            // Vector2 line_to   = e->position + e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f + e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
+            // draw_game_line(line_from, line_to, 0.8f, PURPLE * 0.9f);
         }
         
         if (e-> flags & DRAW_TEXT){
@@ -4129,11 +4265,28 @@ void draw_entities(){
             e->propeller.air_emitter->direction        = e->up;
         }
         
-        if (e->flags & BLOCKER){
-            // Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-            // Vector2 real_scale = {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE};
+        if (e->flags & BLOCKER && (game_state == EDITOR) && !e->enemy.blocker_immortal){
+            Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+            Vector2 real_scale = {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE};
             
-            // draw_game_texture(texture, e->position, {10.0f / real_scale.x, 10.0f / real_scale.y}, {0.5f, 0.5f}, 0, WHITE);
+            draw_game_texture(texture, e->position, {10.0f / real_scale.x, 10.0f / real_scale.y}, {0.5f, 0.5f}, 0, WHITE);
+        }
+        if (e->flags & BLOCKER && e->enemy.blocker_immortal){
+            Vector2 triangle1 = {e->position.x, e->position.y + 3};
+            Vector2 triangle2 = {e->position.x - 3, e->position.y - 3};
+            Vector2 triangle3 = {e->position.x + 3, e->position.y - 3};
+            draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
+        }
+        
+        if (e->flags & SHOOT_BLOCKER){
+            if (e->enemy.shoot_blocker_immortal){
+                draw_game_ring_lines(e->position, 3, 6, 8, WHITE);                
+            } else{
+                Vector2 direction = get_rotated_vector(e->enemy.shoot_blocker_direction, e->rotation);
+                Vector2 start_position = e->position - direction * e->scale.x * 0.6f;
+                Vector2 end_position   = e->position + direction * e->scale.x * 0.6f;
+                draw_game_line(start_position, end_position, 1.5f, VIOLET);
+            }
         }
         
         if (e->flags & STICKY_TEXTURE){
@@ -4162,7 +4315,7 @@ void draw_entities(){
             draw_game_line(e->position, e->position + e->up    * 3, 0.3f, GREEN);
         }
         
-        if (debug.draw_bounds || editor.selected_entity && game_state == EDITOR && e->id == editor.selected_entity->id){
+        if (debug.draw_bounds || editor.selected_entity && (game_state == EDITOR || game_state == PAUSE) && e->id == editor.selected_entity->id){
             draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
             //draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
         }
@@ -4484,6 +4637,19 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     return context.entities.last_ptr();
 }
 
+Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags){
+    //Entity *e = add_entity(pos, scale, rotation, flags);    
+    Entity e = Entity(pos, scale, pivot, rotation, texture, flags);    
+    e.id = context.entities.total_added_count + core.time.app_time * 10000 + 100;
+    //e.pivot = pivot;
+    
+    check_avaliable_ids_and_set_if_found(&e.id);
+
+
+    context.entities.add(e.id, e);
+    return context.entities.last_ptr();
+}
+
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags){
     Entity *e = add_entity(pos, scale, pivot, rotation, flags);    
     e->color = color;
@@ -4541,7 +4707,7 @@ inline Vector2 local(Entity *e, Vector2 global_pos){
     return global_pos - e->position;
 }
 
-Vector2 world_to_screen(Vector2 position){
+inline Vector2 world_to_screen(Vector2 position){
     Vector2 cam_pos = context.cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
@@ -4630,6 +4796,14 @@ void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
 
 void draw_game_line(Vector2 start, Vector2 end, Color color){
     draw_line(world_to_screen(start), world_to_screen(end), color);
+}
+
+void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle, f32 end_angle){
+    draw_ring_lines(world_to_screen(center), inner_radius * UNIT_SIZE, outer_radius * UNIT_SIZE, segments, color);
+}
+
+void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color){
+    draw_triangle_lines(world_to_screen(v1), world_to_screen(v2), world_to_screen(v3), color);
 }
 
 f32 zoom_unit_size(){

@@ -216,17 +216,18 @@ void setup_particles(){
 
     free_emitter(sword_tip_emitter);
     sword_tip_emitter = add_emitter();
-    sword_tip_emitter->over_distance     = 3;
+    sword_tip_emitter->over_distance     = 2;
     sword_tip_emitter->direction_to_move = true;
     sword_tip_emitter->over_time         = 0;
-    sword_tip_emitter->speed_min         = 5;
-    sword_tip_emitter->speed_max         = 20;
+    sword_tip_emitter->speed_min         = 1;
+    sword_tip_emitter->speed_max         = 5;
     sword_tip_emitter->scale_min         = 0.1f;
     sword_tip_emitter->scale_max         = 0.6f;
-    sword_tip_emitter->lifetime_min      = 0.05f;
-    sword_tip_emitter->lifetime_max      = 0.3f;
+    sword_tip_emitter->lifetime_min      = 0.2f;
+    sword_tip_emitter->lifetime_max      = 1.5f;
     sword_tip_emitter->spread            = 0.4f;
-    sword_tip_emitter->color             = RED * 0.9f;
+    sword_tip_emitter->gravity_multiplier = 0.1f;
+    sword_tip_emitter->color             = Fade(RED, 0.5f);
     sword_tip_emitter->enabled           = true;
 
     free_emitter(blood_emitter);
@@ -236,15 +237,16 @@ void setup_particles(){
     blood_emitter->direction_to_move = 0;
     blood_emitter->over_time         = 0;
     blood_emitter->speed_min         = 5;
-    blood_emitter->speed_max         = 40;
-    blood_emitter->count_min         = 10;
-    blood_emitter->count_max         = 40;
-    blood_emitter->scale_min         = 0.4f;
-    blood_emitter->scale_max         = 1.2f;
-    blood_emitter->lifetime_min      = 0.1f;
-    blood_emitter->lifetime_max      = 0.9f;
+    blood_emitter->speed_max         = 10;
+    blood_emitter->count_min         = 50;
+    blood_emitter->count_max         = 150;
+    blood_emitter->scale_min         = 0.2f;
+    blood_emitter->scale_max         = 0.8f;
+    blood_emitter->lifetime_min      = 0.4f;
+    blood_emitter->lifetime_max      = 2.5f;
     blood_emitter->spread            = 0.5f;
-    blood_emitter->color             = RED * 0.7f;
+    blood_emitter->gravity_multiplier = 0.1f;
+    blood_emitter->color             = Fade(RED, 0.7f);
     blood_emitter->enabled           = true;
     
     big_blood_emitter.spawn_radius      = 3;

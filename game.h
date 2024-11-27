@@ -80,6 +80,8 @@ void draw_game_line_strip(Entity *entity, Color color);
 void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
 void draw_game_line(Vector2 start, Vector2 end, Color color);
+void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle = 0, f32 end_angle = 360);
+void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color);
 
 void draw_game_text(Vector2 position, const char *text, f32 size, Color color);
 
@@ -99,6 +101,7 @@ void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_T
 Entity* add_entity(Entity *copy, b32 keep_id = false);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
+Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
