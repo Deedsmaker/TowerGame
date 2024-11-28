@@ -39,8 +39,8 @@ global_variable Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>
 #include "ui.hpp"
 
 void free_entity(Entity *e){
-    if (e->flags & AGRO_AREA){
-        e->agro_area.connected.free_arr();
+    if (e->flags & TRIGGER){
+        e->trigger.connected.free_arr();
     }
 }
 
@@ -221,12 +221,20 @@ Entity::Entity(Entity *copy){
         enemy = copy->enemy;
     }
     
-    if (flags & AGRO_AREA){
-        agro_area = copy->agro_area;
+    if (flags & TRIGGER){
+        trigger = copy->trigger;
+        trigger.connected = Dynamic_Array<int>();
+        for (int i = 0; i < copy->trigger.connected.count; i++){
+            trigger.connected.add(copy->trigger.connected.get(i));
+        }
     }
     
     if (flags & PROPELLER){
         propeller = copy->propeller;
+    }
+    
+    if (flags & DOOR){
+        door = copy->door;
     }
     
     // if (flags & PARTICLE_EMITTER){
@@ -321,12 +329,21 @@ int save_level(const char *level_name){
         }
         fprintf(fptr, "] "); 
         
-        if (e->flags & AGRO_AREA){
-            fprintf(fptr, "agro_connected [ ");
-            for (int v = 0; v < e->agro_area.connected.count; v++){
-                fprintf(fptr, ":%d: ", e->agro_area.connected.get(v)); 
+        if (e->flags & TRIGGER){
+            fprintf(fptr, "trigger_connected [ ");
+            for (int v = 0; v < e->trigger.connected.count; v++){
+                fprintf(fptr, ":%d: ", e->trigger.connected.get(v)); 
             }
             fprintf(fptr, "] "); 
+            
+            fprintf(fptr, "trigger_kill_player:%d: ", e->trigger.kill_player);
+            fprintf(fptr, "trigger_open_doors:%d: ", e->trigger.open_doors);
+            fprintf(fptr, "trigger_track_enemies:%d: ", e->trigger.activate_when_no_enemies);
+            fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.activate_on_player_touch);
+        }
+        
+        if (e->flags & DOOR){
+            fprintf(fptr, "door_open:%d: ", e->door.is_open);
         }
         
         if (e->flags & BLOCKER){
@@ -578,8 +595,8 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "draw_order")){
                 fill_int_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "agro_connected")){
-                fill_int_array_from_string(&entity_to_fill.agro_area.connected, splitted_line, &i);
+            } else if (str_equal(splitted_line.get(i).data, "agro_connected") || str_equal(splitted_line.get(i).data, "trigger_connected")){
+                fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get(i).data, "blocker_clockwise")){
                 fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get(i+1).data);
                 i++;
@@ -597,6 +614,21 @@ int load_level(const char *level_name){
                 i += 2;
             } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_immortal")){
                 fill_b32_from_string(&entity_to_fill.enemy.shoot_blocker_immortal, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
+                fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_open_doors")){
+                fill_b32_from_string(&entity_to_fill.trigger.open_doors, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_track_enemies")){
+                fill_b32_from_string(&entity_to_fill.trigger.activate_when_no_enemies, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_player_touch")){
+                fill_b32_from_string(&entity_to_fill.trigger.activate_on_player_touch, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "door_open")){
+                fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get(i+1).data);
                 i++;
             } else{
                 //assert(false);
@@ -710,7 +742,7 @@ void init_spawn_objects(){
     str_copy(win_block_object.name, win_block_entity.name);
     spawn_objects.add(win_block_object);
     
-    Entity agro_area_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, AGRO_AREA);
+    Entity agro_area_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     agro_area_entity.color = Fade(VIOLET, 0.6f);
     agro_area_entity.color_changer.start_color = agro_area_entity.color;
     agro_area_entity.color_changer.target_color = agro_area_entity.color * 1.5f;
@@ -722,10 +754,19 @@ void init_spawn_objects(){
     str_copy(argo_area_object.name, agro_area_entity.name);
     spawn_objects.add(argo_area_object);
     
-    Entity kill_trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, KILL_TRIGGER);
+    Entity trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
+    trigger_entity.color = Fade(GREEN, 0.6f);
+    str_copy(trigger_entity.name, "trigger"); 
+    setup_color_changer(&trigger_entity);
+    
+    Spawn_Object trigger_object;
+    copy_entity(&trigger_object.entity, &trigger_entity);
+    str_copy(trigger_object.name, trigger_entity.name);
+    spawn_objects.add(trigger_object);
+    
+    Entity kill_trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
+    kill_trigger_entity.trigger.kill_player = true;
     kill_trigger_entity.color = Fade(RED, 0.6f);
-    kill_trigger_entity.color_changer.start_color = kill_trigger_entity.color;
-    kill_trigger_entity.color_changer.target_color = kill_trigger_entity.color * 1.5f;
     str_copy(kill_trigger_entity.name, "kill_trigger"); 
     setup_color_changer(&kill_trigger_entity);
     
@@ -733,6 +774,17 @@ void init_spawn_objects(){
     copy_entity(&kill_trigger_object.entity, &kill_trigger_entity);
     str_copy(kill_trigger_object.name, kill_trigger_entity.name);
     spawn_objects.add(kill_trigger_object);
+    
+    Entity spikes_entity = Entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
+    spikes_entity.trigger.kill_player = true;
+    spikes_entity.color = Fade(RED, 0.9f);
+    str_copy(spikes_entity.name, "spikes"); 
+    setup_color_changer(&spikes_entity);
+    
+    Spawn_Object spikes_object;
+    copy_entity(&spikes_object.entity, &spikes_entity);
+    str_copy(spikes_object.name, spikes_entity.name);
+    spawn_objects.add(spikes_object);
     
     Entity propeller_entity = Entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
     propeller_entity.color = Fade(BLUE, 0.4f);
@@ -745,6 +797,29 @@ void init_spawn_objects(){
     copy_entity(&propeller_object.entity, &propeller_entity);
     str_copy(propeller_object.name, propeller_entity.name);
     spawn_objects.add(propeller_object);
+    
+    Entity door_entity = Entity({0, 0}, {5, 15}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
+    door_entity.trigger.activate_on_player_touch = false;
+    door_entity.color = ColorBrightness(PURPLE, 0.6f);
+    str_copy(door_entity.name, "door"); 
+    setup_color_changer(&door_entity);
+    
+    Spawn_Object door_object;
+    copy_entity(&door_object.entity, &door_entity);
+    str_copy(door_object.name, door_entity.name);
+    spawn_objects.add(door_object);
+    
+    Entity enemy_trigger_entity = Entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
+    enemy_trigger_entity.trigger.activate_on_player_touch = false;
+    enemy_trigger_entity.trigger.activate_when_no_enemies = true;
+    enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
+    str_copy(enemy_trigger_entity.name, "enemy_trigger"); 
+    setup_color_changer(&enemy_trigger_entity);
+    
+    Spawn_Object enemy_trigger_object;
+    copy_entity(&enemy_trigger_object.entity, &enemy_trigger_entity);
+    str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
+    spawn_objects.add(enemy_trigger_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -854,15 +929,6 @@ inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index){
 // }
 
 void init_entity(Entity *entity){
-    if (entity->flags & AGRO_AREA){
-        // ForTable(context.entities, i){
-        //     Entity *e = context.entities.get_ptr(i);
-        //     if (e->flags & ENEMY){
-        //         entity->agro_area.connected.add(e->id);
-        //     }
-        // }
-    }
-    
     if (entity->flags & ENEMY){
         entity->enemy.original_scale = entity->scale;
     }
@@ -909,6 +975,14 @@ void init_entity(Entity *entity){
         entity->propeller.air_emitter->spawn_radius        = entity->scale.x * 0.5f;
         entity->propeller.air_emitter->direction           = entity->up;
     }        
+    
+    if (entity->flags & DOOR){
+        entity->flags |= TRIGGER;
+        entity->trigger.activate_on_player_touch = false;
+        entity->door.closed_position = entity->door.is_open ? entity->position - entity->up * entity->scale.y : entity->position;
+        entity->door.open_position   = entity->door.is_open ? entity->position : entity->position + entity->up * entity->scale.y;
+        //entity->door.is_open = false;
+    }
     
     setup_color_changer(entity);
 }
@@ -1729,6 +1803,7 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, F
 void assign_moving_vertex_entity(Entity *e, int vertex_index){
     Vector2 *vertex = e->vertices.get_ptr(vertex_index);
 
+    assign_selected_entity(e);
     editor.moving_vertex = vertex;
     editor.moving_vertex_index = vertex_index;
     editor.moving_vertex_entity = e;
@@ -1991,47 +2066,53 @@ void update_editor_ui(){
         
         f32 type_font_size = 24;
         f32 type_info_v_pos = type_font_size;
-        if (selected->flags & AGRO_AREA){
-            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_clear");
+        if (selected->flags & TRIGGER){
+            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_clear");
             type_info_v_pos += type_font_size;
-            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_remove");
+            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_remove");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign New: Alt+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_assign");
+            make_ui_text("Assign New: Alt+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Connected: %d", selected->agro_area.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "agro_count");
+            make_ui_text(TextFormat("Alt+K Kill player: %s", selected->trigger.kill_player ? "Yea" : "Nah"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_kill_player");
             type_info_v_pos += type_font_size;
-            make_ui_text("Agro settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "agro_settings");
+            make_ui_text(TextFormat("Alt+I Doors: %s", selected->trigger.open_doors ? "Opening" : "Closing"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_open_doors");
+            type_info_v_pos += type_font_size;
+            make_ui_text(TextFormat("Alt+H Track enemies: %s", selected->trigger.activate_when_no_enemies ? "Yea" : "Nah"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_track_enemies");
+            type_info_v_pos += type_font_size;
+            make_ui_text(TextFormat("Alt+T Active on player touch: %s", selected->trigger.activate_on_player_touch ? "Yeah" : "Nah"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_on_touch");
+            type_info_v_pos += type_font_size;
+            make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
         }
         
         if (selected->flags & ENEMY){
-            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "explosive_toggle");
+            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "explosive_toggle");
             type_info_v_pos += type_font_size;
             
-            make_ui_text(TextFormat("Alt+B Blocker: %s", selected->flags & BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
+            make_ui_text(TextFormat("Alt+B Blocker: %s", selected->flags & BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "blocker_toggle");
             type_info_v_pos += type_font_size;
             
             if (selected->flags & BLOCKER){
                 if (!selected->enemy.blocker_immortal){
-                    make_ui_text(TextFormat("Alt+N Block direction: %s", selected->enemy.blocker_clockwise ? "Clockwise" : "Not Clockwise"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_toggle");
+                    make_ui_text(TextFormat("Alt+N Block direction: %s", selected->enemy.blocker_clockwise ? "Clockwise" : "Not Clockwise"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "blocker_toggle");
                     type_info_v_pos += type_font_size;
                 }
-                make_ui_text(TextFormat("Alt+M Blocker immortality: %s", selected->enemy.blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "blocker_immortality");
+                make_ui_text(TextFormat("Alt+M Blocker immortality: %s", selected->enemy.blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "blocker_immortality");
                 type_info_v_pos += type_font_size;
 
             }
-            make_ui_text(TextFormat("Alt+A/D Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "sword_kill_speed_modifier_change");
+            make_ui_text(TextFormat("Alt+A/D Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "sword_kill_speed_modifier_change");
             type_info_v_pos += type_font_size;
             
-            make_ui_text(TextFormat("Alt+U Shoot blocker: %s", selected->flags & SHOOT_BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "shoot_blocker_toggle");
+            make_ui_text(TextFormat("Alt+U Shoot blocker: %s", selected->flags & SHOOT_BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "shoot_blocker_toggle");
             type_info_v_pos += type_font_size;
             if (selected->flags & SHOOT_BLOCKER){
                 if (!selected->enemy.shoot_blocker_immortal){
-                    make_ui_text(TextFormat("Alt+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "shoot_blocker_direction");
+                    make_ui_text(TextFormat("Alt+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "shoot_blocker_direction");
                     type_info_v_pos += type_font_size;
                 }
             
-                make_ui_text(TextFormat("Alt+Y Shoot Block immortality: %s", selected->enemy.shoot_blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "shoot_blocker_immortality");
+                make_ui_text(TextFormat("Alt+Y Shoot Block immortality: %s", selected->enemy.shoot_blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "shoot_blocker_immortality");
                 type_info_v_pos += type_font_size;
             }
 
@@ -2040,7 +2121,7 @@ void update_editor_ui(){
         }
         
         if (selected->flags & PROPELLER){
-            make_ui_text(TextFormat("Alt+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED * 0.9f, "propeller_power");
+            make_ui_text(TextFormat("Alt+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "propeller_power");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
@@ -2048,8 +2129,131 @@ void update_editor_ui(){
 
         }
 
+        if (selected->flags & DOOR){
+            make_ui_text(TextFormat("Alt+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "door_trigger");
+            type_info_v_pos += type_font_size;
+            make_ui_text(TextFormat("Alt+O %s", selected->door.is_open ? "Open" : "Closed"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "door_trigger");
+            type_info_v_pos += type_font_size;
+            
+            make_ui_text("Door settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "door_settings");
+            type_info_v_pos += type_font_size;
+        }
     }
-}
+    
+    //create box
+    b32 can_control_create_box = !console.is_open;
+    b32 need_close_create_box = false;
+    
+    if (can_control_create_box && IsKeyPressed(KEY_SPACE) && editor.in_editor_time > 0.05f){
+        if (editor.create_box_active && !editor.create_box_closing){
+            need_close_create_box = true;
+        } else{ //open create box
+            editor.create_box_open_mouse_position = input.mouse_position;
+            
+            editor.create_box_active = true;
+            editor.create_box_closing = false;
+            editor.create_box_lifetime = 0;
+            make_next_input_field_in_focus();
+            assign_selected_entity(NULL);
+        }
+    }
+    
+    if (can_control_create_box && IsKeyPressed(KEY_ESCAPE)){
+        if (editor.create_box_active){
+            need_close_create_box = true;
+        } else if (editor.selected_entity){
+            assign_selected_entity(NULL);
+        }
+    }
+    
+    if (can_control_create_box && editor.create_box_active){
+        if (IsKeyPressed(KEY_DOWN)){
+            editor.create_box_selected_index++;
+            if (editor.create_box_selected_index < 0){
+                editor.create_box_selected_index = 0;
+            }
+        }
+        if (IsKeyPressed(KEY_UP)){
+            editor.create_box_selected_index--;
+            if (editor.create_box_selected_index < 0){
+                editor.create_box_selected_index = 0;
+            }
+        }
+    
+        Vector2 field_size = {600, 50};
+        Vector2 field_target_position = {screen_width * 0.5f - field_size.x * 0.5f, 100};
+        Vector2 field_start_position = field_target_position - Vector2_up * field_size.y * 6;
+        
+        if (editor.create_box_closing){
+            editor.create_box_lifetime -= core.time.real_dt;
+            if (editor.create_box_lifetime <= 0){
+                need_close_create_box = true;
+            }
+        } else{
+            editor.create_box_lifetime += core.time.real_dt;
+        }
+        
+        f32 create_t = clamp01(editor.create_box_lifetime / editor.create_box_slide_time);
+        
+        Vector2 field_position = lerp(field_start_position, field_target_position, EaseOutBack(create_t));
+        
+        //auto fitting_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
+        int input_len = str_len(focus_input_field.content);
+        int fitting_count = 0;
+        
+        for (int i = 0; i < spawn_objects.count; i++){
+            Spawn_Object obj = spawn_objects.get(i);
+            if (input_len > 0 && !str_contains(obj.name, focus_input_field.content)){
+                continue;
+            }
+            
+            Vector2 obj_position = field_position + Vector2_up * field_size.y * (fitting_count + 1) + Vector2_right * field_size.x * 0.2f;
+            Vector2 obj_size = {field_size.x * 0.6f, field_size.y};
+            
+            b32 this_object_selected = editor.create_box_selected_index == fitting_count;
+            
+            Color button_color = lerp(BLACK * 0, BLACK * 0.9f, clamp01(create_t * 2));
+            Color text_color   = lerp(WHITE * 0, WHITE * 0.9f, clamp01(create_t * 2));
+            
+            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))){
+                Entity *entity = add_entity(&obj.entity);
+                entity->position = editor.create_box_open_mouse_position;
+                need_close_create_box = true;
+                
+                Undo_Action undo_action;
+                undo_action.spawned_entity = entity;
+                //undo_action.entity = entity;
+                undo_action.entity_id = entity->id;
+                undo_action.entity_was_spawned = true;
+                add_undo_action(undo_action);
+            }
+            
+            if (this_object_selected){
+                f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(core.time.app_time * 3) + 1) * 0.5f);
+                Color selected_color = lerp(WHITE * 0, WHITE * color_multiplier, clamp01(create_t * 2));
+                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, selected_color, "create_box");
+            }
+            
+            fitting_count++;
+        }
+        
+        if (fitting_count > 0 && editor.create_box_selected_index > fitting_count - 1){
+            editor.create_box_selected_index = fitting_count - 1;   
+        }
+    
+        if (make_input_field("", field_position, field_size, "create_box")){
+            need_close_create_box = true;
+        }
+    }
+    
+    if (need_close_create_box){
+        if (editor.create_box_closing){
+            close_create_box();
+        } else{
+            start_closing_create_box();
+        }
+    }
+} //editor ui end
 
 Entity *get_cursor_entity(){
     Entity *cursor_entity_candidate = NULL;
@@ -2082,7 +2286,7 @@ Entity *get_cursor_entity(){
                         cursor_entity_candidate = e;
                     }
                 } else{
-                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & ENEMY || e->flags & PROPELLER || e->flags & AGRO_AREA || e->flags & KILL_TRIGGER);
+                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & ENEMY || e->flags & PROPELLER || e->flags & TRIGGER);
                     //We want to pick most valuable entity for selection and not background if there's something more around
                     if (!cursor_entity_candidate || other_entity_preferable){
                         cursor_entity_candidate = e;
@@ -2143,6 +2347,9 @@ void update_editor(){
     
     int cursor_entities_count = 0;
     
+    Entity *moving_vertex_entity_candidate = NULL;
+    int moving_vertex_candidate = -1;
+    
     //editor entities loop
     for (int i = 0; i < context.entities.max_count; i++){        
         Entity *e = context.entities.get_ptr(i);
@@ -2161,10 +2368,12 @@ void update_editor(){
             
             Vector2 vertex_global = global(e, *vertex);
             
-            if (need_move_vertices && editor.moving_vertex == NULL){
+            if (need_move_vertices && (!moving_vertex_entity_candidate || (editor.selected_entity && e->id == editor.selected_entity->id))){
                 if (check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f})){
-                    assign_moving_vertex_entity(e, v);
-                    undo_remember_vertices_start(e);
+                    moving_vertex_entity_candidate = e;
+                    moving_vertex_candidate = v;
+                    // assign_moving_vertex_entity(e, v);
+                    // undo_remember_vertices_start(e);
                 }
             }
             
@@ -2178,7 +2387,13 @@ void update_editor(){
         }
         //editor move vertices
     
-         //editor snap closest vertex to closest vertex
+         //editor snap vertex to closest vertex
+    }
+    
+    //assign move vertex
+    if (need_move_vertices && moving_vertex_entity_candidate){
+        assign_moving_vertex_entity (moving_vertex_entity_candidate, moving_vertex_candidate);
+        undo_remember_vertices_start(moving_vertex_entity_candidate);
     }
     
     if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
@@ -2298,120 +2513,6 @@ void update_editor(){
         editor_delete_entity(editor.selected_entity, true);
     }
     
-    //create box
-    b32 can_control_create_box = !console.is_open;
-    b32 need_close_create_box = false;
-    
-    if (can_control_create_box && IsKeyPressed(KEY_SPACE) && editor.in_editor_time > 0.05f){
-        if (editor.create_box_active && !editor.create_box_closing){
-            need_close_create_box = true;
-        } else{ //open create box
-            editor.create_box_open_mouse_position = input.mouse_position;
-            
-            editor.create_box_active = true;
-            editor.create_box_closing = false;
-            editor.create_box_lifetime = 0;
-            make_next_input_field_in_focus();
-            assign_selected_entity(NULL);
-        }
-    }
-    
-    if (can_control_create_box && IsKeyPressed(KEY_ESCAPE)){
-        if (editor.create_box_active){
-            need_close_create_box = true;
-        } else if (editor.selected_entity){
-            assign_selected_entity(NULL);
-        }
-    }
-    
-    if (can_control_create_box && editor.create_box_active){
-        if (IsKeyPressed(KEY_DOWN)){
-            editor.create_box_selected_index++;
-            if (editor.create_box_selected_index < 0){
-                editor.create_box_selected_index = 0;
-            }
-        }
-        if (IsKeyPressed(KEY_UP)){
-            editor.create_box_selected_index--;
-            if (editor.create_box_selected_index < 0){
-                editor.create_box_selected_index = 0;
-            }
-        }
-    
-        Vector2 field_size = {600, 50};
-        Vector2 field_target_position = {screen_width * 0.5f - field_size.x * 0.5f, 100};
-        Vector2 field_start_position = field_target_position - Vector2_up * field_size.y * 6;
-        
-        if (editor.create_box_closing){
-            editor.create_box_lifetime -= dt;
-            if (editor.create_box_lifetime <= 0){
-                need_close_create_box = true;
-            }
-        } else{
-            editor.create_box_lifetime += dt;
-        }
-        
-        f32 create_t = clamp01(editor.create_box_lifetime / editor.create_box_slide_time);
-        
-        Vector2 field_position = lerp(field_start_position, field_target_position, EaseOutBack(create_t));
-        
-        //auto fitting_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
-        int input_len = str_len(focus_input_field.content);
-        int fitting_count = 0;
-        
-        for (int i = 0; i < spawn_objects.count; i++){
-            Spawn_Object obj = spawn_objects.get(i);
-            if (input_len > 0 && !str_contains(obj.name, focus_input_field.content)){
-                continue;
-            }
-            
-            Vector2 obj_position = field_position + Vector2_up * field_size.y * (fitting_count + 1) + Vector2_right * field_size.x * 0.2f;
-            Vector2 obj_size = {field_size.x * 0.6f, field_size.y};
-            
-            b32 this_object_selected = editor.create_box_selected_index == fitting_count;
-            
-            Color button_color = lerp(BLACK * 0, BLACK * 0.9f, clamp01(create_t * 2));
-            Color text_color   = lerp(WHITE * 0, WHITE * 0.9f, clamp01(create_t * 2));
-            
-            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))){
-                Entity *entity = add_entity(&obj.entity);
-                entity->position = editor.create_box_open_mouse_position;
-                need_close_create_box = true;
-                
-                Undo_Action undo_action;
-                undo_action.spawned_entity = entity;
-                //undo_action.entity = entity;
-                undo_action.entity_id = entity->id;
-                undo_action.entity_was_spawned = true;
-                add_undo_action(undo_action);
-            }
-            
-            if (this_object_selected){
-                f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(core.time.app_time * 3) + 1) * 0.5f);
-                Color selected_color = lerp(WHITE * 0, WHITE * color_multiplier, clamp01(create_t * 2));
-                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, selected_color, "create_box");
-            }
-            
-            fitting_count++;
-        }
-        
-        if (fitting_count > 0 && editor.create_box_selected_index > fitting_count - 1){
-            editor.create_box_selected_index = fitting_count - 1;   
-        }
-    
-        if (make_input_field("", field_position, field_size, "create_box")){
-            need_close_create_box = true;
-        }
-    }
-    
-    if (need_close_create_box){
-        if (editor.create_box_closing){
-            close_create_box();
-        } else{
-            start_closing_create_box();
-        }
-    }
-    
     if (editor.dragging_entity != NULL){
         editor.dragging_time += dt;
     }
@@ -2422,9 +2523,9 @@ void update_editor(){
     }
     
     //editor Entity to mouse or go to entity
-    if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.dragging_entity != NULL){
+    if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.dragging_entity){
         editor.dragging_entity->position = input.mouse_position;
-    } else if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.selected_entity != NULL){
+    } else if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.selected_entity){
         context.cam.position = editor.selected_entity->position;
     }
     
@@ -2491,28 +2592,49 @@ void update_editor(){
     //editor components management
     if (editor.selected_entity){
         Entity *selected = editor.selected_entity;
-        if (selected->flags & AGRO_AREA){
+        if (selected->flags & TRIGGER){
             b32 wanna_assign = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
-            //agro assign or remove
+            b32 wanna_toggle_kill_player = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_K);
+            b32 wanna_toggle_doors       = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_I);
+            b32 wanna_toggle_track_enemies = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_H);
+            b32 wanna_toggle_player_touch       = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_T);
+            //trigger assign or remove
             if (wanna_assign || wanna_remove){
-                fill_collisions(&mouse_entity, &collisions_data, ENEMY);
+                fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY);
                 
                 for (int i = 0; i < collisions_data.count; i++){
                     Collision col = collisions_data.get(i);
                     
-                    if (wanna_assign && !wanna_remove && !selected->agro_area.connected.contains(col.other_entity->id)){
-                        selected->agro_area.connected.add(col.other_entity->id);
+                    if (wanna_assign && !wanna_remove && !selected->trigger.connected.contains(col.other_entity->id)){
+                        selected->trigger.connected.add(col.other_entity->id);
                         break;
-                    } else if (wanna_remove && !wanna_assign && selected->agro_area.connected.contains(col.other_entity->id)){
-                        selected->agro_area.connected.remove(selected->agro_area.connected.find(col.other_entity->id));
+                    } else if (wanna_remove && !wanna_assign && selected->trigger.connected.contains(col.other_entity->id)){
+                        selected->trigger.connected.remove(selected->trigger.connected.find(col.other_entity->id));
                         break;
                     }
                 }
             }
-            //agro clear
+            
+            if (wanna_toggle_kill_player){
+                selected->trigger.kill_player = !selected->trigger.kill_player;
+            }
+            
+            if (wanna_toggle_doors){
+                selected->trigger.open_doors = !selected->trigger.open_doors;
+            }
+            
+            if (wanna_toggle_track_enemies){
+                selected->trigger.activate_when_no_enemies = !selected->trigger.activate_when_no_enemies;
+            }
+            
+            if (wanna_toggle_player_touch){
+                selected->trigger.activate_on_player_touch = !selected->trigger.activate_on_player_touch;
+            }
+            
+            //trigger clear
             if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_L)){
-                selected->agro_area.connected.clear();
+                selected->trigger.connected.clear();
             }
         }
         
@@ -2579,6 +2701,22 @@ void update_editor(){
             if (wanna_increase_power || wanna_decrease_power){
                 f32 power_change = wanna_increase_power ? 100 : -100;
                 selected->propeller.power += power_change;
+            }
+        }
+        
+        // door settings
+        if (selected->flags & DOOR){
+            b32 wanna_trigger = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_T);
+            b32 wanna_toggle  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_O);
+            
+            if (wanna_trigger){
+                selected->door.is_open = !selected->door.is_open;
+                selected->door.triggered_time = core.time.game_time;
+            }
+            
+            if (wanna_toggle){
+                selected->door.is_open = !selected->door.is_open;
+                init_entity(selected);
             }
         }
     }
@@ -3653,9 +3791,10 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         emit_particles(*blood_emitter, kill_position, kill_direction, 1, 1);
     
         enemy_entity->enemy.dead_man = true;
-        enemy_entity->enabled = false;
-        enemy_entity->destroyed = true;
-        
+        if (!(enemy_entity->flags & TRIGGER)){
+            enemy_entity->enabled = false;
+            enemy_entity->destroyed = true;
+        }
         if (enemy_entity->flags & EXPLOSIVE){
             f32 explosion_radius = 40;
             emit_particles(explosion_emitter, enemy_entity->position);
@@ -3909,11 +4048,11 @@ void update_sticky_texture(Entity *real_entity){
     st->need_to_follow = need_to_follow;
 }
 
-void agro_area_verify_connected(Entity *e){
-    for (int i = 0; i < e->agro_area.connected.count; i++){   
+void trigger_verify_connected(Entity *e){
+    for (int i = 0; i < e->trigger.connected.count; i++){   
         //So if entiity was somehow destoyed, annighilated
-        if (!context.entities.has_key(e->agro_area.connected.get(i))){
-            e->agro_area.connected.remove(i);
+        if (!context.entities.has_key(e->trigger.connected.get(i))){
+            e->trigger.connected.remove(i);
             i--;
             continue;
         }
@@ -3921,43 +4060,93 @@ void agro_area_verify_connected(Entity *e){
 }
 
 void update_editor_entity(Entity *e){
-    if (e->flags & AGRO_AREA){
-        agro_area_verify_connected(e);
+    if (e->flags & TRIGGER){
+        trigger_verify_connected(e);
     }
 }
 
-void update_agro_area(Entity *e){
-    assert(e->flags & AGRO_AREA);
+void trigger_entity(Entity *e){
+    if (e->flags & ENEMY && debug.enemy_ai){
+        e->enemy.in_agro = true;
+    }
     
-    Agro_Area *area = &e->agro_area;
+    if (e->flags & DOOR && e->door.is_open != e->trigger.open_doors){
+        e->door.is_open = e->trigger.open_doors;
+        e->door.triggered_time = core.time.game_time;
+    }
+}
+
+void update_trigger(Entity *e){
+    assert(e->flags & TRIGGER);
     
-    if (check_entities_collision(e, player_entity).collided){
-        for (int i = 0; i < area->connected.count; i++){
-            int id = area->connected.get(i);
-            
-            if (!context.entities.has_key(e->agro_area.connected.get(i))){
-                e->agro_area.connected.remove(i);
+    b32 trigger_now = false;
+    
+    if (e->trigger.activate_when_no_enemies){
+        b32 found_enemy = false;
+        for (int i = 0; i < e->trigger.connected.count; i++){
+            i32 id = e->trigger.connected.get(i);
+            if (!context.entities.has_key(id)){
+                e->trigger.connected.remove(i);
                 i--;
                 continue;
             }
             
-            assert(context.entities.has_key(id));
+            Entity *connected_entity = context.entities.get_by_key_ptr(id);
+
+            if (connected_entity->flags & ENEMY){
+                found_enemy = true;
+                break;
+            }
+        }
+        
+        if (e->flags & ENEMY && !e->enemy.dead_man){
+            found_enemy = true;
+        } else if (e->flags & ENEMY && e->enemy.dead_man){
+            e->enemy.dead_man = false;
+        }
+        
+        if (!found_enemy){
+            trigger_now = true;            
+        }
+    }
+    
+    if (trigger_now || e->trigger.activate_on_player_touch && check_entities_collision(e, player_entity).collided){
+        if (e->flags & DOOR){
+            trigger_entity(e);
+        }
+    
+        if (e->trigger.kill_player && !debug.god_mode){
+            kill_player();
+        }
+        
+        for (int i = 0; i < e->trigger.connected.count; i++){
+            i32 id = e->trigger.connected.get(i);
+            if (!context.entities.has_key(id)){
+                e->trigger.connected.remove(i);
+                i--;
+                continue;
+            }
             
             Entity *connected_entity = context.entities.get_by_key_ptr(id);
-            assert(connected_entity->flags & ENEMY);
-            
-            connected_entity->enemy.in_agro = true;
+                        
+            trigger_entity(connected_entity);
         }
     }
 }
 
-void update_kill_trigger(Entity *e){
-    assert(e->flags & KILL_TRIGGER);
+void update_door(Entity *entity){
+    Door *door = &entity->door;
+
+    f32 since_triggered = core.time.game_time - door->triggered_time;
+    f32 move_time       = door->is_open ? door->time_to_open : door->time_to_close;
     
-    //Kill_Trigger *trigger = &e->agro_area;
-    
-    if (check_entities_collision(e, player_entity).collided){
-        kill_player();
+    if (since_triggered <= move_time){
+        Vector2 target_position = door->is_open ? door->open_position   : door->closed_position;
+        Vector2 start_position  = door->is_open ? door->closed_position : door->open_position;
+        
+        f32 t = clamp01(since_triggered / move_time);
+        
+        entity->position = lerp(start_position, target_position, EaseOutElastic(t));
     }
 }
 
@@ -4037,12 +4226,12 @@ void update_entities(){
             update_sticky_texture(e);
         }
         
-        if (e->flags & AGRO_AREA && debug.enemy_ai){
-            update_agro_area(e);
+        if (e->flags & TRIGGER){
+            update_trigger(e);
         }
         
-        if (e->flags & KILL_TRIGGER && !debug.god_mode){
-            update_kill_trigger(e);
+        if (e->flags & DOOR){
+            update_door(e);
         }
     }
 }
@@ -4182,6 +4371,10 @@ void fill_entities_draw_queue(){
     qsort(context.entities_draw_queue.data, context.entities_draw_queue.count, sizeof(Entity), compare_entities_draw_order);
 }
 
+#define MAX_LINE_STRIP_POINTS 1024
+
+Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
+
 void draw_entities(){
     fill_entities_draw_queue();
 
@@ -4236,24 +4429,41 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        if (e->flags & AGRO_AREA && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
+        if (e->flags & TRIGGER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
             //draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
             draw_game_line_strip(e, e->color);
             draw_game_triangle_strip(e, Fade(e->color, 0.1f));
             
-            b32 agro_selected = editor.selected_entity && editor.selected_entity->id == e->id;
-            for (int ii = 0; agro_selected && ii < e->agro_area.connected.count; ii++){
-                int id = e->agro_area.connected.get(ii);
+            b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == e->id;
+            for (int ii = 0; is_trigger_selected && ii < e->trigger.connected.count; ii++){
+                int id = e->trigger.connected.get(ii);
                 
-                Entity *connected_enemy = context.entities.get_by_key_ptr(id);
+                Entity *connected_entity = context.entities.get_by_key_ptr(id);
                 
-                draw_game_line(e->position, connected_enemy->position, 0.2f, RED);
+                draw_game_line(e->position, connected_entity->position, 0.2f, RED);
             }
         }
         
-        if (e->flags & KILL_TRIGGER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
-            draw_game_line_strip(e, e->color);
-            draw_game_triangle_strip(e, e->color * 0.1f);
+        if (e->flags & SPIKES){
+            line_strip_points.clear();
+            f32 frequency = 2;
+            Vector2 start_position = e->position - e->right * e->scale.x * 0.5f;
+            Vector2 end_position   = e->position + e->right * e->scale.x * 0.5f;
+            
+            Vector2 vertical_addition = e->up * e->scale.y * 0.8f;
+            
+            Vector2 vec = end_position - start_position;
+            Vector2 dir = normalized(vec);
+            f32 len = magnitude(vec);
+            
+            b32 spike = false;
+            for (f32 ii = -frequency; ii <= len + frequency; ii += frequency){
+                Vector2 position = start_position + dir * ii + (spike ? vertical_addition : Vector2_zero);
+                line_strip_points.add(position);
+                spike = !spike;
+            }
+            
+            draw_game_line_strip(line_strip_points.data, line_strip_points.count, e->color);
         }
         
         if (e->flags & PROPELLER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
@@ -4311,8 +4521,8 @@ void draw_entities(){
         }
         
         if (game_state == EDITOR || debug.draw_up_right){
-            draw_game_line(e->position, e->position + e->right * 3, 0.3f, RED);
-            draw_game_line(e->position, e->position + e->up    * 3, 0.3f, GREEN);
+            draw_game_line(e->position, e->position + e->right * 3, RED);
+            draw_game_line(e->position, e->position + e->up    * 3, GREEN);
         }
         
         if (debug.draw_bounds || editor.selected_entity && (game_state == EDITOR || game_state == PAUSE) && e->id == editor.selected_entity->id){
@@ -4406,8 +4616,11 @@ void draw_editor(){
 }
 
 void draw_particles(){
-    for (int i = 0; i < context.particles.count; i++){
+    for (int i = 0; i < context.particles.max_count; i++){
         Particle particle = context.particles.get(i);
+        if (!particle.enabled){
+            continue;   
+        }
         
         draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, 0, particle.color);
     }
@@ -4540,7 +4753,7 @@ void draw_game(){
     }
     
     if (debug.info_particle_count){
-        draw_text(TextFormat("Particles count: %d", context.particles.count), 10, v_pos, font_size, RED);
+        draw_text(TextFormat("Particles count: %d", enabled_particles_count), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
     
@@ -4588,7 +4801,7 @@ void draw_game(){
 
 void setup_color_changer(Entity *entity){
     entity->color_changer.start_color = entity->color;
-    entity->color_changer.target_color = entity->color * 1.4f;
+    entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 1.5f), 0.5f);
 }
 
 void check_avaliable_ids_and_set_if_found(int *id){
@@ -4613,8 +4826,8 @@ Entity* add_entity(Entity *copy, b32 keep_id){
     if (!keep_id && game_state == EDITOR){
         ForTable(context.entities, i){
             Entity *table_entity = context.entities.get_ptr(i);
-            if (table_entity->flags & AGRO_AREA && table_entity->agro_area.connected.contains(copy->id)){
-                table_entity->agro_area.connected.add(e.id);
+            if (table_entity->flags & TRIGGER && table_entity->trigger.connected.contains(copy->id)){
+                table_entity->trigger.connected.add(e.id);
             }
         }
     }
@@ -4758,6 +4971,16 @@ void draw_game_line_strip(Entity *entity, Color color){
     }
     
     draw_line_strip(screen_positions, entity->vertices.count, color);
+}
+
+void draw_game_line_strip(Vector2 *points, int count, Color color){
+    Vector2 screen_positions[count];
+    
+    for (int i = 0; i < count; i++){
+        screen_positions[i] = world_to_screen(points[i]);
+    }
+    
+    draw_line_strip(screen_positions, count, color);
 }
 
 void draw_game_triangle_strip(Entity *entity, Color color){

@@ -1,5 +1,10 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
+[ ] Platforms that can be passed when moving up
+[ ] Move sequence capabilities for entities
+[ ] Trigger for level loading
+
+[X] Try slightly optimize particles <done: 28.11.24 - 11:57> (Now index for enabling particle just looping around so we'll need to make a setting for emitter/particle that he cannot be overwritten)
 
 [X] propeller ui <done: 27.11.24 - 11:56>
 [X] check level clear on changing level <done: 27.11.24 - 12:00> (Crash was when trying to load level while in game_mode. Scene not cleared up and player asserts because there's no player but gamemode is on)
@@ -8,11 +13,12 @@
 
 [X] Enemy param for speed multiplier on sword kill <done: 27.11.24 - 17:17>
 [ ] Ice block (?)
-[ ] Spikes
+[X] Spikes <done: 29.11.24 - 00:50>
 [ ] Surface that stops you if spining
-[ ] Block that if damaged open doors. (Trigger block) 
-[ ] Doors with ability to assign enemies
+[X] Block that if damaged open doors. (Trigger block) <done: 28.11.24> (enemy_trigger)
+[X] Doors with ability to assign enemies <done: 28.11.24> (Полностью новая система триггеров которая умеет всё - и дверь это тоже триггер, который можно активировать как хош)
 [X] Directional modifier for enemies for killing only in specific angle
 [X] Two win blocks - for shooting and melee (Из за неуязвимости на двух блокерах теперь можно считать что есть разные, просто потом отдельно надо будет добавить функционал для движения сущностей по заданным точкам)
 [ ] Slowmo (zombie)
 [X] Blocker immortality for sword <done: 27.11.24 - 18:44>
+

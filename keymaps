@@ -1,7 +1,11 @@
-Agro:
+Trigger:
     - Clear ALL Connected: Alt+L
     - Remove selected: Alt+D
     - Assign New: Alt+A
+    - Kill player: Alt+K
+    - Toggle doors: Alt+I
+    - Track enemies: Alt+H
+    - Toggle player touch activation: Alt+T
     
 Enemy:
     - Toggle explosive : Alt+E
@@ -15,4 +19,5 @@ Enemy:
     
 Environment:
     - Propeller power change : Alt+Q ; Alt+E
-    - 
+    - Door trigger : Alt+T
+    - Door toggle open : Alt+O

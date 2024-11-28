@@ -1,5 +1,8 @@
 #pragma once
 
+global_variable i32 enabled_particles_count = 0;
+i32 last_added_index = -1;
+
 void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
     Particle particle = {};
     particle.position = position;
@@ -23,27 +26,20 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
     f32 lifetime = rnd(emitter.lifetime_min, emitter.lifetime_max) * emitter.lifetime_multiplier;
     particle.max_lifetime = lifetime;
     
-    // if (emitter.try_splash){
-    //     if (rnd(0.0f, 1.0f) <= emitter.splash_chance){
-    //         particle.leave_splash = 1;
-    //     } 
-    // }
-    
-    // if (emitter.colliding_chance >= 1.0f){ 
-    //     particle.colliding = 1;
-    // } else if (emitter.colliding_chance <= 0){
-    //     particle.colliding = 0;
-    // } else{
-    //     if (rnd(0.0f, 1.0f) <= emitter.colliding_chance){
-    //         particle.colliding = 1;
-    //     } 
-    //}
     
     particle.color = emitter.color;
     
     particle.velocity = multiply(randomized_direction, randomized_speed);
     
-    context.particles.add(particle);
+    particle.enabled = true;
+    
+    last_added_index = (last_added_index + 1) % context.particles.max_count;
+    
+    if (!context.particles.get(last_added_index).enabled){
+        enabled_particles_count++;
+    }
+    
+    *context.particles.get_ptr(last_added_index) = particle;
 }
 
 void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1){
@@ -136,10 +132,13 @@ void update_emitters(){
 
 
 void update_particles(){
-
-    for (int i = 0; i < context.particles.count; i++){
+    for (int i = 0; i < context.particles.max_count; i++){
+        if (!context.particles.get(i).enabled){
+            continue;
+        }
+    
         Particle *particle = context.particles.get_ptr(i);
-        f32 dt = core.time.dt;
+        f32 dt = game_state == GAME ? core.time.dt : core.time.real_dt;
         
         if (particle->lifetime <= 0.2f){
             dt = core.time.real_dt;
@@ -148,7 +147,9 @@ void update_particles(){
         particle->lifetime += dt;
         
         if (particle->lifetime >= particle->max_lifetime){
-            context.particles.remove(i);
+            //context.particles.remove(i);
+            particle->enabled = false;
+            enabled_particles_count--;
             continue;
         }
         
@@ -356,14 +357,14 @@ void setup_particles(){
     sparks_emitter.over_distance      = 1;
     sparks_emitter.direction_to_move  = 0;
     sparks_emitter.over_time          = 0;
-    sparks_emitter.speed_min          = 10;
+    sparks_emitter.speed_min          = 1;
     sparks_emitter.speed_max          = 30;
-    sparks_emitter.count_min          = 10;
+    sparks_emitter.count_min          = 30;
     sparks_emitter.count_max          = 100;
     sparks_emitter.scale_min          = 0.2f;
     sparks_emitter.scale_max          = 0.7f;
     sparks_emitter.lifetime_min       = 0.3f;
-    sparks_emitter.lifetime_max       = 1.0f;
+    sparks_emitter.lifetime_max       = 2.0f;
     sparks_emitter.spread             = 0.1f;
     sparks_emitter.gravity_multiplier = 0.1f;
     sparks_emitter.color              = Fade(YELLOW, 0.9f);

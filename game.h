@@ -77,6 +77,7 @@ void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, Color color);
 void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
 void draw_game_line_strip(Entity *entity, Color color);
+void draw_game_line_strip(Vector2 *points, int count, Color color);
 void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
 void draw_game_line(Vector2 start, Vector2 end, Color color);

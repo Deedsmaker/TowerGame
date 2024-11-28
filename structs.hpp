@@ -13,6 +13,7 @@ enum Particle_Shape{
 };
 
 struct Particle{
+    b32 enabled = false;
     Particle_Shape shape = SQUARE;
     Vector2 position;
     Vector2 scale = {1, 1};
@@ -84,16 +85,14 @@ enum Flags : u64{
     PROJECTILE       = 1 << 7,
     PARTICLE_EMITTER = 1 << 8,
     WIN_BLOCK        = 1 << 9,
-    AGRO_AREA        = 1 << 10,
     EXPLOSIVE        = 1 << 11,
     BLOCKER          = 1 << 12,
     STICKY_TEXTURE   = 1 << 13,
-    KILL_TRIGGER     = 1 << 14,
     PROPELLER        = 1 << 15,
     SHOOT_BLOCKER    = 1 << 16,
     DOOR             = 1 << 17,
     TRIGGER          = 1 << 18,
-    ATTACK_TRIGGER   = 1 << 19,
+    SPIKES           = 1 << 19,
     
     TEST = 1 << 30
 };
@@ -103,18 +102,22 @@ struct Ground{
 };
 
 struct Door{
-    Vector2 start_position = Vector2_zero;
-    Vector2 open_position  = Vector2_zero;
+    Vector2 closed_position = Vector2_zero;
+    Vector2 open_position   = Vector2_zero;
     b32 is_open = false;
     
-    f32 triggered_time = 0;
+    f32 triggered_time = -99999;
     
-    f32 time_to_open = 1.0f;
-    f32 time_to_close = 0.5f;
+    f32 time_to_open = 3.0f;
+    f32 time_to_close = 1.5f;
 };
 
 struct Trigger{
-    Dynamic_Array<Door> doors;
+    Dynamic_Array<int> connected;
+    b32 activate_on_player_touch = true;
+    b32 kill_player = false;
+    b32 open_doors = true;
+    b32 activate_when_no_enemies = false;
 };
 
 struct Velocity_Move{
@@ -192,10 +195,6 @@ struct Bird_Enemy{
     Particle_Emitter *attack_emitter;
     Particle_Emitter *trail_emitter;
     Particle_Emitter *fire_emitter;
-};
-
-struct Agro_Area{
-    Dynamic_Array<int> connected;  
 };
 
 struct Sticky_Texture{
@@ -394,9 +393,10 @@ struct Entity{
     Projectile projectile;
     Array<Particle_Emitter, MAX_ENTITY_EMITTERS> emitters = Array<Particle_Emitter, MAX_ENTITY_EMITTERS>();
     Win_Block win_block;
-    Agro_Area agro_area;
     Sticky_Texture sticky_texture;
     Propeller propeller;
+    Door door;
+    Trigger trigger;
 };
 
 global_variable Player player_data;
@@ -449,7 +449,7 @@ struct Core{
 struct Context{
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
     Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
-    Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(100000);
+    Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(20000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
     
     b32 we_got_a_winner = false;
@@ -538,7 +538,7 @@ struct Editor{
     
     // Vector2 *last_selected_vertex;
     // int last_selected_vertex_index;
-    Vector2 *moving_vertex;
+    Vector2 *moving_vertex = NULL;
     int moving_vertex_index;
     
     b32 ruler_active = false;
@@ -573,7 +573,7 @@ struct Debug{
     b32 info_fps = true;
     b32 info_spin_progress = true;
     b32 info_blood_progress = true;
-    b32 info_particle_count = false;
+    b32 info_particle_count = true;
     b32 info_emitters_count = false;
     b32 info_player_speed = true;
     
@@ -603,5 +603,4 @@ struct Console{
     f32 opened_time = 0;
     f32 open_progress = 0;
 };
-
 
