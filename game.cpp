@@ -208,6 +208,7 @@ Entity::Entity(Entity *copy){
     color = copy->color_changer.start_color;
     draw_order = copy->draw_order;
     str_copy(name, copy->name);
+    hidden = copy->hidden;
     
     if (flags & TEXTURE){
         texture = copy->texture;
@@ -228,6 +229,14 @@ Entity::Entity(Entity *copy){
         trigger.connected = Dynamic_Array<int>();
         for (int i = 0; i < copy->trigger.connected.count; i++){
             trigger.connected.add(copy->trigger.connected.get(i));
+        }
+    }
+    
+    if (flags & MOVE_SEQUENCE){
+        move_sequence = copy->move_sequence;
+        move_sequence.points = Dynamic_Array<Vector2>();
+        for (int i = 0; i < copy->move_sequence.points.count; i++){
+            move_sequence.points.add(copy->move_sequence.points.get(i));
         }
     }
     
@@ -331,22 +340,42 @@ int save_level(const char *level_name){
         }
         fprintf(fptr, "] "); 
         
+        fprintf(fptr, "hidden:%d: ", e->hidden);
+        
         if (e->flags & TRIGGER){
-            fprintf(fptr, "trigger_connected [ ");
-            for (int v = 0; v < e->trigger.connected.count; v++){
-                fprintf(fptr, ":%d: ", e->trigger.connected.get(v)); 
+            if (e->trigger.connected.count > 0){
+                fprintf(fptr, "trigger_connected [ ");
+                for (int v = 0; v < e->trigger.connected.count; v++){
+                    fprintf(fptr, ":%d: ", e->trigger.connected.get(v)); 
+                }
+                fprintf(fptr, "] "); 
             }
-            fprintf(fptr, "] "); 
             
             fprintf(fptr, "trigger_kill_player:%d: ", e->trigger.kill_player);
             fprintf(fptr, "trigger_open_doors:%d: ", e->trigger.open_doors);
             fprintf(fptr, "trigger_track_enemies:%d: ", e->trigger.activate_when_no_enemies);
             fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.activate_on_player_touch);
+            fprintf(fptr, "trigger_shows_entities:%d: ", e->trigger.shows_entity);
+            fprintf(fptr, "trigger_starts_moving_sequence:%d: ", e->trigger.starts_moving_sequence);
             
             fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
             if (e->trigger.load_level){
                 fprintf(fptr, "trigger_level_name:%s: ", e->trigger.level_name);
             }
+        }
+        
+        if (e->flags & MOVE_SEQUENCE){
+            if (e->move_sequence.points.count > 0){
+                fprintf(fptr, "move_sequence_points [ ");
+                for (int v = 0; v < e->move_sequence.points.count; v++){
+                    fprintf(fptr, "{:%f:, :%f:} ", e->move_sequence.points.get(v).x, e->move_sequence.points.get(v).y); 
+                }
+                fprintf(fptr, "] "); 
+            }
+            
+            fprintf(fptr, "move_sequence_moving:%d: ", e->move_sequence.moving);
+            fprintf(fptr, "move_sequence_speed:%f: ", e->move_sequence.speed);
+            fprintf(fptr, "move_sequence_loop:%d: ", e->move_sequence.loop);
         }
         
         if (e->flags & DOOR){
@@ -472,6 +501,21 @@ void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dyn
         
         fill_vector2_from_string(vertices->get_ptr(vertices->count), current.data, next.data);
         vertices->count++;
+    }
+}
+
+void fill_vector2_array_from_string(Dynamic_Array<Vector2> *points, Dynamic_Array<Medium_Str> line_arr, int *index_ptr){
+    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
+    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+    
+    *index_ptr += 2;
+    
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
+        Medium_Str current = line_arr.get((*index_ptr));
+        Medium_Str next    = line_arr.get((*index_ptr) + 1);
+        
+        points->add({});
+        fill_vector2_from_string(points->last_ptr(), current.data, next.data);
     }
 }
 
@@ -643,6 +687,27 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "trigger_level_name")){
                 str_copy(entity_to_fill.trigger.level_name, splitted_line.get(i+1).data);  
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_shows_entities")){
+                fill_b32_from_string(&entity_to_fill.trigger.shows_entity, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_starts_moving_sequence")){
+                fill_b32_from_string(&entity_to_fill.trigger.starts_moving_sequence, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_moving")){
+                fill_b32_from_string(&entity_to_fill.move_sequence.moving, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_loop")){
+                fill_b32_from_string(&entity_to_fill.move_sequence.loop, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "hidden")){
+                fill_b32_from_string(&entity_to_fill.hidden, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_speed")){
+                fill_float_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_points")){
+                fill_vector2_array_from_string(&entity_to_fill.move_sequence.points, splitted_line, &i);
+                //i++;
             } else{
                 //assert(false);
                 print("Something unknown during level load");
@@ -1812,7 +1877,7 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, F
     
         Entity *other = context.entities.get_ptr(i);
         
-        if (other->destroyed || !other->enabled || other == entity || other->flags <= 0 || (other->flags & include_flags) <= 0){
+        if (other->destroyed || !other->enabled || other == entity || other->flags <= 0 || (other->flags & include_flags) <= 0 || (other->hidden && game_state == GAME)){
             continue;
         }
         
@@ -1991,7 +2056,7 @@ void update_editor_ui(){
         make_ui_text(TextFormat("ID: %d", selected->id), {inspector_position.x + 100, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
         
         make_ui_text(TextFormat("Name: ", selected->id), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
-        if (make_input_field(TextFormat("%s", selected->name), {inspector_position.x + 65, inspector_position.y + 10}, {200, 25}, "inspector_name") || focus_input_field.changed && (str_equal(focus_input_field.tag, "inspector_name"))){
+        if (make_input_field(TextFormat("%s", selected->name), {inspector_position.x + 65, inspector_position.y + 10}, {200, 25}, "inspector_name") ){
             str_copy(selected->name, focus_input_field.content);
         }
         
@@ -2000,7 +2065,7 @@ void update_editor_ui(){
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
         if (make_input_field(TextFormat("%.3f", selected->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
             || make_input_field(TextFormat("%.3f", selected->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
-            || focus_input_field.changed && (str_equal(focus_input_field.tag, "inspector_pos_x") || str_equal(focus_input_field.tag, "inspector_pos_y"))){
+            ){
             Vector2 old_position = selected->position;
             if (str_equal(focus_input_field.tag, "inspector_pos_x")){
                 selected->position.x = atof(focus_input_field.content);
@@ -2019,7 +2084,7 @@ void update_editor_ui(){
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
         if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
             || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
-            || focus_input_field.changed && (str_equal(focus_input_field.tag, "inspector_scale_x") || str_equal(focus_input_field.tag, "inspector_scale_y"))){
+            ){
             Vector2 old_scale = editor.selected_entity->scale;
             Vector2 new_scale = old_scale;
             undo_remember_vertices_start(editor.selected_entity);
@@ -2043,7 +2108,7 @@ void update_editor_ui(){
         
         make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
         if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
-            || focus_input_field.changed && str_equal(focus_input_field.tag, "inspector_rotation")){
+            ){
             f32 old_rotation = editor.selected_entity->rotation;
             f32 new_rotation = old_rotation;
             
@@ -2066,7 +2131,7 @@ void update_editor_ui(){
         
         make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
         if (make_input_field(TextFormat("%d", editor.selected_entity->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
-            || focus_input_field.changed && str_equal(focus_input_field.tag, "inspector_draw_order")){
+            ){
             i32 old_draw_order = editor.selected_entity->draw_order;
             i32 new_draw_order = old_draw_order;
             
@@ -2091,6 +2156,57 @@ void update_editor_ui(){
         height_add = 16;
         f32 type_font_size = 24;
         f32 type_info_v_pos = type_font_size;
+        
+        //entity settings overall
+        if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Entity settings", "entity_settings")){
+            editor.draw_entity_settings = !editor.draw_entity_settings;
+        }
+        v_pos += height_add;
+        
+        if (editor.draw_entity_settings){
+            make_ui_text("Hidden: ", {inspector_position.x + 5, v_pos}, "text_entity_hidden");
+            if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->hidden, "toggle_entity_hidden")){
+                selected->hidden = !selected->hidden;
+            }
+            v_pos += height_add;
+            
+            make_ui_text("Move sequence: ", {inspector_position.x + 5, v_pos}, "text_entity_move_sequence");
+            if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->flags & MOVE_SEQUENCE, "toggle_entity_move_sequence")){
+                selected->flags ^= MOVE_SEQUENCE;
+            }
+            v_pos += height_add;
+            
+            if (selected->flags & MOVE_SEQUENCE){
+                make_ui_text("Moving: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_moving");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->move_sequence.moving, "toggle_entity_move_sequence_moving")){
+                    selected->move_sequence.moving = !selected->move_sequence.moving;
+                }
+                v_pos += height_add;
+                make_ui_text("Loop: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_loop");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->move_sequence.loop, "toggle_entity_move_sequence_loop")){
+                    selected->move_sequence.loop = !selected->move_sequence.loop;
+                }
+                v_pos += height_add;
+            
+                make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
+                if (make_input_field(TextFormat("%.2f", selected->move_sequence.speed), {inspector_position.x + 100, v_pos}, 100, "move_sequence_speed")){
+                    selected->move_sequence.speed = atof(focus_input_field.content);
+                }
+                v_pos += height_add;
+                
+                make_ui_text(TextFormat("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
+                type_info_v_pos += type_font_size;
+                make_ui_text("Alt+M Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_remove");
+                type_info_v_pos += type_font_size;
+                make_ui_text("Alt+N Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_add_point");
+                type_info_v_pos += type_font_size;
+                
+                make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
+            type_info_v_pos += type_font_size;
+
+            }
+        }
+        
         if (selected->flags & TRIGGER){
             if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Trigger settings", "trigger_settings")){
                 editor.draw_trigger_settings = !editor.draw_trigger_settings;
@@ -2122,6 +2238,18 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
+                make_ui_text("Shows entities: ", {inspector_position.x + 5, v_pos}, "trigger_shows_entities");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.shows_entity, "toggle_trigger_show_entity")){
+                    selected->trigger.shows_entity = !selected->trigger.shows_entity;                 
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Starts moving sequence: ", {inspector_position.x + 5, v_pos}, "trigger_starts_moving_sequence");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.starts_moving_sequence, "toggle_starts_moving_sequence")){
+                    selected->trigger.starts_moving_sequence = !selected->trigger.starts_moving_sequence;                 
+                }
+                v_pos += height_add;
+                
                 make_ui_text("Load level: ", {inspector_position.x + 5, v_pos}, "trigger_load_level");
                 if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.load_level, "toggle_load_level")){
                     selected->trigger.load_level = !selected->trigger.load_level;                 
@@ -2130,7 +2258,7 @@ void update_editor_ui(){
                 
                 if (selected->trigger.load_level){
                     make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
-                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_load_level_name") || focus_input_field.changed && str_equal(focus_input_field.tag, "trigger_load_level_name")){
+                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_load_level_name") ){
                         str_copy(selected->trigger.level_name, focus_input_field.content);
                     }
                     v_pos += height_add;
@@ -2233,9 +2361,21 @@ void update_editor_ui(){
         }
 
         if (selected->flags & DOOR){
+            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Door settings", "door_settings")){
+                editor.draw_door_settings = !editor.draw_door_settings;
+            }
+            v_pos += height_add;
+            
+            if (editor.draw_door_settings){
+                make_ui_text("Open: ", {inspector_position.x + 5, v_pos}, "text_door_open");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->door.is_open, "toggle_door_open_closed")){
+                    selected->door.is_open = !selected->door.is_open;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+            }
+        
             make_ui_text(TextFormat("Alt+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
-            type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Alt+O %s", selected->door.is_open ? "Open" : "Closed"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_open_closed");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Door settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "door_settings");
@@ -2243,7 +2383,7 @@ void update_editor_ui(){
         }
         
         //type info background
-        make_ui_image({inspector_position.x - 160, (f32)screen_height - type_info_v_pos}, {(f32)screen_width * 0.5f, type_info_v_pos}, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
+        make_ui_image({inspector_position.x - 160, (f32)screen_height - type_info_v_pos}, {(f32)screen_width * 0.5f, type_info_v_pos}, {0, 0}, SKYBLUE * 0.7f, "inspector_type_info_background");
     }
     
     //create box
@@ -2491,9 +2631,14 @@ void update_editor(){
                 }
             }
         }
-        //editor move vertices
-    
-         //editor snap vertex to closest vertex
+        
+        //editor move sequence points        
+        for (int p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count; p++){
+            Vector2 *point = e->move_sequence.points.get_ptr(p);
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f})){
+                *point = input.mouse_position;
+            }
+        }
     }
     
     //assign move vertex
@@ -2703,7 +2848,7 @@ void update_editor(){
             b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
-                fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY);
+                fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE);
                 
                 for (int i = 0; i < collisions_data.count; i++){
                     Collision col = collisions_data.get(i);
@@ -2756,16 +2901,30 @@ void update_editor(){
         // door settings
         if (selected->flags & DOOR){
             b32 wanna_trigger = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_T);
-            b32 wanna_toggle  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_O);
             
             if (wanna_trigger){
                 selected->door.is_open = !selected->door.is_open;
                 selected->door.triggered_time = core.time.game_time;
             }
+        }
+        
+        // move sequence settings
+        if (selected->flags & MOVE_SEQUENCE){
+            b32 wanna_add    = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_N);
+            b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_M);
             
-            if (wanna_toggle){
-                selected->door.is_open = !selected->door.is_open;
-                init_entity(selected);
+            if (wanna_remove){
+                for (int i = 0; i < selected->move_sequence.points.count; i++){
+                    Vector2 point = selected->move_sequence.points.get(i);   
+                    
+                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f})){       
+                        selected->move_sequence.points.remove(i);
+                        break;
+                    }
+                }
+            }
+            if (wanna_add){
+                selected->move_sequence.points.add(input.mouse_position);
             }
         }
     }
@@ -4120,14 +4279,20 @@ void update_editor_entity(Entity *e){
     }
 }
 
-void trigger_entity(Entity *e){
-    if (e->flags & ENEMY && debug.enemy_ai){
-        e->enemy.in_agro = true;
+void trigger_entity(Entity *trigger_entity, Entity *connected){
+    connected->hidden = !trigger_entity->trigger.shows_entity;
+
+    if (connected->flags & ENEMY && debug.enemy_ai){
+        connected->enemy.in_agro = true;
     }
     
-    if (e->flags & DOOR && e->door.is_open != e->trigger.open_doors){
-        e->door.is_open = e->trigger.open_doors;
-        e->door.triggered_time = core.time.game_time;
+    if (connected->flags & DOOR && connected->door.is_open != trigger_entity->trigger.open_doors){
+        connected->door.is_open = trigger_entity->trigger.open_doors;
+        connected->door.triggered_time = core.time.game_time;
+    }
+    
+    if (connected->flags & MOVE_SEQUENCE){
+        connected->move_sequence.moving = trigger_entity->trigger.starts_moving_sequence;
     }
 }
 
@@ -4172,7 +4337,7 @@ void update_trigger(Entity *e){
         }
     
         if (e->flags & DOOR){
-            trigger_entity(e);
+            trigger_entity(e, e);
         }
     
         if (e->trigger.kill_player && !debug.god_mode){
@@ -4189,7 +4354,7 @@ void update_trigger(Entity *e){
             
             Entity *connected_entity = context.entities.get_by_key_ptr(id);
                         
-            trigger_entity(connected_entity);
+            trigger_entity(e, connected_entity);
         }
     }
 }
@@ -4207,6 +4372,25 @@ void update_door(Entity *entity){
         f32 t = clamp01(since_triggered / move_time);
         
         entity->position = lerp(start_position, target_position, EaseOutElastic(t));
+    }
+}
+
+void update_move_sequence(Entity *entity){
+    Move_Sequence *sequence = &entity->move_sequence;
+    
+    if (!sequence->moving || sequence->points.count == 0 || (sequence->current_index >= sequence->points.count-1 && !sequence->loop)){
+        return;
+    }
+    
+    Vector2 target = sequence->points.get((sequence->current_index + 1) % sequence->points.count);
+    
+    entity->position = move_towards(entity->position, target, sequence->speed, core.time.dt);
+    
+    if (magnitude(target - entity->position) <= EPSILON){
+        sequence->current_index = sequence->current_index + 1;
+        if (sequence->current_index >= sequence->points.count && sequence->loop){
+            sequence->current_index = 0;
+        }
     }
 }
 
@@ -4248,7 +4432,7 @@ void update_entities(){
             continue;
         }
         
-        if (!e->enabled || e->flags == -1){
+        if (!e->enabled || (e->hidden && game_state == GAME)){
             continue;
         }
         
@@ -4288,6 +4472,10 @@ void update_entities(){
         
         if (e->flags & TRIGGER){
             update_trigger(e);
+        }
+        
+        if (e->flags & MOVE_SEQUENCE){
+            update_move_sequence(e);
         }
         
         if (e->flags & DOOR){
@@ -4405,7 +4593,7 @@ int compare_entities_draw_order(const void *first, const void *second){
     return entity1->draw_order < entity2->draw_order ? 1 : -1;
 }
 
-void fill_entities_draw_queue_and_draw_some(){
+void fill_entities_draw_queue(){
     context.entities_draw_queue.clear();
 
     for (int i = 0; i < context.entities.max_count; i++){
@@ -4444,7 +4632,7 @@ void fill_entities_draw_queue_and_draw_some(){
 Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
 
 void draw_entities(){
-    fill_entities_draw_queue_and_draw_some();
+    fill_entities_draw_queue();
 
     //Hash_Table_Int<Entity> *entities = &context.entities;
     Dynamic_Array<Entity> *entities = &context.entities_draw_queue;
@@ -4509,6 +4697,22 @@ void draw_entities(){
                 Entity *connected_entity = context.entities.get_by_key_ptr(id);
                 
                 draw_game_line(e->position, connected_entity->position, 0.2f, RED);
+            }
+        }
+        
+        if (e->flags & MOVE_SEQUENCE && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
+            //draw_game_line_strip(e->move_sequence.points.data, e->move_sequence.points.count, BLUE);
+            for (int ii = 0; ii < e->move_sequence.points.count; ii++){
+                Vector2 point = e->move_sequence.points.get(ii);
+                
+                if (IsKeyDown(KEY_LEFT_ALT)){
+                    draw_game_circle(point, 1, SKYBLUE);
+                }
+                if (ii < e->move_sequence.points.count - 1){
+                    draw_game_line(point, e->move_sequence.points.get(ii+1), BLUE);
+                } else if (e->move_sequence.loop){
+                    draw_game_line(point, e->move_sequence.points.get(0), BLUE);
+                }
             }
         }
         

@@ -10,4 +10,4 @@ Enemy:
 Environment:
     - Propeller power change : Alt+Q ; Alt+E
     - Door trigger : Alt+T
-    - Door toggle open : Alt+O
+    - Move sequence add/remove : Alt+N ; Alt+M

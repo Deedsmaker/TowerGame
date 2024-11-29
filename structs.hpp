@@ -109,7 +109,7 @@ struct Move_Sequence{
     f32 speed = 10;
     b32 loop = false;
     
-    f32 move_start_time = -99999;
+    i32 current_index = 0;
 };
 
 struct Door{
@@ -129,6 +129,9 @@ struct Trigger{
     b32 kill_player = false;
     b32 open_doors = true;
     b32 activate_when_no_enemies = false;
+    
+    b32 shows_entity = true;
+    b32 starts_moving_sequence = true;
     
     b32 load_level = false;
     char level_name[128];
@@ -576,8 +579,10 @@ struct Editor{
     f32 last_click_time = 0;
     
     //----------ui-----------------
+    b32 draw_entity_settings = true;
     b32 draw_trigger_settings = false;
     b32 draw_enemy_settings = false;
+    b32 draw_door_settings = false;
 };
 
 struct Debug{

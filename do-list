@@ -1,13 +1,14 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
 [X] Platforms that can be passed when moving up <done: 29.11.24 - 15:08> (And funny rendering)
-[ ]! Move sequence capabilities for entities
+[X]! Move sequence capabilities for entities
 [X]! Trigger for level loading <done: 29.11.24> (Setting for trigger)
 [ ] Fix for lines in editor
 [ ] Line for showing door opened
 [ ] Separate blocker/explosive guys for color variation
 [X] Entity marker for is it visible or not
-[ ]! Entity marker for hidden (visible in editor) and ability for triggers to show or hide them
+[X]! Entity marker for hidden (visible in editor) and ability for triggers to show or hide them
+[ ] Entity that will spawn physical enemies when player has no bullets
 
 [ ]! Basic sounds
 

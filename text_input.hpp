@@ -117,6 +117,7 @@ void copy_input_field(Input_Field *dest, Input_Field *src){
 b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag, Color color = GRAY, bool remove_focus_after_enter = true){
     //means it's the same and we want to keep all contents
     Input_Field input_field = {position, size};
+    input_field.size.y = input_field.font_size;
     input_field.color = color;
     if (focus_input_field.in_focus && str_equal(focus_input_field.tag, tag)){
         input_field.in_focus = true;
@@ -132,7 +133,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
             return true;
         }
     
-        return false;
+        return focus_input_field.changed && remove_focus_after_enter;
     } else{
         str_copy(input_field.content, content);
         input_field.chars_count = str_len(content);
@@ -148,7 +149,6 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         make_next_in_focus = false;
         just_focused = true;
         clicked_ui = true;
-        
     }
     
     input_fields.add(input_field);
@@ -156,3 +156,6 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     return false;
 }
 
+b32 make_input_field(const char *content, Vector2 position, f32 width, const char *tag, Color color = GRAY, bool remove_focus_after_enter = true){
+    return make_input_field(content, position, {width, 18}, tag, color, remove_focus_after_enter);
+}

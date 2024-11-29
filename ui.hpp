@@ -93,6 +93,11 @@ b32 make_button(Vector2 position, Vector2 size, const char *text, const char *ta
 
 void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color, const char *tag){
     Ui_Element *new_ui_element = init_ui_element(position, size, pivot, color, tag, UI_IMAGE);
+    
+    Rectangle image_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), image_rec)){
+        clicked_ui = true;
+    }
 }
 
 void make_ui_text(const char *content, Vector2 position, f32 font_size, Color color, const char *tag){
