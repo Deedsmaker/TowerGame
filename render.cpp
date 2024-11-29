@@ -36,6 +36,10 @@ void draw_rect_lines(Vector2 pos, Vector2 scale, f32 thick, Color color){
     DrawRectangleLinesEx(rec, fmax(3, thick), color);
 }
 
+void draw_rect_lines(Vector2 pos, Vector2 scale, Color color){
+    DrawRectangleLines(pos.x, pos.y, scale.x, scale.y, color);
+}
+
 void draw_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle = 0, f32 end_angle = 360){
     DrawRingLines(center, inner_radius, outer_radius, start_angle, end_angle, segments, color);
 }

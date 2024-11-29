@@ -33,7 +33,7 @@ Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt);
 Vector2 move_by_velocity(Vector2 position, Vector2 target, Velocity_Move* settings, f32 dt);
 //void rotate_towards(f32 *rotate_angle, f32 target, f32 speed, f32 dt);
 
-void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction);
+void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier = 1);
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious = false);
 
 void setup_color_changer(Entity *entity);
@@ -75,7 +75,8 @@ void draw_game_triangle_strip(Entity *entity);
 void draw_game_triangle_strip(Entity *entity, Color color);
 void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, Color color);
 void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
-void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
+inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
+inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
 void draw_game_line_strip(Entity *entity, Color color);
 void draw_game_line_strip(Vector2 *points, int count, Color color);
 void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);

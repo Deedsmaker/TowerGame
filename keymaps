@@ -2,20 +2,10 @@ Trigger:
     - Clear ALL Connected: Alt+L
     - Remove selected: Alt+D
     - Assign New: Alt+A
-    - Kill player: Alt+K
-    - Toggle doors: Alt+I
-    - Track enemies: Alt+H
-    - Toggle player touch activation: Alt+T
     
 Enemy:
-    - Toggle explosive : Alt+E
-    - Toggle blocker : Alt+B
-    - Toggle blocker immortality ot sword : Alt+M
-    - Toggle blocker_clockwise : Alt+N
-    - Toggle shoot blocker : Alt+U
-    - Toggle shoot blocker immortality to shots : Alt+Y
     - Toggle shoot blocker change direction : Alt+F ; Alt+G
-    - Sword kill speed modifier change : Alt+A ; Alt+D
+    - Sword kill speed modifier change : Alt+O ; Alt+P
     
 Environment:
     - Propeller power change : Alt+Q ; Alt+E

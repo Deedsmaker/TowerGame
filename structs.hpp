@@ -93,12 +93,23 @@ enum Flags : u64{
     DOOR             = 1 << 17,
     TRIGGER          = 1 << 18,
     SPIKES           = 1 << 19,
+    PLATFORM         = 1 << 20,
+    MOVE_SEQUENCE    = 1 << 21,
     
     TEST = 1 << 30
 };
 
 struct Ground{
       
+};
+
+struct Move_Sequence{
+    Dynamic_Array<Vector2> points;  
+    b32 moving = false;
+    f32 speed = 10;
+    b32 loop = false;
+    
+    f32 move_start_time = -99999;
 };
 
 struct Door{
@@ -118,6 +129,9 @@ struct Trigger{
     b32 kill_player = false;
     b32 open_doors = true;
     b32 activate_when_no_enemies = false;
+    
+    b32 load_level = false;
+    char level_name[128];
 };
 
 struct Velocity_Move{
@@ -350,6 +364,8 @@ struct Entity{
 
     i32 id = -1;
     b32 need_to_save = true;
+    b32 visible = true;
+    b32 hidden = false;
     //i32 index = -1;
     
     char name[128] = "unknown_name";
@@ -397,6 +413,7 @@ struct Entity{
     Propeller propeller;
     Door door;
     Trigger trigger;
+    Move_Sequence move_sequence;
 };
 
 global_variable Player player_data;
@@ -557,6 +574,10 @@ struct Editor{
     Vector2 player_spawn_point = {0, 0};
     Vector2 last_click_position = {0, 0};
     f32 last_click_time = 0;
+    
+    //----------ui-----------------
+    b32 draw_trigger_settings = false;
+    b32 draw_enemy_settings = false;
 };
 
 struct Debug{

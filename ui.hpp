@@ -10,7 +10,8 @@
 enum Ui_Flags{
     BUTTON = 1 << 1,
     UI_TEXT = 1 << 2,
-    UI_IMAGE = 1 << 3
+    UI_IMAGE = 1 << 3,
+    UI_TOGGLE = 1 << 4
 };
 
 struct Button{
@@ -40,6 +41,7 @@ struct Ui_Element{
     Button button;
     Ui_Image ui_image;
     Ui_Text text;
+    b32 toggle_value = false;
 };
 
 struct Ui_Context{
@@ -71,9 +73,10 @@ static void init_ui_text(Ui_Text *ui_text, const char *content, f32 font_size, C
     ui_text->font_size = font_size;
 }
 
-b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text, f32 font_size, const char *tag, Color button_color = BLACK * 0.9f, Color text_color = WHITE * 0.9f){
-    Ui_Element *new_ui_element = init_ui_element(position, size, pivot, button_color, tag, BUTTON | UI_TEXT);
+b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text, f32 font_size, const char *tag, Color button_color = BLACK * 0.9f, Color text_color = WHITE * 0.9f, UI_FLAGS additional_flags = 0, b32 toggle_value = false){
+    Ui_Element *new_ui_element = init_ui_element(position, size, pivot, button_color, tag, BUTTON | UI_TEXT | additional_flags);
     init_ui_text(&new_ui_element->text, text, font_size, text_color);
+    new_ui_element->toggle_value = toggle_value;
     
     Rectangle button_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
     
@@ -84,6 +87,9 @@ b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text,
     
     return false;
 }
+b32 make_button(Vector2 position, Vector2 size, const char *text, const char *tag, Color button_color = BLACK * 0.9f, Color text_color = WHITE * 0.9f, UI_FLAGS additional_flags = 0){
+    return make_button(position, size, {0, 0}, text, 18, tag); 
+}
 
 void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color, const char *tag){
     Ui_Element *new_ui_element = init_ui_element(position, size, pivot, color, tag, UI_IMAGE);
@@ -92,4 +98,14 @@ void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color, c
 void make_ui_text(const char *content, Vector2 position, f32 font_size, Color color, const char *tag){
     Ui_Element *new_ui_element = init_ui_element(position, {100, 25}, {0, 0}, color, tag, UI_TEXT);
     init_ui_text(&new_ui_element->text, content, font_size, color);
+}
+
+void make_ui_text(const char *content, Vector2 position, const char *tag, f32 font_size = 16, Color color = WHITE){
+    Ui_Element *new_ui_element = init_ui_element(position, {100, 25}, {0, 0}, color, tag, UI_TEXT);
+    init_ui_text(&new_ui_element->text, content, font_size, color);
+}
+
+b32 make_ui_toggle(Vector2 position, b32 current_value, const char *tag){
+    //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
+    return make_button(position, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
 }

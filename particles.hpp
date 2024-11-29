@@ -138,9 +138,9 @@ void update_particles(){
         }
     
         Particle *particle = context.particles.get_ptr(i);
-        f32 dt = game_state == GAME ? core.time.dt : core.time.real_dt;
+        f32 dt = game_state == EDITOR ? core.time.real_dt : core.time.dt;
         
-        if (particle->lifetime <= 0.2f){
+        if (particle->lifetime <= 0.2f && game_state == GAME){
             dt = core.time.real_dt;
         }
         
@@ -245,7 +245,7 @@ void setup_particles(){
     blood_emitter->scale_max         = 0.8f;
     blood_emitter->lifetime_min      = 0.4f;
     blood_emitter->lifetime_max      = 2.5f;
-    blood_emitter->spread            = 0.5f;
+    blood_emitter->spread            = 0.1f;
     blood_emitter->gravity_multiplier = 0.1f;
     blood_emitter->color             = Fade(RED, 0.7f);
     blood_emitter->enabled           = true;

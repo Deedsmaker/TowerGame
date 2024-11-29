@@ -1,9 +1,20 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
-[ ] Platforms that can be passed when moving up
-[ ] Move sequence capabilities for entities
-[ ] Trigger for level loading
+[X] Platforms that can be passed when moving up <done: 29.11.24 - 15:08> (And funny rendering)
+[ ]! Move sequence capabilities for entities
+[X]! Trigger for level loading <done: 29.11.24> (Setting for trigger)
+[ ] Fix for lines in editor
+[ ] Line for showing door opened
+[ ] Separate blocker/explosive guys for color variation
+[X] Entity marker for is it visible or not
+[ ]! Entity marker for hidden (visible in editor) and ability for triggers to show or hide them
 
+[ ]! Basic sounds
+
+[X] Heavy ui improvements <done: 29.11.24>
+[X] Changing sword color when shooting <done: 29.11.24>
+
+--------------------------------------------------------------------
 [X] Try slightly optimize particles <done: 28.11.24 - 11:57> (Now index for enabling particle just looping around so we'll need to make a setting for emitter/particle that he cannot be overwritten)
 
 [X] propeller ui <done: 27.11.24 - 11:56>
@@ -14,7 +25,7 @@
 [X] Enemy param for speed multiplier on sword kill <done: 27.11.24 - 17:17>
 [ ] Ice block (?)
 [X] Spikes <done: 29.11.24 - 00:50>
-[ ] Surface that stops you if spining
+[X] Surface that stops you if spining (Для этого вполне можно использовать пропеллер если его просто по вертикали сделать маленьким. Это будет проще и мне и при создании левелов на самом деле ПЛЮС можно сделать приколов типа длинный такой пропеллер-поверхность который сильно дует, а сверху шипы и нужно думать головой)
 [X] Block that if damaged open doors. (Trigger block) <done: 28.11.24> (enemy_trigger)
 [X] Doors with ability to assign enemies <done: 28.11.24> (Полностью новая система триггеров которая умеет всё - и дверь это тоже триггер, который можно активировать как хош)
 [X] Directional modifier for enemies for killing only in specific angle

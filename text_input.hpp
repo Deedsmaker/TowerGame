@@ -14,7 +14,7 @@ struct Input_Field{
     
     Color color = GRAY;
     
-    f32 font_size = 22;
+    f32 font_size = 18;
     
     b32 in_focus = false;
     b32 changed = false;

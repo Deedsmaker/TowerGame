@@ -31,6 +31,8 @@ global_variable Vector2 frame_on_circle_rnd;
 
 global_variable b32 clicked_ui = false;
 
+global_variable b32 enter_game_state_on_new_level = false;
+
 global_variable Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>(512);
 
 #include "../my_libs/random.hpp"
@@ -340,6 +342,11 @@ int save_level(const char *level_name){
             fprintf(fptr, "trigger_open_doors:%d: ", e->trigger.open_doors);
             fprintf(fptr, "trigger_track_enemies:%d: ", e->trigger.activate_when_no_enemies);
             fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.activate_on_player_touch);
+            
+            fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
+            if (e->trigger.load_level){
+                fprintf(fptr, "trigger_level_name:%s: ", e->trigger.level_name);
+            }
         }
         
         if (e->flags & DOOR){
@@ -630,6 +637,12 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "door_open")){
                 fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_load_level")){
+                fill_b32_from_string(&entity_to_fill.trigger.load_level, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_level_name")){
+                str_copy(entity_to_fill.trigger.level_name, splitted_line.get(i+1).data);  
+                i++;
             } else{
                 //assert(false);
                 print("Something unknown during level load");
@@ -667,6 +680,11 @@ int load_level(const char *level_name){
     loop_entities(init_loaded_entity);
     
     level_path.free_str();
+    
+    if (enter_game_state_on_new_level){
+        enter_game_state();
+        enter_game_state_on_new_level = false;
+    }
     return 1;
 }
 
@@ -700,8 +718,6 @@ void init_bird_entity(Entity *entity){
 void init_spawn_objects(){
     Entity block_base_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, GROUND);
     block_base_entity.color = BROWN;
-    block_base_entity.color_changer.start_color = block_base_entity.color;
-    block_base_entity.color_changer.target_color = block_base_entity.color * 1.5f;
     str_copy(block_base_entity.name, "block_base"); 
     setup_color_changer(&block_base_entity);
     
@@ -710,10 +726,18 @@ void init_spawn_objects(){
     str_copy(block_base_object.name, block_base_entity.name);
     spawn_objects.add(block_base_object);
     
+    Entity platform_entity = Entity({0, 0}, {40, 2}, {0.5f, 0.5f}, 0, PLATFORM);
+    platform_entity.color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
+    str_copy(platform_entity.name, "platform"); 
+    setup_color_changer(&platform_entity);
+    
+    Spawn_Object platform_object;
+    copy_entity(&platform_object.entity, &platform_entity);
+    str_copy(platform_object.name, platform_entity.name);
+    spawn_objects.add(platform_object);
+    
     Entity enemy_base_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY);
     enemy_base_entity.color = RED * 0.9f;
-    enemy_base_entity.color_changer.start_color = enemy_base_entity.color;
-    enemy_base_entity.color_changer.target_color = enemy_base_entity.color * 1.5f;
     str_copy(enemy_base_entity.name, "enemy_base"); 
     setup_color_changer(&enemy_base_entity);
     
@@ -1958,7 +1982,7 @@ void update_editor_ui(){
     //inspector logic
     Entity *selected = editor.selected_entity;
     if (selected){
-        Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.4f};
+        Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.6f};
         Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
         make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
         f32 height_add = 30;
@@ -2064,56 +2088,135 @@ void update_editor_ui(){
         }
         v_pos += height_add;
         
+        height_add = 16;
         f32 type_font_size = 24;
         f32 type_info_v_pos = type_font_size;
         if (selected->flags & TRIGGER){
-            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_clear");
+            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Trigger settings", "trigger_settings")){
+                editor.draw_trigger_settings = !editor.draw_trigger_settings;
+            }
+            v_pos += height_add;
+            
+            if (editor.draw_trigger_settings){
+                make_ui_text("Activate on player: ", {inspector_position.x + 5, v_pos}, "text_player_touch");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.activate_on_player_touch, "toggle_player_touch")){
+                    selected->trigger.activate_on_player_touch = !selected->trigger.activate_on_player_touch;
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Kill player: ", {inspector_position.x + 5, v_pos}, "text_kill_player");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.kill_player, "toggle_kill_player")){
+                    selected->trigger.kill_player = !selected->trigger.kill_player;
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Open or close Doors: ", {inspector_position.x + 5, v_pos}, "trigger_open_doors");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.open_doors, "toggle_open_doors")){
+                    selected->trigger.open_doors = !selected->trigger.open_doors;                 
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Track enemies: ", {inspector_position.x + 5, v_pos}, "trigger_track_enemies");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.activate_when_no_enemies, "toggle_track_enemies")){
+                    selected->trigger.activate_when_no_enemies = !selected->trigger.activate_when_no_enemies;                 
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Load level: ", {inspector_position.x + 5, v_pos}, "trigger_load_level");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.load_level, "toggle_load_level")){
+                    selected->trigger.load_level = !selected->trigger.load_level;                 
+                }
+                v_pos += height_add;
+                
+                if (selected->trigger.load_level){
+                    make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
+                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_load_level_name") || focus_input_field.changed && str_equal(focus_input_field.tag, "trigger_load_level_name")){
+                        str_copy(selected->trigger.level_name, focus_input_field.content);
+                    }
+                    v_pos += height_add;
+
+                }
+            }
+        
+            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_clear");
             type_info_v_pos += type_font_size;
-            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_remove");
+            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_remove");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign New: Alt+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_assign");
+            make_ui_text("Assign New: Alt+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Alt+K Kill player: %s", selected->trigger.kill_player ? "Yea" : "Nah"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_kill_player");
-            type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Alt+I Doors: %s", selected->trigger.open_doors ? "Opening" : "Closing"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_open_doors");
-            type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Alt+H Track enemies: %s", selected->trigger.activate_when_no_enemies ? "Yea" : "Nah"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_track_enemies");
-            type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Alt+T Active on player touch: %s", selected->trigger.activate_on_player_touch ? "Yeah" : "Nah"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "trigger_on_touch");
+            make_ui_text(TextFormat("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_connected_count");
             type_info_v_pos += type_font_size;
             make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
         }
         
         if (selected->flags & ENEMY){
-            make_ui_text(TextFormat("Alt+E Explosive: %s", selected->flags & EXPLOSIVE ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "explosive_toggle");
-            type_info_v_pos += type_font_size;
-            
-            make_ui_text(TextFormat("Alt+B Blocker: %s", selected->flags & BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "blocker_toggle");
-            type_info_v_pos += type_font_size;
-            
-            if (selected->flags & BLOCKER){
-                if (!selected->enemy.blocker_immortal){
-                    make_ui_text(TextFormat("Alt+N Block direction: %s", selected->enemy.blocker_clockwise ? "Clockwise" : "Not Clockwise"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "blocker_toggle");
-                    type_info_v_pos += type_font_size;
-                }
-                make_ui_text(TextFormat("Alt+M Blocker immortality: %s", selected->enemy.blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "blocker_immortality");
-                type_info_v_pos += type_font_size;
-
+            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Enemy settings", "enemy_settings")){
+                editor.draw_enemy_settings = !editor.draw_enemy_settings;
             }
-            make_ui_text(TextFormat("Alt+A/D Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "sword_kill_speed_modifier_change");
+            v_pos += height_add;
+            
+            if (editor.draw_enemy_settings){
+                make_ui_text("Explosive: ", {inspector_position.x + 5, v_pos}, "text_enemy_explosive");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->flags & EXPLOSIVE, "toggle_enemy_explosive")){
+                    selected->flags ^= EXPLOSIVE;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Blocker: ", {inspector_position.x + 5, v_pos}, "text_enemy_blocker");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->flags & BLOCKER, "toggle_enemy_blocker")){
+                    selected->flags ^= BLOCKER;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                if (selected->flags & BLOCKER){
+                    make_ui_text("Blocker immortal: ", {inspector_position.x + 5, v_pos}, "text_enemy_blocker_immortal");
+                    if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->enemy.blocker_immortal, "toggle_enemy_blocker_immortal")){
+                        selected->enemy.blocker_immortal = !selected->enemy.blocker_immortal;
+                        init_entity(selected);
+                    }
+                    v_pos += height_add;
+
+                    if (!selected->enemy.blocker_immortal){
+                        make_ui_text("Blocker clockwise: ", {inspector_position.x + 5, v_pos}, "text_enemy_blocker_clocksize");
+                        if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->enemy.blocker_clockwise, "toggle_enemy_blocker_clockwise")){
+                            selected->enemy.blocker_clockwise = !selected->enemy.blocker_clockwise;
+                            init_entity(selected);
+                        }
+                        v_pos += height_add;
+                    }
+                }
+                
+                make_ui_text("Shoot blocker: ", {inspector_position.x + 5, v_pos}, "text_enemy_shoot_blocker");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->flags & SHOOT_BLOCKER, "toggle_enemy_shoot_blocker")){
+                    selected->flags ^= SHOOT_BLOCKER;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                if (selected->flags & SHOOT_BLOCKER){
+                    make_ui_text("Shoot blocker immortal: ", {inspector_position.x + 5, v_pos}, "text_enemy_shoot_blocker_immortal");
+                    if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->enemy.shoot_blocker_immortal, "toggle_enemy_shoot_blocker_immortal")){
+                        selected->enemy.shoot_blocker_immortal = !selected->enemy.shoot_blocker_immortal;
+                        init_entity(selected);
+                    }
+                    v_pos += height_add;
+                }
+            }
+        
+            if (selected->flags & BLOCKER){
+            }
+            
+            make_ui_text(TextFormat("Alt+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
             type_info_v_pos += type_font_size;
             
-            make_ui_text(TextFormat("Alt+U Shoot blocker: %s", selected->flags & SHOOT_BLOCKER ? "ON" : "OFF"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "shoot_blocker_toggle");
-            type_info_v_pos += type_font_size;
             if (selected->flags & SHOOT_BLOCKER){
                 if (!selected->enemy.shoot_blocker_immortal){
-                    make_ui_text(TextFormat("Alt+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "shoot_blocker_direction");
+                    make_ui_text(TextFormat("Alt+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
                     type_info_v_pos += type_font_size;
                 }
-            
-                make_ui_text(TextFormat("Alt+Y Shoot Block immortality: %s", selected->enemy.shoot_blocker_immortal ? "Immortal" : "Vulnerable"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "shoot_blocker_immortality");
-                type_info_v_pos += type_font_size;
             }
 
             make_ui_text("Enemy settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
@@ -2121,7 +2224,7 @@ void update_editor_ui(){
         }
         
         if (selected->flags & PROPELLER){
-            make_ui_text(TextFormat("Alt+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "propeller_power");
+            make_ui_text(TextFormat("Alt+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
@@ -2130,14 +2233,17 @@ void update_editor_ui(){
         }
 
         if (selected->flags & DOOR){
-            make_ui_text(TextFormat("Alt+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "door_trigger");
+            make_ui_text(TextFormat("Alt+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
             type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Alt+O %s", selected->door.is_open ? "Open" : "Closed"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, RED, "door_trigger");
+            make_ui_text(TextFormat("Alt+O %s", selected->door.is_open ? "Open" : "Closed"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_open_closed");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Door settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "door_settings");
             type_info_v_pos += type_font_size;
         }
+        
+        //type info background
+        make_ui_image({inspector_position.x - 160, (f32)screen_height - type_info_v_pos}, {(f32)screen_width * 0.5f, type_info_v_pos}, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
     }
     
     //create box
@@ -2286,7 +2392,7 @@ Entity *get_cursor_entity(){
                         cursor_entity_candidate = e;
                     }
                 } else{
-                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & ENEMY || e->flags & PROPELLER || e->flags & TRIGGER);
+                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & PLATFORM || e->flags & ENEMY || e->flags & PROPELLER || e->flags & TRIGGER);
                     //We want to pick most valuable entity for selection and not background if there's something more around
                     if (!cursor_entity_candidate || other_entity_preferable){
                         cursor_entity_candidate = e;
@@ -2429,7 +2535,7 @@ void update_editor(){
         }
     } 
     
-    if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL && need_start_dragging){ // assign dragging entity
+    if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL && need_start_dragging && can_select){ // assign dragging entity
         if (editor.cursor_entity != NULL){
             if (editor.moving_vertex == NULL && editor.selected_entity->id == editor.cursor_entity->id){
                 editor.dragging_entity = editor.selected_entity;
@@ -2437,7 +2543,7 @@ void update_editor(){
                 editor.dragging_start = editor.dragging_entity->position;
             }
         }
-    } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){ //stop dragging entity
+    } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && can_select){ //stop dragging entity
         if (editor.selected_entity && !editor.selected_this_click && editor.cursor_entity){
             if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id){
                 assign_selected_entity(NULL);
@@ -2595,10 +2701,6 @@ void update_editor(){
         if (selected->flags & TRIGGER){
             b32 wanna_assign = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
-            b32 wanna_toggle_kill_player = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_K);
-            b32 wanna_toggle_doors       = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_I);
-            b32 wanna_toggle_track_enemies = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_H);
-            b32 wanna_toggle_player_touch       = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_T);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
                 fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY);
@@ -2616,22 +2718,6 @@ void update_editor(){
                 }
             }
             
-            if (wanna_toggle_kill_player){
-                selected->trigger.kill_player = !selected->trigger.kill_player;
-            }
-            
-            if (wanna_toggle_doors){
-                selected->trigger.open_doors = !selected->trigger.open_doors;
-            }
-            
-            if (wanna_toggle_track_enemies){
-                selected->trigger.activate_when_no_enemies = !selected->trigger.activate_when_no_enemies;
-            }
-            
-            if (wanna_toggle_player_touch){
-                selected->trigger.activate_on_player_touch = !selected->trigger.activate_on_player_touch;
-            }
-            
             //trigger clear
             if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_L)){
                 selected->trigger.connected.clear();
@@ -2640,53 +2726,16 @@ void update_editor(){
         
         //enemy components
         if (selected->flags & ENEMY){
-            b32 wanna_toggle_explosive           = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_E);
+            b32 wanna_increase_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_P);
+            b32 wanna_decrease_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_O);
             
-            b32 wanna_toggle_blocker             = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_B);
-            b32 wanna_toggle_blocker_clockwise   = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_N);
-            b32 wanna_toggle_blocker_immortality = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_M);
-            
-            b32 wanna_increase_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
-            b32 wanna_decrease_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
-            
-            b32 wanna_toggle_shoot_blocker             = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_U);
-            b32 wanna_toggle_shoot_blocker_immortality = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_Y);
             b32 wanna_rotate_shoot_blocker_direction   = IsKeyDown(KEY_LEFT_ALT) && (IsKeyDown(KEY_F) || IsKeyDown(KEY_G));
-            
-            if (wanna_toggle_explosive){
-                selected->flags ^= EXPLOSIVE;
-                //change_color(selected, selected->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
-                init_entity(selected);
-            }
-            
-            if (wanna_toggle_blocker){
-                selected->flags ^= BLOCKER;
-                init_entity(selected);
-            }
-            
-            if (wanna_toggle_blocker_immortality && selected->flags & BLOCKER){
-                selected->enemy.blocker_immortal = !selected->enemy.blocker_immortal;
-                init_entity(selected);
-            }
-            
-            if (selected->flags & BLOCKER && wanna_toggle_blocker_clockwise){
-                selected->enemy.blocker_clockwise = !selected->enemy.blocker_clockwise;
-                init_entity(selected);
-            }
             
             if (wanna_increase_sword_kill_speed || wanna_decrease_sword_kill_speed){   
                 f32 speed_change = wanna_increase_sword_kill_speed ? 0.5f : -0.5f;
                 selected->enemy.sword_kill_speed_modifier += speed_change;
             }
             
-            if (wanna_toggle_shoot_blocker){
-                selected->flags ^= SHOOT_BLOCKER;
-                init_entity(selected);
-            }
-            if (wanna_toggle_shoot_blocker_immortality && selected->flags & SHOOT_BLOCKER){
-                selected->enemy.shoot_blocker_immortal = !selected->enemy.shoot_blocker_immortal;
-                init_entity(selected);
-            }
             if (wanna_rotate_shoot_blocker_direction && selected->flags & SHOOT_BLOCKER){
                 f32 speed = IsKeyDown(KEY_F) ? -40 : 40;
                 selected->enemy.shoot_blocker_direction = get_rotated_vector(selected->enemy.shoot_blocker_direction, speed * core.time.real_dt);
@@ -3066,7 +3115,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         }
         
         if (other->flags & ENEMY && player->sword_spin_progress > 0.12f && !other->enemy.dead_man && !player->in_stun){
-            kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal);
+            kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, lerp(1.0f, 4.0f, sqrtf(player_data.sword_spin_progress)));
             
             f32 max_speed_boost = 6 * player->sword_spin_direction * other->enemy.sword_kill_speed_modifier;
             if (!player->grounded){
@@ -3306,7 +3355,8 @@ void update_player(Entity *entity, f32 dt){
     sword_tip_emitter->position = sword_tip;
     chainsaw_emitter->position = input.mouse_position;
     
-    if (!player_data.rifle_active){ 
+    //if (!player_data.rifle_active){ 
+    {
         f32 spin_t = player_data.sword_spin_progress;
         f32 blood_t = player_data.blood_progress;
     
@@ -3431,14 +3481,19 @@ void update_player(Entity *entity, f32 dt){
     f32 just_grounded = false;
     
     //player collisions
-    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER);
+    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER | PLATFORM);
     
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
+        Entity *other = col.other_entity;
         assert(col.collided);
         
         f32 dot_velocity = dot(col.normal, player_data.velocity);
         if (dot_velocity >= 0){
+            continue;
+        }
+        
+        if (other->flags & PLATFORM && col.normal.y <= 0){
             continue;
         }
         
@@ -3784,11 +3839,11 @@ void update_bird_enemy(Entity *entity, f32 dt){
     bird->trail_emitter->direction = entity->up * -1;
 }
 
-void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction){
+void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
     
     if (!enemy_entity->enemy.dead_man){
-        emit_particles(*blood_emitter, kill_position, kill_direction, 1, 1);
+        emit_particles(*blood_emitter, kill_position, kill_direction, 1, particles_speed_modifier);
     
         enemy_entity->enemy.dead_man = true;
         if (!(enemy_entity->flags & TRIGGER)){
@@ -4111,6 +4166,11 @@ void update_trigger(Entity *e){
     }
     
     if (trigger_now || e->trigger.activate_on_player_touch && check_entities_collision(e, player_entity).collided){
+        if (e->trigger.load_level){
+            enter_game_state_on_new_level = true;
+            load_level_by_name(e->trigger.level_name);
+        }
+    
         if (e->flags & DOOR){
             trigger_entity(e);
         }
@@ -4308,6 +4368,10 @@ void draw_sword(Entity *entity){
         visual_entity.position += perlin_rnd * 0.8f;
     }
     
+    if (player_data.rifle_active){
+        visual_entity.color = ColorBrightness(GREEN, 0.3f);
+    }
+    
     draw_game_triangle_strip(&visual_entity);
 }
 
@@ -4341,7 +4405,7 @@ int compare_entities_draw_order(const void *first, const void *second){
     return entity1->draw_order < entity2->draw_order ? 1 : -1;
 }
 
-void fill_entities_draw_queue(){
+void fill_entities_draw_queue_and_draw_some(){
     context.entities_draw_queue.clear();
 
     for (int i = 0; i < context.entities.max_count; i++){
@@ -4349,9 +4413,10 @@ void fill_entities_draw_queue(){
             continue;
         }
         
+        Entity *e_ptr = context.entities.get_ptr(i);
         Entity e = context.entities.get(i);
         
-        if (!e.enabled){
+        if (!e.enabled || (e.hidden && game_state == GAME)){
             continue;
         }
         
@@ -4362,7 +4427,10 @@ void fill_entities_draw_queue(){
         
         cam_bounds.offset = {0, 0};
         if (!check_bounds_collision(context.cam.view_position, cam_bounds, &e)){
+            e_ptr->visible = false;
             continue;
+        } else{
+            e_ptr->visible = false;
         }
         
         context.entities_draw_queue.add(e);
@@ -4376,7 +4444,7 @@ void fill_entities_draw_queue(){
 Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
 
 void draw_entities(){
-    fill_entities_draw_queue();
+    fill_entities_draw_queue_and_draw_some();
 
     //Hash_Table_Int<Entity> *entities = &context.entities;
     Dynamic_Array<Entity> *entities = &context.entities_draw_queue;
@@ -4396,7 +4464,7 @@ void draw_entities(){
             draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
         }
         
-        if (e->flags & GROUND || e->flags == 0 || e->flags & PROJECTILE){
+        if (e->flags & GROUND || e->flags & PLATFORM || e->flags == 0 || e->flags & PROJECTILE){
             if (e->vertices.count > 0){
                 draw_game_triangle_strip(e);
             } else{
@@ -4464,6 +4532,37 @@ void draw_entities(){
             }
             
             draw_game_line_strip(line_strip_points.data, line_strip_points.count, e->color);
+        }
+        
+        if (e->flags & PLATFORM){
+            line_strip_points.clear();
+            f32 frequency = 6;
+            Vector2 start_position = e->position - e->right * e->scale.x * 0.5f + e->up * e->scale.y * 0.5f;
+            Vector2 end_position   = e->position + e->right * e->scale.x * 0.5f + e->up * e->scale.y * 0.5f;
+            
+            Vector2 vertical_removal = e->up * e->scale.y * -0.35f;
+            
+            Vector2 vec = end_position - start_position;
+            Vector2 dir = normalized(vec);
+            f32 len = magnitude(vec);
+            
+            line_strip_points.add(start_position - e->up * e->scale.y);
+            
+            b32 move = false;
+            for (f32 ii = 0; ii <= len - frequency * 0.8f; ii += frequency * 0.8f){
+                line_strip_points.add(start_position + dir * ii);
+                line_strip_points.add(start_position + dir * (ii + frequency * 0.8f));
+                line_strip_points.add(start_position + dir * (ii + frequency * 0.9f) + vertical_removal);
+                line_strip_points.add(start_position + dir * (ii + frequency));
+            
+                move = !move;
+                
+                ii += frequency * 0.2f;
+            }
+            
+            line_strip_points.add(end_position - e->up * e->scale.y);
+            
+            draw_game_line_strip(line_strip_points.data, line_strip_points.count, BROWN);
         }
         
         if (e->flags & PROPELLER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
@@ -4636,15 +4735,28 @@ void draw_ui(const char *tag){
             continue;
         }
         
+        if (element.ui_flags & UI_IMAGE){
+            Ui_Image ui_image = element.ui_image;
+            draw_rect(element.position, element.size, element.pivot, 0, element.color);
+        }
+    }
+    for (int i = 0; i < ui_context.elements.count; i++){
+        Ui_Element element = ui_context.elements.get(i);
+        
+        if (tag_len > 0 && !str_equal(element.tag, tag)){
+            continue;
+        }
+        
         if (element.ui_flags & BUTTON){
             Button button = element.button;
             
             draw_rect(element.position, element.size, element.pivot, 0, element.color);
-        }
-        
-        if (element.ui_flags & UI_IMAGE){
-            Ui_Image ui_image = element.ui_image;
-            draw_rect(element.position, element.size, element.pivot, 0, element.color);
+            
+            if (element.ui_flags & UI_TOGGLE && element.toggle_value){
+                Vector2 down_pos = element.position + Vector2_up * element.size.y + Vector2_right * element.size.x * 0.5f;
+                draw_line(element.position, down_pos, WHITE);
+                draw_line(down_pos, down_pos + Vector2_right * element.size.x * 0.4f - Vector2_up * element.size.y * 0.9f, WHITE);
+            }
         }
         
         if (element.ui_flags & UI_TEXT){
@@ -4801,7 +4913,7 @@ void draw_game(){
 
 void setup_color_changer(Entity *entity){
     entity->color_changer.start_color = entity->color;
-    entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 1.5f), 0.5f);
+    entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
 }
 
 void check_avaliable_ids_and_set_if_found(int *id){
@@ -4961,6 +5073,12 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
     //Vector2 screen_pos = world_to_screen(position);
     draw_rect_lines(screen_pos, scale * UNIT_SIZE, thick, color);
+}
+
+inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
+    Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
+    //Vector2 screen_pos = world_to_screen(position);
+    draw_rect_lines(screen_pos, scale * UNIT_SIZE, color);
 }
 
 void draw_game_line_strip(Entity *entity, Color color){
