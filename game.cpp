@@ -3826,6 +3826,10 @@ void update_player(Entity *entity, f32 dt){
             player_data.velocity -= col.normal * dot(player_data.velocity, col.normal);
         }
         
+        if (other->flags & MOVE_SEQUENCE && other->move_sequence.moving){
+            entity->position += other->move_sequence.moved_last_frame;
+        }
+        
         f32 angle = fangle(col.normal, entity->up);
         
         if (angle <= player_data.max_ground_angle){
@@ -4311,11 +4315,11 @@ void calculate_projectile_collisions(Entity *entity){
         b32 need_bounce = false;
         
         Vector2 velocity_dir = normalized(projectile->velocity);
+        f32 sparks_speed = 1;
+        f32 sparks_count = 1;
         
         if (other->flags & ENEMY && is_enemy_can_take_damage(other) && (projectile->type != WEAK || !projectile->dying)){
             b32 killed = false;
-            f32 sparks_speed = 1;
-            f32 sparks_count = 1;
             b32 can_damage = true;
             
             if (other->flags & SHOOT_BLOCKER){
@@ -4347,7 +4351,7 @@ void calculate_projectile_collisions(Entity *entity){
                 killed = true;
             }
             
-            emit_particles(sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
             add_hitstop(0.03f);
             shake_camera(0.1f);
             if (can_damage){
@@ -4360,11 +4364,8 @@ void calculate_projectile_collisions(Entity *entity){
         }
         
         if (other->flags & GROUND){
-            if (fangle(col.normal, entity->projectile.velocity) - 90 < 40){
-                need_bounce = true;
-            } else{
-                entity->destroyed = true;
-            }
+            entity->destroyed = true;
+            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
         }
         
         if (need_bounce){
@@ -4568,12 +4569,16 @@ void update_move_sequence(Entity *entity){
     Move_Sequence *sequence = &entity->move_sequence;
     
     if (!sequence->moving || sequence->points.count == 0 || (sequence->current_index >= sequence->points.count-1 && !sequence->loop)){
+        sequence->moved_last_frame = Vector2_zero;
         return;
     }
     
     Vector2 target = sequence->points.get((sequence->current_index + 1) % sequence->points.count);
     
+    Vector2 previous_position = entity->position;
     entity->position = move_towards(entity->position, target, sequence->speed, core.time.dt);
+    
+    sequence->moved_last_frame = entity->position - previous_position;
     
     if (magnitude(target - entity->position) <= EPSILON){
         sequence->current_index = sequence->current_index + 1;
@@ -4742,7 +4747,7 @@ void draw_sword(Entity *entity){
         //Failed chainsaw start sound!!!!!
         Vector2 perlin_rnd = {perlin_noise3(core.time.game_time * 30, 1, 2), perlin_noise3(1, core.time.game_time * 30, 3)};
         //visual_entity.position += rnd_on_circle() * 0.8f;
-        visual_entity.position += perlin_rnd * 0.8f;
+        visual_entity.position += perlin_rnd * 1.8f;
     }
     
     if (player_data.rifle_active){
@@ -4793,7 +4798,14 @@ void fill_entities_draw_queue(){
         Entity *e_ptr = context.entities.get_ptr(i);
         Entity e = context.entities.get(i);
         
-        if (!e.enabled || (e.hidden && game_state == GAME)){
+        if (!e.enabled){
+            continue;
+        }
+        
+        //now we want entities that have external lines
+        b32 is_should_draw_anyway = e.flags & (TRIGGER | MOVE_SEQUENCE);
+        
+        if (!is_should_draw_anyway && e.hidden && game_state == GAME){
             continue;
         }
         
@@ -4803,11 +4815,11 @@ void fill_entities_draw_queue(){
         cam_bounds.size /= UNIT_SIZE;
         
         cam_bounds.offset = {0, 0};
-        if (!check_bounds_collision(context.cam.view_position, cam_bounds, &e)){
+        if (!is_should_draw_anyway && !check_bounds_collision(context.cam.view_position, cam_bounds, &e)){
             e_ptr->visible = false;
             continue;
         } else{
-            e_ptr->visible = false;
+            e_ptr->visible = true;
         }
         
         context.entities_draw_queue.add(e);
@@ -4874,18 +4886,32 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        if (e->flags & TRIGGER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
+        b32 should_draw_external_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
+        
+        if (e->flags & TRIGGER){
             //draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
-            draw_game_line_strip(e, e->color);
-            draw_game_triangle_strip(e, Fade(e->color, 0.1f));
+            if (should_draw_external_hints){
+                draw_game_line_strip(e, e->color);
+                draw_game_triangle_strip(e, Fade(e->color, 0.1f));
+            }
             
             b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == e->id;
-            for (int ii = 0; is_trigger_selected && ii < e->trigger.connected.count; ii++){
+            for (int ii = 0; ii < e->trigger.connected.count; ii++){
                 int id = e->trigger.connected.get(ii);
-                
+                if (!context.entities.has_key(id)){
+                    e->trigger.connected.remove(ii);
+                    i--;
+                    continue;
+                }
                 Entity *connected_entity = context.entities.get_by_key_ptr(id);
                 
-                draw_game_line(e->position, connected_entity->position, 0.2f, RED);
+                if (connected_entity->flags & DOOR){
+                    Color color = connected_entity->door.is_open == e->trigger.open_doors ? SKYBLUE : ORANGE;
+                    f32 width = connected_entity->door.is_open == e->trigger.open_doors ? 1.0f : 0.2f;
+                    draw_game_line(e->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.6f));
+                } else if (is_trigger_selected && should_draw_external_hints){
+                    draw_game_line(e->position, connected_entity->position, RED);
+                }
             }
         }
         

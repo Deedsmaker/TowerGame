@@ -124,6 +124,7 @@ struct Move_Sequence{
     b32 loop = false;
     
     i32 current_index = 0;
+    Vector2 moved_last_frame = Vector2_zero;
 };
 
 struct Door{

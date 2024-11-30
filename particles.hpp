@@ -187,6 +187,7 @@ global_variable Particle_Emitter explosion_emitter;
 global_variable Particle_Emitter fire_emitter;
 global_variable Particle_Emitter little_fire_emitter;
 global_variable Particle_Emitter sparks_emitter;
+global_variable Particle_Emitter big_sparks_emitter;
 global_variable Particle_Emitter gunpowder_emitter;
 global_variable Particle_Emitter air_emitter;
 
@@ -369,6 +370,23 @@ void setup_particles(){
     sparks_emitter.gravity_multiplier = 0.1f;
     sparks_emitter.color              = Fade(YELLOW, 0.9f);
     sparks_emitter.enabled            = false;
+    
+    big_sparks_emitter.spawn_radius       = 3.5f;
+    big_sparks_emitter.over_distance      = 0;
+    big_sparks_emitter.direction_to_move  = 0;
+    big_sparks_emitter.over_time          = 0;
+    big_sparks_emitter.speed_min          = 20;
+    big_sparks_emitter.speed_max          = 80;
+    big_sparks_emitter.count_min          = 30;
+    big_sparks_emitter.count_max          = 100;
+    big_sparks_emitter.scale_min          = 0.2f;
+    big_sparks_emitter.scale_max          = 0.7f;
+    big_sparks_emitter.lifetime_min       = 0.1f;
+    big_sparks_emitter.lifetime_max       = 0.5f;
+    big_sparks_emitter.spread             = 1.0f;
+    big_sparks_emitter.gravity_multiplier = 0.5f;
+    big_sparks_emitter.color              = Fade(ColorBrightness(YELLOW, 0.2f), 0.9f);
+    big_sparks_emitter.enabled            = false;
     
     gunpowder_emitter.spawn_radius       = 1.0f;
     gunpowder_emitter.over_distance      = 1;
