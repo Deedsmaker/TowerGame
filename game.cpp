@@ -34,6 +34,7 @@ global_variable b32 clicked_ui = false;
 global_variable b32 enter_game_state_on_new_level = false;
 
 global_variable Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>(512);
+global_variable Hash_Table_Int<Sound_Handler> sounds_table = Hash_Table_Int<Sound_Handler>(128);
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
@@ -778,6 +779,8 @@ void init_bird_entity(Entity *entity){
     //entity->emitter = entity->emitters.last_ptr();
     str_copy(entity->name, "enemy_bird"); 
     setup_color_changer(entity);
+    
+    entity->bird_enemy.attack_sound = sounds_table.get_by_key_ptr(hash_str("BirdAttack"));
 }
 
 void init_spawn_objects(){
@@ -1020,6 +1023,11 @@ inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index){
 void init_entity(Entity *entity){
     if (entity->flags & ENEMY){
         entity->enemy.original_scale = entity->scale;
+        
+        entity->enemy.explosion_sound = sounds_table.get_by_key_ptr(hash_str("Explosion"));
+        entity->enemy.explosion_sound->base_volume = 0.3f;
+        entity->enemy.big_explosion_sound = sounds_table.get_by_key_ptr(hash_str("BigExplosion"));
+        entity->enemy.big_explosion_sound->base_volume = 0.5f;
     }
     
     if (entity->flags & BIRD_ENEMY){
@@ -1070,6 +1078,8 @@ void init_entity(Entity *entity){
         entity->trigger.activate_on_player_touch = false;
         entity->door.closed_position = entity->door.is_open ? entity->position - entity->up * entity->scale.y : entity->position;
         entity->door.open_position   = entity->door.is_open ? entity->position : entity->position + entity->up * entity->scale.y;
+        
+        entity->door.open_sound = sounds_table.get_by_key_ptr(hash_str("OpenDoor"));
         //entity->door.is_open = false;
     }
     
@@ -1235,6 +1245,112 @@ void init_console(){
     console.commands.add(make_console_command("new_level", print_create_level_hint, create_level));
 }
 
+Music ambient_theme;
+Music wind_theme;
+Music tires_theme;
+f32 tires_volume = 0.0f;
+
+void load_sounds(){
+    ambient_theme = LoadMusicStream("resources/audio/music/AmbientChurch.wav");
+    ambient_theme.looping = true;
+    SetMusicVolume(ambient_theme, 0.14f);
+    PlayMusicStream(ambient_theme);
+    
+    wind_theme = LoadMusicStream("resources/audio/music/wind.ogg");
+    wind_theme.looping = true;
+    SetMusicVolume(wind_theme, 0.0f);
+    PlayMusicStream(wind_theme);
+    
+    tires_theme = LoadMusicStream("resources/audio/music/TiresStopping.wav");
+    tires_theme.looping = true;
+    SetMusicVolume(tires_theme, tires_volume);
+    PlayMusicStream(tires_theme);
+    
+    FilePathList sounds = LoadDirectoryFiles("resources\\audio");
+    for (int i = 0; i < sounds.count; i++){
+        char *name = sounds.paths[i];
+        print(name);
+        if (!str_end_with(name, ".ogg") && !str_end_with(name, ".wav")){
+            continue;
+        }
+        
+        Sound sound = LoadSound(name);
+        substring_after_line(name, "resources\\audio\\");
+        name = get_substring_before_symbol(name, '.');
+        
+        Sound_Handler handler;
+        
+        for (int s = 0; IsSoundReady(sound) && s < handler.buffer.max_count; s++){
+            handler.buffer.add(LoadSoundAlias(sound));
+        }
+        
+        i64 hash = hash_str(name);
+        //UnloadSound(sound);
+        
+        if (!sounds_table.add(hash, handler)){
+            printf("COULD NOT FIND HASH FOR SOUND: %s\n", name);
+            continue;
+        }
+    }
+    
+    
+    UnloadDirectoryFiles(sounds);
+}
+
+void play_sound(Sound_Handler *handler){
+    assert(handler->buffer.count > 0);
+    
+    Sound sound = handler->buffer.get(handler->current_index);
+    handler->current_index = (handler->current_index + 1) % handler->buffer.max_count;
+    
+    SetSoundVolume(sound, rnd(handler->base_volume - handler->volume_variation, handler->base_volume + handler->volume_variation));
+    SetSoundPitch (sound, rnd(handler->base_pitch - handler->pitch_variation, handler->base_pitch + handler->pitch_variation));
+    
+    PlaySound(sound);
+}
+
+void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier = 1){
+    assert(handler->buffer.count > 0);
+    
+    Sound sound = handler->buffer.get(handler->current_index);
+    handler->current_index = (handler->current_index + 1) % handler->buffer.max_count;
+    
+    //check vector to camera for volume and pan
+    Vector2 to_position = position - context.cam.position;
+    f32 len = magnitude(to_position);
+    f32 max_len = 250;
+    f32 distance_t = clamp01(len / max_len);
+    
+    f32 volume = lerp(handler->base_volume, 0.2f, distance_t * distance_t * distance_t);
+    f32 pitch  = lerp(handler->base_pitch, 0.6f, distance_t * distance_t * distance_t);
+    
+    f32 on_right = normalized(to_position.x);
+    f32 side_t = clamp01((to_position.x * on_right) / max_len);
+    f32 pan_add = lerp(0.0f, 0.4f * on_right * -1, side_t * side_t);
+    
+    SetSoundVolume(sound, rnd(volume - handler->volume_variation, volume + handler->volume_variation) * volume_multiplier);
+    SetSoundPitch (sound, rnd(pitch - handler->pitch_variation, pitch + handler->pitch_variation));
+    SetSoundPan   (sound, 0.5f + pan_add);
+    //pan    
+    
+    PlaySound(sound);
+}
+
+void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1){
+    i64 hash = hash_str(name);    
+    
+    if (!sounds_table.has_key(hash)){
+        printf("NO SOUND found %s\n", name);
+        return;
+    }
+    
+    play_sound(sounds_table.get_by_key_ptr(hash), position, volume_multiplier);
+}
+
+void play_sound(const char* name, f32 volume_multiplier = 1){
+    play_sound(name, context.cam.position, volume_multiplier);
+}
+
 void init_game(){
     game_state = EDITOR;
 
@@ -1250,6 +1366,7 @@ void init_game(){
     
     init_spawn_objects();
     load_textures();
+    load_sounds();
     
     //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
@@ -1340,6 +1457,23 @@ void enter_game_state(){
     player_data.stun_emitter        = player_entity->emitters.add(air_dust_emitter);
     player_data.rifle_trail_emitter = player_entity->emitters.add(gunpowder_emitter);
     player_data.rifle_trail_emitter->follow_entity = false;
+    
+    
+    player_data.rifle_hit_sound = sounds_table.get_by_key_ptr(hash_str("RifleHit"));
+    player_data.rifle_hit_sound->base_volume = 0.4f;
+    player_data.player_death_sound = sounds_table.get_by_key_ptr(hash_str("PlayerTakeDamage"));
+    player_data.sword_kill_sound = sounds_table.get_by_key_ptr(hash_str("SwordKill"));
+    player_data.sword_kill_sound->base_volume = 0.4f;
+    player_data.sword_kill_sound->base_pitch = 1.5f;
+    player_data.sword_block_sound = sounds_table.get_by_key_ptr(hash_str("SwordBlock"));
+    player_data.sword_block_sound->base_volume = 0.4f;
+    player_data.sword_block_sound->base_pitch = 0.5f;
+    player_data.sword_block_sound->pitch_variation = 0.1f;
+    
+    player_data.rifle_switch_sound = sounds_table.get_by_key_ptr(hash_str("RifleSwitch"));
+    player_data.rifle_switch_sound->base_volume = 0.4f;
+    player_data.rifle_switch_sound->base_pitch = 0.7f;
+    player_data.rifle_switch_sound->pitch_variation = 0.1f;
 }
 
 void kill_player(){
@@ -1349,6 +1483,7 @@ void kill_player(){
 
     emit_particles(big_blood_emitter, player_entity->position, player_entity->up, 1, 1);
     player_data.dead_man = true;
+    play_sound(player_data.player_death_sound, player_entity->position);
 }
 
 void enter_editor_state(){
@@ -1689,7 +1824,18 @@ void update_game(){
     }
     
     draw_game();
-}
+    
+    UpdateMusicStream(ambient_theme);
+    UpdateMusicStream(wind_theme);
+    UpdateMusicStream(tires_theme);
+    // ForTable(sounds_table, i){
+    //     Sound_Handler *handler = sounds_table.get_by_key_ptr(i);
+        
+    //     for (int h = 0; h < handler->buffer.count; h++){
+            
+    //     }
+    // }
+} // update game end
 
 void update_color_changer(Entity *entity, f32 dt){
     Color_Changer *changer = &entity->color_changer;
@@ -2903,8 +3049,7 @@ void update_editor(){
             b32 wanna_trigger = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_T);
             
             if (wanna_trigger){
-                selected->door.is_open = !selected->door.is_open;
-                selected->door.triggered_time = core.time.game_time;
+                activate_door(selected, !selected->door.is_open);
             }
         }
         
@@ -3269,6 +3414,8 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
                 player_data.weak_recoil_stun_start_time = core.time.game_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
+                play_sound(player_data.sword_block_sound, col.point);
+                
                 continue;
             }
         }
@@ -3291,6 +3438,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             add_blood_amount(player, sword, 10);
             add_hitstop(0.01f);
             shake_camera(0.1f);
+            play_sound(player_data.sword_kill_sound, col.point);
             
             add_player_ammo(1);
         }
@@ -3465,10 +3613,12 @@ void update_player(Entity *entity, f32 dt){
             //push_player_up(60);
             push_or_set_player_up(20);
             shake_camera(0.1f);
+            play_sound("RifleShot", sword_tip, 0.3f);
             player_data.rifle_shake_start_time = core.time.game_time;
             player_data.rifle_shoot_time = core.time.game_time;
             
             enable_emitter(player_data.rifle_trail_emitter);
+            
             
             // player_data.rifle_perfect_shots_made++;
             // if (player_data.rifle_perfect_shots_made == player_data.rifle_max_perfect_shots){
@@ -3502,8 +3652,9 @@ void update_player(Entity *entity, f32 dt){
         //player_data.rifle_current_power += player_data.sword_spin_progress * 50;
         //player_data.sword_spin_progress *= 0.1f;
         player_data.sword_angular_velocity = 0;
-        
         player_data.rifle_activate_time = core.time.game_time;
+        
+        play_sound(player_data.rifle_switch_sound);
     } else if (!spin_enough_for_shoot && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         player_data.rifle_shake_start_time = core.time.game_time;
         emit_particles(gunpowder_emitter, sword_tip, sword->up);
@@ -3642,6 +3793,7 @@ void update_player(Entity *entity, f32 dt){
     //player collisions
     fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER | PLATFORM);
     
+    b32 is_huge_collision_speed = false;
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
@@ -3664,6 +3816,10 @@ void update_player(Entity *entity, f32 dt){
             // player_data.heavy_collision_time = core.time.game_time;
             // player_data.heavy_collision_velocity = player_data.velocity;
             emit_particles(air_dust_emitter, col.point, col.normal, 0.2f, 1);
+            
+            tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 2.0f);
+            SetMusicVolume(tires_theme, tires_volume);
+            is_huge_collision_speed = true;
         }
         
         if (dot(((Vector2){0, 1}), col.normal) > 0.5f){
@@ -3688,10 +3844,18 @@ void update_player(Entity *entity, f32 dt){
                     player_data.heavy_collision_velocity = player_data.velocity;
                     emit_particles(air_dust_emitter, col.point, col.normal, 4, 3);
                     shake_camera(0.7f);
+                    
+                    play_sound("HeavyLanding", col.point, 1.5f);
                 }
             }
         }
     }
+    
+    if (!is_huge_collision_speed){
+        tires_volume = lerp(tires_volume, 0.0f, core.time.real_dt * 5.0f);
+        SetMusicVolume(tires_theme, tires_volume);
+    }
+    
     
     fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | PROPELLER);
     for (int i = 0; i < player_data.collisions.count; i++){
@@ -3758,11 +3922,15 @@ void update_player(Entity *entity, f32 dt){
             player_data.heavy_collision_velocity = player_data.velocity;
             emit_particles(air_dust_emitter, col.point, col.normal, 10, 2);
             shake_camera(0.7f);
+            play_sound("HeavyLanding", col.point, 1.5f);
         }
     }
     
     player_data.grounded = found_ground;
-}
+    
+    f32 wind_t = clamp01(magnitude(player_data.velocity) / 300.0f);
+    SetMusicVolume(wind_theme, lerp(0.0f, 1.0f, wind_t * wind_t));
+} // update player end
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity){
     fill_collisions(entity, &collisions_data, entity->collision_flags);
@@ -3782,11 +3950,13 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     f32 bird_speed = magnitude(bird->velocity);
     f32 bird_speed_t = clamp01(bird_speed / 300.0f);
     
+    b32 is_high_velocity = bird_speed > 100;
     if (other->flags & GROUND){
         resolve_collision(bird_entity, col);
         
         if (enemy->dead_man){
             emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
+            play_sound(enemy->explosion_sound, bird_entity->position);
             bird_entity->destroyed = true;
             bird_entity->enabled = false;
             shake_camera(0.6f);
@@ -3799,10 +3969,13 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             bird->attack_emitter->enabled = false;
             bird->roaming = true;
             bird->roam_start_time = core.time.game_time;
-            
         }
         
         emit_particles(rifle_bullet_emitter, col.point, normalized(bird->velocity), lerp(0.5f, 2.0f, bird_speed_t * bird_speed_t), lerp(5, 20, bird_speed_t * bird_speed_t));
+        
+        if (is_high_velocity){
+            play_sound("BirdToGround", col.point, 0.5f);
+        }
     }
     
     if (other->flags & BIRD_ENEMY && !bird->attacking){
@@ -3822,6 +3995,10 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         other->bird_enemy.velocity += reflected_vector(bird->velocity * 0.3f, col.normal * -1);
         
         emit_particles(rifle_bullet_emitter, col.point, col.normal, 0.5f, 1);
+        
+        if (is_high_velocity){
+            play_sound("BirdToBird", col.point, 0.5f);
+        }
     }
     
     if (other->flags & PLAYER && !player_data.dead_man && bird->attacking && !enemy->dead_man){
@@ -3929,6 +4106,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
             
             emit_particles(sparks_emitter, entity->position, entity->up, 2, 3);
             enable_emitter(bird->attack_emitter);
+            play_sound(bird->attack_sound, entity->position);
         } 
     }
     
@@ -4012,6 +4190,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         if (enemy_entity->flags & EXPLOSIVE){
             f32 explosion_radius = 40;
             emit_particles(explosion_emitter, enemy_entity->position);
+            play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
             ForTable(context.entities, i){
                 Entity *other_entity = context.entities.get_ptr(i);
                 Vector2 vec_to_other = other_entity->position - enemy_entity->position;
@@ -4150,6 +4329,7 @@ void calculate_projectile_collisions(Entity *entity){
                 if (!can_damage){
                     need_bounce = true;
                     other->enemy.stun_start_time = core.time.game_time;
+                    play_sound("ShootBlock", col.point);
                 }
             }
             
@@ -4170,6 +4350,10 @@ void calculate_projectile_collisions(Entity *entity){
             emit_particles(sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
             add_hitstop(0.03f);
             shake_camera(0.1f);
+            if (can_damage){
+                play_sound(player_data.rifle_hit_sound, col.point);
+            }
+        
         
         } else if (other->flags & ENEMY && projectile->type == WEAK){
             need_bounce = true;
@@ -4287,8 +4471,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
     }
     
     if (connected->flags & DOOR && connected->door.is_open != trigger_entity->trigger.open_doors){
-        connected->door.is_open = trigger_entity->trigger.open_doors;
-        connected->door.triggered_time = core.time.game_time;
+        activate_door(connected, trigger_entity->trigger.open_doors);
     }
     
     if (connected->flags & MOVE_SEQUENCE){
@@ -4373,6 +4556,12 @@ void update_door(Entity *entity){
         
         entity->position = lerp(start_position, target_position, EaseOutElastic(t));
     }
+}
+
+void activate_door(Entity *entity, b32 is_open){
+    play_sound(entity->door.open_sound, entity->position);
+    entity->door.is_open = is_open;
+    entity->door.triggered_time = core.time.game_time;
 }
 
 void update_move_sequence(Entity *entity){

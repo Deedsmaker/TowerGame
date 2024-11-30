@@ -26,6 +26,8 @@ void update_editor_ui();
 void update_editor();
 void update_entities();
 
+void activate_door(Entity *entity, b32 is_open);
+
 void add_hitstop(f32 added);
 
 void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt);

@@ -11,6 +11,16 @@
 [ ] Entity that will spawn physical enemies when player has no bullets
 
 [ ]! Basic sounds
+    [X] Shoot sound
+    [X] Hit sound
+    [X] Sword kill sound
+    [X] Block sound
+    [X] Shoot Block sound
+    [ ] Chainsaw sound
+    [X] Tires sound
+    [X] Landing sound
+    [X] Explosion sound
+    [X] Door sound (with pan)
 
 [X] Heavy ui improvements <done: 29.11.24>
 [X] Changing sword color when shooting <done: 29.11.24>

@@ -32,7 +32,10 @@ b32 screen_size_changed = 0;
 
 #include "game.cpp"
 int main(){
-    InitWindow(screen_width, screen_height, "aboba");
+    InitWindow(screen_width, screen_height, "Pure Action");
+    InitAudioDevice();
+    SetMasterVolume(0.3f);
+    //EnableEventWaiting();
 
     SetExitKey(-1);
     

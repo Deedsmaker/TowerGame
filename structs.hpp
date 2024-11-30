@@ -74,6 +74,20 @@ struct Particle_Emitter{
     Color color = YELLOW;
 };
 
+#define MAX_SINGLE_SOUND 8
+
+struct Sound_Handler{
+    Array<Sound, MAX_SINGLE_SOUND> buffer = Array<Sound, MAX_SINGLE_SOUND>();
+    
+    i32 current_index = 0;
+    
+    f32 base_volume = 0.7f;  
+    f32 base_pitch = 1.0f;
+    
+    f32 volume_variation = 0.1f;
+    f32 pitch_variation = 0.3f;
+};
+
 enum Flags : u64{
     GROUND           = 1 << 0,
     DRAW_TEXT        = 1 << 1,
@@ -121,6 +135,8 @@ struct Door{
     
     f32 time_to_open = 3.0f;
     f32 time_to_close = 1.5f;
+    
+    Sound_Handler *open_sound = NULL;
 };
 
 struct Trigger{
@@ -172,6 +188,9 @@ struct Enemy{
     
     b32 shoot_blocker_immortal = false;
     Vector2 shoot_blocker_direction = Vector2_up;
+    
+    Sound_Handler *explosion_sound = NULL;
+    Sound_Handler *big_explosion_sound = NULL;
 };
 
 struct Propeller{
@@ -212,6 +231,8 @@ struct Bird_Enemy{
     Particle_Emitter *attack_emitter;
     Particle_Emitter *trail_emitter;
     Particle_Emitter *fire_emitter;
+    
+    Sound_Handler *attack_sound = NULL;
 };
 
 struct Sticky_Texture{
@@ -330,7 +351,14 @@ struct Player{
     
     f32 current_move_speed = 0;
     
-    Particle_Emitter *rifle_trail_emitter;
+    Particle_Emitter *rifle_trail_emitter = NULL;
+    
+    Sound_Handler *rifle_hit_sound    = NULL;
+    Sound_Handler *player_death_sound = NULL;
+    Sound_Handler *sword_kill_sound   = NULL;
+    Sound_Handler *sword_block_sound  = NULL;
+    Sound_Handler *bullet_block_sound = NULL;
+    Sound_Handler *rifle_switch_sound = NULL;
 };
 
 enum Projectile_Flags{
