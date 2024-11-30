@@ -109,6 +109,7 @@ enum Flags : u64{
     SPIKES           = 1 << 19,
     PLATFORM         = 1 << 20,
     MOVE_SEQUENCE    = 1 << 21,
+    DUMMY            = 1 << 22,
     
     TEST = 1 << 30
 };
@@ -432,6 +433,9 @@ struct Entity{
     Color color = WHITE;
     
     Color_Changer color_changer;
+    
+    b32 spawn_enemy_when_no_ammo = false;
+    i32 spawned_enemy_id = -1;
     
     //Player player;
     Ground ground;

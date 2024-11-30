@@ -29,6 +29,7 @@ int screen_height = 900;
 #define UNIT_SIZE (screen_width / 150.0f)
 
 b32 screen_size_changed = 0;
+b32 bordless_fullscreen = false;
 
 #include "game.cpp"
 int main(){
@@ -43,10 +44,17 @@ int main(){
     
     init_game();
     while(!WindowShouldClose()){
-        //dt = GetFrameTime();
+        DisableEventWaiting();
         
         if (IsKeyPressed(KEY_ENTER) && IsKeyDown(KEY_LEFT_ALT)){
             ToggleBorderlessWindowed();
+            bordless_fullscreen = !bordless_fullscreen;
+            // SetWindowPosition(0,0);
+            // SetWindowSize(GetMonitorWidth(0), GetMonitorHeight(0));
+        }
+        
+        if (!IsWindowFocused() && !IsWindowMinimized() && bordless_fullscreen){
+            MinimizeWindow();
         }
         
         if (IsWindowResized()){
@@ -60,6 +68,8 @@ int main(){
         
         update_game();
         screen_size_changed = 0;
+        
+        EnableEventWaiting();
     }
     
     CloseWindow();

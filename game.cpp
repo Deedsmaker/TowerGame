@@ -196,6 +196,8 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
 }
 
 Entity::Entity(Entity *copy){
+    *this = *copy;
+
     id = copy->id;
     position = copy->position;
     pivot    = copy->pivot;
@@ -210,6 +212,7 @@ Entity::Entity(Entity *copy){
     draw_order = copy->draw_order;
     str_copy(name, copy->name);
     hidden = copy->hidden;
+    spawn_enemy_when_no_ammo = copy->spawn_enemy_when_no_ammo;
     
     if (flags & TEXTURE){
         texture = copy->texture;
@@ -342,6 +345,7 @@ int save_level(const char *level_name){
         fprintf(fptr, "] "); 
         
         fprintf(fptr, "hidden:%d: ", e->hidden);
+        fprintf(fptr, "spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo);
         
         if (e->flags & TRIGGER){
             if (e->trigger.connected.count > 0){
@@ -703,6 +707,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "hidden")){
                 fill_b32_from_string(&entity_to_fill.hidden, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "spawn_enemy_when_no_ammo")){
+                fill_b32_from_string(&entity_to_fill.spawn_enemy_when_no_ammo, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "move_sequence_speed")){
                 fill_float_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get(i+1).data);
                 i++;
@@ -751,6 +758,9 @@ int load_level(const char *level_name){
         enter_game_state();
         enter_game_state_on_new_level = false;
     }
+    
+    editor.last_autosave_time = core.time.app_time;
+    context.cam.position = editor.player_spawn_point;
     return 1;
 }
 
@@ -763,6 +773,20 @@ global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spa
 Texture cat_texture;
 
 #define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY)
+
+Entity *spawn_object_by_name(const char* name, Vector2 position){
+    for (int i = 0; i < spawn_objects.count; i++){
+        Spawn_Object *obj = spawn_objects.get_ptr(i);
+        if (str_equal(obj->name, name)){
+            Entity *e = add_entity(&obj->entity);
+            e->position = position;
+            return e;
+        }
+    }
+    
+    printf("No spawn object named %s\n", name);
+    return NULL;
+}
 
 void init_bird_entity(Entity *entity){
     //entity->flags = ENEMY | BIRD_ENEMY | PARTICLE_EMITTER;
@@ -793,6 +817,17 @@ void init_spawn_objects(){
     copy_entity(&block_base_object.entity, &block_base_entity);
     str_copy(block_base_object.name, block_base_entity.name);
     spawn_objects.add(block_base_object);
+    
+    Entity dummy_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
+    dummy_entity.color  = Fade(GREEN, 0.5f);
+    dummy_entity.hidden = true;
+    str_copy(dummy_entity.name, "dummy_entity"); 
+    setup_color_changer(&dummy_entity);
+    
+    Spawn_Object dummy_object;
+    copy_entity(&dummy_object.entity, &dummy_entity);
+    str_copy(dummy_object.name, dummy_entity.name);
+    spawn_objects.add(dummy_object);
     
     Entity platform_entity = Entity({0, 0}, {40, 2}, {0.5f, 0.5f}, 0, PLATFORM);
     platform_entity.color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
@@ -2316,6 +2351,12 @@ void update_editor_ui(){
             }
             v_pos += height_add;
             
+            make_ui_text("Spawn enemy when no ammo: ", {inspector_position.x + 5, v_pos}, "text_spawn_no_ammo");
+            if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->spawn_enemy_when_no_ammo, "toggle_spawn_no_ammo")){
+                selected->spawn_enemy_when_no_ammo = !selected->spawn_enemy_when_no_ammo;
+            }
+            v_pos += height_add;
+            
             make_ui_text("Move sequence: ", {inspector_position.x + 5, v_pos}, "text_entity_move_sequence");
             if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->flags & MOVE_SEQUENCE, "toggle_entity_move_sequence")){
                 selected->flags ^= MOVE_SEQUENCE;
@@ -2633,7 +2674,7 @@ void update_editor_ui(){
             editor.create_box_selected_index = fitting_count - 1;   
         }
     
-        if (make_input_field("", field_position, field_size, "create_box")){
+        if (make_input_field("", field_position, field_size, "create_box", GRAY, false)){
             need_close_create_box = true;
         }
     }
@@ -2678,7 +2719,7 @@ Entity *get_cursor_entity(){
                         cursor_entity_candidate = e;
                     }
                 } else{
-                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & PLATFORM || e->flags & ENEMY || e->flags & PROPELLER || e->flags & TRIGGER);
+                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & PLATFORM || e->flags & ENEMY || e->flags & PROPELLER || e->flags & TRIGGER || e->flags & DUMMY);
                     //We want to pick most valuable entity for selection and not background if there's something more around
                     if (!cursor_entity_candidate || other_entity_preferable){
                         cursor_entity_candidate = e;
@@ -4184,6 +4225,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     assert(enemy_entity->flags & ENEMY);
     
     if (!enemy_entity->enemy.dead_man){
+        enemy_entity->enemy.stun_start_time = core.time.game_time;
         emit_particles(*blood_emitter, kill_position, kill_direction, 1, particles_speed_modifier);
     
         enemy_entity->enemy.dead_man = true;
@@ -4234,7 +4276,7 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity){
 
     b32 recently_got_hit = core.time.game_time - enemy_entity->enemy.stun_start_time <= 0.05f;
     
-    return !enemy_entity->enemy.dead_man && !recently_got_hit;
+    return !recently_got_hit;
 }
 
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious){
@@ -4248,6 +4290,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     }
     
     if (is_enemy_can_take_damage(enemy_entity)){
+        enemy->stun_start_time = core.time.game_time;
         enemy->hits_taken++;
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
         if (enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit){
@@ -4317,6 +4360,7 @@ void calculate_projectile_collisions(Entity *entity){
         Vector2 velocity_dir = normalized(projectile->velocity);
         f32 sparks_speed = 1;
         f32 sparks_count = 1;
+        f32 hitstop_add = 0;
         
         if (other->flags & ENEMY && is_enemy_can_take_damage(other) && (projectile->type != WEAK || !projectile->dying)){
             b32 killed = false;
@@ -4351,8 +4395,13 @@ void calculate_projectile_collisions(Entity *entity){
                 killed = true;
             }
             
+            if (other->flags & TRIGGER && can_damage){
+                sparks_count += 20;
+                hitstop_add = 0.1f;
+            }
+            
             emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
-            add_hitstop(0.03f);
+            add_hitstop(0.03f + hitstop_add);
             shake_camera(0.1f);
             if (can_damage){
                 play_sound(player_data.rifle_hit_sound, col.point);
@@ -4497,7 +4546,7 @@ void update_trigger(Entity *e){
             
             Entity *connected_entity = context.entities.get_by_key_ptr(id);
 
-            if (connected_entity->flags & ENEMY){
+            if (connected_entity->flags & ENEMY && !connected_entity->enemy.dead_man){
                 found_enemy = true;
                 break;
             }
@@ -4624,6 +4673,11 @@ void update_entities(){
                 editor.need_validate_entity_pointers = true;
             }
             continue;
+        }
+        
+        if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data.ammo_count <= 0 && (!context.entities.has_key(e->spawned_enemy_id) || e->spawned_enemy_id == -1)){
+            Entity *spawned = spawn_object_by_name("enemy_base", e->position);
+            e->spawned_enemy_id = spawned->id;
         }
         
         if (!e->enabled || (e->hidden && game_state == GAME)){
@@ -4789,23 +4843,19 @@ int compare_entities_draw_order(const void *first, const void *second){
 
 void fill_entities_draw_queue(){
     context.entities_draw_queue.clear();
-
-    for (int i = 0; i < context.entities.max_count; i++){
-        if (!context.entities.has_index(i)){
-            continue;
-        }
-        
+    
+    ForTable(context.entities, i){
         Entity *e_ptr = context.entities.get_ptr(i);
         Entity e = context.entities.get(i);
         
-        if (!e.enabled){
+        if (!e_ptr || !e.enabled){
             continue;
         }
         
         //now we want entities that have external lines
         b32 is_should_draw_anyway = e.flags & (TRIGGER | MOVE_SEQUENCE);
         
-        if (!is_should_draw_anyway && e.hidden && game_state == GAME){
+        if (e.hidden && game_state == GAME && !is_should_draw_anyway){
             continue;
         }
         
@@ -4842,8 +4892,11 @@ void draw_entities(){
         // if (!entities->has_index(i)){
         //     continue;
         // }
-    
+        
         Entity *e = entities->get_ptr(i);
+        if (!e || !context.entities.has_key(e->id)){
+            continue;
+        }
     
         if (!e->enabled/* || e->flags == -1*/){
             continue;
@@ -4859,6 +4912,11 @@ void draw_entities(){
             } else{
                 draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
             }
+        }
+        
+        if (e->flags & DUMMY){
+            draw_game_triangle_strip(e);
+            draw_game_line_strip(e, SKYBLUE);
         }
         
         if (e->flags & PLAYER){
@@ -4900,7 +4958,7 @@ void draw_entities(){
                 int id = e->trigger.connected.get(ii);
                 if (!context.entities.has_key(id)){
                     e->trigger.connected.remove(ii);
-                    i--;
+                    ii--;
                     continue;
                 }
                 Entity *connected_entity = context.entities.get_by_key_ptr(id);
