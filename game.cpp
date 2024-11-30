@@ -1530,6 +1530,9 @@ void enter_editor_state(){
     
     load_level(temp_level_name.data);
     temp_level_name.free_str();
+    
+    SetMusicVolume(tires_theme, 0);
+    SetMusicVolume(wind_theme, 0);
 
     //copy_context(&context, &saved_level_context);
 }
@@ -5008,6 +5011,7 @@ void draw_entities(){
                 spike = !spike;
             }
             
+            draw_game_triangle_strip(e, Fade(e->color, 0.5f));
             draw_game_line_strip(line_strip_points.data, line_strip_points.count, e->color);
         }
         
