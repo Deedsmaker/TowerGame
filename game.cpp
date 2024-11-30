@@ -4976,12 +4976,13 @@ void draw_ui(const char *tag){
             continue;
         }
         
-        f32 color_multiplier = 0.8f;
+        Color background_color = input_field.color;
         if (input_field.in_focus){
-            f32 blink_speed = 4.0f;
-            color_multiplier = lerp(0.5f, 0.8f, (sinf(core.time.app_time * blink_speed) + 1) * 0.5f);
+            background_color = Fade(ColorTint(background_color, ColorBrightness(SKYBLUE, 0.2f)), 1.5f);
+            // f32 blink_speed = 4.0f;
+            // color_multiplier = lerp(0.5f, 0.8f, (sinf(core.time.app_time * blink_speed) + 1) * 0.5f);
         }
-        draw_rect(input_field.position, input_field.size, {0, 0}, 0, input_field.color * color_multiplier);
+        draw_rect(input_field.position, input_field.size, {0, 0}, 0, background_color);
         
         if (input_field.in_focus){
             draw_text(TextFormat("%s_", input_field.content), input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);

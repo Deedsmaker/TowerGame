@@ -142,7 +142,13 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     
     Rectangle field_rect = {input_field.position.x, input_field.position.y, input_field.size.x, input_field.size.y};
     
-    if (make_next_in_focus || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), field_rect)){
+    b32 hovered_over = CheckCollisionPointRec(GetMousePosition(), field_rect);
+    
+    if (hovered_over){
+        input_field.color = ColorBrightness(input_field.color, 0.2f);
+    }
+    
+    if (make_next_in_focus || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && hovered_over){
         input_field.in_focus = true;
         //str_copy(input_field.content, "");
         copy_input_field(&focus_input_field, &input_field);
