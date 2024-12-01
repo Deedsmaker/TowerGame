@@ -5,11 +5,19 @@ i32 last_added_index = -1;
 
 void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
     Particle particle = {};
-    particle.position = position;
-    if (emitter.spawn_radius > 0){
-        particle.position += rnd_in_circle() * emitter.spawn_radius;
-    }
+    particle.position = position + emitter.spawn_offset;
     
+    switch (emitter.spawn_type){
+        case CIRCLE:{
+            if (emitter.spawn_radius > 0){
+                particle.position += rnd_in_circle() * emitter.spawn_radius;
+            }
+        } break;
+        
+        case BOX:{
+            particle.position += rnd_in_box(emitter.spawn_area);
+        } break;
+    }
     particle.shape = emitter.shape;
     
     f32 scale = rnd(emitter.scale_min, emitter.scale_max);
@@ -218,6 +226,7 @@ void setup_particles(){
 
     free_emitter(sword_tip_emitter);
     sword_tip_emitter = add_emitter();
+    sword_tip_emitter->spawn_radius = 1.0f;
     sword_tip_emitter->over_distance     = 2;
     sword_tip_emitter->direction_to_move = true;
     sword_tip_emitter->over_time         = 0;
@@ -405,7 +414,8 @@ void setup_particles(){
     gunpowder_emitter.color              = Fade(BLACK, 0.4f);
     gunpowder_emitter.enabled            = false;
     
-    air_emitter.spawn_radius       = 10.0f;
+    air_emitter.spawn_type = BOX;
+    air_emitter.spawn_area         = Vector2_one * 10;
     air_emitter.over_distance      = 1;
     air_emitter.direction_to_move  = 0;
     air_emitter.over_time          = 10;

@@ -234,6 +234,10 @@ Entity::Entity(Entity *copy){
         for (int i = 0; i < copy->trigger.connected.count; i++){
             trigger.connected.add(copy->trigger.connected.get(i));
         }
+        trigger.tracking = Dynamic_Array<int>();
+        for (int i = 0; i < copy->trigger.tracking.count; i++){
+            trigger.tracking.add(copy->trigger.tracking.get(i));
+        }
     }
     
     if (flags & MOVE_SEQUENCE){
@@ -356,9 +360,18 @@ int save_level(const char *level_name){
                 fprintf(fptr, "] "); 
             }
             
+            if (e->trigger.tracking.count > 0){
+                fprintf(fptr, "trigger_tracking [ ");
+                for (int v = 0; v < e->trigger.tracking.count; v++){
+                    fprintf(fptr, ":%d: ", e->trigger.tracking.get(v)); 
+                }
+                fprintf(fptr, "] "); 
+            }
+            
             fprintf(fptr, "trigger_kill_player:%d: ", e->trigger.kill_player);
             fprintf(fptr, "trigger_open_doors:%d: ", e->trigger.open_doors);
             fprintf(fptr, "trigger_track_enemies:%d: ", e->trigger.activate_when_no_enemies);
+            fprintf(fptr, "trigger_agro_enemies:%d: ", e->trigger.agro_enemies);
             fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.activate_on_player_touch);
             fprintf(fptr, "trigger_shows_entities:%d: ", e->trigger.shows_entity);
             fprintf(fptr, "trigger_starts_moving_sequence:%d: ", e->trigger.starts_moving_sequence);
@@ -366,6 +379,11 @@ int save_level(const char *level_name){
             fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
             if (e->trigger.load_level){
                 fprintf(fptr, "trigger_level_name:%s: ", e->trigger.level_name);
+            }
+            
+            fprintf(fptr, "trigger_play_sound:%d: ", e->trigger.play_sound);
+            if (e->trigger.play_sound){
+                fprintf(fptr, "trigger_sound_name:%s: ", e->trigger.sound_name);
             }
         }
         
@@ -651,8 +669,10 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "draw_order")){
                 fill_int_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "agro_connected") || str_equal(splitted_line.get(i).data, "trigger_connected")){
+            } else if (str_equal(splitted_line.get(i).data, "trigger_connected")){
                 fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
+            } else if (str_equal(splitted_line.get(i).data, "trigger_tracking")){
+                fill_int_array_from_string(&entity_to_fill.trigger.tracking, splitted_line, &i);
             } else if (str_equal(splitted_line.get(i).data, "blocker_clockwise")){
                 fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get(i+1).data);
                 i++;
@@ -680,6 +700,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "trigger_track_enemies")){
                 fill_b32_from_string(&entity_to_fill.trigger.activate_when_no_enemies, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_agro_enemies")){
+                fill_b32_from_string(&entity_to_fill.trigger.agro_enemies, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_player_touch")){
                 fill_b32_from_string(&entity_to_fill.trigger.activate_on_player_touch, splitted_line.get(i+1).data);
                 i++;
@@ -691,6 +714,12 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_level_name")){
                 str_copy(entity_to_fill.trigger.level_name, splitted_line.get(i+1).data);  
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_play_sound")){
+                fill_b32_from_string(&entity_to_fill.trigger.play_sound, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_sound_name")){
+                str_copy(entity_to_fill.trigger.sound_name, splitted_line.get(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_shows_entities")){
                 fill_b32_from_string(&entity_to_fill.trigger.shows_entity, splitted_line.get(i+1).data);
@@ -925,7 +954,7 @@ void init_spawn_objects(){
     str_copy(propeller_object.name, propeller_entity.name);
     spawn_objects.add(propeller_object);
     
-    Entity door_entity = Entity({0, 0}, {5, 15}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
+    Entity door_entity = Entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
     door_entity.trigger.activate_on_player_touch = false;
     door_entity.color = ColorBrightness(PURPLE, 0.6f);
     str_copy(door_entity.name, "door"); 
@@ -938,7 +967,6 @@ void init_spawn_objects(){
     
     Entity enemy_trigger_entity = Entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
     enemy_trigger_entity.trigger.activate_on_player_touch = false;
-    enemy_trigger_entity.trigger.activate_when_no_enemies = true;
     enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
     str_copy(enemy_trigger_entity.name, "enemy_trigger"); 
     setup_color_changer(&enemy_trigger_entity);
@@ -1104,7 +1132,9 @@ void init_entity(Entity *entity){
         entity->propeller.air_emitter->speed_multiplier    = entity->propeller.power / 50.0f;
         entity->propeller.air_emitter->count_multiplier    = entity->propeller.power / 50.0f;
         entity->propeller.air_emitter->lifetime_multiplier = (1.8f * (entity->scale.y / 120.0f)) / entity->propeller.air_emitter->speed_multiplier;
-        entity->propeller.air_emitter->spawn_radius        = entity->scale.x * 0.5f;
+        // entity->propeller.air_emitter->spawn_radius        = entity->scale.x * 0.5f;
+        entity->propeller.air_emitter->spawn_offset = entity->up * entity->scale.y * 0.125f;
+        entity->propeller.air_emitter->spawn_area = {entity->scale.x, entity->scale.y * 0.25f};
         entity->propeller.air_emitter->direction           = entity->up;
     }        
     
@@ -1315,7 +1345,7 @@ void load_sounds(){
         
         Sound_Handler handler;
         
-        for (int s = 0; IsSoundReady(sound) && s < handler.buffer.max_count; s++){
+        for (int s = 0; s < handler.buffer.max_count; s++){
             handler.buffer.add(LoadSoundAlias(sound));
         }
         
@@ -1323,7 +1353,7 @@ void load_sounds(){
         //UnloadSound(sound);
         
         if (!sounds_table.add(hash, handler)){
-            printf("COULD NOT FIND HASH FOR SOUND: %s\n", name);
+            printf("ERROR: COULD NOT FIND HASH FOR SOUND: %s\n", name);
             continue;
         }
     }
@@ -1437,6 +1467,11 @@ void destroy_player(){
 }
 
 void clean_up_scene(){
+    ForTable(context.entities, i){
+        Entity *e = context.entities.get_ptr(i);
+        e->color = e->color_changer.start_color;
+    }
+
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
     close_create_box();
@@ -1455,6 +1490,7 @@ void enter_game_state(){
         init_entity(context.entities.get_ptr(i));
     }
     
+    context.cam.cam2D.zoom = 0.35f;
     
     String temp_level_name = init_string();
     temp_level_name += "TEMP_";
@@ -1882,7 +1918,7 @@ void update_color_changer(Entity *entity, f32 dt){
         f32 t = abs(sinf(core.time.app_time * changer->change_time));
         entity->color = lerp(changer->start_color, changer->target_color, t);
     } else if (entity->flags & EXPLOSIVE){
-        Color target_color = ColorBrightness(entity->color, 2);
+        Color target_color = ColorBrightness(changer->start_color, 2);
         f32 t = abs(sinf(core.time.game_time * changer->change_time));
         entity->color = lerp(changer->start_color, target_color, t);
     } else if (changer->interpolating) {
@@ -1944,8 +1980,11 @@ inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Vector2 pos
 }
 
 inline b32 check_bounds_collision(Entity *entity1, Entity *entity2){
-    Vector2 position1 = entity1->position + ((Vector2){(entity1->pivot.x - 0.5f) * entity1->scale.x, (entity1->pivot.y - 0.5f) * entity1->scale.y});
-    Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
+    Vector2 pivot_add1 = ((Vector2){(entity1->pivot.x - 0.5f) * entity1->scale.x, (entity1->pivot.y - 0.5f) * entity1->scale.y});
+    Vector2 position1 = entity1->position + pivot_add1;
+    Vector2 pivot_add2 = ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
+    Vector2 position2 = entity2->position + pivot_add2;
+    // Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
     
     return check_rectangles_collision(position1 + entity1->bounds.offset, entity1->bounds.size, position2 + entity2->bounds.offset, entity2->bounds.size);
 }
@@ -1961,6 +2000,9 @@ Collision check_entities_collision(Entity *entity1, Entity *entity2){
     result.other_entity = entity2;
     
     if (!check_bounds_collision(entity1, entity2)){
+        if (str_contains(entity2->name, "propeller2")){
+            print(entity2->bounds.offset);
+        }
         return result;
     }
 
@@ -2386,6 +2428,8 @@ void update_editor_ui(){
                 
                 make_ui_text(TextFormat("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
                 type_info_v_pos += type_font_size;
+                make_ui_text("Alt+C clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
+                type_info_v_pos += type_font_size;
                 make_ui_text("Alt+M Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_remove");
                 type_info_v_pos += type_font_size;
                 make_ui_text("Alt+N Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_add_point");
@@ -2428,6 +2472,12 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
+                make_ui_text("Agro enemies: ", {inspector_position.x + 5, v_pos}, "text_trigger_agro_enemies");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.agro_enemies, "toggle_agro_enemies")){
+                    selected->trigger.agro_enemies = !selected->trigger.agro_enemies;                 
+                }
+                v_pos += height_add;
+                
                 make_ui_text("Shows entities: ", {inspector_position.x + 5, v_pos}, "trigger_shows_entities");
                 if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.shows_entity, "toggle_trigger_show_entity")){
                     selected->trigger.shows_entity = !selected->trigger.shows_entity;                 
@@ -2439,6 +2489,20 @@ void update_editor_ui(){
                     selected->trigger.starts_moving_sequence = !selected->trigger.starts_moving_sequence;                 
                 }
                 v_pos += height_add;
+                
+                make_ui_text("Play sound: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.play_sound, "toggle_play_sound")){
+                    selected->trigger.play_sound = !selected->trigger.play_sound;                 
+                }
+                v_pos += height_add;
+                if (selected->trigger.play_sound){
+                    make_ui_text("Sound name: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound_name_text");
+                    if (make_input_field(selected->trigger.sound_name, {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_sound_name") ){
+                        str_copy(selected->trigger.sound_name, focus_input_field.content);
+                    }
+                    v_pos += height_add;
+                }
+
                 
                 make_ui_text("Load level: ", {inspector_position.x + 5, v_pos}, "trigger_load_level");
                 if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.load_level, "toggle_load_level")){
@@ -2452,7 +2516,6 @@ void update_editor_ui(){
                         str_copy(selected->trigger.level_name, focus_input_field.content);
                     }
                     v_pos += height_add;
-
                 }
             }
         
@@ -2462,7 +2525,11 @@ void update_editor_ui(){
             type_info_v_pos += type_font_size;
             make_ui_text("Assign New: Alt+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
+            make_ui_text("Assign tracking enemy: Alt+V", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
+            type_info_v_pos += type_font_size;
             make_ui_text(TextFormat("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_connected_count");
+            type_info_v_pos += type_font_size;
+            make_ui_text(TextFormat("Tracking count: %d", selected->trigger.tracking.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_tracking_count");
             type_info_v_pos += type_font_size;
             make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
@@ -2999,7 +3066,7 @@ void update_editor(){
     //editor entity scaling
     if (can_control_with_single_button && editor.selected_entity != NULL){
         Vector2 scaling = {};
-        f32 speed = 40;
+        f32 speed = 80;
         
         if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))){
             editor.scaling_start = editor.selected_entity->scale;
@@ -3035,10 +3102,11 @@ void update_editor(){
         Entity *selected = editor.selected_entity;
         if (selected->flags & TRIGGER){
             b32 wanna_assign = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
+            b32 wanna_assign_tracking_enemy = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
-                fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE);
+                fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER);
                 
                 for (int i = 0; i < collisions_data.count; i++){
                     Collision col = collisions_data.get(i);
@@ -3046,9 +3114,24 @@ void update_editor(){
                     if (wanna_assign && !wanna_remove && !selected->trigger.connected.contains(col.other_entity->id)){
                         selected->trigger.connected.add(col.other_entity->id);
                         break;
-                    } else if (wanna_remove && !wanna_assign && selected->trigger.connected.contains(col.other_entity->id)){
-                        selected->trigger.connected.remove(selected->trigger.connected.find(col.other_entity->id));
+                    } else if (wanna_remove && !wanna_assign){
+                        if (selected->trigger.connected.contains(col.other_entity->id)){
+                            selected->trigger.connected.remove(selected->trigger.connected.find(col.other_entity->id));
+                        } else if (selected->trigger.tracking.contains(col.other_entity->id)){
+                            selected->trigger.tracking.remove(selected->trigger.tracking.find(col.other_entity->id));
+                        }
                         break;
+                    }
+                }
+            }
+            
+            if (wanna_assign_tracking_enemy){
+                fill_collisions(&mouse_entity, &collisions_data, ENEMY);
+                for (int i = 0; i < collisions_data.count; i++){
+                    Collision col = collisions_data.get(i);
+                    
+                    if (!selected->trigger.tracking.contains(col.other_entity->id)){
+                        selected->trigger.tracking.add(col.other_entity->id);
                     }
                 }
             }
@@ -3099,6 +3182,7 @@ void update_editor(){
         
         // move sequence settings
         if (selected->flags & MOVE_SEQUENCE){
+            b32 wanna_clear    = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_C);
             b32 wanna_add    = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_N);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_M);
             
@@ -3114,6 +3198,9 @@ void update_editor(){
             }
             if (wanna_add){
                 selected->move_sequence.points.add(input.mouse_position);
+            }
+            if (wanna_clear){
+                selected->move_sequence.points.clear();
             }
         }
     }
@@ -4100,6 +4187,10 @@ void update_bird_enemy(Entity *entity, f32 dt){
         enemy->birth_time = core.time.game_time;
     }
     
+    if (entity->flags & MOVE_SEQUENCE){
+        entity->move_sequence.moving = false;
+    }
+    
     Vector2 vec_to_player = player_entity->position - entity->position;
     Vector2 dir_to_player = normalized(vec_to_player);
     f32    distance_to_player = magnitude(vec_to_player);
@@ -4224,6 +4315,10 @@ void update_bird_enemy(Entity *entity, f32 dt){
     bird->trail_emitter->direction = entity->up * -1;
 }
 
+inline f32 get_explosion_power_multiplier(Entity *entity){
+    return ((entity->scale.x * 0.5f + entity->scale.y * 0.5f) / 4.0f);
+}
+
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
     
@@ -4237,8 +4332,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             enemy_entity->destroyed = true;
         }
         if (enemy_entity->flags & EXPLOSIVE){
-            f32 explosion_radius = 40;
-            emit_particles(explosion_emitter, enemy_entity->position);
+            f32 explosion_radius = fmax(40 * get_explosion_power_multiplier(enemy_entity), 40);
+            emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, get_explosion_power_multiplier(enemy_entity));
             play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
             ForTable(context.entities, i){
                 Entity *other_entity = context.entities.get_ptr(i);
@@ -4519,7 +4614,7 @@ void update_editor_entity(Entity *e){
 void trigger_entity(Entity *trigger_entity, Entity *connected){
     connected->hidden = !trigger_entity->trigger.shows_entity;
 
-    if (connected->flags & ENEMY && debug.enemy_ai){
+    if (connected->flags & ENEMY && debug.enemy_ai && trigger_entity->trigger.agro_enemies){
         connected->enemy.in_agro = true;
     }
     
@@ -4535,31 +4630,40 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
 void update_trigger(Entity *e){
     assert(e->flags & TRIGGER);
     
+    if (e->trigger.triggered){
+        return;
+    }
+    
     b32 trigger_now = false;
+    
+    if (e->flags & ENEMY && e->enemy.dead_man){
+        trigger_now = true;
+        e->enemy.dead_man = false;
+    }
     
     if (e->trigger.activate_when_no_enemies){
         b32 found_enemy = false;
-        for (int i = 0; i < e->trigger.connected.count; i++){
-            i32 id = e->trigger.connected.get(i);
+        for (int i = 0; i < e->trigger.tracking.count; i++){
+            i32 id = e->trigger.tracking.get(i);
             if (!context.entities.has_key(id)){
-                e->trigger.connected.remove(i);
+                e->trigger.tracking.remove(i);
                 i--;
                 continue;
             }
             
-            Entity *connected_entity = context.entities.get_by_key_ptr(id);
+            Entity *tracking_entity = context.entities.get_by_key_ptr(id);
 
-            if (connected_entity->flags & ENEMY && !connected_entity->enemy.dead_man){
+            if (tracking_entity->flags & ENEMY && !tracking_entity->enemy.dead_man){
                 found_enemy = true;
                 break;
             }
         }
         
-        if (e->flags & ENEMY && !e->enemy.dead_man){
-            found_enemy = true;
-        } else if (e->flags & ENEMY && e->enemy.dead_man){
-            e->enemy.dead_man = false;
-        }
+        // if (e->flags & ENEMY && !e->enemy.dead_man){
+        //     found_enemy = true;
+        // } else if (e->flags & ENEMY && e->enemy.dead_man){
+        //     e->enemy.dead_man = false;
+        // }
         
         if (!found_enemy){
             trigger_now = true;            
@@ -4570,6 +4674,12 @@ void update_trigger(Entity *e){
         if (e->trigger.load_level){
             enter_game_state_on_new_level = true;
             load_level_by_name(e->trigger.level_name);
+        }
+        
+        if (e->trigger.play_sound){
+            //enter_game_state_on_new_level = true;
+            //load_level_by_name(e->trigger.level_name);
+            play_sound(e->trigger.sound_name);
         }
     
         if (e->flags & DOOR){
@@ -4592,6 +4702,8 @@ void update_trigger(Entity *e){
                         
             trigger_entity(e, connected_entity);
         }
+        
+        e->trigger.triggered = true;
     }
 }
 
@@ -4966,12 +5078,25 @@ void draw_entities(){
                 }
                 Entity *connected_entity = context.entities.get_by_key_ptr(id);
                 
-                if (connected_entity->flags & DOOR){
+                if (connected_entity->flags & DOOR && ((e->flags ^ TRIGGER) > 0 || game_state != GAME)){
                     Color color = connected_entity->door.is_open == e->trigger.open_doors ? SKYBLUE : ORANGE;
                     f32 width = connected_entity->door.is_open == e->trigger.open_doors ? 1.0f : 0.2f;
                     draw_game_line(e->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.6f));
                 } else if (is_trigger_selected && should_draw_external_hints){
                     draw_game_line(e->position, connected_entity->position, RED);
+                }
+            }
+            for (int ii = 0; ii < e->trigger.tracking.count; ii++){
+                int id = e->trigger.tracking.get(ii);
+                if (!context.entities.has_key(id)){
+                    e->trigger.tracking.remove(ii);
+                    ii--;
+                    continue;
+                }
+                Entity *connected_entity = context.entities.get_by_key_ptr(id);
+                
+                if (is_trigger_selected && should_draw_external_hints){
+                    draw_game_line(e->position, connected_entity->position, GREEN);
                 }
             }
         }
@@ -4981,18 +5106,20 @@ void draw_entities(){
             for (int ii = 0; ii < e->move_sequence.points.count; ii++){
                 Vector2 point = e->move_sequence.points.get(ii);
                 
+                Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.8f);
+                
                 if (IsKeyDown(KEY_LEFT_ALT)){
                     draw_game_circle(point, 1, SKYBLUE);
                 }
                 if (ii < e->move_sequence.points.count - 1){
-                    draw_game_line(point, e->move_sequence.points.get(ii+1), BLUE);
+                    draw_game_line(point, e->move_sequence.points.get(ii+1), color);
                 } else if (e->move_sequence.loop){
-                    draw_game_line(point, e->move_sequence.points.get(0), BLUE);
+                    draw_game_line(point, e->move_sequence.points.get(0), color);
                 }
             }
         }
         
-        if (e->flags & SPIKES){
+        if (e->flags & SPIKES && (!e->hidden || game_state != GAME)){
             line_strip_points.clear();
             f32 frequency = 2;
             Vector2 start_position = e->position - e->right * e->scale.x * 0.5f;
@@ -5050,9 +5177,10 @@ void draw_entities(){
             draw_game_line_strip(e, e->color);
             draw_game_triangle_strip(e, e->color * 0.1f);
             
-            e->propeller.air_emitter->speed_multiplier = e->propeller.power / 50.0f;
-            e->propeller.air_emitter->spawn_radius = e->scale.x * 0.5f;
-            e->propeller.air_emitter->direction        = e->up;
+            // e->propeller.air_emitter->speed_multiplier = e->propeller.power / 50.0f;
+            // e->propeller.air_emitter->spawn_offset = e->up * e->scale.y * 0.25;
+            // e->propeller.air_emitter->spawn_area = {e->scale.x, e->scale.y * 0.5f};
+            // e->propeller.air_emitter->direction        = e->up;
         }
         
         if (e->flags & BLOCKER && (game_state == EDITOR) && !e->enemy.blocker_immortal){
@@ -5394,8 +5522,12 @@ void draw_game(){
 }
 
 void setup_color_changer(Entity *entity){
-    entity->color_changer.start_color = entity->color;
-    entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
+    //if (entity->color_changer.start_color == BLACK){
+        entity->color_changer.start_color = entity->color;
+    //}
+    //if (entity->color_changer.target_color == BLACK){
+        entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
+    //}
 }
 
 void check_avaliable_ids_and_set_if_found(int *id){

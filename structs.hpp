@@ -28,6 +28,11 @@ struct Particle{
     Color color = YELLOW;
 };
 
+enum Particle_Spawn_Area{
+    CIRCLE = 0,  
+    BOX = 1
+};
+
 struct Particle_Emitter{
     Particle_Shape shape = SQUARE;
     
@@ -36,13 +41,19 @@ struct Particle_Emitter{
     b32 destroyed = false;
     b32 follow_entity = true;
     
+    Particle_Spawn_Area spawn_type = CIRCLE;
+    
     Vector2 local_position = {0, 0};
     Vector2 position = {0, 0};
     Vector2 last_emitted_position = {0, 0};
     Vector2 direction = Vector2_up;
     
-    f32 spawn_radius = 1;
+    Vector2 spawn_offset = Vector2_zero;
     
+    union{
+        f32 spawn_radius;
+        Vector2 spawn_area;
+    };
     f32 gravity_multiplier = 1;
     
     b32 emitting;
@@ -143,16 +154,23 @@ struct Door{
 
 struct Trigger{
     Dynamic_Array<int> connected;
+    Dynamic_Array<int> tracking;
     b32 activate_on_player_touch = true;
     b32 kill_player = false;
     b32 open_doors = true;
     b32 activate_when_no_enemies = false;
+    b32 agro_enemies = true;
     
     b32 shows_entity = true;
     b32 starts_moving_sequence = true;
     
+    b32 play_sound = false;
+    char sound_name[128];
+    
     b32 load_level = false;
     char level_name[128];
+    
+    b32 triggered = false;
 };
 
 struct Velocity_Move{
@@ -252,8 +270,8 @@ struct Color_Changer{
     
     f32 progress = 0;
 
-    Color start_color;
-    Color target_color;
+    Color start_color = BLACK;
+    Color target_color = BLACK;
     
     f32 change_time = 2.0f;
 };

@@ -2,6 +2,7 @@ Trigger:
     - Clear ALL Connected: Alt+L
     - Remove selected: Alt+D
     - Assign New: Alt+A
+    - Assign tracking enemy: Alt+V
     
 Enemy:
     - Toggle shoot blocker change direction : Alt+F ; Alt+G
@@ -10,4 +11,4 @@ Enemy:
 Environment:
     - Propeller power change : Alt+Q ; Alt+E
     - Door trigger : Alt+T
-    - Move sequence add/remove : Alt+N ; Alt+M
+    - Move sequence add/remove/clear : Alt+N ; Alt+M ; Alt+C
