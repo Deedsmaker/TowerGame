@@ -1,10 +1,16 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
+[ ] Change sword acceleartion in air and test it
+[ ] Try to improve vertical movement by making throwable sword. 
+[ ] Temporal boosters for sword size and infinite ammo
+[ ] Killable objects for buffs
+
+-----------------------------------------------------------------------
 [X] Fix propeller collisions (collisions with any pivot but {0.5, 0.5f}) (TOGO MAMЫ MAMU)
-[ ] Try increase base spin acceleration
+[X] Try increase base spin acceleration
 [ ] Improve horde ai for birds
 [ ] Zoom change for trigger
-[ ] Try to reduce friction on adding new ui stuff (saving/loading)
+[X] Try to reduce friction on adding new ui stuff (saving/loading) - (didn't work out, destroyed day of work)
 
 ---------------------------------------------------------------------------------
 [X] Platforms that can be passed when moving up <done: 29.11.24 - 15:08> (And funny rendering)
