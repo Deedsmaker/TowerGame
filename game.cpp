@@ -41,6 +41,9 @@ global_variable Hash_Table_Int<Sound_Handler> sounds_table = Hash_Table_Int<Soun
 #include "text_input.hpp"
 #include "ui.hpp"
 
+Player last_player_data = {};
+Player death_player_data = {};
+
 void free_entity(Entity *e){
     if (e->flags & TRIGGER){
         e->trigger.connected.free_arr();
@@ -370,10 +373,10 @@ int save_level(const char *level_name){
             
             fprintf(fptr, "trigger_kill_player:%d: ", e->trigger.kill_player);
             fprintf(fptr, "trigger_open_doors:%d: ", e->trigger.open_doors);
-            fprintf(fptr, "trigger_track_enemies:%d: ", e->trigger.activate_when_no_enemies);
+            fprintf(fptr, "trigger_track_enemies:%d: ", e->trigger.track_enemies);
             fprintf(fptr, "trigger_agro_enemies:%d: ", e->trigger.agro_enemies);
-            fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.activate_on_player_touch);
-            fprintf(fptr, "trigger_shows_entities:%d: ", e->trigger.shows_entity);
+            fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.player_touch);
+            fprintf(fptr, "trigger_shows_entities:%d: ", e->trigger.shows_entities);
             fprintf(fptr, "trigger_starts_moving_sequence:%d: ", e->trigger.starts_moving_sequence);
             
             fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
@@ -698,13 +701,13 @@ int load_level(const char *level_name){
                 fill_b32_from_string(&entity_to_fill.trigger.open_doors, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_track_enemies")){
-                fill_b32_from_string(&entity_to_fill.trigger.activate_when_no_enemies, splitted_line.get(i+1).data);
+                fill_b32_from_string(&entity_to_fill.trigger.track_enemies, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_agro_enemies")){
                 fill_b32_from_string(&entity_to_fill.trigger.agro_enemies, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_player_touch")){
-                fill_b32_from_string(&entity_to_fill.trigger.activate_on_player_touch, splitted_line.get(i+1).data);
+                fill_b32_from_string(&entity_to_fill.trigger.player_touch, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "door_open")){
                 fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get(i+1).data);
@@ -722,7 +725,7 @@ int load_level(const char *level_name){
                 str_copy(entity_to_fill.trigger.sound_name, splitted_line.get(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_shows_entities")){
-                fill_b32_from_string(&entity_to_fill.trigger.shows_entity, splitted_line.get(i+1).data);
+                fill_b32_from_string(&entity_to_fill.trigger.shows_entities, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_starts_moving_sequence")){
                 fill_b32_from_string(&entity_to_fill.trigger.starts_moving_sequence, splitted_line.get(i+1).data);
@@ -786,6 +789,9 @@ int load_level(const char *level_name){
     if (enter_game_state_on_new_level){
         enter_game_state();
         enter_game_state_on_new_level = false;
+        player_data.blood_amount = last_player_data.blood_amount;
+        player_data.blood_progress = last_player_data.blood_progress;
+        player_data.ammo_count = last_player_data.ammo_count;
     }
     
     editor.last_autosave_time = core.time.app_time;
@@ -955,7 +961,7 @@ void init_spawn_objects(){
     spawn_objects.add(propeller_object);
     
     Entity door_entity = Entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
-    door_entity.trigger.activate_on_player_touch = false;
+    door_entity.trigger.player_touch = false;
     door_entity.color = ColorBrightness(PURPLE, 0.6f);
     str_copy(door_entity.name, "door"); 
     setup_color_changer(&door_entity);
@@ -966,7 +972,7 @@ void init_spawn_objects(){
     spawn_objects.add(door_object);
     
     Entity enemy_trigger_entity = Entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
-    enemy_trigger_entity.trigger.activate_on_player_touch = false;
+    enemy_trigger_entity.trigger.player_touch = false;
     enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
     str_copy(enemy_trigger_entity.name, "enemy_trigger"); 
     setup_color_changer(&enemy_trigger_entity);
@@ -1140,7 +1146,7 @@ void init_entity(Entity *entity){
     
     if (entity->flags & DOOR){
         entity->flags |= TRIGGER;
-        entity->trigger.activate_on_player_touch = false;
+        entity->trigger.player_touch = false;
         entity->door.closed_position = entity->door.is_open ? entity->position - entity->up * entity->scale.y : entity->position;
         entity->door.open_position   = entity->door.is_open ? entity->position : entity->position + entity->up * entity->scale.y;
         
@@ -1420,7 +1426,7 @@ void init_game(){
     game_state = EDITOR;
 
     context = {};    
-    str_copy(context.current_level_name, "test_level");
+    str_copy(context.current_level_name, "basic_tut1");
 
     input = {};
     init_console();
@@ -1436,7 +1442,7 @@ void init_game(){
     //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
-    load_level("test_level");
+    load_level(context.current_level_name);
     
     // ForTable(context.entities, i){
     //     init_entity(context.entities.get_ptr(i));
@@ -1545,12 +1551,16 @@ void enter_game_state(){
     player_data.rifle_switch_sound->base_volume = 0.4f;
     player_data.rifle_switch_sound->base_pitch = 0.7f;
     player_data.rifle_switch_sound->pitch_variation = 0.1f;
+    
+    player_data.ammo_count = last_player_data.ammo_count;
 }
 
 void kill_player(){
     if (debug.god_mode && !context.we_got_a_winner || player_data.dead_man){ 
         return;
     }
+    
+    death_player_data = player_data;
 
     emit_particles(big_blood_emitter, player_entity->position, player_entity->up, 1, 1);
     player_data.dead_man = true;
@@ -1818,6 +1828,13 @@ void update_game(){
         }
     }
     
+    if (player_data.dead_man && game_state == GAME){
+        if (IsKeyPressed(KEY_T)){
+            enter_editor_state();
+            enter_game_state();
+        }
+    }
+    
     update_input_field();
     update_console();
     
@@ -1980,26 +1997,55 @@ inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Vector2 pos
 }
 
 inline b32 check_bounds_collision(Entity *entity1, Entity *entity2){
-    Vector2 pivot_add1 = ((Vector2){(entity1->pivot.x - 0.5f) * entity1->scale.x, (entity1->pivot.y - 0.5f) * entity1->scale.y});
-    Vector2 position1 = entity1->position + pivot_add1;
-    Vector2 pivot_add2 = ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
-    Vector2 position2 = entity2->position + pivot_add2;
+    // Vector2 pivot_add1 = ((Vector2){(entity1->pivot.x - 0.5f) * entity1->bounds.size.x, (entity1->pivot.y - 0.5f) * entity1->bounds.size.y});
+    // // Vector2 pivot_add1 = multiply(entity1->pivot, entity1->bounds.size);
+    // Vector2 position1 = entity1->position + entity1->bounds.offset + pivot_add1;//; + pivot_add1;
+    // Vector2 pivot_add2 = ((Vector2){(entity2->pivot.x - 0.5f) * entity2->bounds.size.x, (entity2->pivot.y - 0.5f) * entity2->bounds.size.y});
+    // Vector2 position2 = entity2->position + entity1->bounds.offset + pivot_add2;
     // Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
     
-    return check_rectangles_collision(position1 + entity1->bounds.offset, entity1->bounds.size, position2 + entity2->bounds.offset, entity2->bounds.size);
+    Vector2 pivot_add1 = multiply(entity1->pivot, entity1->bounds.size);
+    Vector2 position1 = entity1->position + entity1->bounds.offset;
+    //firstly for left up
+    Vector2 with_pivot_pos1 = {position1.x - pivot_add1.x, position1.y + pivot_add1.y};
+    Vector2 final1 = {with_pivot_pos1.x + entity1->bounds.size.x * 0.5f, with_pivot_pos1.y - entity1->bounds.size.y * 0.5f};
+    
+    Vector2 pivot_add2 = multiply(entity2->pivot, entity2->bounds.size);
+    Vector2 position2 = entity2->position + entity2->bounds.offset;
+    //firstly for left up
+    Vector2 with_pivot_pos2 = {position2.x - pivot_add2.x, position2.y + pivot_add2.y};
+    Vector2 final2 = {with_pivot_pos2.x + entity2->bounds.size.x * 0.5f, with_pivot_pos2.y - entity2->bounds.size.y * 0.5f};
+    
+    // static f32 last_spawn_time = -9999;
+    // if (str_contains(entity2->name, "propeller")){
+    //     //make_ui_image(world_to_screen(final2), {20, 20}, {0.5f, 0.5f}, RED, "tesssst");
+    //     if (core.time.app_time - last_spawn_time > 0.4f){
+    //         Entity *e3 = spawn_object_by_name("enemy_base", final2);
+    //         change_color(e3, BLUE);
+            
+    //         last_spawn_time = core.time.app_time;
+    //     }
+    // }
+    
+    return check_rectangles_collision(final1, entity1->bounds.size, final2, entity2->bounds.size);
 }
 
 inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *entity2){
-    Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
+    // Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
+    Vector2 pivot_add2 = multiply(entity2->pivot, entity2->bounds.size);
+    Vector2 position2 = entity2->position + entity2->bounds.offset;
+    //firstly for left up
+    Vector2 with_pivot_pos2 = {position2.x - pivot_add2.x, position2.y + pivot_add2.y};
+    Vector2 final2 = {with_pivot_pos2.x + entity2->bounds.size.x * 0.5f, with_pivot_pos2.y - entity2->bounds.size.y * 0.5f};
     
-    return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, position2 + entity2->bounds.offset, entity2->bounds.size);
+    return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, final2, entity2->bounds.size);
 }
 
 Collision check_entities_collision(Entity *entity1, Entity *entity2){
     Collision result = {};
     result.other_entity = entity2;
     
-    if (!check_bounds_collision(entity1, entity2)){
+    if (/*entity1->pivot.x == 0.5f && entity1->pivot.y == 0.5f && entity2->pivot.x == 0.5f && entity2->pivot.y == 0.5f &&*/ !check_bounds_collision(entity1, entity2)){
         if (str_contains(entity2->name, "propeller2")){
             print(entity2->bounds.offset);
         }
@@ -2449,8 +2495,8 @@ void update_editor_ui(){
             
             if (editor.draw_trigger_settings){
                 make_ui_text("Activate on player: ", {inspector_position.x + 5, v_pos}, "text_player_touch");
-                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.activate_on_player_touch, "toggle_player_touch")){
-                    selected->trigger.activate_on_player_touch = !selected->trigger.activate_on_player_touch;
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.player_touch, "toggle_player_touch")){
+                    selected->trigger.player_touch = !selected->trigger.player_touch;
                 }
                 v_pos += height_add;
                 
@@ -2467,8 +2513,8 @@ void update_editor_ui(){
                 v_pos += height_add;
                 
                 make_ui_text("Track enemies: ", {inspector_position.x + 5, v_pos}, "trigger_track_enemies");
-                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.activate_when_no_enemies, "toggle_track_enemies")){
-                    selected->trigger.activate_when_no_enemies = !selected->trigger.activate_when_no_enemies;                 
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.track_enemies, "toggle_track_enemies")){
+                    selected->trigger.track_enemies = !selected->trigger.track_enemies;                 
                 }
                 v_pos += height_add;
                 
@@ -2479,8 +2525,8 @@ void update_editor_ui(){
                 v_pos += height_add;
                 
                 make_ui_text("Shows entities: ", {inspector_position.x + 5, v_pos}, "trigger_shows_entities");
-                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.shows_entity, "toggle_trigger_show_entity")){
-                    selected->trigger.shows_entity = !selected->trigger.shows_entity;                 
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.shows_entities, "toggle_trigger_show_entity")){
+                    selected->trigger.shows_entities = !selected->trigger.shows_entities;                 
                 }
                 v_pos += height_add;
                 
@@ -3529,6 +3575,8 @@ void add_player_ammo(i32 amount){
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
     fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK);
     
+    b32 found_ground = false;
+    
     Player *player = &player_data;
     
     for (int i = 0; i < player->collisions.count; i++){
@@ -3556,7 +3604,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             
             f32 max_speed_boost = 6 * player->sword_spin_direction * other->enemy.sword_kill_speed_modifier;
             if (!player->grounded){
-                max_speed_boost *= -1;
+                //max_speed_boost *= -1;
             }
             f32 max_vertical_speed_boost = player->grounded ? 0 : 20;
             if (player_data.velocity.y > 0){
@@ -3577,6 +3625,16 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         if (other->flags & WIN_BLOCK && !player->in_stun){
             win_level();
         }
+        
+        if (other->flags & GROUND){
+            found_ground = true;
+        }
+    }
+    
+    if (found_ground){
+        enable_emitter(sword_tip_ground_emitter);
+    } else{
+        sword_tip_ground_emitter->enabled = false;
     }
 }
 
@@ -3794,6 +3852,7 @@ void update_player(Entity *entity, f32 dt){
     sword->color_changer.progress = is_sword_filled ? 1 : 0;//player_data.blood_progress * player_data.blood_progress;//player_data.sword_spin_progress * player_data.sword_spin_progress;
     
     sword_tip_emitter->position = sword_tip;
+    sword_tip_ground_emitter->position = sword_tip;
     chainsaw_emitter->position = input.mouse_position;
     
     //if (!player_data.rifle_active){ 
@@ -3905,7 +3964,7 @@ void update_player(Entity *entity, f32 dt){
         
             f32 airborn_reduce_spin_acceleration_time = 0.5f;
             f32 t = clamp01(spin_t - clamp01(airborn_reduce_spin_acceleration_time - player_data.since_airborn_timer));
-            player_data.velocity.x += lerp(0.0f, spin_acceleration, t * t) * dt * -player_data.sword_spin_direction;
+            player_data.velocity.x += lerp(0.0f, spin_acceleration, t * t) * dt * player_data.sword_spin_direction;
         }
         
     }
@@ -4398,7 +4457,9 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             
             if (enemy_entity->flags & BIRD_ENEMY){
                 enable_emitter(enemy_entity->bird_enemy.fire_emitter);
-            } 
+            } else{
+                enemy_entity->destroyed = true;
+            }
         } else{
             enemy->stun_start_time = core.time.game_time;
         }
@@ -4612,7 +4673,7 @@ void update_editor_entity(Entity *e){
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected){
-    connected->hidden = !trigger_entity->trigger.shows_entity;
+    connected->hidden = !trigger_entity->trigger.shows_entities;
 
     if (connected->flags & ENEMY && debug.enemy_ai && trigger_entity->trigger.agro_enemies){
         connected->enemy.in_agro = true;
@@ -4641,7 +4702,7 @@ void update_trigger(Entity *e){
         e->enemy.dead_man = false;
     }
     
-    if (e->trigger.activate_when_no_enemies){
+    if (e->trigger.track_enemies){
         b32 found_enemy = false;
         for (int i = 0; i < e->trigger.tracking.count; i++){
             i32 id = e->trigger.tracking.get(i);
@@ -4670,9 +4731,10 @@ void update_trigger(Entity *e){
         }
     }
     
-    if (trigger_now || e->trigger.activate_on_player_touch && check_entities_collision(e, player_entity).collided){
+    if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided){
         if (e->trigger.load_level){
             enter_game_state_on_new_level = true;
+            last_player_data = player_data;
             load_level_by_name(e->trigger.level_name);
         }
         

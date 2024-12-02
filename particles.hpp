@@ -187,6 +187,7 @@ void update_particles(){
 
 global_variable Particle_Emitter *chainsaw_emitter;
 global_variable Particle_Emitter *sword_tip_emitter;
+global_variable Particle_Emitter *sword_tip_ground_emitter;
 global_variable Particle_Emitter *blood_emitter;
 global_variable Particle_Emitter big_blood_emitter;
 global_variable Particle_Emitter rifle_bullet_emitter;
@@ -240,6 +241,23 @@ void setup_particles(){
     sword_tip_emitter->gravity_multiplier = 0.1f;
     sword_tip_emitter->color             = Fade(RED, 0.5f);
     sword_tip_emitter->enabled           = true;
+    
+    free_emitter(sword_tip_emitter);
+    sword_tip_ground_emitter = add_emitter();
+    sword_tip_ground_emitter->spawn_radius = 0.3f;
+    sword_tip_ground_emitter->over_distance     = 1;
+    sword_tip_ground_emitter->direction_to_move = true;
+    sword_tip_ground_emitter->over_time         = 0;
+    sword_tip_ground_emitter->speed_min         = 20;
+    sword_tip_ground_emitter->speed_max         = 40;
+    sword_tip_ground_emitter->scale_min         = 0.1f;
+    sword_tip_ground_emitter->scale_max         = 0.6f;
+    sword_tip_ground_emitter->lifetime_min      = 0.2f;
+    sword_tip_ground_emitter->lifetime_max      = 0.8f;
+    sword_tip_ground_emitter->spread            = 0.1f;
+    sword_tip_ground_emitter->gravity_multiplier = 0.5f;
+    sword_tip_ground_emitter->color             = Fade(ColorBrightness(YELLOW, 0.3f), 0.8f);
+    sword_tip_ground_emitter->enabled           = false;
 
     free_emitter(blood_emitter);
     blood_emitter = add_emitter();

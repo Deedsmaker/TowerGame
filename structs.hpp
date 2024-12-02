@@ -155,13 +155,13 @@ struct Door{
 struct Trigger{
     Dynamic_Array<int> connected;
     Dynamic_Array<int> tracking;
-    b32 activate_on_player_touch = true;
+    b32 player_touch = true;
     b32 kill_player = false;
     b32 open_doors = true;
-    b32 activate_when_no_enemies = false;
+    b32 track_enemies = false;
     b32 agro_enemies = true;
     
-    b32 shows_entity = true;
+    b32 shows_entities = true;
     b32 starts_moving_sequence = true;
     
     b32 play_sound = false;

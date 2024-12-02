@@ -117,3 +117,9 @@ b32 make_ui_toggle(Vector2 position, b32 current_value, const char *tag){
     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
     return make_button(position, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
 }
+
+b32 make_ui_toggle(Vector2 position, Entity* e, b32 (get_value)(Entity*), const char *tag){
+    b32 current_value = get_value(e);
+    //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
+    return make_button(position, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
+}

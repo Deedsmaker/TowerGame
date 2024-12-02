@@ -1,5 +1,12 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
+[X] Fix propeller collisions (collisions with any pivot but {0.5, 0.5f}) (TOGO MAMЫ MAMU)
+[ ] Try increase base spin acceleration
+[ ] Improve horde ai for birds
+[ ] Zoom change for trigger
+[ ] Try to reduce friction on adding new ui stuff (saving/loading)
+
+---------------------------------------------------------------------------------
 [X] Platforms that can be passed when moving up <done: 29.11.24 - 15:08> (And funny rendering)
 [X]! Move sequence capabilities for entities
 [X]! Trigger for level loading <done: 29.11.24> (Setting for trigger)
