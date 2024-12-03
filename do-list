@@ -1,14 +1,21 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
-[ ] Change sword acceleartion in air and test it
-[ ] Try to improve vertical movement by making throwable sword. 
+[X] Change sword acceleartion in air and test it
+[\] Try to improve vertical movement by making throwable sword. 
 [ ] Temporal boosters for sword size and infinite ammo
 [ ] Killable objects for buffs
+[X]! Wall climbing
+[X]! Bird rework
+[ ] Bomber enemy
+[ ] Centipede
+[ ] Enemy that doesn't allow to shoot
+[ ] Bullet for every x enemy
+[X]! Scaling fix (Suka ne doljno)
 
 -----------------------------------------------------------------------
 [X] Fix propeller collisions (collisions with any pivot but {0.5, 0.5f}) (TOGO MAMЫ MAMU)
 [X] Try increase base spin acceleration
-[ ] Improve horde ai for birds
+[X]! Improve horde ai for birds
 [ ] Zoom change for trigger
 [X] Try to reduce friction on adding new ui stuff (saving/loading) - (didn't work out, destroyed day of work)
 
@@ -47,13 +54,13 @@
 [X] better vertex snapping dragging <done: 27.11.24 - 11:33>
 
 [X] Enemy param for speed multiplier on sword kill <done: 27.11.24 - 17:17>
-[ ] Ice block (?)
+[\] Ice block (?)
 [X] Spikes <done: 29.11.24 - 00:50>
 [X] Surface that stops you if spining (Для этого вполне можно использовать пропеллер если его просто по вертикали сделать маленьким. Это будет проще и мне и при создании левелов на самом деле ПЛЮС можно сделать приколов типа длинный такой пропеллер-поверхность который сильно дует, а сверху шипы и нужно думать головой)
 [X] Block that if damaged open doors. (Trigger block) <done: 28.11.24> (enemy_trigger)
 [X] Doors with ability to assign enemies <done: 28.11.24> (Полностью новая система триггеров которая умеет всё - и дверь это тоже триггер, который можно активировать как хош)
 [X] Directional modifier for enemies for killing only in specific angle
 [X] Two win blocks - for shooting and melee (Из за неуязвимости на двух блокерах теперь можно считать что есть разные, просто потом отдельно надо будет добавить функционал для движения сущностей по заданным точкам)
-[ ] Slowmo (zombie)
+[\] Slowmo (zombie)
 [X] Blocker immortality for sword <done: 27.11.24 - 18:44>
 

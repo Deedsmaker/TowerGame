@@ -223,7 +223,20 @@ struct Win_Block{
     Vector2 kill_direction = Vector2_up;
 };
 
+//highest - 80. sides - 200
+#define MAX_BIRD_POSITIONS 12
+Vector2 bird_formation_positions[MAX_BIRD_POSITIONS] = {
+        {0, 80}, {-30, 50}, {30, 50}, {0, 40}, {-100, 30}, {100, 30}, {-80, 50}, {80, 50}, {-150, 20}, {150, 20}, {-200, 5}, {200, 5}
+};
+
+struct Bird_Slot{
+    b32 occupied = false;  
+    i32 index = -1;    
+};
+
 struct Bird_Enemy{
+    i32 slot_index = -1;
+
     //Attacking state
     b32 attacking = false;
     f32 attack_start_time = 0;
@@ -305,7 +318,7 @@ struct Player{
     
     b32 dead_man = false;
     
-    f32 max_ground_angle = 45;
+    f32 max_ground_angle = 60;
     
     f32 base_move_speed = 30.0f;  
     f32 ground_acceleration = 30;
@@ -331,6 +344,8 @@ struct Player{
     
     //int ground_checker_index_offset = -1;
     int ground_checker_id = -1;
+    int left_wall_checker_id = -1;
+    int right_wall_checker_id = -1;
     
     Vector2 velocity = {0, 0};
     
@@ -343,6 +358,8 @@ struct Player{
     f32 sword_spin_direction = 0;
     f32 sword_angular_velocity = 0;  
     f32 sword_spin_progress = 0;
+    
+    b32 sword_hit_ground = false;
     
     //int sword_entity_index_offset = -1;
     
@@ -522,6 +539,8 @@ struct Context{
     Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(20000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
+    
+    Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
     b32 we_got_a_winner = false;
     Vector2 unit_screen_size;
