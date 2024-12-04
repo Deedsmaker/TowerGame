@@ -550,6 +550,15 @@ struct Context{
     Cam cam = {};
 };
 
+struct Render{
+    Shader base_light_shader;  
+    Shader ray_tracer_shader;  
+    Shader light_sampler_shader;  
+    
+    RenderTexture ray_collision_render_texture;
+    RenderTexture rays_render_texture;
+};
+
 struct Input{
     Vector2 direction;
     Vector2 tap_direction;

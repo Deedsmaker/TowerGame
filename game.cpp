@@ -12,6 +12,7 @@
 global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
+global_variable Render render = {};
 global_variable Context saved_level_context = {};
 global_variable Console console = {};
 global_variable Editor editor  = {};
@@ -1437,7 +1438,16 @@ void init_game(){
     game_state = EDITOR;
 
     context = {};    
-    str_copy(context.current_level_name, "basic_tut1");
+    render = {};
+    render.base_light_shader    = LoadShader(0, "../base_light.fs");
+    render.ray_tracer_shader    = LoadShader(0, "../ray_tracer.fs");
+    render.light_sampler_shader = LoadShader(0, "../light_sampler.fs");
+    
+    render.ray_collision_render_texture = LoadRenderTexture(screen_width, screen_height);
+    render.rays_render_texture          = LoadRenderTexture(1000, 1000);
+    
+    
+    str_copy(context.current_level_name, "test_level");
 
     input = {};
     init_console();
@@ -1828,7 +1838,9 @@ void update_game(){
         // UnloadRenderTexture(context.up_render_target);
         // UnloadRenderTexture(context.down_render_target);
         // UnloadRenderTexture(context.up_render_target);
+        // UnloadRenderTexture(render.ray_collision_render_texture);
         
+        // render.ray_collision_render_texture = LoadRenderTexture(screen_width, screen_height);
         // context.up_render_target = LoadRenderTexture(context.up_screen_size.x, context.up_screen_size.y);
         // context.down_render_target = LoadRenderTexture(context.down_screen_size.x, context.down_screen_size.y);
         // context.right_render_target = LoadRenderTexture(context.right_screen_size.x, context.right_screen_size.y);
@@ -2905,6 +2917,10 @@ void update_editor(){
     if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
         if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
             context.cam.cam2D.zoom += input.mouse_wheel * 0.05f;
+            
+            // UnloadRenderTexture(render.ray_collision_render_texture);
+        
+            // render.ray_collision_render_texture = LoadRenderTexture(screen_width / context.cam.cam2D.zoom, screen_height / context.cam.cam2D.zoom);
         }
     }
     
@@ -3625,7 +3641,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         if (other->flags & ENEMY && player->sword_spin_progress > 0.12f && !other->enemy.dead_man && !player->in_stun && is_enemy_can_take_damage(other)){
             f32 hitstop_add = 0;
             if (other->flags & BIRD_ENEMY){
-                other->bird_enemy.velocity = sword_tip_emitter->direction * player->sword_spin_progress * 100;
+                other->bird_enemy.velocity = sword_tip_emitter->direction * sqrtf(player->sword_spin_progress) * 100;
                 stun_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, true);
                 hitstop_add += 0.1f;
             } else{
@@ -3724,10 +3740,12 @@ void update_player(Entity *entity, f32 dt){
     
     b32 can_sword_spin = !player_data.rifle_active;
     
+    f32 sword_max_spin_speed = 5000;
     if (can_sword_spin){
-        f32 sword_spin_sense = 2;
+        f32 sword_spin_sense = 10; //2 default
         if (can_sword_spin && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
             player_data.sword_angular_velocity += input.mouse_delta.x * sword_spin_sense;
+            clamp(&player_data.sword_angular_velocity, -sword_max_spin_speed, sword_max_spin_speed);
         } else{
             //chainsaw_emitter->last_emitted_position = input.mouse_position;
         }
@@ -3737,7 +3755,6 @@ void update_player(Entity *entity, f32 dt){
     b32 is_sword_filled = player_data.blood_progress >= blood_progress_for_strong;
     b32 is_rifle_charged = player_data.rifle_active && is_sword_filled;
     
-    f32 sword_max_spin_speed = 5000;
     player_data.sword_spin_progress = clamp01(abs(player_data.sword_angular_velocity) / sword_max_spin_speed);
     
     b32 rifle_failed_hard = false;
@@ -5521,23 +5538,83 @@ void draw_game(){
     
     ClearBackground(GRAY);
     
-    draw_entities();
-    draw_particles();
-    
-    if (player_entity && debug.draw_player_collisions){
-        for (int i = 0; i < player_data.collisions.count; i++){
-            Collision col = player_data.collisions.get(i);
+    BeginTextureMode(render.ray_collision_render_texture);{
+    ClearBackground(GRAY);
+    BeginMode2D(context.cam.cam2D);
+        ForTable(context.entities, i){
+            Entity *e = context.entities.get_ptr(i);
             
-            draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
-            draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
+            if (e->flags & GROUND){
+                draw_game_triangle_strip(e);
+            }
         }
-    }
-    
-    if (game_state == EDITOR || game_state == PAUSE){
-        draw_editor();
-    }
-    
     EndMode2D();
+    } EndTextureMode();
+    
+    
+    static int world_map_loc    = get_shader_location(render.ray_tracer_shader, "in_WorldMap");
+    static int ray_light_loc    = get_shader_location(render.ray_tracer_shader, "in_Light");
+    static int world_size_loc   = get_shader_location(render.ray_tracer_shader, "in_World");
+    static int ray_tex_size_loc = get_shader_location(render.ray_tracer_shader, "in_RayTexSize");
+    
+    set_shader_value_tex(render.ray_tracer_shader, world_map_loc   , render.ray_collision_render_texture.texture);
+    set_shader_value_vec3(render.ray_tracer_shader, ray_light_loc   , {100.0f, 100.0f, 50.0f});
+    set_shader_value(render.ray_tracer_shader, world_size_loc  , {(f32)screen_width, (f32)screen_height});
+    set_shader_value(render.ray_tracer_shader, ray_tex_size_loc, 1000000.0f);
+    
+    BeginShaderMode(render.ray_tracer_shader);{
+    BeginTextureMode(render.rays_render_texture);{
+    ClearBackground(GRAY);
+    BeginMode2D(context.cam.cam2D);
+        draw_render_texture(render.ray_collision_render_texture.texture, {1, 1}, WHITE);
+    EndMode2D();
+    } EndTextureMode();
+    } EndShaderMode();
+    
+    
+    //draw_render_texture(render.rays_render_texture.texture, {1, 1}, WHITE);
+
+    static int world_map_loc2     = get_shader_location(render.light_sampler_shader, "in_WorldMap");
+    static int ray_map_loc        = get_shader_location(render.light_sampler_shader, "in_RayMap");
+    static int light_loc          = get_shader_location(render.light_sampler_shader, "in_Light");
+    static int color_s_loc        = get_shader_location(render.light_sampler_shader, "in_ColorS");
+    static int color_d_loc        = get_shader_location(render.light_sampler_shader, "in_ColorD");
+    static int world_tex_size_loc = get_shader_location(render.light_sampler_shader, "in_WorldTexSize");
+    static int light_center_loc   = get_shader_location(render.light_sampler_shader, "in_LightCenter");
+    static int ray_tex_size_loc2  = get_shader_location(render.light_sampler_shader, "in_RayTexSize");
+    static int light_tex_size_loc = get_shader_location(render.light_sampler_shader, "in_LightTexSize");
+    
+    set_shader_value_tex(render.light_sampler_shader, world_map_loc2    , render.ray_collision_render_texture.texture);
+    set_shader_value_tex(render.light_sampler_shader, ray_map_loc       , render.rays_render_texture.texture);
+    set_shader_value_vec3(render.light_sampler_shader, light_loc         , {100.0f, 100.0f, 50.0f});
+    set_shader_value_vec3(render.light_sampler_shader, color_s_loc       , {1.0f, 0.5f, 0.5f});
+    set_shader_value_vec3(render.light_sampler_shader, color_d_loc       , {1.0f, 0.1f, 0.1f});
+    set_shader_value(render.light_sampler_shader, world_tex_size_loc, {(f32)screen_width, (f32)screen_height});
+    set_shader_value(render.light_sampler_shader, light_center_loc  , {100.0f, 100.0f});
+    set_shader_value(render.light_sampler_shader, ray_tex_size_loc2 , 1000000.0f);
+    set_shader_value(render.light_sampler_shader, light_tex_size_loc, 65536.0f);
+    
+    BeginShaderMode(render.light_sampler_shader);{
+        BeginMode2D(context.cam.cam2D);
+        
+        draw_entities();
+        draw_particles();
+        
+        if (player_entity && debug.draw_player_collisions){
+            for (int i = 0; i < player_data.collisions.count; i++){
+                Collision col = player_data.collisions.get(i);
+                
+                draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
+                draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
+            }
+        }
+        
+        if (game_state == EDITOR || game_state == PAUSE){
+            draw_editor();
+        }
+        
+        EndMode2D();
+    } EndShaderMode();
     
     draw_ui("");
     

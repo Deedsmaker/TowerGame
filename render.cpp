@@ -18,6 +18,16 @@ void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float 
     DrawTexturePro(tex, source, dest, origin, rotation, tint);
 }
 
+void draw_render_texture(Texture tex, Vector2 scale, Color tint){
+    Vector2 target_size = {tex.width * scale.x, tex.height * scale.y};
+    
+    Vector2 origin = {target_size.x * 0.5f, target_size.y * 0.5f};
+    Rectangle source = {0.0f, 0.0f, (f32)tex.width, -(f32)tex.height};
+    Rectangle dest = {origin.x, origin.y, (f32)tex.width * scale.x, (f32)tex.height * scale.y};
+    
+    DrawTexturePro(tex, source, dest, origin, 0, tint);
+}
+
 void draw_rect(Vector2 pos, Vector2 size, Color color){
     DrawRectangleV(pos, size, color);
 }
@@ -119,7 +129,15 @@ void set_shader_value(Shader shader, int loc, float value){
     SetShaderValue(shader, loc, &value, SHADER_UNIFORM_FLOAT);
 }
 
-void set_shader_texture(Shader shader, int loc, Texture tex){
+void set_shader_value(Shader shader, int loc, Vector2 value){
+    SetShaderValue(shader, loc, &value, SHADER_UNIFORM_VEC2);
+}
+
+void set_shader_value_vec3(Shader shader, int loc, Vector3 value){
+    SetShaderValue(shader, loc, &value, SHADER_UNIFORM_VEC3);
+}
+
+void set_shader_value_tex(Shader shader, int loc, Texture tex){
     SetShaderValueTexture(shader, loc, tex);
 }
     
