@@ -171,7 +171,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
     
     rotate_to(this, _rotation);
     
-    change_scale(this, scale);
+    change_scale(this, _scale);
     setup_color_changer(this);
 }
 
@@ -389,6 +389,11 @@ int save_level(const char *level_name){
                 fprintf(fptr, "trigger_level_name:%s: ", e->trigger.level_name);
             }
             
+            fprintf(fptr, "trigger_change_zoom:%d: ", e->trigger.change_zoom);
+            if (e->trigger.change_zoom){
+                fprintf(fptr, "trigger_zoom_value:%f: ", e->trigger.zoom_value);
+            }
+            
             fprintf(fptr, "trigger_play_sound:%d: ", e->trigger.play_sound);
             if (e->trigger.play_sound){
                 fprintf(fptr, "trigger_sound_name:%s: ", e->trigger.sound_name);
@@ -407,6 +412,7 @@ int save_level(const char *level_name){
             fprintf(fptr, "move_sequence_moving:%d: ", e->move_sequence.moving);
             fprintf(fptr, "move_sequence_speed:%f: ", e->move_sequence.speed);
             fprintf(fptr, "move_sequence_loop:%d: ", e->move_sequence.loop);
+            fprintf(fptr, "move_sequence_rotate:%d: ", e->move_sequence.rotate);
         }
         
         if (e->flags & DOOR){
@@ -420,6 +426,10 @@ int save_level(const char *level_name){
         
         if (e->flags & ENEMY && e->enemy.sword_kill_speed_modifier != 1){
             fprintf(fptr, "sword_kill_speed_modifier:%.1f: ", e->enemy.sword_kill_speed_modifier);
+        }
+        
+        if (e->flags & ENEMY){
+            fprintf(fptr, "gives_full_ammo:%d: ", e->enemy.gives_full_ammo);
         }
         
         if (e->flags & PROPELLER){
@@ -699,6 +709,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_immortal")){
                 fill_b32_from_string(&entity_to_fill.enemy.shoot_blocker_immortal, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "gives_full_ammo")){
+                fill_b32_from_string(&entity_to_fill.enemy.gives_full_ammo, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
                 fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
                 i++;
@@ -726,6 +739,12 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "trigger_play_sound")){
                 fill_b32_from_string(&entity_to_fill.trigger.play_sound, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_change_zoom")){
+                fill_b32_from_string(&entity_to_fill.trigger.change_zoom, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_zoom_value")){
+                fill_float_from_string(&entity_to_fill.trigger.zoom_value, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_sound_name")){
                 str_copy(entity_to_fill.trigger.sound_name, splitted_line.get(i+1).data);  
                 i++;
@@ -740,6 +759,9 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "move_sequence_loop")){
                 fill_b32_from_string(&entity_to_fill.move_sequence.loop, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_rotate")){
+                fill_b32_from_string(&entity_to_fill.move_sequence.rotate, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "hidden")){
                 fill_b32_from_string(&entity_to_fill.hidden, splitted_line.get(i+1).data);
@@ -801,6 +823,7 @@ int load_level(const char *level_name){
     
     editor.last_autosave_time = core.time.app_time;
     context.cam.position = editor.player_spawn_point;
+    context.cam.target = editor.player_spawn_point;
     return 1;
 }
 
@@ -840,6 +863,8 @@ void init_bird_entity(Entity *entity){
     assert(entity->flags > 0);
     entity->collision_flags = BIRD_ENEMY_COLLISION_FLAGS;//GROUND | PLAYER | BIRD_ENEMY;
     change_color(entity, entity->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
+    
+    entity->enemy.gives_full_ammo = true;
     
     entity->emitters.clear();
     entity->bird_enemy.trail_emitter  = entity->emitters.add(entity->flags & EXPLOSIVE ? little_fire_emitter : air_dust_emitter);
@@ -1510,6 +1535,7 @@ void enter_game_state(){
     }
     
     context.cam.cam2D.zoom = 0.35f;
+    context.cam.target_zoom = 0.35f;
     
     String temp_level_name = init_string();
     temp_level_name += "TEMP_";
@@ -2206,15 +2232,16 @@ void move_vertex(Entity *entity, Vector2 target_position, int vertex_index){
     
     Vector2 local_target = local(entity, target_position);
 
-    Vector2 displacement = local_target - *vertex;
+    // Vector2 displacement = local_target - *vertex;
 
-    Vector2 unscaled_displacement = {displacement.x / (entity->scale.x ), displacement.y / (entity->scale.y )};
+    // Vector2 unscaled_displacement = {displacement.x / (entity->scale.x ), displacement.y / (entity->scale.y )};
     
     *vertex = local_target;
     //Vector2 modified_unscaled = *unscaled_vertex + unscaled_displacement;
     //*unscaled_vertex = normalized(*vertex) * magnitude(modified_unscaled);
     //*unscaled_vertex = modified_unscaled;
     *unscaled_vertex = {vertex->x / entity->scale.x, vertex->y / entity->scale.y};
+    // *unscaled_vertex = *vertex / magnitude(entity->scale);
     
     calculate_bounds(entity);
 }
@@ -2494,6 +2521,12 @@ void update_editor_ui(){
                     selected->move_sequence.loop = !selected->move_sequence.loop;
                 }
                 v_pos += height_add;
+                
+                make_ui_text("Rotate: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_rotate");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->move_sequence.rotate, "toggle_entity_move_sequence_rotate")){
+                    selected->move_sequence.rotate = !selected->move_sequence.rotate;
+                }
+                v_pos += height_add;
             
                 make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
                 if (make_input_field(TextFormat("%.2f", selected->move_sequence.speed), {inspector_position.x + 100, v_pos}, 100, "move_sequence_speed")){
@@ -2565,6 +2598,19 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
+                make_ui_text("Change zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zoom_text");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.change_zoom, "toggle_change_zoom")){
+                    selected->trigger.change_zoom = !selected->trigger.change_zoom;                 
+                }
+                v_pos += height_add;
+                if (selected->trigger.change_zoom){
+                    make_ui_text("Zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zooom_text");
+                    if (make_input_field(TextFormat("%.2f", selected->trigger.zoom_value), {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_zoom_name") ){
+                        selected->trigger.zoom_value = atof(focus_input_field.content);
+                    }
+                    v_pos += height_add;
+                }
+                
                 make_ui_text("Play sound: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound");
                 if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.play_sound, "toggle_play_sound")){
                     selected->trigger.play_sound = !selected->trigger.play_sound;                 
@@ -2617,6 +2663,12 @@ void update_editor_ui(){
             v_pos += height_add;
             
             if (editor.draw_enemy_settings){
+                make_ui_text("Gives full ammo: ", {inspector_position.x + 5, v_pos}, "gives_full_ammo");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->enemy.gives_full_ammo, "gives_full_ammo")){
+                    selected->enemy.gives_full_ammo = !selected->enemy.gives_full_ammo;
+                }
+                v_pos += height_add;
+                
                 make_ui_text("Explosive: ", {inspector_position.x + 5, v_pos}, "text_enemy_explosive");
                 if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->flags & EXPLOSIVE, "toggle_enemy_explosive")){
                     selected->flags ^= EXPLOSIVE;
@@ -3383,8 +3435,9 @@ void update_editor(){
 
 void change_color(Entity *entity, Color new_color){
     entity->color = new_color;
-    entity->color_changer.start_color  = new_color;
-    entity->color_changer.target_color = new_color * 1.5f;
+    // entity->color_changer.start_color  = new_color;
+    // entity->color_changer.target_color = new_color * 1.5f;
+    setup_color_changer(entity);
 }
 
 void calculate_bounds(Entity *entity){
@@ -3608,8 +3661,18 @@ void set_sword_velocity(f32 value){
     player_data.sword_spin_progress = clamp01(abs(player_data.sword_angular_velocity) / sword_max_spin_speed);
 }
 
-void add_player_ammo(i32 amount){
-    player_data.ammo_count += amount;
+void add_player_ammo(i32 amount, b32 full_ammo){
+    player_data.ammo_charges++;
+
+    if (full_ammo){
+        player_data.ammo_count += amount;
+    } else if (player_data.ammo_charges >= player_data.ammo_charges_for_count){
+        while (player_data.ammo_charges >= player_data.ammo_charges_for_count){
+            player_data.ammo_count += 1;
+            player_data.ammo_charges -= player_data.ammo_charges_for_count;
+        }
+        
+    }
     
     player_data.ammo_count = clamp(player_data.ammo_count, 0, 5000);
 }
@@ -3666,7 +3729,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             shake_camera(0.1f);
             play_sound(player_data.sword_kill_sound, col.point);
             
-            add_player_ammo(1);
+            add_player_ammo(1, other->enemy.gives_full_ammo);
         }
         
         if (other->flags & WIN_BLOCK && !player->in_stun){
@@ -3766,7 +3829,7 @@ void update_player(Entity *entity, f32 dt){
     b32 can_shoot_rifle = player_data.rifle_active && (player_data.ammo_count > 0 || debug.infinite_ammo);
     if (can_shoot_rifle && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         add_rifle_projectile(sword_tip, sword->up * player_data.rifle_strong_speed, STRONG);
-        add_player_ammo(-1);
+        add_player_ammo(-1, true);
         
         //push_player_up(60);
         push_or_set_player_up(20);
@@ -4270,7 +4333,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
     Bird_Enemy *bird = &entity->bird_enemy;
     Enemy *enemy = &entity->enemy;
     
-    if (!entity->enemy.in_agro){
+    if (!entity->enemy.in_agro && !enemy->dead_man){
         return;
     } else if (entity->enemy.just_awake){
         entity->enemy.just_awake = false;
@@ -4444,6 +4507,9 @@ inline f32 get_explosion_power_multiplier(Entity *entity){
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
     
+    f32 hitmark_scale = 1;
+    Color hitmark_color = WHITE;
+    
     if (!enemy_entity->enemy.dead_man){
         enemy_entity->enemy.stun_start_time = core.time.game_time;
         emit_particles(*blood_emitter, kill_position, kill_direction, 1, particles_speed_modifier);
@@ -4453,7 +4519,14 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             enemy_entity->enabled = false;
             enemy_entity->destroyed = true;
         }
+        
+        if (enemy_entity->flags & MOVE_SEQUENCE){
+            enemy_entity->move_sequence.moving = false;
+        }
+        
         if (enemy_entity->flags & EXPLOSIVE){
+            hitmark_scale += 4;
+            hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
             f32 explosion_radius = fmax(40 * get_explosion_power_multiplier(enemy_entity), 40);
             emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, get_explosion_power_multiplier(enemy_entity));
             play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
@@ -4487,7 +4560,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             shake_camera(0.5f);
         }
         
-        add_hitmark(enemy_entity, false); 
+        add_hitmark(enemy_entity, false, hitmark_scale, hitmark_color); 
     }
 }
 
@@ -4510,6 +4583,11 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     }
     
     if (is_enemy_can_take_damage(enemy_entity)){
+        if (enemy_entity->flags & MOVE_SEQUENCE){
+            enemy_entity->move_sequence.moving = false;
+        }
+        enemy->in_agro = true;
+    
         enemy->stun_start_time = core.time.game_time;
         enemy->hits_taken++;
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
@@ -4549,11 +4627,12 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale){
     return {wish_scale.x / real_scale.x, wish_scale.y / real_scale.y};
 }
 
-void add_hitmark(Entity *entity, b32 need_to_follow){
-    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {6, 6}), {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
+void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color tint){
+    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {10 * scale_multiplier, 10 * scale_multiplier}), {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
     hitmark->need_to_save = false;
     //hitmark->color = WHITE;
     init_entity(hitmark);    
+    change_color(hitmark, tint);
     hitmark->draw_order = 1;
     str_copy(hitmark->name, "hitmark_small");
     //hitmark->texture = hitmark_small_texture;
@@ -4754,10 +4833,6 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
 void update_trigger(Entity *e){
     assert(e->flags & TRIGGER);
     
-    if (e->trigger.triggered){
-        return;
-    }
-    
     b32 trigger_now = false;
     
     if (e->flags & ENEMY && e->enemy.dead_man){
@@ -4801,10 +4876,14 @@ void update_trigger(Entity *e){
             load_level_by_name(e->trigger.level_name);
         }
         
-        if (e->trigger.play_sound){
+        if (e->trigger.play_sound && !e->trigger.triggered){
             //enter_game_state_on_new_level = true;
             //load_level_by_name(e->trigger.level_name);
             play_sound(e->trigger.sound_name);
+        }
+        
+        if (e->trigger.change_zoom){
+            context.cam.target_zoom = e->trigger.zoom_value;
         }
     
         if (e->flags & DOOR){
@@ -4849,27 +4928,62 @@ void update_door(Entity *entity){
 }
 
 void activate_door(Entity *entity, b32 is_open){
-    play_sound(entity->door.open_sound, entity->position);
-    entity->door.is_open = is_open;
-    entity->door.triggered_time = core.time.game_time;
+    if (entity->door.is_open != is_open){ 
+        play_sound(entity->door.open_sound, entity->position);
+        entity->door.is_open = is_open;
+        entity->door.triggered_time = core.time.game_time;
+    }
 }
 
 void update_move_sequence(Entity *entity){
     Move_Sequence *sequence = &entity->move_sequence;
     
-    if (!sequence->moving || sequence->points.count == 0 || (sequence->current_index >= sequence->points.count-1 && !sequence->loop)){
+    if (!sequence->moving || sequence->points.count == 0){
+        sequence->moved_last_frame = Vector2_zero;
+        return;
+    }
+    
+    if (!sequence->loop && sequence->current_index >= sequence->points.count-1 && sqr_magnitude(entity->position - sequence->points.get(sequence->current_index)) <= EPSILON){
         sequence->moved_last_frame = Vector2_zero;
         return;
     }
     
     Vector2 target = sequence->points.get((sequence->current_index + 1) % sequence->points.count);
     
+    if (sequence->current_index >= sequence->points.count-1 && !sequence->loop){
+        target = sequence->points.last();
+    }
+    
+    if (sequence->just_born){
+        sequence->velocity = normalized(target - entity->position) * sequence->speed;
+        sequence->wish_position = entity->position;
+            
+        sequence->just_born = false;
+    }
+    
     Vector2 previous_position = entity->position;
-    entity->position = move_towards(entity->position, target, sequence->speed, core.time.dt);
+    sequence->wish_position = move_towards(sequence->wish_position, target, sequence->speed, core.time.dt);
+    
+    if (!sequence->loop && sequence->current_index >= sequence->points.count - 2){
+        entity->position = move_towards(entity->position, sequence->wish_position, sequence->speed, core.time.dt);
+    } else{
+        Vector2 wish_vec = sequence->wish_position - entity->position;
+        f32 wish_len = magnitude(wish_vec);
+        if (wish_len > 0){
+            sequence->wish_velocity = (wish_vec / wish_len) * sequence->speed;
+            sequence->velocity = move_towards(sequence->velocity, sequence->wish_velocity, sequence->speed * 4, core.time.dt);
+            entity->position += sequence->velocity * core.time.dt;
+        }
+    }
+    
+    
+    if (sequence->rotate){
+        change_up(entity, normalized(sequence->velocity));
+    }
     
     sequence->moved_last_frame = entity->position - previous_position;
     
-    if (magnitude(target - entity->position) <= EPSILON){
+    if (magnitude(target - sequence->wish_position) <= EPSILON){
         sequence->current_index = sequence->current_index + 1;
         if (sequence->current_index >= sequence->points.count && sequence->loop){
             sequence->current_index = 0;
@@ -4917,6 +5031,7 @@ void update_entities(){
         
         if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data.ammo_count <= 0 && (!context.entities.has_key(e->spawned_enemy_id) || e->spawned_enemy_id == -1)){
             Entity *spawned = spawn_object_by_name("enemy_base", e->position);
+            spawned->enemy.gives_full_ammo = true;
             e->spawned_enemy_id = spawned->id;
         }
         
@@ -5235,6 +5350,7 @@ void draw_entities(){
                 
                 if (IsKeyDown(KEY_LEFT_ALT)){
                     draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
+                    draw_game_text(point - Vector2_up, TextFormat("%d", ii), 18 / context.cam.cam2D.zoom, RED);
                 }
                 if (ii < e->move_sequence.points.count - 1){
                     draw_game_line(point, e->move_sequence.points.get(ii+1), color);
@@ -5384,12 +5500,12 @@ void draw_editor(){
         
         draw_game_circle(editor.player_spawn_point, 3, BLUE);
         
-        b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT) || true;
+        b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT);
         if (draw_circles_on_vertices){
             for (int v = 0; v < e->vertices.count; v++){
                 draw_game_circle(global(e, e->vertices.get(v)), 1.0f * (0.4f / context.cam.cam2D.zoom), PINK);
                 //draw unscaled vertices
-                if (IsKeyDown(KEY_LEFT_SHIFT) || true){    
+                if (IsKeyDown(KEY_LEFT_SHIFT)){    
                     draw_game_circle(global(e, e->unscaled_vertices.get(v)), 1.0f * 0.4f, PURPLE);
                 }
             }

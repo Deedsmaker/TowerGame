@@ -133,9 +133,15 @@ struct Move_Sequence{
     Dynamic_Array<Vector2> points;  
     b32 moving = false;
     f32 speed = 10;
+    Vector2 velocity = Vector2_zero;
+    Vector2 wish_velocity = Vector2_zero;
+    Vector2 wish_position = Vector2_zero;
+    b32 just_born = true;
+    
+    b32 rotate = false;
     b32 loop = false;
     
-    i32 current_index = 0;
+    i32 current_index = -1;
     Vector2 moved_last_frame = Vector2_zero;
 };
 
@@ -163,6 +169,9 @@ struct Trigger{
     
     b32 shows_entities = true;
     b32 starts_moving_sequence = true;
+    
+    b32 change_zoom = false;
+    f32 zoom_value = 0.35f;
     
     b32 play_sound = false;
     char sound_name[128];
@@ -203,6 +212,8 @@ struct Enemy{
     b32 blocker_clockwise = false;
     b32 blocker_immortal = false;
     i32 blocker_sticky_id = -1;
+    
+    b32 gives_full_ammo = false;
     
     Vector2 original_scale = {1, 1};
     
@@ -381,6 +392,8 @@ struct Player{
     
     
     i32 ammo_count = 0;
+    i32 ammo_charges = 0;
+    i32 ammo_charges_for_count = 5;
     
     f32 strong_recoil_stun_start_time = 0;
     f32 weak_recoil_stun_start_time = 0;

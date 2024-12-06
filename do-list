@@ -1,5 +1,11 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
+<Level ideas>
+///////////////////////////////////////////////////
+[ ] Big bomb in the middle
+[ ] Tutorial for gravity increase - spikes above
+///////////////////////////////////////////////////
+
 <LONG TERM>
 ///////////////////////////////////////////////////
 [ ] Really strong lighting with shadows and reflections/refractions
@@ -8,6 +14,7 @@
 [ ] Dynamic decals
 ///////////////////////////////////////////////////
 
+[ ] Block on the rope that can be cutted
 [X] Change sword acceleartion in air and test it
 [\] Try to improve vertical movement by making throwable sword. 
 [ ] Temporal boosters for sword size and infinite ammo
@@ -17,14 +24,14 @@
 [ ] Bomber enemy
 [ ] Centipede
 [ ] Enemy that doesn't allow to shoot
-[ ] Bullet for every x enemy
-[X]! Scaling fix (Suka ne doljno)
+[X] Bullet for every x enemy
+[X]! Scaling fix (Suka ne doljno) (budet)
 
 -----------------------------------------------------------------------
 [X] Fix propeller collisions (collisions with any pivot but {0.5, 0.5f}) (TOGO MAMЫ MAMU)
 [X] Try increase base spin acceleration
 [X]! Improve horde ai for birds
-[ ] Zoom change for trigger
+[X] Zoom change for trigger
 [X] Try to reduce friction on adding new ui stuff (saving/loading) - (didn't work out, destroyed day of work)
 
 ---------------------------------------------------------------------------------
@@ -71,4 +78,3 @@
 [X] Two win blocks - for shooting and melee (Из за неуязвимости на двух блокерах теперь можно считать что есть разные, просто потом отдельно надо будет добавить функционал для движения сущностей по заданным точкам)
 [\] Slowmo (zombie)
 [X] Blocker immortality for sword <done: 27.11.24 - 18:44>
-

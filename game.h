@@ -72,7 +72,7 @@ inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index);
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
 
-void add_hitmark(Entity *entity, b32 need_to_follow);
+void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier = 1, Color tint = WHITE);
 
 Vector2 world_to_screen(Vector2 pos);
 void draw_game_circle(Vector2 position, f32 radius, Color color);
