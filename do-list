@@ -1,5 +1,13 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
+<LONG TERM>
+///////////////////////////////////////////////////
+[ ] Really strong lighting with shadows and reflections/refractions
+[ ] Particles rework
+[ ] Per-object motion blur
+[ ] Dynamic decals
+///////////////////////////////////////////////////
+
 [X] Change sword acceleartion in air and test it
 [\] Try to improve vertical movement by making throwable sword. 
 [ ] Temporal boosters for sword size and infinite ammo

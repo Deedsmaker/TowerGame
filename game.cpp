@@ -1439,14 +1439,6 @@ void init_game(){
 
     context = {};    
     render = {};
-    render.base_light_shader    = LoadShader(0, "../base_light.fs");
-    render.ray_tracer_shader    = LoadShader(0, "../ray_tracer.fs");
-    render.light_sampler_shader = LoadShader(0, "../light_sampler.fs");
-    
-    render.ray_collision_render_texture = LoadRenderTexture(screen_width, screen_height);
-    render.rays_render_texture          = LoadRenderTexture(1000, 1000);
-    
-    
     str_copy(context.current_level_name, "test_level");
 
     input = {};
@@ -2219,7 +2211,7 @@ void move_vertex(Entity *entity, Vector2 target_position, int vertex_index){
     Vector2 unscaled_displacement = {displacement.x / (entity->scale.x ), displacement.y / (entity->scale.y )};
     
     *vertex = local_target;
-    Vector2 modified_unscaled = *unscaled_vertex + unscaled_displacement;
+    //Vector2 modified_unscaled = *unscaled_vertex + unscaled_displacement;
     //*unscaled_vertex = normalized(*vertex) * magnitude(modified_unscaled);
     //*unscaled_vertex = modified_unscaled;
     *unscaled_vertex = {vertex->x / entity->scale.x, vertex->y / entity->scale.y};
@@ -3325,6 +3317,7 @@ void update_editor(){
                 *undo_entity->vertices.get_ptr(i)          -= action->vertices_change.get(i);
                 *undo_entity->unscaled_vertices.get_ptr(i) -= action->unscaled_vertices_change.get(i);
             }
+            rotate(undo_entity, 0);
             
             calculate_bounds(undo_entity);
         }
@@ -3358,6 +3351,7 @@ void update_editor(){
                 *undo_entity->vertices.get_ptr(i)          += action->vertices_change.get(i);
                 *undo_entity->unscaled_vertices.get_ptr(i) += action->unscaled_vertices_change.get(i);
             }
+            rotate(undo_entity, 0);
             
             calculate_bounds(undo_entity);
         }
@@ -3430,14 +3424,7 @@ void calculate_bounds(Entity *entity){
     entity->bounds = {{right_vertex - left_vertex, top_vertex - bottom_vertex}, middle_position};
 }
 
-void change_scale(Entity *entity, Vector2 new_scale){
-    Vector2 old_scale = entity->scale;
-    
-    entity->scale = new_scale;
-    
-    clamp(&entity->scale.x, 0.01f, 10000);
-    clamp(&entity->scale.y, 0.01f, 10000);
-
+void calculate_vertices(Entity *entity){
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
         Vector2 unscaled_vertex = entity->unscaled_vertices.get(i);
@@ -3449,7 +3436,17 @@ void change_scale(Entity *entity, Vector2 new_scale){
 
         *vertex = normalized(unscaled_vertex) + (entity->up * up_dot * entity->scale.y) + (entity->right * right_dot * entity->scale.x);
     }
+}
+
+void change_scale(Entity *entity, Vector2 new_scale){
+    Vector2 old_scale = entity->scale;
     
+    entity->scale = new_scale;
+    
+    clamp(&entity->scale.x, 0.01f, 10000);
+    clamp(&entity->scale.y, 0.01f, 10000);
+
+    calculate_vertices(entity);    
     calculate_bounds(entity);
 }
 
@@ -3494,13 +3491,17 @@ void rotate_to(Entity *entity, f32 new_rotation){
     entity->rotation = new_rotation;
     
     entity->up    = {sinf(new_rotation * DEG2RAD),  cosf(new_rotation * DEG2RAD)};
+    normalize(&entity->up);
     entity->right = {cosf(new_rotation * DEG2RAD), -sinf(new_rotation * DEG2RAD)};
+    normalize(&entity->right);
     
     for (int i = 0; i < entity->vertices.count; i++){
         Vector2 *vertex = entity->vertices.get_ptr(i);
         rotate_around_point(vertex, {0, 0}, entity->rotation - old_rotation);
         rotate_around_point(entity->unscaled_vertices.get_ptr(i), {0, 0}, entity->rotation - old_rotation);
     }
+    
+    // calculate_vertices(entity);
     
     calculate_bounds(entity);
 }
@@ -3880,8 +3881,10 @@ void update_player(Entity *entity, f32 dt){
             f32 spin_t = player_data.sword_spin_progress;
             f32 blood_t = player_data.blood_progress;
             
-            f32 max_spin_acceleration = 500;
-            f32 min_spin_acceleration = 200;
+            // f32 max_spin_acceleration = 500;
+            // f32 min_spin_acceleration = 200;
+            f32 max_spin_acceleration = 400;
+            f32 min_spin_acceleration = 400;
             f32 spin_acceleration = lerp(min_spin_acceleration, max_spin_acceleration, blood_t * blood_t);
             player_data.velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
         }
@@ -3919,8 +3922,10 @@ void update_player(Entity *entity, f32 dt){
             f32 spin_t = player_data.sword_spin_progress;
             f32 blood_t = player_data.blood_progress;
             
-            f32 max_spin_acceleration = 200;
-            f32 min_spin_acceleration = 50;
+            // f32 max_spin_acceleration = 200;
+            // f32 min_spin_acceleration = 50;
+            f32 max_spin_acceleration = 150;
+            f32 min_spin_acceleration = 150;
             f32 spin_acceleration = lerp(min_spin_acceleration, max_spin_acceleration, blood_t * blood_t);
         
             f32 airborn_reduce_spin_acceleration_time = 0.5f;
@@ -3941,7 +3946,7 @@ void update_player(Entity *entity, f32 dt){
     f32 found_ground = false;
     f32 just_grounded = false;
     
-    f32 wall_acceleration = 200;
+    f32 wall_acceleration = 400;
     
     f32 sword_ground_particles_speed = 1;
     
@@ -3962,8 +3967,15 @@ void update_player(Entity *entity, f32 dt){
         f32 spin_t = player_data.sword_spin_progress;
         
         f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
-        player_data.velocity += plane * acceleration * dt;
         
+        if (dot(plane, player_data.velocity) < 0){
+            acceleration *= 4;
+        }
+        
+        player_data.velocity += plane * acceleration * dt;
+        // if (IsKeyPressed(KEY_SPACE)){
+        //     player_data.velocity = col.normal * magnitude(player_data.velocity) * 0.8f;
+        // }
         sword_ground_particles_speed += 2;
     }
     
@@ -3982,8 +3994,14 @@ void update_player(Entity *entity, f32 dt){
         f32 spin_t = player_data.sword_spin_progress;
         
         f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
+        if (dot(plane, player_data.velocity) < 0){
+            acceleration *= 4;
+        }
+
         player_data.velocity += plane * acceleration * dt;
-        
+        // if (IsKeyPressed(KEY_SPACE)){
+        //     player_data.velocity = col.normal * magnitude(player_data.velocity) * 0.8f;
+        // }
         sword_ground_particles_speed += 2;
     }
     
@@ -5366,10 +5384,14 @@ void draw_editor(){
         
         draw_game_circle(editor.player_spawn_point, 3, BLUE);
         
-        b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT) && true;
+        b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT) || true;
         if (draw_circles_on_vertices){
             for (int v = 0; v < e->vertices.count; v++){
                 draw_game_circle(global(e, e->vertices.get(v)), 1.0f * (0.4f / context.cam.cam2D.zoom), PINK);
+                //draw unscaled vertices
+                if (IsKeyDown(KEY_LEFT_SHIFT) || true){    
+                    draw_game_circle(global(e, e->unscaled_vertices.get(v)), 1.0f * 0.4f, PURPLE);
+                }
             }
         }
         
@@ -5528,6 +5550,14 @@ void apply_shake(){
 Cam saved_cam;
 
 void draw_game(){
+    if (game_state == GAME){
+        context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, core.time.dt);
+        
+        if (abs(context.cam.cam2D.zoom - context.cam.target_zoom) <= EPSILON){
+            context.cam.cam2D.zoom = context.cam.target_zoom;
+        }
+    }
+
     saved_cam = context.cam;
 
     apply_shake();
@@ -5538,83 +5568,23 @@ void draw_game(){
     
     ClearBackground(GRAY);
     
-    BeginTextureMode(render.ray_collision_render_texture);{
-    ClearBackground(GRAY);
-    BeginMode2D(context.cam.cam2D);
-        ForTable(context.entities, i){
-            Entity *e = context.entities.get_ptr(i);
+    draw_entities();
+    draw_particles();
+    
+    if (player_entity && debug.draw_player_collisions){
+        for (int i = 0; i < player_data.collisions.count; i++){
+            Collision col = player_data.collisions.get(i);
             
-            if (e->flags & GROUND){
-                draw_game_triangle_strip(e);
-            }
+            draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
+            draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
         }
+    }
+    
+    if (game_state == EDITOR || game_state == PAUSE){
+        draw_editor();
+    }
+    
     EndMode2D();
-    } EndTextureMode();
-    
-    
-    static int world_map_loc    = get_shader_location(render.ray_tracer_shader, "in_WorldMap");
-    static int ray_light_loc    = get_shader_location(render.ray_tracer_shader, "in_Light");
-    static int world_size_loc   = get_shader_location(render.ray_tracer_shader, "in_World");
-    static int ray_tex_size_loc = get_shader_location(render.ray_tracer_shader, "in_RayTexSize");
-    
-    set_shader_value_tex(render.ray_tracer_shader, world_map_loc   , render.ray_collision_render_texture.texture);
-    set_shader_value_vec3(render.ray_tracer_shader, ray_light_loc   , {100.0f, 100.0f, 50.0f});
-    set_shader_value(render.ray_tracer_shader, world_size_loc  , {(f32)screen_width, (f32)screen_height});
-    set_shader_value(render.ray_tracer_shader, ray_tex_size_loc, 1000000.0f);
-    
-    BeginShaderMode(render.ray_tracer_shader);{
-    BeginTextureMode(render.rays_render_texture);{
-    ClearBackground(GRAY);
-    BeginMode2D(context.cam.cam2D);
-        draw_render_texture(render.ray_collision_render_texture.texture, {1, 1}, WHITE);
-    EndMode2D();
-    } EndTextureMode();
-    } EndShaderMode();
-    
-    
-    //draw_render_texture(render.rays_render_texture.texture, {1, 1}, WHITE);
-
-    static int world_map_loc2     = get_shader_location(render.light_sampler_shader, "in_WorldMap");
-    static int ray_map_loc        = get_shader_location(render.light_sampler_shader, "in_RayMap");
-    static int light_loc          = get_shader_location(render.light_sampler_shader, "in_Light");
-    static int color_s_loc        = get_shader_location(render.light_sampler_shader, "in_ColorS");
-    static int color_d_loc        = get_shader_location(render.light_sampler_shader, "in_ColorD");
-    static int world_tex_size_loc = get_shader_location(render.light_sampler_shader, "in_WorldTexSize");
-    static int light_center_loc   = get_shader_location(render.light_sampler_shader, "in_LightCenter");
-    static int ray_tex_size_loc2  = get_shader_location(render.light_sampler_shader, "in_RayTexSize");
-    static int light_tex_size_loc = get_shader_location(render.light_sampler_shader, "in_LightTexSize");
-    
-    set_shader_value_tex(render.light_sampler_shader, world_map_loc2    , render.ray_collision_render_texture.texture);
-    set_shader_value_tex(render.light_sampler_shader, ray_map_loc       , render.rays_render_texture.texture);
-    set_shader_value_vec3(render.light_sampler_shader, light_loc         , {100.0f, 100.0f, 50.0f});
-    set_shader_value_vec3(render.light_sampler_shader, color_s_loc       , {1.0f, 0.5f, 0.5f});
-    set_shader_value_vec3(render.light_sampler_shader, color_d_loc       , {1.0f, 0.1f, 0.1f});
-    set_shader_value(render.light_sampler_shader, world_tex_size_loc, {(f32)screen_width, (f32)screen_height});
-    set_shader_value(render.light_sampler_shader, light_center_loc  , {100.0f, 100.0f});
-    set_shader_value(render.light_sampler_shader, ray_tex_size_loc2 , 1000000.0f);
-    set_shader_value(render.light_sampler_shader, light_tex_size_loc, 65536.0f);
-    
-    BeginShaderMode(render.light_sampler_shader);{
-        BeginMode2D(context.cam.cam2D);
-        
-        draw_entities();
-        draw_particles();
-        
-        if (player_entity && debug.draw_player_collisions){
-            for (int i = 0; i < player_data.collisions.count; i++){
-                Collision col = player_data.collisions.get(i);
-                
-                draw_game_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
-                draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
-            }
-        }
-        
-        if (game_state == EDITOR || game_state == PAUSE){
-            draw_editor();
-        }
-        
-        EndMode2D();
-    } EndShaderMode();
     
     draw_ui("");
     

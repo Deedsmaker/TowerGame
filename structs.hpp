@@ -508,6 +508,8 @@ struct Cam{
     f32 trauma_decrease_rate = 1.5f;
     
     Camera2D cam2D = {};
+    f32 target_zoom = 0.35f;
+    
     Velocity_Move move_settings = {};
 };
 
@@ -551,12 +553,14 @@ struct Context{
 };
 
 struct Render{
-    Shader base_light_shader;  
-    Shader ray_tracer_shader;  
-    Shader light_sampler_shader;  
+    // Shader base_light_shader;  
+    // Shader ray_tracer_shader;  
+    // Shader light_sampler_shader;  
+    Shader lights_shader;
     
-    RenderTexture ray_collision_render_texture;
-    RenderTexture rays_render_texture;
+    // RenderTexture ray_collision_render_texture;
+    // RenderTexture rays_render_texture;
+    RenderTexture lights_buffer_render_texture;
 };
 
 struct Input{
@@ -708,4 +712,3 @@ struct Console{
     f32 opened_time = 0;
     f32 open_progress = 0;
 };
-
