@@ -3324,7 +3324,7 @@ void update_editor(){
             }
             
             if (wanna_assign_tracking_enemy){
-                fill_collisions(&mouse_entity, &collisions_data, ENEMY);
+                fill_collisions(&mouse_entity, &collisions_data, ENEMY | CENTIPEDE);
                 for (int i = 0; i < collisions_data.count; i++){
                     Collision col = collisions_data.get(i);
                     
@@ -3745,7 +3745,7 @@ void add_player_ammo(i32 amount, b32 full_ammo){
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
-    fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK);
+    fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT);
     
     Player *player = &player_data;
     
@@ -3803,7 +3803,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             win_level();
         }
         
-        if (other->flags & GROUND){
+        if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
             player_data.sword_hit_ground = true;
         }
     }
@@ -4151,6 +4151,15 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
+        if (other->flags & CENTIPEDE_SEGMENT){
+            f32 side_dot = dot(other->right, entity->position - other->position);
+            // so we on right side of the centipede segments where are SPIKES
+            if (side_dot > 0){
+                kill_player();
+                return;
+            }
+        }
+        
         entity->position.y += col.overlap;
         
         f32 before_speed = magnitude(player_data.velocity);
@@ -4243,6 +4252,15 @@ void update_player(Entity *entity, f32 dt){
         f32 dot_velocity = dot(col.normal, player_data.velocity);
         if (dot_velocity >= 0){
             continue;
+        }
+        
+        if (other->flags & CENTIPEDE_SEGMENT){
+            f32 side_dot = dot(other->right, entity->position - other->position);
+            // so we on right side of the centipede segments where are SPIKES
+            if (side_dot > 0){
+                kill_player();
+                return;
+            }
         }
         
         resolve_collision(entity, col);
@@ -4921,7 +4939,7 @@ void update_trigger(Entity *e){
             
             Entity *tracking_entity = context.entities.get_by_key_ptr(id);
 
-            if (tracking_entity->flags & ENEMY && !tracking_entity->enemy.dead_man){
+            if (!tracking_entity->enemy.dead_man){
                 found_enemy = true;
                 break;
             }
@@ -5346,6 +5364,29 @@ void fill_entities_draw_queue(){
 
 Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
 
+void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 width, f32 height){
+    line_strip_points.clear();
+    f32 frequency = 2;
+    Vector2 start_position = e->position - side_direction * width * 0.5f;
+    Vector2 end_position   = e->position + side_direction * width * 0.5f;
+    
+    Vector2 vertical_addition = up_direction * height * 0.8f;
+    
+    Vector2 vec = end_position - start_position;
+    Vector2 dir = normalized(vec);
+    f32 len = magnitude(vec);
+    
+    b32 spike = false;
+    for (f32 ii = -frequency; ii <= len + frequency; ii += frequency){
+        Vector2 position = start_position + dir * ii + (spike ? vertical_addition : Vector2_zero);
+        line_strip_points.add(position);
+        spike = !spike;
+    }
+    
+    draw_game_triangle_strip(e, Fade(e->color, 0.1f));
+    draw_game_line_strip(line_strip_points.data, line_strip_points.count, RED);
+}
+
 void draw_entities(){
     fill_entities_draw_queue();
 
@@ -5405,6 +5446,10 @@ void draw_entities(){
                 color = Fade(BLACK, 0.3f);
             }
             draw_game_triangle_strip(e, color);
+            draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
+            if (!e->enemy.dead_man){
+                draw_game_circle(e->position - e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+            }
         } else if (e->flags & CENTIPEDE){
             // draw centipede
             draw_game_triangle_strip(e);
@@ -5485,26 +5530,7 @@ void draw_entities(){
         }
         
         if (e->flags & SPIKES && (!e->hidden || game_state != GAME)){
-            line_strip_points.clear();
-            f32 frequency = 2;
-            Vector2 start_position = e->position - e->right * e->scale.x * 0.5f;
-            Vector2 end_position   = e->position + e->right * e->scale.x * 0.5f;
-            
-            Vector2 vertical_addition = e->up * e->scale.y * 0.8f;
-            
-            Vector2 vec = end_position - start_position;
-            Vector2 dir = normalized(vec);
-            f32 len = magnitude(vec);
-            
-            b32 spike = false;
-            for (f32 ii = -frequency; ii <= len + frequency; ii += frequency){
-                Vector2 position = start_position + dir * ii + (spike ? vertical_addition : Vector2_zero);
-                line_strip_points.add(position);
-                spike = !spike;
-            }
-            
-            draw_game_triangle_strip(e, Fade(e->color, 0.5f));
-            draw_game_line_strip(line_strip_points.data, line_strip_points.count, e->color);
+            draw_spikes(e, e->right, e->up, e->scale.x, e->scale.y);
         }
         
         if (e->flags & PLATFORM){
