@@ -53,6 +53,17 @@ void free_entity(Entity *e){
     if (e->flags & BIRD_ENEMY){
         bird_clear_formation(&e->bird_enemy);
     }
+    
+    if (e->flags & CENTIPEDE){
+        // free centipede
+        for (int i = 0; i < e->centipede.segments_ids.count; i++){
+            Entity *segment = context.entities.get_by_key_ptr(e->centipede.segments_ids.get(i));
+            segment->destroyed = true;
+            segment->enabled = false;
+        }
+        
+        e->centipede.segments_ids.clear();
+    }
 }
 
 void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
@@ -87,7 +98,7 @@ void pick_vertices(Entity *entity){
         return;
     }
 
-    if (entity->flags & (SWORD | BIRD_ENEMY)){
+    if (entity->flags & (SWORD | BIRD_ENEMY | CENTIPEDE)){
         add_sword_vertices(&entity->vertices, entity->pivot);
         add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
     } else{
@@ -858,6 +869,14 @@ void bird_clear_formation(Bird_Enemy *bird){
     }
 }
 
+void init_bird_emitters(Entity *entity){
+    entity->emitters.clear();
+    entity->bird_enemy.trail_emitter  = entity->emitters.add(entity->flags & EXPLOSIVE ? little_fire_emitter : air_dust_emitter);
+    enable_emitter(entity->bird_enemy.trail_emitter);
+    entity->bird_enemy.attack_emitter = entity->emitters.add(rifle_bullet_emitter);
+    entity->bird_enemy.fire_emitter = entity->emitters.add(fire_emitter);
+}
+
 void init_bird_entity(Entity *entity){
     //entity->flags = ENEMY | BIRD_ENEMY | PARTICLE_EMITTER;
     assert(entity->flags > 0);
@@ -866,12 +885,8 @@ void init_bird_entity(Entity *entity){
     
     entity->enemy.gives_full_ammo = true;
     
-    entity->emitters.clear();
-    entity->bird_enemy.trail_emitter  = entity->emitters.add(entity->flags & EXPLOSIVE ? little_fire_emitter : air_dust_emitter);
-    enable_emitter(entity->bird_enemy.trail_emitter);
-    entity->bird_enemy.attack_emitter = entity->emitters.add(rifle_bullet_emitter);
-    entity->bird_enemy.fire_emitter = entity->emitters.add(fire_emitter);
-    
+    init_bird_emitters(entity);
+        
     //entity->emitter = entity->emitters.last_ptr();
     str_copy(entity->name, "enemy_bird"); 
     setup_color_changer(entity);
@@ -1018,6 +1033,27 @@ void init_spawn_objects(){
     copy_entity(&enemy_trigger_object.entity, &enemy_trigger_entity);
     str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
     spawn_objects.add(enemy_trigger_object);
+    
+    Entity centipede_entity = Entity({0, 0}, {7, 5}, {0.5f, 0.5f}, 0, CENTIPEDE);
+    centipede_entity.color = ColorBrightness(RED, 0.6f);
+    str_copy(centipede_entity.name, "centipede"); 
+    setup_color_changer(&centipede_entity);
+    
+    Spawn_Object centipede_object;
+    copy_entity(&centipede_object.entity, &centipede_entity);
+    str_copy(centipede_object.name, centipede_entity.name);
+    spawn_objects.add(centipede_object);
+    
+    Entity centipede_segment_entity = Entity({0, 0}, {4, 4}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
+    centipede_segment_entity.need_to_save = false;
+    centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
+    str_copy(centipede_segment_entity.name, "centipede_segment"); 
+    setup_color_changer(&centipede_segment_entity);
+    
+    Spawn_Object centipede_segment_object;
+    copy_entity(&centipede_segment_object.entity, &centipede_segment_entity);
+    str_copy(centipede_segment_object.name, centipede_segment_entity.name);
+    spawn_objects.add(centipede_segment_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -1189,6 +1225,31 @@ void init_entity(Entity *entity){
         
         entity->door.open_sound = sounds_table.get_by_key_ptr(hash_str("OpenDoor"));
         //entity->door.is_open = false;
+    }
+    
+    if (entity->flags & CENTIPEDE && game_state == GAME){
+        // init centipede
+        // free_entity(entity);
+        
+        Centipede *centipede = &entity->centipede;
+        centipede->segments_ids.clear();
+        // centipede->segments_ids.add(entity->id);
+        // centipede->segments.clear();
+        
+        for (int i = 0; i < centipede->segments_ids.max_count; i++){
+            Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
+            segment->draw_order = entity->draw_order + 1;
+            centipede->segments_ids.add(segment->id);
+            Entity *previous;
+            if (i > 0){
+                previous = context.entities.get_by_key_ptr(centipede->segments_ids.get(i-1));
+            } else{
+                previous = entity;
+            }
+
+            segment->position = previous->position - previous->up * previous->scale.y * 1.2f;
+            segment->move_sequence = entity->move_sequence;
+        }
     }
     
     setup_color_changer(entity);
@@ -1465,6 +1526,9 @@ void init_game(){
     context = {};    
     render = {};
     str_copy(context.current_level_name, "test_level");
+    
+    render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
+    render.test_shader = LoadShader(0, "../test_shader.fs");
 
     input = {};
     init_console();
@@ -1853,6 +1917,9 @@ void update_game(){
         context.cam.cam2D.target = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         
+        UnloadRenderTexture(render.main_render_texture);
+        
+        render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
         // UnloadRenderTexture(context.up_render_target);
         // UnloadRenderTexture(context.down_render_target);
         // UnloadRenderTexture(context.up_render_target);
@@ -2916,7 +2983,7 @@ Entity *get_cursor_entity(){
                         cursor_entity_candidate = e;
                     }
                 } else{
-                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & PLATFORM || e->flags & ENEMY || e->flags & PROPELLER || e->flags & TRIGGER || e->flags & DUMMY);
+                    b32 other_entity_preferable = (e->flags & GROUND || e->flags & PLATFORM || e->flags & ENEMY || e->flags & PROPELLER || e->flags & TRIGGER || e->flags & DUMMY || e->flags & (CENTIPEDE | CENTIPEDE_SEGMENT));
                     //We want to pick most valuable entity for selection and not background if there's something more around
                     if (!cursor_entity_candidate || other_entity_preferable){
                         cursor_entity_candidate = e;
@@ -4015,7 +4082,7 @@ void update_player(Entity *entity, f32 dt){
     
     //player collisions
     
-    fill_collisions(left_wall_checker, &player_data.collisions, GROUND);
+    fill_collisions(left_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT);
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
@@ -4042,7 +4109,7 @@ void update_player(Entity *entity, f32 dt){
         sword_ground_particles_speed += 2;
     }
     
-    fill_collisions(right_wall_checker, &player_data.collisions, GROUND);
+    fill_collisions(right_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT);
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
@@ -4068,7 +4135,7 @@ void update_player(Entity *entity, f32 dt){
         sword_ground_particles_speed += 2;
     }
     
-    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER | PLATFORM);
+    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER | PLATFORM | CENTIPEDE_SEGMENT);
     b32 is_huge_collision_speed = false;
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
@@ -4136,7 +4203,7 @@ void update_player(Entity *entity, f32 dt){
     }
     
     
-    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | PROPELLER);
+    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | PROPELLER | CENTIPEDE_SEGMENT);
     for (int i = 0; i < player_data.collisions.count; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
@@ -4246,7 +4313,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         
         if (enemy->dead_man){
             emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
-            play_sound(enemy->explosion_sound, bird_entity->position);
+            play_sound("Explosion", bird_entity->position, bird_entity->volume_multiplier);
             bird_entity->destroyed = true;
             bird_entity->enabled = false;
             shake_camera(0.6f);
@@ -4515,12 +4582,12 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         emit_particles(*blood_emitter, kill_position, kill_direction, 1, particles_speed_modifier);
     
         enemy_entity->enemy.dead_man = true;
-        if (!(enemy_entity->flags & TRIGGER)){
+        if (!(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT))){
             enemy_entity->enabled = false;
             enemy_entity->destroyed = true;
         }
         
-        if (enemy_entity->flags & MOVE_SEQUENCE){
+        if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)){
             enemy_entity->move_sequence.moving = false;
         }
         
@@ -4583,7 +4650,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     }
     
     if (is_enemy_can_take_damage(enemy_entity)){
-        if (enemy_entity->flags & MOVE_SEQUENCE){
+        if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)){
             enemy_entity->move_sequence.moving = false;
         }
         enemy->in_agro = true;
@@ -4598,6 +4665,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             
             if (enemy_entity->flags & BIRD_ENEMY){
                 enable_emitter(enemy_entity->bird_enemy.fire_emitter);
+            } else if (enemy_entity->flags & CENTIPEDE_SEGMENT){
+                
             } else{
                 enemy_entity->destroyed = true;
             }
@@ -4995,12 +5064,12 @@ void update_entities(){
     Context *c = &context;
     Hash_Table_Int<Entity> *entities = &c->entities;
     
-    for (int i = 0; i < entities->max_count; i++){
-        if (!entities->has_index(i)){
+    for (int entity_index = 0; entity_index < entities->max_count; entity_index++){
+        if (!entities->has_index(entity_index)){
             continue;
         }
     
-        Entity *e = entities->get_ptr(i);
+        Entity *e = entities->get_ptr(entity_index);
         
         //assert(e->flags > 0);
         
@@ -5020,7 +5089,7 @@ void update_entities(){
             }
             
             free_entity(e);
-            entities->remove_index(i);    
+            entities->remove_index(entity_index);    
             //i--;
             
             if (game_state == EDITOR || game_state == PAUSE){
@@ -5080,6 +5149,46 @@ void update_entities(){
         if (e->flags & MOVE_SEQUENCE){
             update_move_sequence(e);
         }
+        
+        if (e->flags & CENTIPEDE && debug.enemy_ai && !e->enemy.dead_man){
+            // update centipede
+            f32 dt = core.time.dt;
+            Centipede *centipede = &e->centipede;
+            
+            i32 alive_count = 0;
+            for (int i = 0; i < centipede->segments_ids.count; i++){
+                Entity *segment = context.entities.get_by_key_ptr(centipede->segments_ids.get(i));
+                
+                if (!segment->enemy.dead_man){
+                    alive_count++;
+                }
+            }
+            
+            if (alive_count == 0){
+                e->enemy.dead_man = true;
+                e->flags = ENEMY | BIRD_ENEMY;
+                Vector2 rnd = rnd_in_circle();
+                e->bird_enemy.velocity = {e->move_sequence.velocity.x * rnd.x, e->move_sequence.velocity.y * rnd.y};
+
+                e->move_sequence.moving = false;
+                e->collision_flags = GROUND;
+                init_bird_emitters(e);
+                
+                for (int i = 0; i < centipede->segments_ids.count; i++){
+                    Entity *segment = context.entities.get_by_key_ptr(centipede->segments_ids.get(i));
+                    
+                    segment->volume_multiplier = 0.3f;
+                    segment->flags = ENEMY | BIRD_ENEMY;
+                    segment->move_sequence.moving = false;
+                    segment->collision_flags = GROUND;
+                    Vector2 rnd = rnd_in_circle();
+                    segment->bird_enemy.velocity = {segment->move_sequence.velocity.x * rnd.x, segment->move_sequence.velocity.y * rnd.y};
+                    init_bird_emitters(segment);
+                }
+            }
+            // // end update centipede end
+        }
+
         
         if (e->flags & DOOR){
             update_door(e);
@@ -5243,12 +5352,12 @@ void draw_entities(){
     //Hash_Table_Int<Entity> *entities = &context.entities;
     Dynamic_Array<Entity> *entities = &context.entities_draw_queue;
     
-    for (int i = 0; i < entities->count; i++){
+    for (int entity_index = 0; entity_index < entities->count; entity_index++){
         // if (!entities->has_index(i)){
         //     continue;
         // }
         
-        Entity *e = entities->get_ptr(i);
+        Entity *e = entities->get_ptr(entity_index);
         if (!e || !context.entities.has_key(e->id)){
             continue;
         }
@@ -5258,10 +5367,12 @@ void draw_entities(){
         }
         
         if (e->flags & TEXTURE){
+            // draw texture
             draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
         }
         
         if (e->flags & GROUND || e->flags & PLATFORM || e->flags == 0 || e->flags & PROJECTILE){
+            // draw ground
             if (e->vertices.count > 0){
                 draw_game_triangle_strip(e);
             } else{
@@ -5270,20 +5381,33 @@ void draw_entities(){
         }
         
         if (e->flags & DUMMY){
+            // draw dummy
             draw_game_triangle_strip(e);
             draw_game_line_strip(e, SKYBLUE);
         }
         
         if (e->flags & PLAYER){
+            // draw player
             draw_player(e);
         }
         
         if (e->flags & SWORD){
+            // draw sword
             draw_sword(e);
         }
         
         if (e->flags & BIRD_ENEMY){
             draw_bird_enemy(e);
+        } else if (e->flags & CENTIPEDE_SEGMENT){
+            Color color = e->color;
+            if (e->enemy.dead_man){
+                //color = Fade(color, 0.3f);
+                color = Fade(BLACK, 0.3f);
+            }
+            draw_game_triangle_strip(e, color);
+        } else if (e->flags & CENTIPEDE){
+            // draw centipede
+            draw_game_triangle_strip(e);
         } else if (e->flags & ENEMY){
             draw_enemy(e);
         }
@@ -5679,6 +5803,8 @@ void draw_game(){
     apply_shake();
 
     BeginDrawing();
+    BeginShaderMode(render.test_shader);
+    BeginTextureMode(render.main_render_texture);
     BeginMode2D(context.cam.cam2D);
     Context *c = &context;
     
@@ -5701,6 +5827,9 @@ void draw_game(){
     }
     
     EndMode2D();
+    EndTextureMode();
+    draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
+    EndShaderMode();
     
     draw_ui("");
     

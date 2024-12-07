@@ -85,7 +85,7 @@ struct Particle_Emitter{
     Color color = YELLOW;
 };
 
-#define MAX_SINGLE_SOUND 8
+#define MAX_SINGLE_SOUND 16
 
 struct Sound_Handler{
     Array<Sound, MAX_SINGLE_SOUND> buffer = Array<Sound, MAX_SINGLE_SOUND>();
@@ -100,27 +100,29 @@ struct Sound_Handler{
 };
 
 enum Flags : u64{
-    GROUND           = 1 << 0,
-    DRAW_TEXT        = 1 << 1,
-    PLAYER           = 1 << 2,
-    ENEMY            = 1 << 3,
-    SWORD            = 1 << 4,
-    BIRD_ENEMY       = 1 << 5,
-    TEXTURE          = 1 << 6,
-    PROJECTILE       = 1 << 7,
-    PARTICLE_EMITTER = 1 << 8,
-    WIN_BLOCK        = 1 << 9,
-    EXPLOSIVE        = 1 << 11,
-    BLOCKER          = 1 << 12,
-    STICKY_TEXTURE   = 1 << 13,
-    PROPELLER        = 1 << 15,
-    SHOOT_BLOCKER    = 1 << 16,
-    DOOR             = 1 << 17,
-    TRIGGER          = 1 << 18,
-    SPIKES           = 1 << 19,
-    PLATFORM         = 1 << 20,
-    MOVE_SEQUENCE    = 1 << 21,
-    DUMMY            = 1 << 22,
+    GROUND            = 1 << 0,
+    DRAW_TEXT         = 1 << 1,
+    PLAYER            = 1 << 2,
+    ENEMY             = 1 << 3,
+    SWORD             = 1 << 4,
+    BIRD_ENEMY        = 1 << 5,
+    TEXTURE           = 1 << 6,
+    PROJECTILE        = 1 << 7,
+    PARTICLE_EMITTER  = 1 << 8,
+    WIN_BLOCK         = 1 << 9,
+    EXPLOSIVE         = 1 << 11,
+    BLOCKER           = 1 << 12,
+    STICKY_TEXTURE    = 1 << 13,
+    PROPELLER         = 1 << 15,
+    SHOOT_BLOCKER     = 1 << 16,
+    DOOR              = 1 << 17,
+    TRIGGER           = 1 << 18,
+    SPIKES            = 1 << 19,
+    PLATFORM          = 1 << 20,
+    MOVE_SEQUENCE     = 1 << 21,
+    DUMMY             = 1 << 22,
+    CENTIPEDE         = 1 << 23,
+    CENTIPEDE_SEGMENT = 1 << 24,
     
     TEST = 1 << 30
 };
@@ -277,6 +279,16 @@ struct Bird_Enemy{
     Particle_Emitter *fire_emitter;
     
     Sound_Handler *attack_sound = NULL;
+};
+
+#define MAX_CENTIPEDE_SEGMENTS 32
+
+struct Centipede_Segment{
+    i32 previous_id = -1;
+};
+
+struct Centipede{
+    Array<i32, MAX_CENTIPEDE_SEGMENTS> segments_ids = Array<i32, MAX_CENTIPEDE_SEGMENTS>();
 };
 
 struct Sticky_Texture{
@@ -453,6 +465,8 @@ struct Entity{
 
     b32 enabled = 1;
     
+    f32 volume_multiplier = 1;
+    
     Texture texture;
     char texture_name[64];
     Vector2 scaling_multiplier = {1, 1};
@@ -498,6 +512,7 @@ struct Entity{
     Door door;
     Trigger trigger;
     Move_Sequence move_sequence;
+    Centipede centipede;
 };
 
 global_variable Player player_data;
@@ -570,10 +585,12 @@ struct Render{
     // Shader ray_tracer_shader;  
     // Shader light_sampler_shader;  
     Shader lights_shader;
+    Shader test_shader;
     
     // RenderTexture ray_collision_render_texture;
     // RenderTexture rays_render_texture;
     RenderTexture lights_buffer_render_texture;
+    RenderTexture main_render_texture;
 };
 
 struct Input{
