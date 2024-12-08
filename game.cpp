@@ -1579,6 +1579,10 @@ void clean_up_scene(){
         Entity *e = context.entities.get_ptr(i);
         e->color = e->color_changer.start_color;
     }
+    
+    for (int i = 0; i < MAX_BIRD_POSITIONS; i++){
+        context.bird_slots[i].occupied = false;
+    }
 
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
@@ -3012,7 +3016,7 @@ void update_editor(){
         editor.need_validate_entity_pointers = false;
     }
     
-    f32 zoom = context.cam.cam2D.zoom;
+    f32 zoom = context.cam.target_zoom;
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_L)){
         editor.update_cam_view_position = !editor.update_cam_view_position;
@@ -3027,7 +3031,7 @@ void update_editor(){
     
     if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
         if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
-            context.cam.cam2D.zoom += input.mouse_wheel * 0.05f;
+            context.cam.target_zoom += input.mouse_wheel * 0.05f;
             
             // UnloadRenderTexture(render.ray_collision_render_texture);
         
@@ -3745,7 +3749,7 @@ void add_player_ammo(i32 amount, b32 full_ammo){
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
-    fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT);
+    fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM);
     
     Player *player = &player_data;
     
@@ -3796,14 +3800,16 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             shake_camera(0.1f);
             play_sound(player_data.sword_kill_sound, col.point);
             
-            add_player_ammo(1, other->enemy.gives_full_ammo);
+            if (!(other->flags & TRIGGER)){
+                add_player_ammo(1, other->enemy.gives_full_ammo);
+            }
         }
         
         if (other->flags & WIN_BLOCK && !player->in_stun){
             win_level();
         }
         
-        if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
+        if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & PLATFORM){
             player_data.sword_hit_ground = true;
         }
     }
@@ -3941,7 +3947,7 @@ void update_player(Entity *entity, f32 dt){
         emit_particles(gunpowder_emitter, sword_tip, sword->up);
     }
     
-    sword->color_changer.progress = is_sword_filled ? 1 : 0;//player_data.blood_progress * player_data.blood_progress;//player_data.sword_spin_progress * player_data.sword_spin_progress;
+    sword->color_changer.progress = can_activate_rifle ? 1 : 0;//player_data.blood_progress * player_data.blood_progress;//player_data.sword_spin_progress * player_data.sword_spin_progress;
     
     sword_tip_emitter->position = sword_tip;
     sword_tip_ground_emitter->position = sword_tip;
@@ -4082,11 +4088,15 @@ void update_player(Entity *entity, f32 dt){
     
     //player collisions
     
-    fill_collisions(left_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT);
+    fill_collisions(left_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT | PLATFORM);
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
+        
+        if (other->flags & PLATFORM && dot(player_data.velocity, other->up) > 0){
+            continue;
+        }
         
         // f32 dot_velocity = dot(col.normal, player_data.velocity);
         // if (dot_velocity >= 0){
@@ -4109,11 +4119,15 @@ void update_player(Entity *entity, f32 dt){
         sword_ground_particles_speed += 2;
     }
     
-    fill_collisions(right_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT);
+    fill_collisions(right_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT | PLATFORM);
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
+        
+        if (other->flags & PLATFORM && dot(player_data.velocity, other->up) > 0){
+            continue;
+        }
         
         // f32 dot_velocity = dot(col.normal, player_data.velocity);
         // if (dot_velocity >= 0){
@@ -4147,7 +4161,7 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        if (other->flags & PLATFORM && col.normal.y <= 0){
+        if (other->flags & PLATFORM && dot(player_data.velocity, other->up) > 0){
             continue;
         }
         
@@ -4212,7 +4226,7 @@ void update_player(Entity *entity, f32 dt){
     }
     
     
-    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | PROPELLER | CENTIPEDE_SEGMENT);
+    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
     for (int i = 0; i < player_data.collisions.count; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
@@ -4253,6 +4267,11 @@ void update_player(Entity *entity, f32 dt){
         if (dot_velocity >= 0){
             continue;
         }
+        
+        if (other->flags & PLATFORM && dot(player_data.velocity, other->up) > 0){
+            continue;
+        }
+        
         
         if (other->flags & CENTIPEDE_SEGMENT){
             f32 side_dot = dot(other->right, entity->position - other->position);
@@ -5816,13 +5835,14 @@ void apply_shake(){
 Cam saved_cam;
 
 void draw_game(){
-    if (game_state == GAME){
-        context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, core.time.dt);
+    // if (game_state == GAME){
+    f32 zoom_speed = game_state == GAME ? 1 : 10;
+        context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, core.time.real_dt * zoom_speed);
         
         if (abs(context.cam.cam2D.zoom - context.cam.target_zoom) <= EPSILON){
             context.cam.cam2D.zoom = context.cam.target_zoom;
         }
-    }
+    // }
 
     saved_cam = context.cam;
 
