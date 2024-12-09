@@ -20,7 +20,7 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
     }
     particle.shape = emitter.shape;
     
-    f32 scale = rnd(emitter.scale_min, emitter.scale_max);
+    f32 scale = rnd(emitter.scale_min, emitter.scale_max) * emitter.size_multiplier;
     particle.scale = {scale, scale};
     particle.original_scale = {scale, scale};
     
@@ -50,10 +50,12 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
     *context.particles.get_ptr(last_added_index) = particle;
 }
 
-void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1){
+void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1){
     normalize(&direction);
     i32 count = rnd((int)emitter.count_min, (int)emitter.count_max);
     count = (i32)((f32)count * count_multiplier); 
+    
+    emitter.spawn_radius *= area_multiplier;
     
     for (i32 i = 0; i < count; i++){
         shoot_particle(emitter, position, direction, speed_multiplier);

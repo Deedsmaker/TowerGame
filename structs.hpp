@@ -72,6 +72,8 @@ struct Particle_Emitter{
     
     f32 scale_min = 0.1f;
     f32 scale_max = 0.5f;
+    f32 size_multiplier = 1;
+    
     f32 spread = 0.2f;
     
     f32 lifetime_min = 0.5f;
@@ -358,6 +360,7 @@ struct Player{
     Vector2 heavy_collision_velocity = Vector2_zero;
     
     Vector2 sword_start_scale = {1.5f, 6};
+    b32 is_sword_big = false;
     f32 blood_amount = 0;
     f32 blood_progress = 0;
     

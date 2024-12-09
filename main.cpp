@@ -44,8 +44,6 @@ int main(){
     
     init_game();
     while(!WindowShouldClose()){
-        DisableEventWaiting();
-        
         if (IsKeyPressed(KEY_ENTER) && IsKeyDown(KEY_LEFT_ALT)){
             ToggleBorderlessWindowed();
             bordless_fullscreen = !bordless_fullscreen;
@@ -66,10 +64,31 @@ int main(){
             screen_height = GetScreenHeight();
         }
         
+        if (bordless_fullscreen){
+            if (!IsCursorOnScreen()){
+                f32 add = GetMousePosition().x > screen_width * 0.5f ? screen_width - 10 : 10;
+                SetMousePosition(add, GetMouseY());
+            }
+            if (GetMousePosition().x <= 0){        
+                SetMousePosition(10, GetMouseY());
+            }
+            if (GetMousePosition().x >= screen_width){        
+                SetMousePosition(screen_width - 10, GetMouseY());
+            }
+        }
         update_game();
-        screen_size_changed = 0;
         
-        EnableEventWaiting();
+        if (bordless_fullscreen){
+            if (!IsCursorOnScreen()){
+                SetMousePosition(10, GetMouseY());
+            }
+            if (GetMousePosition().x < 0){        
+                SetMousePosition(10, GetMouseY());
+            }
+        }
+
+        
+        screen_size_changed = 0;
     }
     
     CloseWindow();

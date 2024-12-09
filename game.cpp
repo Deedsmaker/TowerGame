@@ -1235,9 +1235,10 @@ void init_entity(Entity *entity){
         centipede->segments_ids.clear();
         // centipede->segments_ids.add(entity->id);
         // centipede->segments.clear();
-        
+        print(entity->up);
         for (int i = 0; i < centipede->segments_ids.max_count; i++){
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
+            change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
             centipede->segments_ids.add(segment->id);
             Entity *previous;
@@ -3715,7 +3716,7 @@ void add_blood_amount(Player *player, Entity *sword, f32 added){
     player->blood_progress = player->blood_amount / player->max_blood_amount;
     
     Vector2 sword_target_scale = player->sword_start_scale * 2;
-    change_scale(sword, lerp(player->sword_start_scale, sword_target_scale, player->blood_progress * player->blood_progress));
+    // change_scale(sword, lerp(player->sword_start_scale, sword_target_scale, player->blood_progress * player->blood_progress));
 }
 
 void win_level(){
@@ -3748,6 +3749,21 @@ void add_player_ammo(i32 amount, b32 full_ammo){
     player_data.ammo_count = clamp(player_data.ammo_count, 0, 5000);
 }
 
+inline b32 is_sword_can_damage(){
+    return player_data.sword_spin_progress >= 0.12f;
+}
+
+inline b32 can_damage_blocker(Entity *blocker_entity){
+    return is_sword_can_damage() && !blocker_entity->enemy.blocker_immortal && (blocker_entity->enemy.blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0);
+}
+
+void sword_kill_bird(Entity *bird_entity){
+    Entity *sword = context.entities.get_by_key_ptr(player_data.sword_entity_id);
+    bird_entity->bird_enemy.velocity = sword_tip_emitter->direction * sqrtf(player_data.sword_spin_progress) * 100;
+    stun_enemy(bird_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, true);
+    add_hitstop(0.1f);
+}
+
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
     fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM);
     
@@ -3758,9 +3774,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         Entity *other = col.other_entity;
         
         if (other->flags & BLOCKER && !player->in_stun){
-            b32 is_right_spin_direction = !other->enemy.blocker_immortal && (other->enemy.blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0);
-            
-            if (!is_right_spin_direction){
+            if (is_sword_can_damage() && !can_damage_blocker(other)){
                 player->velocity = player->velocity * -0.5f;
                 emit_particles(rifle_bullet_emitter, col.point, col.normal, 3, 5);
                 set_sword_velocity(-player->sword_angular_velocity * 0.1f);
@@ -3768,17 +3782,14 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
                 play_sound(player_data.sword_block_sound, col.point);
-                
                 continue;
             }
         }
         
-        if (other->flags & ENEMY && player->sword_spin_progress > 0.12f && !other->enemy.dead_man && !player->in_stun && is_enemy_can_take_damage(other)){
+        if (other->flags & ENEMY && is_sword_can_damage() && !other->enemy.dead_man && !player->in_stun && is_enemy_can_take_damage(other)){
             f32 hitstop_add = 0;
             if (other->flags & BIRD_ENEMY){
-                other->bird_enemy.velocity = sword_tip_emitter->direction * sqrtf(player->sword_spin_progress) * 100;
-                stun_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, true);
-                hitstop_add += 0.1f;
+                sword_kill_bird(other);
             } else{
                 kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, lerp(1.0f, 4.0f, sqrtf(player_data.sword_spin_progress)));
             }
@@ -3854,6 +3865,15 @@ void update_player(Entity *entity, f32 dt){
     right_wall_checker->position = entity->position + entity->right * entity->scale.x * 1.5f;
     sword->position = entity->position;
     
+    // change sword size
+    if (IsKeyPressed(KEY_F)){
+        player_data.is_sword_big = !player_data.is_sword_big;
+    }
+    
+    Vector2 sword_target_size = player_data.sword_start_scale * (player_data.is_sword_big ? 6 : 1);
+    
+    change_scale(sword, lerp(sword->scale, sword_target_size, core.time.dt * 5));
+    
     Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
     
     Vector2 vec_to_mouse = input.mouse_position - entity->position;
@@ -3879,7 +3899,7 @@ void update_player(Entity *entity, f32 dt){
     
     f32 sword_max_spin_speed = 5000;
     if (can_sword_spin){
-        f32 sword_spin_sense = 10; //2 default
+        f32 sword_spin_sense = player_data.is_sword_big ? 1 : 10; 
         if (can_sword_spin && IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
             player_data.sword_angular_velocity += input.mouse_delta.x * sword_spin_sense;
             clamp(&player_data.sword_angular_velocity, -sword_max_spin_speed, sword_max_spin_speed);
@@ -3960,6 +3980,10 @@ void update_player(Entity *entity, f32 dt){
     
         chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; //@VISUAL: change color
         chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; //@VISUAL: change color
+        
+        chainsaw_emitter->count_multiplier = player_data.is_sword_big ? 0.1f : 1;
+        chainsaw_emitter->size_multiplier  = player_data.is_sword_big ? 5 : 1;
+        chainsaw_emitter->color            = player_data.is_sword_big ? ColorBrightness(ORANGE, 0.2f) : YELLOW;
         
         sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
         sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 5.0f;
@@ -4396,16 +4420,16 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     }
     
     if (other->flags & PLAYER && !player_data.dead_man && bird->attacking && !enemy->dead_man){
-        b32 should_kill_player = player_data.sword_spin_progress < 0.4f;
+        b32 should_kill_player = !is_sword_can_damage();
         if (bird_entity->flags & BLOCKER){
-            b32 is_right_spin_direction = !enemy->blocker_immortal && (enemy->blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0);
-            should_kill_player = should_kill_player && !is_right_spin_direction;
+            should_kill_player = !can_damage_blocker(bird_entity);
         }
     
         if (should_kill_player){
             kill_player();
         } else{
-            kill_enemy(bird_entity, bird_entity->position, bird->velocity);
+            //kill_enemy(bird_entity, bird_entity->position, bird->velocity);
+            sword_kill_bird(bird_entity);
         }
     }
 }
@@ -4616,7 +4640,9 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     
     if (!enemy_entity->enemy.dead_man){
         enemy_entity->enemy.stun_start_time = core.time.game_time;
-        emit_particles(*blood_emitter, kill_position, kill_direction, 1, particles_speed_modifier);
+        f32 count = player_data.is_sword_big ? 3 : 1;
+        f32 area = player_data.is_sword_big ? 3 : 1;
+        emit_particles(*blood_emitter, kill_position, kill_direction, count, particles_speed_modifier, area);
     
         enemy_entity->enemy.dead_man = true;
         if (!(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT))){
@@ -4696,7 +4722,10 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         enemy->hits_taken++;
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
         if (enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit){
-            emit_particles(*blood_emitter, kill_position, kill_direction, 1, 1);
+            f32 area_multiplier = serious ? 3 : 1;
+            f32 count = serious ? 3 : 1;
+            f32 speed = serious ? 3 : 1;
+            emit_particles(*blood_emitter, kill_position, kill_direction, count, speed, area_multiplier);
         
             enemy->dead_man = true;
             
