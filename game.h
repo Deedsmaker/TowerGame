@@ -26,7 +26,7 @@ void calculate_bounds(Entity *entity);
 
 void update_editor_ui();
 void update_editor();
-void update_entities();
+void update_entities(f32 dt);
 
 void activate_door(Entity *entity, b32 is_open);
 

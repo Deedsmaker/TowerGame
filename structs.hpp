@@ -596,12 +596,34 @@ struct Render{
     RenderTexture main_render_texture;
 };
 
+enum Hold_Flags{
+    UP        = 1 << 1,
+    DOWN      = 1 << 2,
+    RIGHT     = 1 << 3,
+    LEFT      = 1 << 4,
+    SPIN_DOWN = 1 << 8,
+};
+
+enum Press_Flags{
+    JUMP          = 1 << 1,
+    SHOOT         = 1 << 2,
+    SPIN          = 1 << 3,
+    SPIN_RELEASED = 1 << 4,
+    SWORD_BIG     = 1 << 5
+};
+
 struct Input{
     Vector2 direction;
     Vector2 tap_direction;
     Vector2 mouse_position;
     Vector2 mouse_delta;
     f32     mouse_wheel;
+    
+    Vector2 sum_mouse_delta = Vector2_zero;
+    f32     sum_mouse_wheel = 0;
+    Vector2 sum_direction = Vector2_zero;
+    FLAGS hold_flags = 0;
+    FLAGS press_flags = 0;
 };
 
 struct Level{

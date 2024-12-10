@@ -20,6 +20,8 @@
 
 global_variable Core core = {};
 
+Vector2 mouse_position = Vector2_zero;
+
 #include "utils.cpp"
 #include "render.cpp"
 
@@ -64,29 +66,7 @@ int main(){
             screen_height = GetScreenHeight();
         }
         
-        if (bordless_fullscreen){
-            if (!IsCursorOnScreen()){
-                f32 add = GetMousePosition().x > screen_width * 0.5f ? screen_width - 10 : 10;
-                SetMousePosition(add, GetMouseY());
-            }
-            if (GetMousePosition().x <= 0){        
-                SetMousePosition(10, GetMouseY());
-            }
-            if (GetMousePosition().x >= screen_width){        
-                SetMousePosition(screen_width - 10, GetMouseY());
-            }
-        }
         update_game();
-        
-        if (bordless_fullscreen){
-            if (!IsCursorOnScreen()){
-                SetMousePosition(10, GetMouseY());
-            }
-            if (GetMousePosition().x < 0){        
-                SetMousePosition(10, GetMouseY());
-            }
-        }
-
         
         screen_size_changed = 0;
     }

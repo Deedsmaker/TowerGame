@@ -80,7 +80,7 @@ b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text,
     
     Rectangle button_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
     
-    if (CheckCollisionPointRec(GetMousePosition(), button_rec)){
+    if (CheckCollisionPointRec(mouse_position, button_rec)){
         new_ui_element->color = ColorBrightness(new_ui_element->color, 0.5f);
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
             clicked_ui = true;
@@ -98,7 +98,7 @@ void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color, c
     Ui_Element *new_ui_element = init_ui_element(position, size, pivot, color, tag, UI_IMAGE);
     
     Rectangle image_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(GetMousePosition(), image_rec)){
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse_position, image_rec)){
         clicked_ui = true;
     }
 }
@@ -115,7 +115,7 @@ void make_ui_text(const char *content, Vector2 position, const char *tag, f32 fo
 
 b32 make_ui_toggle(Vector2 position, b32 current_value, const char *tag){
     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
-    return make_button(position, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
+    return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
 }
 
 b32 make_ui_toggle(Vector2 position, Entity* e, b32 (get_value)(Entity*), const char *tag){
