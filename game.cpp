@@ -56,7 +56,7 @@ void free_entity(Entity *e){
     
     if (e->flags & CENTIPEDE){
         // free centipede
-        for (int i = 0; i < e->centipede.segments_ids.count; i++){
+        for (int i = 0; i < e->centipede.segments_count; i++){
             Entity *segment = context.entities.get_by_key_ptr(e->centipede.segments_ids.get(i));
             segment->destroyed = true;
             segment->enabled = false;
@@ -394,6 +394,9 @@ int save_level(const char *level_name){
             fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.player_touch);
             fprintf(fptr, "trigger_shows_entities:%d: ", e->trigger.shows_entities);
             fprintf(fptr, "trigger_starts_moving_sequence:%d: ", e->trigger.starts_moving_sequence);
+            fprintf(fptr, "trigger_lock_camera:%d: ", e->trigger.lock_camera);
+            fprintf(fptr, "trigger_unlock_camera:%d: ", e->trigger.unlock_camera);
+            fprintf(fptr, "trigger_locked_camera_position{:%f:, :%f:} ", e->trigger.locked_camera_position.x, e->trigger.locked_camera_position.y);
             
             fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
             if (e->trigger.load_level){
@@ -424,6 +427,11 @@ int save_level(const char *level_name){
             fprintf(fptr, "move_sequence_speed:%f: ", e->move_sequence.speed);
             fprintf(fptr, "move_sequence_loop:%d: ", e->move_sequence.loop);
             fprintf(fptr, "move_sequence_rotate:%d: ", e->move_sequence.rotate);
+        }
+        
+        if (e->flags & CENTIPEDE){
+            fprintf(fptr, "spikes_on_right:%d: ", e->centipede.spikes_on_right);
+            fprintf(fptr, "segments_count:%d: ", e->centipede.segments_count);
         }
         
         if (e->flags & DOOR){
@@ -738,6 +746,21 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "trigger_player_touch")){
                 fill_b32_from_string(&entity_to_fill.trigger.player_touch, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_lock_camera")){
+                fill_b32_from_string(&entity_to_fill.trigger.lock_camera, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_unlock_camera")){
+                fill_b32_from_string(&entity_to_fill.trigger.unlock_camera, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_locked_camera_position")){
+                fill_vector2_from_string(&entity_to_fill.trigger.locked_camera_position, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                i += 2;
+            } else if (str_equal(splitted_line.get(i).data, "spikes_on_right")){
+                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_right, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "segments_count")){
+                fill_int_from_string(&entity_to_fill.centipede.segments_count, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "door_open")){
                 fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get(i+1).data);
                 i++;
@@ -1034,7 +1057,10 @@ void init_spawn_objects(){
     str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
     spawn_objects.add(enemy_trigger_object);
     
-    Entity centipede_entity = Entity({0, 0}, {7, 5}, {0.5f, 0.5f}, 0, CENTIPEDE);
+    Entity centipede_entity = Entity({0, 0}, {7, 5}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE);
+    centipede_entity.move_sequence.moving = true;
+    centipede_entity.move_sequence.loop = true;
+    centipede_entity.move_sequence.rotate = true;
     centipede_entity.color = ColorBrightness(RED, 0.6f);
     str_copy(centipede_entity.name, "centipede"); 
     setup_color_changer(&centipede_entity);
@@ -1054,6 +1080,16 @@ void init_spawn_objects(){
     copy_entity(&centipede_segment_object.entity, &centipede_segment_entity);
     str_copy(centipede_segment_object.name, centipede_segment_entity.name);
     spawn_objects.add(centipede_segment_object);
+    
+    Entity shoot_stoper_entity = Entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
+    shoot_stoper_entity.color = ColorBrightness(BLACK, 0.3f);
+    str_copy(shoot_stoper_entity.name, "shoot_stoper"); 
+    setup_color_changer(&shoot_stoper_entity);
+    
+    Spawn_Object shoot_stoper_object;
+    copy_entity(&shoot_stoper_object.entity, &shoot_stoper_entity);
+    str_copy(shoot_stoper_object.name, shoot_stoper_entity.name);
+    spawn_objects.add(shoot_stoper_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -1181,6 +1217,7 @@ void init_entity(Entity *entity){
     }
     
     if (entity->flags & BLOCKER && game_state == GAME){
+        // init blocker
         if (entity->enemy.blocker_sticky_id != -1 && context.entities.has_key(entity->enemy.blocker_sticky_id)){
             context.entities.get_by_key_ptr(entity->enemy.blocker_sticky_id)->destroyed = true;
         }
@@ -1193,6 +1230,7 @@ void init_entity(Entity *entity){
             sticky_entity->need_to_save = false;
             //sticky_entity->texture = texture;
             sticky_entity->draw_order = 1;
+            sticky_entity->sticky_texture.texture_position = entity->position;
             sticky_entity->sticky_texture.max_lifetime = 0;
             sticky_entity->sticky_texture.line_color = ORANGE;
             sticky_entity->sticky_texture.need_to_follow = true;
@@ -1235,8 +1273,9 @@ void init_entity(Entity *entity){
         centipede->segments_ids.clear();
         // centipede->segments_ids.add(entity->id);
         // centipede->segments.clear();
-        for (int i = 0; i < centipede->segments_ids.max_count; i++){
+        for (int i = 0; i < centipede->segments_count; i++){
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
+            segment->centipede_head = entity;
             change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
             centipede->segments_ids.add(segment->id);
@@ -1525,6 +1564,7 @@ void play_sound(const char* name, f32 volume_multiplier = 1){
 }
 
 void init_game(){
+    printf("%zu\n", sizeof(Entity));
     game_state = EDITOR;
 
     context = {};    
@@ -1591,6 +1631,9 @@ void clean_up_scene(){
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
     close_create_box();
+    
+    context.shoot_stopers_count = 0;
+    context.cam.locked = false;
     
     if (player_entity){
         destroy_player();
@@ -1697,10 +1740,10 @@ void kill_player(){
 void enter_editor_state(){
     game_state = EDITOR;
     
-    ShowCursor();
-    EnableCursor();
+    // ShowCursor();
+    // EnableCursor();
     
-    SetMousePosition(mouse_position.x, mouse_position.y);
+    // SetMousePosition(mouse_position.x, mouse_position.y);
     
     String temp_level_name = init_string();
     temp_level_name += "TEMP_";
@@ -2064,35 +2107,43 @@ void update_game(){
     update_particles();
     
     if (game_state == GAME && player_entity){
-        Vector2 player_velocity = player_data.velocity;
-        f32 target_speed_multiplier = 1;
-    
-        f32 time_since_heavy_collision = core.time.game_time - player_data.heavy_collision_time;
-        if (magnitude(player_data.velocity) < 80 && core.time.game_time > 5 && time_since_heavy_collision <= 1.0f){
-            player_velocity = player_data.heavy_collision_velocity;
-            target_speed_multiplier = 0.05f;
+        // camera logic
+        if (!context.cam.locked){
+            Vector2 player_velocity = player_data.velocity;
+            f32 target_speed_multiplier = 1;
+        
+            f32 time_since_heavy_collision = core.time.game_time - player_data.heavy_collision_time;
+            if (magnitude(player_data.velocity) < 80 && core.time.game_time > 5 && time_since_heavy_collision <= 1.0f){
+                player_velocity = player_data.heavy_collision_velocity;
+                target_speed_multiplier = 0.05f;
+            }
+            
+            f32 player_speed = magnitude(player_velocity);
+        
+            Vector2 target_position = player_entity->position + Vector2_up * 10 + player_velocity * 0.25f;
+            
+            Vector2 vec_to_target = target_position - context.cam.target;
+            Vector2 vec_to_player = player_entity->position - context.cam.target;
+            
+            f32 target_dot = dot(vec_to_target, vec_to_player);
+            
+            f32 speed_t = clamp01(player_speed / 200.0f);
+            
+            f32 target_speed = lerp(3, 10, speed_t * speed_t);
+            target_speed *= target_speed_multiplier;
+            
+            context.cam.target = lerp(context.cam.target, target_position, core.time.dt * target_speed);
+            
+            f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
+            
+            context.cam.position = lerp(context.cam.position, context.cam.target, core.time.dt * cam_speed);
+            //context.cam.position = move_by_velocity(context.cam.position, target_position, &context.cam.move_settings, core.time.dt);
+        } else{
+            context.cam.position = lerp(context.cam.position, context.cam.target, core.time.fixed_dt * 4);
+            if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
+                context.cam.position = context.cam.target;
+            }
         }
-        
-        f32 player_speed = magnitude(player_velocity);
-    
-        Vector2 target_position = player_entity->position + Vector2_up * 10 + player_velocity * 0.25f;
-        
-        Vector2 vec_to_target = target_position - context.cam.target;
-        Vector2 vec_to_player = player_entity->position - context.cam.target;
-        
-        f32 target_dot = dot(vec_to_target, vec_to_player);
-        
-        f32 speed_t = clamp01(player_speed / 200.0f);
-        
-        f32 target_speed = lerp(3, 10, speed_t * speed_t);
-        target_speed *= target_speed_multiplier;
-        
-        context.cam.target = lerp(context.cam.target, target_position, core.time.dt * target_speed);
-        
-        f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
-        
-        context.cam.position = lerp(context.cam.position, context.cam.target, core.time.dt * cam_speed);
-        //context.cam.position = move_by_velocity(context.cam.position, target_position, &context.cam.move_settings, core.time.dt);
     }
     
     if (editor.update_cam_view_position){
@@ -2677,7 +2728,7 @@ void update_editor_ui(){
                 make_ui_text("Alt+N Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_add_point");
                 type_info_v_pos += type_font_size;
                 
-                make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
+                make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "move_sequence_settings");
             type_info_v_pos += type_font_size;
 
             }
@@ -2745,6 +2796,21 @@ void update_editor_ui(){
                     v_pos += height_add;
                 }
                 
+                make_ui_text("Lock camera: ", {inspector_position.x + 5, v_pos}, "lock_camera_text");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.lock_camera, "lock_camera")){
+                    selected->trigger.lock_camera = !selected->trigger.lock_camera;                 
+                    if (selected->trigger.lock_camera && selected->trigger.locked_camera_position == Vector2_zero){
+                        selected->trigger.locked_camera_position = selected->position;
+                    }
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Unlock camera: ", {inspector_position.x + 5, v_pos}, "unlock_camera_text");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.unlock_camera, "unlock_camera")){
+                    selected->trigger.unlock_camera = !selected->trigger.unlock_camera;                 
+                }
+                v_pos += height_add;
+                
                 make_ui_text("Play sound: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound");
                 if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->trigger.play_sound, "toggle_play_sound")){
                     selected->trigger.play_sound = !selected->trigger.play_sound;                 
@@ -2774,6 +2840,10 @@ void update_editor_ui(){
                 }
             }
         
+            if (selected->trigger.lock_camera){
+                make_ui_text("Alt+R: Locked cam position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
+                type_info_v_pos += type_font_size;
+            }
             make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_clear");
             type_info_v_pos += type_font_size;
             make_ui_text("Remove selected: Alt+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_remove");
@@ -2876,6 +2946,27 @@ void update_editor_ui(){
             make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
             type_info_v_pos += type_font_size;
 
+        }
+        
+        if (selected->flags & CENTIPEDE){
+            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Centipede settings", "centipede_settings")){
+                editor.draw_centipede_settings = !editor.draw_centipede_settings;
+            }
+            v_pos += height_add;
+            
+            if (editor.draw_centipede_settings){
+                make_ui_text("Spikes on right: ", {inspector_position.x + 5, v_pos}, "spikes_on_right");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->centipede.spikes_on_right, "spikes_on_right")){
+                    selected->centipede.spikes_on_right = !selected->centipede.spikes_on_right;
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Segments count: ", {inspector_position.x + 25, v_pos}, "segments_count");
+                if (make_input_field(TextFormat("%d", selected->centipede.segments_count), {inspector_position.x + 100, v_pos}, 100, "segments_count")){
+                    selected->centipede.segments_count = fmin(atoi(focus_input_field.content), MAX_CENTIPEDE_SEGMENTS);
+                }
+                v_pos += height_add;
+            }
         }
 
         if (selected->flags & DOOR){
@@ -3369,6 +3460,7 @@ void update_editor(){
             b32 wanna_assign = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
             b32 wanna_assign_tracking_enemy = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
+            b32 wanna_change_locked_camera_position = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_R);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
                 fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER);
@@ -3388,6 +3480,10 @@ void update_editor(){
                         break;
                     }
                 }
+            }
+            
+            if (wanna_change_locked_camera_position){
+                selected->trigger.locked_camera_position = input.mouse_position;
             }
             
             if (wanna_assign_tracking_enemy){
@@ -3981,7 +4077,8 @@ void update_player(Entity *entity, f32 dt){
     player_data.rifle_trail_emitter->position = sword_tip;
     player_data.rifle_trail_emitter->direction = sword->up;
     
-    b32 can_shoot_rifle = player_data.rifle_active && (player_data.ammo_count > 0 || debug.infinite_ammo);
+    // player shoot
+    b32 can_shoot_rifle = player_data.rifle_active && (player_data.ammo_count > 0 || debug.infinite_ammo) && context.shoot_stopers_count == 0;
     if (can_shoot_rifle && input.press_flags & SHOOT){
         add_rifle_projectile(sword_tip, sword->up * player_data.rifle_strong_speed, STRONG);
         add_player_ammo(-1, true);
@@ -3997,6 +4094,24 @@ void update_player(Entity *entity, f32 dt){
     } else if (input.press_flags & SHOOT){
         player_data.rifle_shake_start_time = core.time.game_time;
         emit_particles(gunpowder_emitter, sword_tip, sword->up);
+        
+        // shoot blocker blocked
+        if (context.shoot_stopers_count > 0){
+            ForTable(context.entities, i){
+                Entity *e = context.entities.get_ptr(i);
+                if (e->flags & SHOOT_STOPER){
+                    Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
+                    sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
+                    sticky_line->sticky_texture.follow_id = e->id;
+                    sticky_line->sticky_texture.need_to_follow = true;
+                    sticky_line->sticky_texture.texture_position = get_shoot_stoper_cross_position(e);
+                    sticky_line->sticky_texture.birth_time = core.time.game_time;
+                    sticky_line->sticky_texture.max_distance = 0;
+                    sticky_line->draw_order = 1;
+                    shake_camera(0.5f);
+                }
+            }
+        }
     }
     
     if (player_data.rifle_active){
@@ -4254,7 +4369,8 @@ void update_player(Entity *entity, f32 dt){
         }
         
         if (other->flags & CENTIPEDE_SEGMENT){
-            f32 side_dot = dot(other->right, entity->position - other->position);
+            Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
+            f32 side_dot = dot(side, entity->position - other->position);
             // so we on right side of the centipede segments where are SPIKES
             if (side_dot > 0){
                 kill_player();
@@ -4362,7 +4478,8 @@ void update_player(Entity *entity, f32 dt){
         
         
         if (other->flags & CENTIPEDE_SEGMENT){
-            f32 side_dot = dot(other->right, entity->position - other->position);
+            Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
+            f32 side_dot = dot(side, entity->position - other->position);
             // so we on right side of the centipede segments where are SPIKES
             if (side_dot > 0){
                 kill_player();
@@ -4412,6 +4529,11 @@ void update_player(Entity *entity, f32 dt){
     
     f32 wind_t = clamp01(magnitude(player_data.velocity) / 300.0f);
     SetMusicVolume(wind_theme, lerp(0.0f, 1.0f, wind_t * wind_t));
+    
+    ground_checker->position     = entity->position - entity->up * entity->scale.y * 0.5f;
+    left_wall_checker->position  = entity->position - entity->right * entity->scale.x * 1.5f;
+    right_wall_checker->position = entity->position + entity->right * entity->scale.x * 1.5f;
+    sword->position = entity->position;
 } // update player end
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity){
@@ -4692,8 +4814,11 @@ void update_bird_enemy(Entity *entity, f32 dt){
     bird->trail_emitter->direction = entity->up * -1;
 }
 
-inline f32 get_explosion_power_multiplier(Entity *entity){
-    return ((entity->scale.x * 0.5f + entity->scale.y * 0.5f) / 4.0f);
+inline f32 get_explosion_radius(Entity *entity, f32 base_radius = 40){
+    f32 scale_sum = (entity->scale.x * 0.5f + entity->scale.y * 0.5f);
+    f32 scale_progress = clamp01(scale_sum / 200.0f);
+    
+    return lerp(base_radius, base_radius * 6, scale_progress);
 }
 
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier){
@@ -4711,7 +4836,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         enemy_entity->enemy.dead_man = true;
         if (!(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT))){
             enemy_entity->enabled = false;
-            enemy_entity->destroyed = true;
+            destroy_enemy(enemy_entity);
         }
         
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)){
@@ -4721,9 +4846,11 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         if (enemy_entity->flags & EXPLOSIVE){
             hitmark_scale += 4;
             hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
-            f32 explosion_radius = fmax(40 * get_explosion_power_multiplier(enemy_entity), 40);
-            emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, get_explosion_power_multiplier(enemy_entity));
+            f32 explosion_radius = get_explosion_radius(enemy_entity);
+            emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, get_explosion_radius(enemy_entity) / 40.0f);
             play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
+            
+            f32 explosion_add_speed = 80;
             ForTable(context.entities, i){
                 Entity *other_entity = context.entities.get_ptr(i);
                 Vector2 vec_to_other = other_entity->position - enemy_entity->position;
@@ -4741,7 +4868,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     }
                     
                     if (other_entity->flags & BIRD_ENEMY){
-                        other_entity->bird_enemy.velocity += dir_to_other * 80;
+                        other_entity->bird_enemy.velocity += dir_to_other * explosion_add_speed;
                     }
                 }
                 
@@ -4754,16 +4881,46 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             shake_camera(0.5f);
         }
         
-        add_hitmark(enemy_entity, false, hitmark_scale, hitmark_color); 
+        b32 is_hitmark_follow = false;
+        
+        if (enemy_entity->flags & (CENTIPEDE_SEGMENT | TRIGGER)){
+            is_hitmark_follow = true;
+        }
+        
+        add_hitmark(enemy_entity, is_hitmark_follow, hitmark_scale, hitmark_color); 
     }
 }
 
 inline b32 is_enemy_can_take_damage(Entity *enemy_entity){
     assert(enemy_entity->flags & ENEMY);
 
-    b32 recently_got_hit = core.time.game_time - enemy_entity->enemy.stun_start_time <= 0.05f;
+    if (enemy_entity->flags & CENTIPEDE_SEGMENT && enemy_entity->enemy.dead_man){
+        return false;
+    }
     
+    b32 recently_got_hit = core.time.game_time - enemy_entity->enemy.stun_start_time <= 0.05f;
     return !recently_got_hit;
+}
+
+void agro_enemy(Entity *entity){
+    if (entity->enemy.in_agro){
+        return;
+    }
+
+    entity->enemy.in_agro = true;
+    
+    if (entity->flags & SHOOT_STOPER){
+        context.shoot_stopers_count++;
+    }
+}
+
+void destroy_enemy(Entity *entity){
+    entity->destroyed = true;
+    
+    if (entity->flags & SHOOT_STOPER){
+        context.shoot_stopers_count--;
+        assert(context.shoot_stopers_count >= 0);
+    }
 }
 
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious){
@@ -4780,7 +4937,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)){
             enemy_entity->move_sequence.moving = false;
         }
-        enemy->in_agro = true;
+        agro_enemy(enemy_entity);
     
         enemy->stun_start_time = core.time.game_time;
         enemy->hits_taken++;
@@ -4798,7 +4955,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             } else if (enemy_entity->flags & CENTIPEDE_SEGMENT){
                 
             } else{
-                enemy_entity->destroyed = true;
+                destroy_enemy(enemy_entity);
             }
         } else{
             enemy->stun_start_time = core.time.game_time;
@@ -4836,9 +4993,11 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     str_copy(hitmark->name, "hitmark_small");
     //hitmark->texture = hitmark_small_texture;
     
+    hitmark->sticky_texture.texture_position = entity->position;
     hitmark->sticky_texture.need_to_follow = need_to_follow;
     hitmark->sticky_texture.follow_id = entity->id;
     hitmark->sticky_texture.birth_time = core.time.game_time;
+    hitmark->sticky_texture.max_distance = 1000;
 }
 
 inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EPSILON){
@@ -4989,10 +5148,16 @@ void update_sticky_texture(Entity *real_entity, f32 dt){
     
     if (need_to_follow){
         Entity *follow_entity = context.entities.get_by_key_ptr(st->follow_id);
-        real_entity->position = lerp(real_entity->position, follow_entity->position, dt * 40);
+        // real_entity->position = lerp(real_entity->position, follow_entity->position, dt * 40);
+        Vector2 target_position = follow_entity->position;
+        if (follow_entity->flags & SHOOT_STOPER){
+            target_position = get_shoot_stoper_cross_position(follow_entity);
+        }
+        real_entity->sticky_texture.texture_position = lerp(real_entity->sticky_texture.texture_position, target_position, dt * 40);
     } else if (st->max_lifetime <= EPSILON){
         real_entity->destroyed = true;
     }
+    real_entity->position = player_entity->position;
     st->need_to_follow = need_to_follow;
 }
 
@@ -5017,7 +5182,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
     connected->hidden = !trigger_entity->trigger.shows_entities;
 
     if (connected->flags & ENEMY && debug.enemy_ai && trigger_entity->trigger.agro_enemies){
-        connected->enemy.in_agro = true;
+        agro_enemy(connected);
     }
     
     if (connected->flags & DOOR && connected->door.is_open != trigger_entity->trigger.open_doors){
@@ -5083,6 +5248,13 @@ void update_trigger(Entity *e){
         
         if (e->trigger.change_zoom){
             context.cam.target_zoom = e->trigger.zoom_value;
+        }
+        
+        if (e->trigger.unlock_camera){
+            context.cam.locked = false;
+        } else if (e->trigger.lock_camera){
+            context.cam.locked = true;
+            context.cam.target = e->trigger.locked_camera_position;
         }
     
         if (e->flags & DOOR){
@@ -5286,7 +5458,7 @@ void update_entities(f32 dt){
             Centipede *centipede = &e->centipede;
             
             i32 alive_count = 0;
-            for (int i = 0; i < centipede->segments_ids.count; i++){
+            for (int i = 0; i < centipede->segments_count; i++){
                 Entity *segment = context.entities.get_by_key_ptr(centipede->segments_ids.get(i));
                 
                 if (!segment->enemy.dead_man){
@@ -5304,7 +5476,7 @@ void update_entities(f32 dt){
                 e->collision_flags = GROUND;
                 init_bird_emitters(e);
                 
-                for (int i = 0; i < centipede->segments_ids.count; i++){
+                for (int i = 0; i < centipede->segments_count; i++){
                     Entity *segment = context.entities.get_by_key_ptr(centipede->segments_ids.get(i));
                     
                     segment->volume_multiplier = 0.3f;
@@ -5435,6 +5607,17 @@ int compare_entities_draw_order(const void *first, const void *second){
     return entity1->draw_order < entity2->draw_order ? 1 : -1;
 }
 
+Bounds get_cam_bounds(Cam cam, f32 zoom){
+    Bounds cam_bounds;
+    cam_bounds.size = {(f32)screen_width, (f32)screen_height};
+    cam_bounds.size /= zoom;
+    cam_bounds.size /= UNIT_SIZE;
+    
+    cam_bounds.offset = {0, 0};
+    
+    return cam_bounds;
+}
+
 void fill_entities_draw_queue(){
     context.entities_draw_queue.clear();
     
@@ -5453,12 +5636,7 @@ void fill_entities_draw_queue(){
             continue;
         }
         
-        Bounds cam_bounds;
-        cam_bounds.size = {(f32)screen_width, (f32)screen_height};
-        cam_bounds.size /= context.cam.cam2D.zoom;
-        cam_bounds.size /= UNIT_SIZE;
-        
-        cam_bounds.offset = {0, 0};
+        Bounds cam_bounds = get_cam_bounds(context.cam, context.cam.cam2D.zoom);
         if (!is_should_draw_anyway && !check_bounds_collision(context.cam.view_position, cam_bounds, &e)){
             e_ptr->visible = false;
             continue;
@@ -5499,6 +5677,10 @@ void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 wi
     draw_game_line_strip(line_strip_points.data, line_strip_points.count, RED);
 }
 
+inline Vector2 get_shoot_stoper_cross_position(Entity *entity){
+    return entity->position + entity->up * entity->scale.y * 0.85f;
+}
+
 void draw_entities(){
     fill_entities_draw_queue();
 
@@ -5521,7 +5703,11 @@ void draw_entities(){
         
         if (e->flags & TEXTURE){
             // draw texture
-            draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
+            Vector2 position = e->position;
+            if (e->flags & STICKY_TEXTURE){
+                position = e->sticky_texture.texture_position;
+            }
+            draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
         }
         
         if (e->flags & GROUND || e->flags & PLATFORM || e->flags == 0 || e->flags & PROJECTILE){
@@ -5549,6 +5735,17 @@ void draw_entities(){
             draw_sword(e);
         }
         
+        if (e->flags & SHOOT_STOPER){
+            // draw shoot stoper
+            f32 line_width = e->scale.x * 0.1f;
+            Vector2 top = e->position + e->up * e->scale.y * 0.5f;
+            Vector2 cross_position = get_shoot_stoper_cross_position(e);
+            
+            draw_game_line(top, top + e->up * e->scale.y * 0.5f, line_width, BLACK);
+            draw_game_line(cross_position - e->right * e->scale.x * 0.6f, cross_position + e->right * e->scale.x * 0.6f, line_width, BLACK);
+        }
+        
+        // draw enemies
         if (e->flags & BIRD_ENEMY){
             draw_bird_enemy(e);
         } else if (e->flags & CENTIPEDE_SEGMENT){
@@ -5558,9 +5755,10 @@ void draw_entities(){
                 color = Fade(BLACK, 0.3f);
             }
             draw_game_triangle_strip(e, color);
-            draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
+            Vector2 spikes_direction = e->centipede_head->centipede.spikes_on_right ? e->right : (e->right * -1.0f);
+            draw_spikes(e, e->up, spikes_direction, e->scale.y, e->scale.x);
             if (!e->enemy.dead_man){
-                draw_game_circle(e->position - e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+                draw_game_circle(e->position - spikes_direction * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
             }
         } else if (e->flags & CENTIPEDE){
             // draw centipede
@@ -5580,13 +5778,26 @@ void draw_entities(){
             draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
         }
         
-        b32 should_draw_external_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
+        b32 should_draw_editor_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
         
         if (e->flags & TRIGGER){
-            //draw_game_rect_lines(e->position, e->scale, e->pivot, 5, e->color);
-            if (should_draw_external_hints){
+            // draw trigger
+            if (should_draw_editor_hints){
                 draw_game_line_strip(e, e->color);
                 draw_game_triangle_strip(e, Fade(e->color, 0.1f));
+                
+                if (e->trigger.change_zoom){
+                    Bounds cam_bounds = get_cam_bounds(context.cam, e->trigger.zoom_value);
+                    Vector2 position = e->position;
+                    if (e->trigger.lock_camera){
+                        position = e->trigger.locked_camera_position;
+                    }
+                    draw_game_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2, PINK);
+                }
+                
+                if (e->trigger.lock_camera){
+                    draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
+                }
             }
             
             b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == e->id;
@@ -5603,7 +5814,7 @@ void draw_entities(){
                     Color color = connected_entity->door.is_open == e->trigger.open_doors ? SKYBLUE : ORANGE;
                     f32 width = connected_entity->door.is_open == e->trigger.open_doors ? 1.0f : 0.2f;
                     draw_game_line(e->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.6f));
-                } else if (is_trigger_selected && should_draw_external_hints){
+                } else if (is_trigger_selected && should_draw_editor_hints){
                     draw_game_line(e->position, connected_entity->position, RED);
                 }
             }
@@ -5616,7 +5827,7 @@ void draw_entities(){
                 }
                 Entity *connected_entity = context.entities.get_by_key_ptr(id);
                 
-                if (is_trigger_selected && should_draw_external_hints){
+                if (is_trigger_selected && should_draw_editor_hints){
                     draw_game_line(e->position, connected_entity->position, GREEN);
                 }
             }
@@ -5646,6 +5857,7 @@ void draw_entities(){
         }
         
         if (e->flags & PLATFORM){
+            // draw platform
             line_strip_points.clear();
             f32 frequency = 6;
             Vector2 start_position = e->position - e->right * e->scale.x * 0.5f + e->up * e->scale.y * 0.5f;
@@ -5674,6 +5886,10 @@ void draw_entities(){
             line_strip_points.add(end_position - e->up * e->scale.y);
             
             draw_game_line_strip(line_strip_points.data, line_strip_points.count, BROWN);
+        }
+        
+        if (e->flags & EXPLOSIVE){
+            draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
         }
         
         if (e->flags & PROPELLER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
@@ -5711,6 +5927,7 @@ void draw_entities(){
         }
         
         if (e->flags & STICKY_TEXTURE){
+            // draw sticky texture
             f32 lifetime = core.time.game_time - e->sticky_texture.birth_time;
             f32 lifetime_t = 0.5f;
             if (e->sticky_texture.max_lifetime > EPSILON){
@@ -5720,11 +5937,15 @@ void draw_entities(){
             if (e->sticky_texture.need_to_follow && player_entity){
                 Entity *follow_entity = context.entities.get_by_key_ptr(e->sticky_texture.follow_id);
                 Color line_color = e->sticky_texture.line_color;
-                if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0){
+                if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
                     line_color = follow_entity->enemy.dead_man ? SKYBLUE : RED;
                 }
 
-                draw_game_line(player_entity->position, e->position, lerp(Fade(line_color, 0.8f), Fade(line_color, 0), lifetime_t * lifetime_t));
+                Vector2 vec_to_follow = e->sticky_texture.texture_position - player_entity->position;
+                f32 len = magnitude(vec_to_follow);
+                if (len <= e->sticky_texture.max_distance || e->sticky_texture.max_distance <= 0){
+                    draw_game_line(player_entity->position, e->sticky_texture.texture_position, lerp(Fade(line_color, 0.8f), Fade(line_color, 0), lifetime_t * lifetime_t));
+                }
             }
         }
         
@@ -6039,12 +6260,18 @@ void draw_game(){
         }
     }
     
+    // draw cursor
     if (game_state == GAME){
         if (player_data.rifle_active){
-            draw_rect({mouse_position.x - 5, mouse_position.y - 5}, {10, 10}, GREEN);
+            draw_line(mouse_position - Vector2_right * 10 - Vector2_up * 10, mouse_position + Vector2_right * 10 + Vector2_up * 10, WHITE);
+            draw_line(mouse_position + Vector2_right * 10 - Vector2_up * 10, mouse_position - Vector2_right * 10 + Vector2_up * 10, WHITE);
+            draw_rect({mouse_position.x - 2.5f, mouse_position.y - 2.5f}, {5, 5}, GREEN);
         } else{
             draw_rect({mouse_position.x - 5, mouse_position.y - 5}, {10, 10}, RED);
         }
+    } else{
+        draw_circle({mouse_position.x, mouse_position.y}, 20, Fade(RED, 0.1f));
+        draw_rect({mouse_position.x - 5, mouse_position.y - 5}, {10, 10}, WHITE);
     }
     
     EndDrawing();

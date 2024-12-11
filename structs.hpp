@@ -125,6 +125,7 @@ enum Flags : u64{
     DUMMY             = 1 << 22,
     CENTIPEDE         = 1 << 23,
     CENTIPEDE_SEGMENT = 1 << 24,
+    SHOOT_STOPER      = 1 << 25,
     
     TEST = 1 << 30
 };
@@ -184,6 +185,10 @@ struct Trigger{
     char level_name[128];
     
     b32 triggered = false;
+    
+    b32 lock_camera = false;
+    b32 unlock_camera = false;
+    Vector2 locked_camera_position = Vector2_zero;
 };
 
 struct Velocity_Move{
@@ -283,7 +288,7 @@ struct Bird_Enemy{
     Sound_Handler *attack_sound = NULL;
 };
 
-#define MAX_CENTIPEDE_SEGMENTS 32
+#define MAX_CENTIPEDE_SEGMENTS 64
 
 struct Centipede_Segment{
     i32 previous_id = -1;
@@ -291,14 +296,19 @@ struct Centipede_Segment{
 
 struct Centipede{
     Array<i32, MAX_CENTIPEDE_SEGMENTS> segments_ids = Array<i32, MAX_CENTIPEDE_SEGMENTS>();
+    
+    i32 segments_count = 32;
+    b32 spikes_on_right = true;
 };
 
 struct Sticky_Texture{
     b32 need_to_follow = false;
     i32 follow_id = -1;  
+    Vector2 texture_position = Vector2_zero;
     f32 max_lifetime = 2.0f;
     Color line_color = SKYBLUE;
     
+    f32 max_distance = 400;
     f32 birth_time = 0;
 };
 
@@ -502,6 +512,8 @@ struct Entity{
     b32 spawn_enemy_when_no_ammo = false;
     i32 spawned_enemy_id = -1;
     
+    Entity *centipede_head;
+    
     //Player player;
     Ground ground;
     Text_Drawer text_drawer;
@@ -537,6 +549,8 @@ struct Cam{
     //Shake
     f32 trauma = 0;
     f32 trauma_decrease_rate = 1.5f;
+    
+    b32 locked = false;
     
     Camera2D cam2D = {};
     f32 target_zoom = 0.35f;
@@ -579,6 +593,8 @@ struct Context{
     Vector2 unit_screen_size;
     
     char current_level_name[256];
+    
+    i32 shoot_stopers_count = 0;
     
     Cam cam = {};
 };
@@ -720,6 +736,7 @@ struct Editor{
     b32 draw_entity_settings = true;
     b32 draw_trigger_settings = false;
     b32 draw_enemy_settings = false;
+    b32 draw_centipede_settings = false;
     b32 draw_door_settings = false;
 };
 

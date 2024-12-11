@@ -1,12 +1,5 @@
 - Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
 
-<Level ideas>
-///////////////////////////////////////////////////
-[ ] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
-[ ] Big bomb in the middle and static camera
-[X] Tutorial for gravity increase - spikes above
-///////////////////////////////////////////////////
-
 <LONG TERM>
 ///////////////////////////////////////////////////
 [ ] Really strong lighting with shadows and reflections/refractions
@@ -14,31 +7,46 @@
 [ ] Per-object motion blur
 [ ] Dynamic decals
 [ ] Simulating only visual entities for fps more than fixed. Better later so less friction because simulation for visual guys should not make something catastrophical.
+[ ] Profiling tool
 ///////////////////////////////////////////////////
 
+<Level ideas>
+///////////////////////////////////////////////////
+[X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
+[ ] Big bomb in the middle and static camera
+[X] Tutorial for gravity increase - spikes above
+[ ] Spiky enemy (Could do that we don't want to kill it in range, but in melee)
+///////////////////////////////////////////////////
+
+<Battle ideas>
+///////////////////////////////////////////////////
+[ ] Robo-hand that can catch us and throw somewhere
+[ ] Charging stations where we need to spin. Also some enemies could charge of that and we can overcharge them.
+[ ] Block on the rope that can be cutted
+[ ] Killable objects for buffs (like homing shot, etc. Now that could be bombs, but big bombs is dangerous for player so we work on explosion radius (maybe show radius to player) or make special bombs that damage only enemies and we can do other funny stuff with it)
+[X] Enemy that doesn't allow to shoot
+///////////////////////////////////////////////////
+
+[X] Explosion radius visualization (so player could understand what would happen when explosion hits)
 [X] Jump off the wall
 [X] Fixed physics timestamp (240)
 [ ] Free cam in game-mode
-[ ] Static camera functional
-[ ] Make that bullet hit only alive centipede segments
-[ ] Centipede option for which side's spikes on (?)
+[X] Static camera functional
+[X] Make that bullet hit only alive centipede segments
+[X] Centipede option for which side's spikes on (?)
+[X] Centipede customize segment size
 [X]! Custom cursor
 [ ] Timer
 [X] Try to give player control on sword size
 [X] Fix blockers
 [X] Sword color when can go into rifle
-[ ] Robo-hand that can catch us and throw somewhere
-[ ] Charging stations where we need to spin. Also some enemies could charge of that and we can overcharge them.
-[ ] Block on the rope that can be cutted
 [X] Change sword acceleartion in air and test it
 [\] Try to improve vertical movement by making throwable sword. 
 [\] Temporal boosters for sword size and infinite ammo (?)
-[ ] Killable objects for buffs (like homing shot, etc. Now that could be bombs, but big bombs is dangerous for player so we work on explosion radius (maybe show radius to player) or make special bombs that damage only enemies and we can do other funny stuff with it)
 [X]! Wall climbing
 [X]! Bird rework
 [\] Bomber enemy
 [X] Centipede
-[ ] Enemy that doesn't allow to shoot
 [X] Bullet for every x enemy
 [X]! Scaling fix (Suka ne doljno) (budet)
 

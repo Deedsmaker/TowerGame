@@ -3,6 +3,7 @@ Trigger:
     - Remove selected: Alt+D
     - Assign New: Alt+A
     - Assign tracking enemy: Alt+V
+    - Change locked cam position: Alt+R
     
 Enemy:
     - Toggle shoot blocker change direction : Alt+F ; Alt+G

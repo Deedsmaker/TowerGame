@@ -37,6 +37,9 @@ Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt);
 Vector2 move_by_velocity(Vector2 position, Vector2 target, Velocity_Move* settings, f32 dt);
 //void rotate_towards(f32 *rotate_angle, f32 target, f32 speed, f32 dt);
 
+inline Vector2 get_shoot_stoper_cross_position(Entity *entity);
+void agro_enemy(Entity *entity);
+void destroy_enemy(Entity *entity);
 inline b32 is_enemy_can_take_damage(Entity *enemy_entity);
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier = 1);
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious = false);
