@@ -7,6 +7,8 @@
 #define MAX_VERTICES 8
 #define MAX_COLLISIONS 32
 #define MAX_ENTITY_EMITTERS 4
+#define GRAVITY 100
+#define PLAYER_MASS 10
 
 enum Particle_Shape{
     SQUARE
@@ -126,12 +128,23 @@ enum Flags : u64{
     CENTIPEDE         = 1 << 23,
     CENTIPEDE_SEGMENT = 1 << 24,
     SHOOT_STOPER      = 1 << 25,
+    PHYSICS_OBJECT    = 1 << 26,
     
     TEST = 1 << 30
 };
 
 struct Ground{
       
+};
+
+struct Physics_Object{
+    Vector2 velocity = Vector2_zero;  
+    f32 mass = 10.0f;
+    
+    f32 gravity_multiplier = 2.0f;
+    
+    b32 rotate_by_velocity = true;
+    b32 on_rope = false;
 };
 
 struct Move_Sequence{
@@ -528,6 +541,7 @@ struct Entity{
     Trigger trigger;
     Move_Sequence move_sequence;
     Centipede centipede;
+    Physics_Object physics_object;
 };
 
 global_variable Player player_data;
