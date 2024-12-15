@@ -1310,8 +1310,8 @@ void init_entity(Entity *entity){
         }
     }
     
-    if (entity->flags & PHYSICS_OBJECT){
-        entity->collision_flags |= GROUND | ENEMY;
+    if (entity->flags & PHYSICS_OBJECT || entity->collision_flags == 0){
+        entity->collision_flags |= GROUND | ENEMY | PLAYER;
     }
     
     setup_color_changer(entity);
@@ -1587,6 +1587,9 @@ void play_sound(const char* name, f32 volume_multiplier = 1){
 }
 
 void init_game(){
+    HideCursor();
+    DisableCursor();
+    
     game_state = EDITOR;
 
     context = {};    
@@ -1714,6 +1717,7 @@ void enter_game_state(){
     sword_entity->color_changer.target_color = RED * 0.99f;
     sword_entity->color_changer.interpolating = true;
     sword_entity->draw_order = 25;
+    str_copy(sword_entity->name, "Player_Sword");
     
     //sword_entity->index = sword_entity->id % MAX_ENTITIES;
     
@@ -2249,42 +2253,29 @@ b32 check_rectangles_collision(Vector2 pos1, Vector2 scale1, Vector2 pos2, Vecto
     return solution;
 }
 
-inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Vector2 position2, Bounds bounds2){
-    return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, position2 + bounds2.offset, bounds2.size);
+// inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Vector2 position2, Bounds bounds2){
+//     return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, position2 + bounds2.offset, bounds2.size);
+// }
+
+inline b32 check_bounds_collision(Vector2 pos1, Vector2 pos2, Bounds bounds1, Bounds bounds2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}){
+    Vector2 pivot_add1 = multiply(pivot1, bounds1.size);
+    Vector2 position1 = pos1 + bounds1.offset;
+    //firstly for left up
+    Vector2 with_pivot_pos1 = {position1.x - pivot_add1.x, position1.y + pivot_add1.y};
+    Vector2 final1 = {with_pivot_pos1.x + bounds1.size.x * 0.5f, with_pivot_pos1.y - bounds1.size.y * 0.5f};
+    
+    Vector2 pivot_add2 = multiply(pivot2, bounds2.size);
+    Vector2 position2 = pos2 + bounds2.offset;
+    //firstly for left up
+    Vector2 with_pivot_pos2 = {position2.x - pivot_add2.x, position2.y + pivot_add2.y};
+    Vector2 final2 = {with_pivot_pos2.x + bounds2.size.x * 0.5f, with_pivot_pos2.y - bounds2.size.y * 0.5f};
+    
+    
+    return check_rectangles_collision(final1, bounds1.size, final2, bounds2.size);
 }
 
 inline b32 check_bounds_collision(Entity *entity1, Entity *entity2){
-    // Vector2 pivot_add1 = ((Vector2){(entity1->pivot.x - 0.5f) * entity1->bounds.size.x, (entity1->pivot.y - 0.5f) * entity1->bounds.size.y});
-    // // Vector2 pivot_add1 = multiply(entity1->pivot, entity1->bounds.size);
-    // Vector2 position1 = entity1->position + entity1->bounds.offset + pivot_add1;//; + pivot_add1;
-    // Vector2 pivot_add2 = ((Vector2){(entity2->pivot.x - 0.5f) * entity2->bounds.size.x, (entity2->pivot.y - 0.5f) * entity2->bounds.size.y});
-    // Vector2 position2 = entity2->position + entity1->bounds.offset + pivot_add2;
-    // Vector2 position2 = entity2->position + ((Vector2){(entity2->pivot.x - 0.5f) * entity2->scale.x, (entity2->pivot.y - 0.5f) * entity2->scale.y});
-    
-    Vector2 pivot_add1 = multiply(entity1->pivot, entity1->bounds.size);
-    Vector2 position1 = entity1->position + entity1->bounds.offset;
-    //firstly for left up
-    Vector2 with_pivot_pos1 = {position1.x - pivot_add1.x, position1.y + pivot_add1.y};
-    Vector2 final1 = {with_pivot_pos1.x + entity1->bounds.size.x * 0.5f, with_pivot_pos1.y - entity1->bounds.size.y * 0.5f};
-    
-    Vector2 pivot_add2 = multiply(entity2->pivot, entity2->bounds.size);
-    Vector2 position2 = entity2->position + entity2->bounds.offset;
-    //firstly for left up
-    Vector2 with_pivot_pos2 = {position2.x - pivot_add2.x, position2.y + pivot_add2.y};
-    Vector2 final2 = {with_pivot_pos2.x + entity2->bounds.size.x * 0.5f, with_pivot_pos2.y - entity2->bounds.size.y * 0.5f};
-    
-    // static f32 last_spawn_time = -9999;
-    // if (str_contains(entity2->name, "propeller")){
-    //     //make_ui_image(world_to_screen(final2), {20, 20}, {0.5f, 0.5f}, RED, "tesssst");
-    //     if (core.time.app_time - last_spawn_time > 0.4f){
-    //         Entity *e3 = spawn_object_by_name("enemy_base", final2);
-    //         change_color(e3, BLUE);
-            
-    //         last_spawn_time = core.time.app_time;
-    //     }
-    // }
-    
-    return check_rectangles_collision(final1, entity1->bounds.size, final2, entity2->bounds.size);
+    return check_bounds_collision(entity1->position, entity2->position, entity1->bounds, entity2->bounds, entity1->pivot, entity2->pivot);
 }
 
 inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *entity2){
@@ -2298,18 +2289,20 @@ inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *ent
     return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, final2, entity2->bounds.size);
 }
 
-Collision check_entities_collision(Entity *entity1, Entity *entity2){
+Collision check_collision(Vector2 position1, Vector2 position2, Array<Vector2, MAX_VERTICES> vertices1, Array<Vector2, MAX_VERTICES> vertices2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}){
     Collision result = {};
-    result.other_entity = entity2;
+    // result.other_entity = entity2;
     
-    if (/*entity1->pivot.x == 0.5f && entity1->pivot.y == 0.5f && entity2->pivot.x == 0.5f && entity2->pivot.y == 0.5f &&*/ !check_bounds_collision(entity1, entity2)){
+    Bounds bounds1 = get_bounds(vertices1, pivot1);
+    Bounds bounds2 = get_bounds(vertices2, pivot2);
+    if (!check_bounds_collision(position1, position2, bounds1, bounds2, pivot1, pivot2)){
         return result;
     }
 
     //Array<Vector2> normals = Array<Vector2>(entity1->vertices.count + entity2->vertices.count);
     global_normals.count = 0;
-    fill_arr_with_normals(&global_normals, entity1->vertices);
-    fill_arr_with_normals(&global_normals, entity2->vertices);
+    fill_arr_with_normals(&global_normals, vertices1);
+    fill_arr_with_normals(&global_normals, vertices2);
     
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
@@ -2328,17 +2321,18 @@ Collision check_entities_collision(Entity *entity1, Entity *entity2){
 
         for (int shape = 0; shape < 2; shape++){
             Array<Vector2, MAX_VERTICES> vertices;
-            Entity *entity;
+            // Entity *entity;
+            Vector2 position;
             if (shape == 0) {
-                vertices = entity1->vertices;
-                entity = entity1;
+                vertices = vertices1;
+                position = position1;
             } else{
-                vertices = entity2->vertices;
-                entity = entity2;
+                vertices = vertices2;
+                position = position2;
             }
             
             for (int j = 0; j < vertices.count; j++){            
-                f32 p = dot(global(entity, vertices.get(j)), axis);
+                f32 p = dot(global(position, vertices.get(j)), axis);
                 
                 f32 min = fmin(projections[shape].x, p);
                 f32 max = fmax(projections[shape].y, p);
@@ -2364,7 +2358,7 @@ Collision check_entities_collision(Entity *entity1, Entity *entity2){
         }
     }
     
-    Vector2 vec_to_first = entity1->position - entity2->position;
+    Vector2 vec_to_first = position1 - position2;
     
     result.collided = true;
     //if (entity1->flags > 0){
@@ -2373,10 +2367,17 @@ Collision check_entities_collision(Entity *entity1, Entity *entity2){
         result.dir_to_first = normalized(vec_to_first);
         result.normal = dot(result.dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
         //result.point = entity1->position - dir_to_first * overlap;
-        result.point = entity1->position - result.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
+        result.point = position1 - result.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
     //}
     
     //normals.free_arr();
+    return result;
+}
+
+Collision check_entities_collision(Entity *entity1, Entity *entity2){
+    Collision result = check_collision(entity1->position, entity2->position, entity1->vertices, entity2->vertices, entity1->pivot, entity2->pivot);
+    result.other_entity = entity2;
+    
     return result;
 }
 
@@ -2413,6 +2414,10 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, F
             result->add(col);
         }
     }
+}
+
+Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags){
+    
 }
 
 void assign_moving_vertex_entity(Entity *e, int vertex_index){
@@ -3723,13 +3728,7 @@ void change_color(Entity *entity, Color new_color){
     setup_color_changer(entity);
 }
 
-void calculate_bounds(Entity *entity){
-    // if (entity->flags & TEXTURE){
-    //     //Vector2 middle_position = {entity->texture.width * (0.5f - p
-    //     entity->bounds = {{(f32)entity->texture.width / UNIT_SIZE, (f32)entity->texture.height / UNIT_SIZE}, {0.0f, 0.0f}};
-    //     return;
-    // }
-
+Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot){
     f32 top_vertex    = -INFINITY;
     f32 bottom_vertex =  INFINITY;
     f32 right_vertex  = -INFINITY;
@@ -3737,8 +3736,8 @@ void calculate_bounds(Entity *entity){
     
     Vector2 middle_position;
     
-    for (int i = 0; i < entity->vertices.count; i++){
-        Vector2 *vertex = entity->vertices.get_ptr(i);
+    for (int i = 0; i < vertices.count; i++){
+        Vector2 *vertex = vertices.get_ptr(i);
         
         if (vertex->y > top_vertex){
             top_vertex = vertex->y;
@@ -3754,10 +3753,14 @@ void calculate_bounds(Entity *entity){
         }
     }    
     
-    middle_position = {(1.0f - entity->pivot.x) * left_vertex + entity->pivot.x * right_vertex,
-                       entity->pivot.y * bottom_vertex + (1.0f - entity->pivot.y) * top_vertex};
+    middle_position = {(1.0f - pivot.x) * left_vertex + pivot.x * right_vertex,
+                       pivot.y * bottom_vertex + (1.0f - pivot.y) * top_vertex};
     
-    entity->bounds = {{right_vertex - left_vertex, top_vertex - bottom_vertex}, middle_position};
+    return {{right_vertex - left_vertex, top_vertex - bottom_vertex}, middle_position};
+}
+
+inline void calculate_bounds(Entity *entity){
+    entity->bounds = get_bounds(entity->vertices, entity->pivot);
 }
 
 void calculate_vertices(Entity *entity){
@@ -4056,6 +4059,21 @@ void push_or_set_player_up(f32 power){
     
     player_data.since_jump_timer = 0;
     player_data.grounded = false;
+}
+
+f32 apply_physics_force(Vector2 velocity, f32 mass, Physics_Object *to_whom, Vector2 normal = Vector2_zero){
+    Vector2 velocity_direction = normalized(velocity);
+    if (normal == Vector2_zero){
+        normal = velocity_direction * -1.0f;
+    }
+    f32 collision_force_multiplier = 1;
+
+    to_whom->velocity += (velocity * mass) / to_whom->mass;
+    f32 direction_normal_dot = dot(velocity_direction, normal);
+    to_whom->velocity += ((velocity * mass * direction_normal_dot * -1) / to_whom->mass);
+    collision_force_multiplier = to_whom->mass / mass;
+    
+    return collision_force_multiplier;
 }
 
 void update_player(Entity *entity, f32 dt){
@@ -4367,6 +4385,11 @@ void update_player(Entity *entity, f32 dt){
         
         f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
         
+        if (other->flags & PHYSICS_OBJECT){
+            other->physics_object.velocity -= (plane * acceleration * dt) / other->physics_object.mass;
+        }
+        
+        
         if (dot(plane, player_data.velocity) < 0){
             acceleration *= 4;
         }
@@ -4399,6 +4422,11 @@ void update_player(Entity *entity, f32 dt){
         f32 spin_t = player_data.sword_spin_progress;
         
         f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
+        
+        if (other->flags & PHYSICS_OBJECT){
+            other->physics_object.velocity -= (plane * acceleration * dt) / other->physics_object.mass;
+        }
+        
         if (dot(plane, player_data.velocity) < 0){
             acceleration *= 4;
         }
@@ -4436,6 +4464,7 @@ void update_player(Entity *entity, f32 dt){
         
         entity->position.y += col.overlap;
         
+        Vector2 velocity_direction = normalized(player_data.velocity);
         f32 before_speed = magnitude(player_data.velocity);
         
         if (before_speed > 200){
@@ -4447,6 +4476,16 @@ void update_player(Entity *entity, f32 dt){
             SetMusicVolume(tires_theme, tires_volume);
             is_huge_collision_speed = true;
         }
+    
+        f32 collision_force_multiplier = 1;
+        
+        if (other->flags & PHYSICS_OBJECT){             // force
+            f32 direction_normal_dot = dot(velocity_direction, col.normal);
+            other->physics_object.velocity += ((player_data.velocity * PLAYER_MASS) / other->physics_object.mass) * direction_normal_dot * -1;
+            collision_force_multiplier = other->physics_object.mass / PLAYER_MASS;
+            entity->position += other->physics_object.velocity * dt;
+        }
+
         
         if (dot(((Vector2){0, 1}), col.normal) > 0.5f){
             player_data.velocity -= col.normal * dot(player_data.velocity, col.normal);
@@ -4546,6 +4585,8 @@ void update_player(Entity *entity, f32 dt){
         
         resolve_collision(entity, col);
         
+        Vector2 velocity_direction = normalized(player_data.velocity);
+        
         f32 before_speed = magnitude(player_data.velocity);
         
         if (before_speed > 200){
@@ -4561,11 +4602,13 @@ void update_player(Entity *entity, f32 dt){
         f32 collision_force_multiplier = 1;
         
         if (other->flags & PHYSICS_OBJECT){             // force
-            other->physics_object.velocity += (player_data.velocity * PLAYER_MASS) / other->physics_object.mass;
+            f32 direction_normal_dot = dot(velocity_direction, col.normal);
+            other->physics_object.velocity += ((player_data.velocity * PLAYER_MASS) / other->physics_object.mass) * direction_normal_dot * -1;
             collision_force_multiplier = other->physics_object.mass / PLAYER_MASS;
+            entity->position += other->physics_object.velocity * dt;
         }
         
-        clamp(&collision_force_multiplier, 0, 1.5f);
+        clamp(&collision_force_multiplier, 0, 1.0f);
         
         player_data.velocity -= col.normal * dot(player_data.velocity, col.normal) * collision_force_multiplier;
         
@@ -4634,6 +4677,27 @@ void respond_physics_object_collision(Entity *entity, Collision col){
             play_sound("BirdToGround", col.point, 0.5f);
         }
     }        
+    
+    if (other->flags & PLAYER){
+        f32 force = dot(((physics_object->velocity - player_data.velocity)* physics_object->mass) / PLAYER_MASS, col.normal * -1);   
+        if (physics_object->mass >= PLAYER_MASS && force > 1000){
+            kill_player();
+        } else{
+            // player_data.velocity += physics_object->velocity;
+        }
+    } else if (other->flags & BIRD_ENEMY){
+        f32 force = dot(((physics_object->velocity - other->bird_enemy.velocity)* physics_object->mass) / 5, col.normal * -1);   
+        if (physics_object->mass >= 5 && force > 1000){
+            kill_enemy(other, col.point, direction, force / 200);
+        } else{
+            // other->bird_enemy.velocity += direction * force / 100;
+        }
+    } else if (other->flags & ENEMY){
+        f32 force = dot(((physics_object->velocity) * physics_object->mass) / 5, col.normal * -1);   
+        if (physics_object->mass >= 5 && force > 1000){
+            kill_enemy(other, col.point, direction, force / 200);
+        }
+    }
 }
 
 void respond_bird_collision(Entity *bird_entity, Collision col){
@@ -4646,24 +4710,36 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     f32 bird_speed_t = clamp01(bird_speed / 300.0f);
     
     b32 is_high_velocity = bird_speed > 100;
+    
+    b32 should_respond = true;
     if (other->flags & GROUND){
         resolve_collision(bird_entity, col);
         
-        if (enemy->dead_man){
-            emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
-            play_sound("Explosion", bird_entity->position, bird_entity->volume_multiplier);
-            bird_entity->destroyed = true;
-            bird_entity->enabled = false;
-            shake_camera(0.6f);
-            return;
+        if (other->flags & PHYSICS_OBJECT){
+            f32 collision_force = apply_physics_force(bird->velocity, 5, &other->physics_object, col.normal);
+            
+            if (collision_force <= 0.5f){
+                should_respond = false;
+            }
         }
         
-        bird->velocity = reflected_vector(bird->velocity * 0.9f, col.normal);
-        if (bird->attacking){
-            bird->attacking = false;
-            bird->attack_emitter->enabled = false;
-            bird->roaming = true;
-            bird->roam_start_time = core.time.game_time;
+        if (should_respond){
+            if (enemy->dead_man){
+                emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
+                play_sound("Explosion", bird_entity->position, bird_entity->volume_multiplier);
+                bird_entity->destroyed = true;
+                bird_entity->enabled = false;
+                shake_camera(0.6f);
+                return;
+            }
+            
+            bird->velocity = reflected_vector(bird->velocity * 0.9f, col.normal);
+            if (bird->attacking){
+                bird->attacking = false;
+                bird->attack_emitter->enabled = false;
+                bird->roaming = true;
+                bird->roam_start_time = core.time.game_time;
+            }
         }
         
         emit_particles(rifle_bullet_emitter, col.point, normalized(bird->velocity), lerp(0.5f, 2.0f, bird_speed_t * bird_speed_t), lerp(5, 20, bird_speed_t * bird_speed_t));
@@ -4963,6 +5039,10 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     }
                 }
                 
+                if (other_entity->flags & PHYSICS_OBJECT){
+                    other_entity->physics_object.velocity += (dir_to_other * explosion_add_speed * (explosion_radius * 0.1f)) / other_entity->physics_object.mass;
+                }
+                
                 if (other_entity->flags & PLAYER && !player_data.dead_man && distance_to_other < explosion_radius * 0.75f){
                     kill_player();
                 }
@@ -5162,6 +5242,13 @@ void calculate_projectile_collisions(Entity *entity){
             need_bounce = true;
         }
         
+        if (other->flags & PHYSICS_OBJECT){
+            // other->physics_object.velocity += (projectile->velocity * 0.5f * dot(normalized(projectile->velocity), col.normal * -1.0f)) / other->physics_object.mass;
+            apply_physics_force(projectile->velocity, 0.5f, &other->physics_object, col.normal);
+            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+            entity->destroyed = true;
+        }
+        
         if (other->flags & GROUND){
             entity->destroyed = true;
             emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
@@ -5266,6 +5353,12 @@ void trigger_verify_connected(Entity *e){
 void update_editor_entity(Entity *e){
     if (e->flags & TRIGGER){
         trigger_verify_connected(e);
+    }
+    
+    if (e->flags & PHYSICS_OBJECT){
+        if (e->physics_object.on_rope){
+            
+        }
     }
 }
 
@@ -5818,6 +5911,13 @@ void draw_entities(){
                 draw_game_triangle_strip(e);
             } else{
                 draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
+            }
+        }
+        
+        if (e->flags & PHYSICS_OBJECT){
+            if (e->physics_object.on_rope){
+                Vector2 start_point = e->position + e->up * e->scale.y * 0.5f;
+                draw_game_line(start_point, e->physics_object.rope_point, 1, BLACK);
             }
         }
         
@@ -6498,6 +6598,10 @@ Particle_Emitter* add_emitter(){
 
 inline Vector2 global(Entity *e, Vector2 local_pos){
     return e->position + local_pos;
+}
+
+inline Vector2 global(Vector2 position, Vector2 local_pos){
+    return position + local_pos;
 }
 
 inline Vector2 local(Entity *e, Vector2 global_pos){

@@ -139,12 +139,13 @@ struct Ground{
 
 struct Physics_Object{
     Vector2 velocity = Vector2_zero;  
-    f32 mass = 10.0f;
+    f32 mass = 100.0f;
     
     f32 gravity_multiplier = 2.0f;
     
     b32 rotate_by_velocity = true;
     b32 on_rope = false;
+    Vector2 rope_point = Vector2_zero;
 };
 
 struct Move_Sequence{
@@ -291,8 +292,8 @@ struct Bird_Enemy{
     f32 roam_acceleration = 10;
 
     Vector2 target_position;  
-    Vector2 velocity;
-    Vector2 speed;
+    Vector2 velocity = Vector2_zero;
+    // Vector2 speed = V;
     
     Particle_Emitter *attack_emitter;
     Particle_Emitter *trail_emitter;

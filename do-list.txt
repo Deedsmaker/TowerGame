@@ -31,6 +31,7 @@
 [ ] Враг который триггерится на активированную винтовку. Сам почти невидимый и меняется когда чаржится.
 ///////////////////////////////////////////////////
 
+[ ] Hotreloading
 [X] Explosion radius visualization (so player could understand what would happen when explosion hits)
 [X] Jump off the wall
 [X] Fixed physics timestamp (240)

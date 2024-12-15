@@ -23,6 +23,7 @@ void close_create_box();
 void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
 void calculate_bounds(Entity *entity);
+Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
 
 void update_editor_ui();
 void update_editor();
@@ -53,7 +54,8 @@ void draw_ui(const char *tag);
 void draw_entities();
 void draw_entity(Entity *e);
 
-Vector2 global(Entity *e, Vector2 local_pos);
+inline Vector2 global(Entity *e, Vector2 local_pos);
+inline Vector2 global(Vector2 position, Vector2 local_pos);
 Vector2 local (Entity *e, Vector2 global_pos);
 
 Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
