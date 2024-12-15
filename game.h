@@ -73,7 +73,8 @@ b32 check_col_circles(Circle a, Circle b);
 
 void print_hotkeys_to_console();
 
-inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index);
+inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index, FLAGS flags = 0);
+inline int next_entity_avaliable(int index, Entity **entity, FLAGS flags);
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
 
@@ -81,8 +82,9 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier = 1, C
 
 Vector2 world_to_screen(Vector2 pos);
 void draw_game_circle(Vector2 position, f32 radius, Color color);
-void draw_game_triangle_strip(Entity *entity);
-void draw_game_triangle_strip(Entity *entity, Color color);
+void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color);
+inline void draw_game_triangle_strip(Entity *entity);
+inline void draw_game_triangle_strip(Entity *entity, Color color);
 void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, Color color);
 void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);

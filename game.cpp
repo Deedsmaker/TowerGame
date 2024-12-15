@@ -7,6 +7,7 @@
 #include "../my_libs/perlin.h"
 
 #define ForTable(table, xx) for(int xx = table_next_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+1))
+#define ForEntities(entity, flags) Entity *entity = NULL; for (int index = next_entity_avaliable(0, &entity, flags); index < context.entities.max_count && entity; index = next_entity_avaliable(index+1, &entity, flags)) 
 //#define For(arr, type, value) for(int ii = 0; ii < arr.count; ii++){ type value = arr.get(ii);
 
 global_variable Input input;
@@ -1202,14 +1203,26 @@ inline void init_loaded_entity(Entity *entity){
 }
 
 
-inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index){
+inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index, FLAGS flags){
     for (int i = index; i < table.max_count; i++){
-        if (table.has_index(i)){
+        if (table.has_index(i) && (flags == 0 || table.get_ptr(i)->flags & flags)){
             return i;
         }
     }
     
     return table.max_count;
+}
+
+inline int next_entity_avaliable(int index, Entity **entity, FLAGS flags){
+    for (int i = index; i < context.entities.max_count; i++){
+        if (context.entities.has_index(i) && (flags == 0 || context.entities.get_ptr(i)->flags & flags)){
+            *entity = context.entities.get_ptr(i);
+            return i;
+        }
+    }
+    
+    *entity = NULL;
+    return context.entities.max_count;
 }
 
 // inline void assign_texture(Entity *entity, Texture texture, const char *texture_name){
@@ -2340,8 +2353,6 @@ Collision check_collision(Vector2 position1, Vector2 position2, Array<Vector2, M
                 projections[shape].x = min;
                 projections[shape].y = max;
             }
-            
-            //vertices.free_arr();
         }
         
         f32 new_overlap = fmin(fmin(projections[0].y, projections[1].y) - fmax(projections[0].x, projections[1].x), overlap);
@@ -2367,7 +2378,7 @@ Collision check_collision(Vector2 position1, Vector2 position2, Array<Vector2, M
         result.dir_to_first = normalized(vec_to_first);
         result.normal = dot(result.dir_to_first, min_overlap_axis) > 0 ? min_overlap_axis : min_overlap_axis * -1.0f;
         //result.point = entity1->position - dir_to_first * overlap;
-        result.point = position1 - result.normal * ((min_overlap_projection.y - min_overlap_projection.x) / 2);
+        result.point = position1 - result.normal * ((min_overlap_projection.y - min_overlap_projection.x) * 0.5f);
     //}
     
     //normals.free_arr();
@@ -2416,8 +2427,48 @@ void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, F
     }
 }
 
-Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags){
+Entity *get_entity_by_index(int index){
+    if (!context.entities.has_index(index)){
+        //log error
+        print("Attempt to get empty entity by index");
+        return NULL;
+    }
     
+    return context.entities.get_ptr(index);
+}
+
+Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, i32 my_id = -1){
+    f32 step = 2;
+    f32 current_len = 0;
+    
+    b32 found = false;
+    Collision result = {};
+    while (current_len < len){
+        current_len += step;
+        Array<Vector2, MAX_VERTICES> ray_vertices = Array<Vector2, MAX_VERTICES>();
+        Vector2 east_direction = get_rotated_vector_90(direction, -1);
+        ray_vertices.add(direction * current_len + east_direction * 0.5f);
+        ray_vertices.add(direction * current_len - east_direction * 0.5f);
+        ray_vertices.add(east_direction * 0.5f);
+        ray_vertices.add(east_direction * -0.5f);
+    
+        ForEntities(entity, GROUND){
+            if (my_id != -1 && my_id == entity->id){
+                continue;
+            }
+            result = check_collision(start_position, entity->position, ray_vertices, entity->vertices, {0.5f, 1.0f}, entity->pivot);
+            if (result.collided){
+                found = true;
+                result.point = start_position + direction * current_len;
+                break;
+            }
+        }
+        
+        if (found){
+            break;
+        }
+    }
+    return result;
 }
 
 void assign_moving_vertex_entity(Entity *e, int vertex_index){
@@ -5357,7 +5408,12 @@ void update_editor_entity(Entity *e){
     
     if (e->flags & PHYSICS_OBJECT){
         if (e->physics_object.on_rope){
-            
+            print("here");
+            Collision ray_col = raycast(e->position + e->up * e->scale.y * 0.5f, e->up, 300, GROUND, e->id);
+            if (ray_col.collided){
+                print("col");
+                e->physics_object.rope_point = ray_col.point;
+            }
         }
     }
 }
@@ -6375,6 +6431,10 @@ void draw_game(){
     draw_entities();
     draw_particles();
     
+    static Vector2 vec = Vector2_up;
+    vec = get_rotated_vector(vec, 10 * core.time.real_dt);
+    raycast({10, 20}, vec, 100, GROUND);
+    
     if (player_entity && debug.draw_player_collisions){
         for (int i = 0; i < player_data.collisions.count; i++){
             Collision col = player_data.collisions.get(i);
@@ -6677,14 +6737,18 @@ void draw_game_line_strip(Vector2 *points, int count, Color color){
     draw_line_strip(screen_positions, count, color);
 }
 
-void draw_game_triangle_strip(Entity *entity, Color color){
-    Vector2 screen_positions[entity->vertices.count];
+void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color){
+    Vector2 screen_positions[vertices.count];
     
-    for (int i = 0; i < entity->vertices.count; i++){
-        screen_positions[i] = world_to_screen(global(entity, entity->vertices.get(i)));
+    for (int i = 0; i < vertices.count; i++){
+        screen_positions[i] = world_to_screen(global(position, vertices.get(i)));
     }
     
-    draw_triangle_strip(screen_positions, entity->vertices.count, color);
+    draw_triangle_strip(screen_positions, vertices.count, color);
+}
+
+inline void draw_game_triangle_strip(Entity *entity, Color color){
+    draw_game_triangle_strip(entity->vertices, entity->position, color);
 }
 
 inline void draw_game_triangle_strip(Entity *entity){
