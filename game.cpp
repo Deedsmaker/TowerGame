@@ -330,6 +330,7 @@ void parse_line(char *line, char *result, int *index){
 void clear_context(Context *c){
     ForEntities(entity, 0){
         free_entity(entity);
+        *entity = {};
     }
 
     c->entities.clear();
@@ -2460,7 +2461,7 @@ Entity *get_entity_by_id(i32 id){
         return NULL;
     }
     
-    return context.entities.get_ptr(id);
+    return context.entities.get_by_key_ptr(id);
 }
 
 Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, i32 my_id = -1){
@@ -4113,7 +4114,10 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         }
         
         if (other->flags & BLOCK_ROPE){
+            // cut rope
             other->destroyed = true;
+            emit_particles(rifle_bullet_emitter, col.point, other->up, 6, 10);
+            play_sound("RopeCut", col.point);
         }
         
         if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & PLATFORM){
@@ -5718,10 +5722,9 @@ void update_entities(f32 dt){
         update_color_changer(e, dt);            
         
         if (e->flags & PHYSICS_OBJECT){
-            if (e->physics_object.on_rope){
+             if (e->physics_object.on_rope){
                 Entity *rope_entity = NULL;
                 if (e->physics_object.rope_id == -1){
-                    print("spawn");
                     rope_entity = add_entity(e->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
                     rope_entity->need_to_save = false;
                     e->physics_object.rope_id = rope_entity->id;
@@ -5729,7 +5732,6 @@ void update_entities(f32 dt){
                     rope_entity = get_entity_by_id(e->physics_object.rope_id);
                     
                     if (!rope_entity){
-                        print("could not get");
                         e->physics_object.on_rope = false;
                     }
                 }
@@ -6075,13 +6077,9 @@ void draw_entities(){
         
         if (e->flags & PHYSICS_OBJECT){
             // draw physics object
-            if (e->physics_object.on_rope){
-                // Entity *rope_entity = get_entity_by_id(e->physics_object.rope_id);
-                // if (rope_entity){
-                    
-                // }
-                // Vector2 start_point = e->position + e->up * e->scale.y * 0.5f;
-                // draw_game_line(start_point, e->physics_object.rope_point, 1, BLACK);
+            if (e->physics_object.on_rope && game_state == EDITOR){
+                Vector2 start_point = e->position + e->up * e->scale.y * 0.5f;
+                draw_game_line(start_point, e->physics_object.rope_point, 1, BLACK);
             }
         }
         
