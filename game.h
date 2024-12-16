@@ -25,6 +25,9 @@ void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 void calculate_bounds(Entity *entity);
 Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
 
+Entity *get_entity_by_id(i32 id);
+Entity *get_entity_by_index(i32 index);
+
 void update_editor_ui();
 void update_editor();
 void update_entities(f32 dt);
@@ -32,6 +35,9 @@ void update_entities(f32 dt);
 void activate_door(Entity *entity, b32 is_open);
 
 void add_hitstop(f32 added);
+
+void resolve_physics_collision(Vector2 *my_velocity, f32 my_mass, Vector2 &their_velocity, f32 their_mass, Vector2 normal = Vector2_zero);
+f32 apply_physics_force(Vector2 velocity, f32 mass, Physics_Object *to_whom, Vector2 normal = Vector2_zero);
 
 void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt);
 Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt);

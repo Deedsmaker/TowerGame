@@ -16,6 +16,7 @@
 [X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
 [ ] Big bomb in the middle and static camera
 [X] Tutorial for gravity increase - spikes above
+[ ] Cool physics rope block introduction with static camera where we need to cut it and go down
 ///////////////////////////////////////////////////
 
 <Battle ideas>

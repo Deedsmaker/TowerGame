@@ -129,6 +129,8 @@ enum Flags : u64{
     CENTIPEDE_SEGMENT = 1 << 24,
     SHOOT_STOPER      = 1 << 25,
     PHYSICS_OBJECT    = 1 << 26,
+    BLOCK_ROPE        = 1 << 27,
+    ROPE_POINT        = 1 << 28,
     
     TEST = 1 << 30
 };
@@ -139,12 +141,16 @@ struct Ground{
 
 struct Physics_Object{
     Vector2 velocity = Vector2_zero;  
-    f32 mass = 100.0f;
+    f32 angular_velocity = 0;
     
+    f32 mass = 100.0f;
     f32 gravity_multiplier = 2.0f;
     
     b32 rotate_by_velocity = true;
     b32 on_rope = false;
+    
+    i32 rope_id = -1;
+    i32 rope_point_id = -1;
     Vector2 rope_point = Vector2_zero;
 };
 
@@ -391,6 +397,9 @@ struct Player{
     Vector2 plane_vector = {0, 1};
     Vector2 ground_normal = {0, 1};
     b32 grounded = false;
+    
+    b32 on_moving_object = false;
+    Vector2 moving_object_velocity = Vector2_zero;
     
     //int ground_checker_index_offset = -1;
     int ground_checker_id = -1;
