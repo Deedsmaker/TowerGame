@@ -5,7 +5,7 @@
 #define TARGET_FRAME_TIME (1.0f / FIXED_FPS)
 
 #define MAX_VERTICES 8
-#define MAX_COLLISIONS 32
+#define MAX_COLLISIONS 128
 #define MAX_ENTITY_EMITTERS 4
 #define GRAVITY 100
 #define PLAYER_MASS 10
@@ -148,9 +148,11 @@ struct Physics_Object{
     
     b32 rotate_by_velocity = true;
     b32 on_rope = false;
+    f32 last_pick_rope_point_time = -14234423;
     
     i32 rope_id = -1;
-    i32 rope_point_id = -1;
+    i32 up_rope_point_id = -1;
+    i32 down_rope_point_id = -1;
     Vector2 rope_point = Vector2_zero;
 };
 

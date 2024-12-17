@@ -30,6 +30,7 @@ Entity *get_entity_by_index(i32 index);
 
 void update_editor_ui();
 void update_editor();
+void update_editor_entity(Entity *e);
 void update_entities(f32 dt);
 
 void activate_door(Entity *entity, b32 is_open);

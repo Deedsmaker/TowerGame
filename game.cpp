@@ -74,10 +74,13 @@ void free_entity(Entity *e){
             if (rope_entity){
                 rope_entity->destroyed = true;
             }
-            
-            Entity *rope_point_entity = get_entity_by_id(e->physics_object.rope_point_id);
-            if (rope_point_entity){
-                rope_point_entity->destroyed = true;
+            Entity *up_rope_point_entity = get_entity_by_id(e->physics_object.up_rope_point_id);
+            if (up_rope_point_entity){
+                up_rope_point_entity->destroyed = true;
+            }
+            Entity *down_rope_point_entity = get_entity_by_id(e->physics_object.down_rope_point_id);
+            if (down_rope_point_entity){
+                down_rope_point_entity->destroyed = true;
             }
         }
     }
@@ -959,7 +962,7 @@ void init_bird_entity(Entity *entity){
 }
 
 void init_spawn_objects(){
-    Entity block_base_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, GROUND);
+    Entity block_base_entity = Entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND);
     block_base_entity.color = BROWN;
     str_copy(block_base_entity.name, "block_base"); 
     setup_color_changer(&block_base_entity);
@@ -1815,6 +1818,9 @@ void enter_editor_state(){
     SetMusicVolume(tires_theme, 0);
     SetMusicVolume(wind_theme, 0);
 
+    ForEntities(entity, 0){
+        update_editor_entity(entity);
+    }
     //copy_context(&context, &saved_level_context);
 }
 
@@ -1961,7 +1967,7 @@ void update_console(){
 void update_game(){
     frame_rnd = rnd01();
     frame_on_circle_rnd = rnd_on_circle();
-
+    
     //update input
     input.mouse_delta = GetMouseDelta();
     mouse_position += input.mouse_delta;
@@ -4116,7 +4122,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         if (other->flags & BLOCK_ROPE){
             // cut rope
             other->destroyed = true;
-            emit_particles(rifle_bullet_emitter, col.point, other->up, 6, 10);
+            emit_particles(rifle_bullet_emitter, col.point, other->up, 6, 50);
             play_sound("RopeCut", col.point);
         }
         
@@ -4631,8 +4637,8 @@ void update_player(Entity *entity, f32 dt){
     
     if (!moving_object_detected && player_data.on_moving_object){
         if (dot(player_data.moving_object_velocity, player_data.velocity) > magnitude(player_data.velocity)){
-            player_data.velocity += player_data.moving_object_velocity - player_data.velocity;
-        } else{
+            // player_data.velocity += player_data.moving_object_velocity - player_data.velocity;
+        } else if (dot(player_data.moving_object_velocity, player_data.velocity) > 0){
             player_data.velocity += player_data.moving_object_velocity;   
         }
         player_data.on_moving_object = false;
@@ -4724,7 +4730,7 @@ void update_player(Entity *entity, f32 dt){
             f32 direction_normal_dot = dot(velocity_direction, col.normal);
             other->physics_object.velocity += ((player_data.velocity * PLAYER_MASS) / other->physics_object.mass) * direction_normal_dot * -1;
             collision_force_multiplier = other->physics_object.mass / PLAYER_MASS;
-            entity->position += other->physics_object.velocity * dt;
+            // entity->position += other->physics_object.velocity * dt;
         }
         
         clamp(&collision_force_multiplier, 0, 1.0f);
@@ -4780,6 +4786,7 @@ void respond_physics_object_collision(Entity *entity, Collision col){
     Vector2 direction = normalized(physics_object->velocity);
     
     b32 is_high_velocity = speed > 100;
+    
     if (other->flags & GROUND){
         resolve_collision(entity, col);
         
@@ -4796,6 +4803,7 @@ void respond_physics_object_collision(Entity *entity, Collision col){
     }        
     
     if (other->flags & PLAYER){
+        resolve_collision(entity, col);
         f32 force = dot(((physics_object->velocity - player_data.velocity)* physics_object->mass) / PLAYER_MASS, col.normal * -1);   
         // if (physics_object->mass >= PLAYER_MASS && force > 1000){
             // kill_player();
@@ -4808,7 +4816,9 @@ void respond_physics_object_collision(Entity *entity, Collision col){
         f32 force = dot(((physics_object->velocity - other->bird_enemy.velocity)* physics_object->mass) / 5, col.normal * -1);   
         if (physics_object->mass >= 5 && force > 1000){
             kill_enemy(other, col.point, direction, force / 200);
+            play_sound("SwordKill", col.point);
         } else{
+            resolve_collision(entity, col);
             // other->bird_enemy.velocity += direction * force / 100;
         }
         resolve_physics_collision(&physics_object->velocity, physics_object->mass, &other->bird_enemy.velocity, 5, col.normal);
@@ -4816,7 +4826,8 @@ void respond_physics_object_collision(Entity *entity, Collision col){
         f32 force = dot(((physics_object->velocity) * physics_object->mass) / 5, col.normal * -1);   
         if (physics_object->mass >= 5 && force > 1000){
             kill_enemy(other, col.point, direction, force / 200);
-        }
+            play_sound("SwordKill", col.point);
+        } 
         Vector2 fictional_velocity = Vector2_zero;
         resolve_physics_collision(&physics_object->velocity, physics_object->mass, &fictional_velocity, 0.1f, col.normal);
     }
@@ -4916,6 +4927,11 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
 void move_by_velocity_with_collisions(Entity *entity, Vector2 velocity, f32 max_frame_move_len, void (respond_collision_func)(Entity*, Collision), f32 dt){
     Vector2 this_frame_move_direction = normalized(velocity);
     f32 this_frame_move_len = magnitude(velocity * dt); 
+    
+    if (this_frame_move_len > max_frame_move_len * 10){
+        print("PHYSICS ERROR: Some objects moves too fast and will require heavy simulation, so it stopped.");
+        return;
+    }
     
     while(this_frame_move_len > max_frame_move_len){
         entity->position += this_frame_move_direction * max_frame_move_len;
@@ -5298,7 +5314,7 @@ inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EP
 }
 
 void calculate_projectile_collisions(Entity *entity){
-    fill_collisions(entity, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK);
+    fill_collisions(entity, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
     
     Player *player = &player_data;
     Projectile *projectile = &entity->projectile;
@@ -5374,6 +5390,14 @@ void calculate_projectile_collisions(Entity *entity){
         if (other->flags & GROUND){
             entity->destroyed = true;
             emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+        }
+        
+        if (other->flags & ROPE_POINT){
+            // cut rope point
+            other->destroyed = true;
+            emit_particles(rifle_bullet_emitter, col.point, col.normal, 6, 10);
+            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+            play_sound("RopeCut", col.point);
         }
         
         if (need_bounce){
@@ -5478,11 +5502,12 @@ void update_editor_entity(Entity *e){
     }
     
     if (e->flags & PHYSICS_OBJECT){
-        if (e->physics_object.on_rope){
+        if (e->physics_object.on_rope && core.time.app_time - e->physics_object.last_pick_rope_point_time > 0.5f){
             Collision ray_col = raycast(e->position + e->up * e->scale.y * 0.5f, e->up, 300, GROUND, e->id);
             if (ray_col.collided){
                 e->physics_object.rope_point = ray_col.point;
             }
+            e->physics_object.last_pick_rope_point_time = core.time.app_time;
         }
     }
 }
@@ -5723,6 +5748,7 @@ void update_entities(f32 dt){
         
         if (e->flags & PHYSICS_OBJECT){
              if (e->physics_object.on_rope){
+                // spawn rope and update it
                 Entity *rope_entity = NULL;
                 if (e->physics_object.rope_id == -1){
                     rope_entity = add_entity(e->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
@@ -5730,19 +5756,50 @@ void update_entities(f32 dt){
                     e->physics_object.rope_id = rope_entity->id;
                 } else{
                     rope_entity = get_entity_by_id(e->physics_object.rope_id);
-                    
-                    if (!rope_entity){
-                        e->physics_object.on_rope = false;
-                    }
                 }
                 
-                if (rope_entity){
+                // spawn rope point and check
+                Entity *up_rope_point_entity = NULL;
+                if (e->physics_object.up_rope_point_id == -1){
+                    up_rope_point_entity = add_entity(e->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
+                    up_rope_point_entity->draw_order = e->draw_order - 1;
+                    up_rope_point_entity->need_to_save = false;
+                    e->physics_object.up_rope_point_id = up_rope_point_entity->id;
+                } else{
+                    up_rope_point_entity = get_entity_by_id(e->physics_object.up_rope_point_id);
+                }
+                
+                Entity *down_rope_point_entity = NULL;
+                if (e->physics_object.down_rope_point_id == -1){
+                    down_rope_point_entity = add_entity(e->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
+                    down_rope_point_entity->draw_order = e->draw_order - 1;
+                    down_rope_point_entity->need_to_save = false;
+                    e->physics_object.down_rope_point_id = down_rope_point_entity->id;
+                } else{
+                    down_rope_point_entity =  get_entity_by_id(e->physics_object.down_rope_point_id);
+                }
+                
+                if (!rope_entity || !up_rope_point_entity || !down_rope_point_entity){
+                    e->physics_object.on_rope = false;
+                    if (rope_entity){
+                        rope_entity->destroyed = true;
+                    }
+                    if (up_rope_point_entity){
+                        up_rope_point_entity->destroyed = true;
+                    }
+                    if (down_rope_point_entity){
+                        down_rope_point_entity->destroyed = true;
+                    }
+                } else{
                     rope_entity->position = e->position + e->up * e->scale.y * 0.5f;
                     Vector2 vec_to_point = e->physics_object.rope_point - (e->position + e->up * e->scale.y * 0.5f);
                     f32 len = magnitude(vec_to_point);
                     Vector2 dir = normalized(vec_to_point);
                     change_up(rope_entity, dir);
                     change_scale(rope_entity, {1, len});
+                    
+                    up_rope_point_entity->position   = e->physics_object.rope_point;
+                    down_rope_point_entity->position = e->position + e->up * e->scale.y * 0.5f;
                 }
             }
         }
@@ -6087,6 +6144,10 @@ void draw_entities(){
             draw_game_triangle_strip(e);
         }
         
+        if (e->flags & ROPE_POINT){
+            draw_game_circle(e->position, e->scale.x * 0.8f, e->color);
+        }
+        
         if (e->flags & DUMMY){
             // draw dummy
             draw_game_triangle_strip(e);
@@ -6154,13 +6215,14 @@ void draw_entities(){
                 draw_game_line_strip(e, e->color);
                 draw_game_triangle_strip(e, Fade(e->color, 0.1f));
                 
+                // draw cam zoom trigger draw trigger zoom draw trigger cam
                 if (e->trigger.change_zoom){
                     Bounds cam_bounds = get_cam_bounds(context.cam, e->trigger.zoom_value);
                     Vector2 position = e->position;
                     if (e->trigger.lock_camera){
                         position = e->trigger.locked_camera_position;
                     }
-                    draw_game_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2, PINK);
+                    draw_game_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (context.cam.cam2D.zoom), Fade(PINK, 0.4f));
                 }
                 
                 if (e->trigger.lock_camera){
@@ -6518,7 +6580,7 @@ Cam saved_cam;
 
 void draw_game(){
     // if (game_state == GAME){
-    f32 zoom_speed = game_state == GAME ? 1 : 10;
+    f32 zoom_speed = game_state == GAME ? 3 : 10;
         context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, core.time.real_dt * zoom_speed);
         
         if (abs(context.cam.cam2D.zoom - context.cam.target_zoom) <= EPSILON){
