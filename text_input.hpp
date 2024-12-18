@@ -24,6 +24,9 @@ global_variable Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Array<Input_
 global_variable Input_Field focus_input_field;
 global_variable b32 just_focused = false;
 
+float backspace_press_time = 0;
+float last_hold_deleted_time = 0;
+
 void set_focus_input_field(char *data){
     str_copy(focus_input_field.content, data);
     focus_input_field.chars_count = str_len(data);
@@ -81,6 +84,23 @@ void update_input_field(){
             if (focus_input_field.chars_count < 0) focus_input_field.chars_count = 0;
             focus_input_field.content[focus_input_field.chars_count] = '\0';
             focus_input_field.changed = true;
+            
+            backspace_press_time = core.time.app_time;
+        }
+        
+        if (IsKeyDown(KEY_BACKSPACE))
+        {
+            f32 time_since_backspace_pressed = core.time.app_time - backspace_press_time;
+            f32 time_since_hold_deleted = core.time.app_time - last_hold_deleted_time;
+        
+            if (time_since_backspace_pressed >= 0.2f && time_since_hold_deleted >= 0.05f){
+                focus_input_field.chars_count--;
+                if (focus_input_field.chars_count < 0) focus_input_field.chars_count = 0;
+                focus_input_field.content[focus_input_field.chars_count] = '\0';
+                focus_input_field.changed = true;
+                
+                last_hold_deleted_time = core.time.app_time;
+            }   
         }
     } else{
          //SetMouseCursor(MOUSE_CURSOR_DEFAULT);
