@@ -892,6 +892,10 @@ int load_level(const char *level_name){
     level_path.free_str();
     
     if (enter_game_state_on_new_level){
+        ForEntities(entity, 0){
+            update_editor_entity(entity);
+        }
+
         enter_game_state();
         enter_game_state_on_new_level = false;
         player_data.blood_amount = last_player_data.blood_amount;
@@ -1317,7 +1321,7 @@ void init_entity(Entity *entity){
         entity->door.closed_position = entity->door.is_open ? entity->position - entity->up * entity->scale.y : entity->position;
         entity->door.open_position   = entity->door.is_open ? entity->position : entity->position + entity->up * entity->scale.y;
         
-        entity->door.open_sound = sounds_table.get_by_key_ptr(hash_str("OpenDoor"));
+        //entity->door.open_sound = sounds_table.get_by_key_ptr(hash_str("OpenDoor"));
         //entity->door.is_open = false;
     }
     
@@ -1445,6 +1449,8 @@ void print_hotkeys_to_console(){
     console.str += "\t>Space - Create menu\n";
     console.str += "\t>P - Move player spawn point\n";
     console.str += "\t>Ctrl+Space - Pause in game\n\n";
+    console.str += "\t>Shift+Space - Freecam in game\n\n";
+    console.str += "\t>Right_Alt+L - Unlock camera\n\n";
     
     console.str += "Commands:\n\t>debug - debug commands info\n";
     console.str += "\t>save <level> - save current level or specify level where to save\n";
@@ -1453,11 +1459,16 @@ void print_hotkeys_to_console(){
     console.str += "\t>create/new_level <level> - create empty level\n";
 }
 
+void debug_unlock_camera(){
+    context.cam.locked = false;
+}
+
 void print_debug_commands_to_console(){
     console.str += "\t\t>Debug Functions:\n";
     console.str += "\t>infinite_ammo\n";
     console.str += "\t>enemy_ai\n";
     console.str += "\t>god_mode\n";
+    console.str += "\t>unlock_camera\n";
     
     console.str += "\t\t>Debug Info:\n";
     console.str += "\t>player_speed\n";
@@ -1508,6 +1519,7 @@ void init_console(){
     console.commands.add(make_console_command("infinite_ammo",  debug_infinite_ammo));
     console.commands.add(make_console_command("enemy_ai",       debug_enemy_ai));
     console.commands.add(make_console_command("god_mode",       debug_god_mode));
+    console.commands.add(make_console_command("unlock_camera",  debug_unlock_camera));
     
     console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",    NULL, load_level_by_name));
@@ -2169,7 +2181,20 @@ void update_game(){
     update_emitters();
     update_particles();
     
-    if (game_state == GAME && player_entity){
+    if (IsKeyPressed(KEY_SPACE) && IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL)){
+        debug.free_cam = !debug.free_cam;
+        if (!debug.free_cam){
+            context.cam.target_zoom = debug.last_zoom;
+        } else{
+            debug.last_zoom = context.cam.target_zoom;
+        }
+    }
+    
+    if (IsKeyPressed(KEY_L) && IsKeyDown(KEY_RIGHT_ALT)){
+        debug_unlock_camera();
+    }
+    
+    if (game_state == GAME && player_entity && !debug.free_cam){
         // camera logic
         if (!context.cam.locked){
             Vector2 player_velocity = player_data.velocity;
@@ -2205,6 +2230,17 @@ void update_game(){
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(core.time.dt * 4));
             if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
                 context.cam.position = context.cam.target;
+            }
+        }
+    } else{
+        f32 zoom = context.cam.target_zoom;
+
+        if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
+            context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (UNIT_SIZE);
+        }
+        if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
+            if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
+                context.cam.target_zoom += input.mouse_wheel * 0.05f;
             }
         }
     }
@@ -3313,28 +3349,29 @@ void update_editor(){
         editor.need_validate_entity_pointers = false;
     }
     
-    f32 zoom = context.cam.target_zoom;
-    
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_L)){
         editor.update_cam_view_position = !editor.update_cam_view_position;
     }
     
     b32 moving_editor_cam = false;
     
+    f32 zoom = context.cam.target_zoom;
+
+    
     if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
-        context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (UNIT_SIZE);
+        // context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (UNIT_SIZE);
         moving_editor_cam = true;
     }
     
-    if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
-        if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
-            context.cam.target_zoom += input.mouse_wheel * 0.05f;
+    // if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
+    //     if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
+    //         context.cam.target_zoom += input.mouse_wheel * 0.05f;
             
-            // UnloadRenderTexture(render.ray_collision_render_texture);
+    //         // UnloadRenderTexture(render.ray_collision_render_texture);
         
-            // render.ray_collision_render_texture = LoadRenderTexture(screen_width / context.cam.cam2D.zoom, screen_height / context.cam.cam2D.zoom);
-        }
-    }
+    //         // render.ray_collision_render_texture = LoadRenderTexture(screen_width / context.cam.cam2D.zoom, screen_height / context.cam.cam2D.zoom);
+    //     }
+    // }
     
     b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select;
     b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
@@ -4261,6 +4298,7 @@ void update_player(Entity *entity, f32 dt){
     
     // player shoot
     b32 can_shoot_rifle = player_data.rifle_active && (player_data.ammo_count > 0 || debug.infinite_ammo) && context.shoot_stopers_count == 0;
+    
     if (can_shoot_rifle && input.press_flags & SHOOT){
         add_rifle_projectile(sword_tip, sword->up * player_data.rifle_strong_speed, STRONG);
         add_player_ammo(-1, true);
@@ -5015,19 +5053,25 @@ void update_bird_enemy(Entity *entity, f32 dt){
     if (bird->charging){
         f32 charging_time = core.time.game_time - bird->charging_start_time;
         if (charging_time >= bird->max_charging_time){
-            change_scale(entity, entity->enemy.original_scale);
-        
-            change_up(entity, dir_to_player);         
-            bird->charging = false;
-            bird->attacking = true;
-            bird->attack_start_time = core.time.game_time;
+            f32 time_since_last_bird_attacked = core.time.game_time - context.last_bird_attack_time;
             
-            f32 bird_attack_speed = 300;
-            bird->velocity = dir_to_player * bird_attack_speed;
+            if (time_since_last_bird_attacked >= 0.2f){
+                //bird start attack
+                context.last_bird_attack_time = core.time.game_time;
+                change_scale(entity, entity->enemy.original_scale);
             
-            emit_particles(sparks_emitter, entity->position, entity->up, 2, 3);
-            enable_emitter(bird->attack_emitter);
-            play_sound(bird->attack_sound, entity->position);
+                change_up(entity, dir_to_player);         
+                bird->charging = false;
+                bird->attacking = true;
+                bird->attack_start_time = core.time.game_time;
+                
+                f32 bird_attack_speed = 300;
+                bird->velocity = dir_to_player * bird_attack_speed;
+                
+                emit_particles(sparks_emitter, entity->position, entity->up, 2, 3);
+                enable_emitter(bird->attack_emitter);
+                play_sound(bird->attack_sound, entity->position);
+            }
         } 
     }
     
@@ -5572,6 +5616,7 @@ void update_trigger(Entity *e){
             enter_game_state_on_new_level = true;
             last_player_data = player_data;
             load_level_by_name(e->trigger.level_name);
+            return;
         }
         
         if (e->trigger.play_sound && !e->trigger.triggered){
@@ -5634,7 +5679,7 @@ void update_door(Entity *entity){
 
 void activate_door(Entity *entity, b32 is_open){
     if (entity->door.is_open != is_open){ 
-        play_sound(entity->door.open_sound, entity->position);
+        play_sound("OpenDoor", entity->position);
         entity->door.is_open = is_open;
         entity->door.triggered_time = core.time.game_time;
     }
@@ -5812,7 +5857,11 @@ void update_entities(f32 dt){
         }
         
         if (e->flags & PLAYER){
-            update_player(e, dt);
+            if (IsKeyDown(KEY_G)){
+                e->position = input.mouse_position;
+            } else{
+                update_player(e, dt);
+            }
             // player_data.stun_emitter.position = e->position;
             // update_emitter(&player_data.stun_emitter);
         }
@@ -5840,6 +5889,9 @@ void update_entities(f32 dt){
         
         if (e->flags & TRIGGER){
             update_trigger(e);
+            // if (e->id == -1){ // this means that trigger loads level and destroyed all that we cared about
+            //     continue;
+            // }
         }
         
         if (e->flags & MOVE_SEQUENCE){

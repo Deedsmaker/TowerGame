@@ -33,13 +33,14 @@
 [ ] Modifier for enemies so they can be killed with big or small sword.
 ///////////////////////////////////////////////////
 
-[ ] Birds delay before attack so they go in order.
+[X] Drag player with mouse (G)
+[X] Birds delay before attack so they go in order.
 [ ] Space partitioning for collision detection. Static grid i think.
 [ ] Hotreloading
 [X] Explosion radius visualization (so player could understand what would happen when explosion hits)
 [X] Jump off the wall
 [X] Fixed physics timestamp (240)
-[ ] Free cam in game-mode
+[X] Free cam in game-mode (SHIFT+SPACE)
 [X] Static camera functional
 [X] Make that bullet hit only alive centipede segments
 [X] Centipede option for which side's spikes on (?)

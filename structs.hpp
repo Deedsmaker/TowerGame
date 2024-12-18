@@ -614,6 +614,7 @@ struct Context{
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
+    f32 last_bird_attack_time = -11110;
     
     b32 we_got_a_winner = false;
     Vector2 unit_screen_size;
@@ -767,6 +768,9 @@ struct Editor{
 };
 
 struct Debug{
+    b32 free_cam = false;
+    f32 last_zoom = 0.35f;
+
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;
     b32 draw_rotation = false;
