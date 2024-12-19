@@ -131,6 +131,7 @@ enum Flags : u64{
     PHYSICS_OBJECT    = 1 << 26,
     BLOCK_ROPE        = 1 << 27,
     ROPE_POINT        = 1 << 28,
+    JUMP_SHOOTER      = 1 << 29,
     
     TEST = 1 << 30
 };
@@ -154,6 +155,14 @@ struct Physics_Object{
     i32 up_rope_point_id = -1;
     i32 down_rope_point_id = -1;
     Vector2 rope_point = Vector2_zero;
+};
+
+struct Jump_Shooter{
+    f32 last_attack_time = 0;
+
+    i32 shots_count = 10;  
+    b32 shoot_explosive = false;
+    b32 shoot_blockers = false;
 };
 
 struct Move_Sequence{
@@ -463,7 +472,8 @@ struct Player{
 
 enum Projectile_Flags{
     DEFAULT = 1 << 1,  
-    PLAYER_RIFLE = 1 << 2
+    PLAYER_RIFLE = 1 << 2,
+    JUMP_SHOOTER_PROJECTILE = 1 << 3
 };
 
 enum Projectile_Type{  
@@ -554,6 +564,7 @@ struct Entity{
     Move_Sequence move_sequence;
     Centipede centipede;
     Physics_Object physics_object;
+    Jump_Shooter jump_shooter;
 };
 
 global_variable Player player_data;

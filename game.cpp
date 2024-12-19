@@ -102,6 +102,14 @@ void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
 
+void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+    vertices->clear();
+    vertices->add({pivot.x, pivot.y});
+    vertices->add({-pivot.x, pivot.y});
+    vertices->add({pivot.x * 0.3f, -pivot.y});
+    vertices->add({-pivot.x * 0.3f, -pivot.y});
+}
+
 void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture texture, Vector2 pivot){
     vertices->clear();
     Vector2 scaled_size = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
@@ -112,15 +120,18 @@ void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture textur
 }
 
 void pick_vertices(Entity *entity){
-    if (entity->flags & TEXTURE){
-        add_texture_vertices(&entity->vertices, entity->texture, entity->pivot);
-        add_texture_vertices(&entity->unscaled_vertices, entity->texture, entity->pivot);
-        return;
-    }
+    // if (entity->flags & TEXTURE){
+    //     add_texture_vertices(&entity->vertices, entity->texture, entity->pivot);
+    //     add_texture_vertices(&entity->unscaled_vertices, entity->texture, entity->pivot);
+    //     return;
+    // }
 
     if (entity->flags & (SWORD | BIRD_ENEMY | CENTIPEDE)){
         add_sword_vertices(&entity->vertices, entity->pivot);
         add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
+    } else if (entity->flags & (JUMP_SHOOTER)){
+        add_upsidedown_vertices(&entity->vertices, entity->pivot);
+        add_upsidedown_vertices(&entity->unscaled_vertices, entity->pivot);
     } else{
         add_rect_vertices(&entity->unscaled_vertices, entity->pivot);
         add_rect_vertices(&entity->vertices, entity->pivot);
@@ -256,6 +267,7 @@ Entity::Entity(Entity *copy){
     if (flags & TEXTURE){
         texture = copy->texture;
         scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+        scale = {texture.width / 10.0f, texture.height / 10.0f};
         str_copy(texture_name, copy->texture_name);
     }
     color_changer = copy->color_changer;
@@ -266,6 +278,12 @@ Entity::Entity(Entity *copy){
     if (flags & ENEMY){
         enemy = copy->enemy;
     }
+    
+    // if (flags & PHYSICS_OBJECT){
+    physics_object.rope_id = -1;
+    physics_object.up_rope_point_id = -1;
+    physics_object.down_rope_point_id = -1;
+    // }
     
     if (flags & TRIGGER){
         trigger = copy->trigger;
@@ -1138,10 +1156,20 @@ void init_spawn_objects(){
     copy_entity(&shoot_stoper_object.entity, &shoot_stoper_entity);
     str_copy(shoot_stoper_object.name, shoot_stoper_entity.name);
     spawn_objects.add(shoot_stoper_object);
+    
+    Entity jump_shooter_entity = Entity({0, 0}, {6, 8}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER);
+    jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
+    str_copy(jump_shooter_entity.name, "jump_shooter"); 
+    setup_color_changer(&jump_shooter_entity);
+    
+    Spawn_Object jump_shooter_object;
+    copy_entity(&jump_shooter_object.entity, &jump_shooter_entity);
+    str_copy(jump_shooter_object.name, jump_shooter_entity.name);
+    spawn_objects.add(jump_shooter_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
-    Entity texture_entity = Entity({0, 0}, {1, 1}, {0.5f, 0.5f}, 0, texture, TEXTURE);
+    Entity texture_entity = Entity({0, 0}, {texture.width / 10.0f, texture.height / 10.0f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
@@ -1284,7 +1312,7 @@ void init_entity(Entity *entity){
         
         if (!entity->enemy.blocker_immortal){
             Texture texture = entity->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-            Entity *sticky_entity = add_entity(entity->position, transform_texture_scale(texture, {10, 10}), {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
+            Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
             init_entity(sticky_entity);
             str_copy(sticky_entity->name, "blocker_attack_mark");
             sticky_entity->need_to_save = false;
@@ -5358,94 +5386,106 @@ inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EP
 }
 
 void calculate_projectile_collisions(Entity *entity){
-    fill_collisions(entity, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
-    
-    Player *player = &player_data;
     Projectile *projectile = &entity->projectile;
     
-    for (int i = 0; i < player->collisions.count; i++){
-        Collision col = player->collisions.get(i);
-        Entity *other = col.other_entity;
+    if (projectile->flags & PLAYER_RIFLE){
+        fill_collisions(entity, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
         
-        b32 need_bounce = false;
+        Player *player = &player_data;
         
-        Vector2 velocity_dir = normalized(projectile->velocity);
-        f32 sparks_speed = 1;
-        f32 sparks_count = 1;
-        f32 hitstop_add = 0;
-        
-        if (other->flags & ENEMY && is_enemy_can_take_damage(other) && (projectile->type != WEAK || !projectile->dying)){
-            b32 killed = false;
-            b32 can_damage = true;
+        for (int i = 0; i < player->collisions.count; i++){
+            Collision col = player->collisions.get(i);
+            Entity *other = col.other_entity;
             
-            if (other->flags & SHOOT_BLOCKER){
-                Vector2 shoot_blocker_direction = get_rotated_vector(other->enemy.shoot_blocker_direction, other->rotation);
-                f32 velocity_dot_direction = dot(velocity_dir, shoot_blocker_direction);    
-                    
-                can_damage = !other->enemy.shoot_blocker_immortal && (compare_difference(velocity_dot_direction, 1, 0.1f) || compare_difference(velocity_dot_direction, -1, 0.1f));
-                sparks_speed += 2;
-                sparks_count += 2;
+            b32 need_bounce = false;
+            
+            Vector2 velocity_dir = normalized(projectile->velocity);
+            f32 sparks_speed = 1;
+            f32 sparks_count = 1;
+            f32 hitstop_add = 0;
+            
+            if (other->flags & ENEMY && is_enemy_can_take_damage(other) && (projectile->type != WEAK || !projectile->dying)){
+                b32 killed = false;
+                b32 can_damage = true;
                 
-                if (!can_damage){
-                    need_bounce = true;
-                    other->enemy.stun_start_time = core.time.game_time;
-                    play_sound("ShootBlock", col.point);
+                if (other->flags & SHOOT_BLOCKER){
+                    Vector2 shoot_blocker_direction = get_rotated_vector(other->enemy.shoot_blocker_direction, other->rotation);
+                    f32 velocity_dot_direction = dot(velocity_dir, shoot_blocker_direction);    
+                        
+                    can_damage = !other->enemy.shoot_blocker_immortal && (compare_difference(velocity_dot_direction, 1, 0.1f) || compare_difference(velocity_dot_direction, -1, 0.1f));
+                    sparks_speed += 2;
+                    sparks_count += 2;
+                    
+                    if (!can_damage){
+                        need_bounce = true;
+                        other->enemy.stun_start_time = core.time.game_time;
+                        play_sound("ShootBlock", col.point);
+                    }
                 }
+                
+                if (other->flags & WIN_BLOCK && can_damage){
+                    win_level();
+                } else if (other->flags & BIRD_ENEMY && can_damage){
+                    other->bird_enemy.velocity += projectile->velocity * 0.05f;
+                    //other->bird_enemy.velocity = projectile->velocity * 0.05f;
+                    projectile->velocity = reflected_vector(projectile->velocity * 0.3f, col.normal);
+                    projectile->type = WEAK;
+                    stun_enemy(other, entity->position, col.normal);    
+                    sparks_speed += 1;
+                } else if (can_damage){
+                    kill_enemy(other, entity->position, col.normal);
+                    killed = true;
+                }
+                
+                if (other->flags & TRIGGER && can_damage){
+                    sparks_count += 20;
+                    hitstop_add = 0.1f;
+                }
+                
+                emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+                add_hitstop(0.03f + hitstop_add);
+                shake_camera(0.1f);
+                if (can_damage){
+                    play_sound(player_data.rifle_hit_sound, col.point);
+                }
+            
+            
+            } else if (other->flags & ENEMY && projectile->type == WEAK){
+                need_bounce = true;
             }
             
-            if (other->flags & WIN_BLOCK && can_damage){
-                win_level();
-            } else if (other->flags & BIRD_ENEMY && can_damage){
-                other->bird_enemy.velocity += projectile->velocity * 0.05f;
-                //other->bird_enemy.velocity = projectile->velocity * 0.05f;
-                projectile->velocity = reflected_vector(projectile->velocity * 0.3f, col.normal);
-                projectile->type = WEAK;
-                stun_enemy(other, entity->position, col.normal);    
-                sparks_speed += 1;
-            } else if (can_damage){
-                kill_enemy(other, entity->position, col.normal);
-                killed = true;
+            if (other->flags & PHYSICS_OBJECT){
+                // other->physics_object.velocity += (projectile->velocity * 0.5f * dot(normalized(projectile->velocity), col.normal * -1.0f)) / other->physics_object.mass;
+                apply_physics_force(projectile->velocity, 0.5f, &other->physics_object, col.normal);
+                emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+                entity->destroyed = true;
             }
             
-            if (other->flags & TRIGGER && can_damage){
-                sparks_count += 20;
-                hitstop_add = 0.1f;
+            if (other->flags & GROUND){
+                entity->destroyed = true;
+                emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
             }
             
-            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
-            add_hitstop(0.03f + hitstop_add);
-            shake_camera(0.1f);
-            if (can_damage){
-                play_sound(player_data.rifle_hit_sound, col.point);
+            if (other->flags & ROPE_POINT){
+                // cut rope point
+                other->destroyed = true;
+                emit_particles(rifle_bullet_emitter, col.point, col.normal, 6, 10);
+                emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+                play_sound("RopeCut", col.point);
             }
-        
-        
-        } else if (other->flags & ENEMY && projectile->type == WEAK){
-            need_bounce = true;
+            
+            if (need_bounce){
+                projectile->velocity = reflected_vector(projectile->velocity * 0.5f, col.normal);
+            }
         }
+    } else if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
+        fill_collisions(entity, &collisions_data, GROUND | PLAYER);
         
-        if (other->flags & PHYSICS_OBJECT){
-            // other->physics_object.velocity += (projectile->velocity * 0.5f * dot(normalized(projectile->velocity), col.normal * -1.0f)) / other->physics_object.mass;
-            apply_physics_force(projectile->velocity, 0.5f, &other->physics_object, col.normal);
-            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
-            entity->destroyed = true;
-        }
-        
-        if (other->flags & GROUND){
-            entity->destroyed = true;
-            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
-        }
-        
-        if (other->flags & ROPE_POINT){
-            // cut rope point
-            other->destroyed = true;
-            emit_particles(rifle_bullet_emitter, col.point, col.normal, 6, 10);
-            emit_particles(big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
-            play_sound("RopeCut", col.point);
-        }
-        
-        if (need_bounce){
-            projectile->velocity = reflected_vector(projectile->velocity * 0.5f, col.normal);
+        for (int i = 0; i < collisions_data.count; i++){
+            Collision col = collisions_data.get(i);
+            Entity *other = col.other_entity;
+            
+            
         }
     }
 }
@@ -5481,6 +5521,12 @@ void update_projectile(Entity *entity, f32 dt){
                 clamp_magnitude(&projectile->velocity, 60);
                 projectile->velocity.y -= player_data.gravity * dt;
             }
+        }
+    }
+    
+    if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
+        if (lifetime >= projectile->max_lifetime * 0.6f){
+            projectile->velocity *= 1.0f - (dt * 4);
         }
     }
     
@@ -5956,6 +6002,32 @@ void update_entities(f32 dt){
             // // end update centipede end
         }
 
+        if (e->flags & JUMP_SHOOTER && /*e->enemy.in_agro && */debug.enemy_ai){
+            // update jump shooter
+            Jump_Shooter *shooter = &e->jump_shooter;
+            f32 time_since_attack = core.time.game_time - shooter->last_attack_time;
+            
+            if (time_since_attack >= 3){
+                Vector2 vec_to_player = player_entity->position - e->position;
+                Vector2 dir_to_player = normalized(vec_to_player);
+                f32 spread = 45;
+                f32 angle = -spread * 0.5f;
+                f32 angle_step = spread / shooter->shots_count;
+                
+                for (int i = 0; i < shooter->shots_count; i++){
+                    Vector2 direction = get_rotated_vector(dir_to_player, angle);
+                    angle += angle_step;
+                    f32 speed = 100;
+                    
+                    Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY);
+                    projectile_entity->projectile.birth_time = core.time.game_time;
+                    projectile_entity->projectile.flags = JUMP_SHOOTER_PROJECTILE;
+                    projectile_entity->projectile.velocity = direction * speed;
+                }
+                
+                shooter->last_attack_time = core.time.game_time;
+            }
+        }
         
         if (e->flags & DOOR){
             update_door(e);
@@ -6171,6 +6243,7 @@ void draw_entities(){
             Vector2 position = e->position;
             if (e->flags & STICKY_TEXTURE){
                 position = e->sticky_texture.texture_position;
+                e->scale = ((Vector2){3, 3}) / context.cam.cam2D.zoom; 
             }
             draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
         }
@@ -6386,9 +6459,8 @@ void draw_entities(){
         
         if (e->flags & BLOCKER && (game_state == EDITOR) && !e->enemy.blocker_immortal){
             Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-            Vector2 real_scale = {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE};
             
-            draw_game_texture(texture, e->position, {10.0f / real_scale.x, 10.0f / real_scale.y}, {0.5f, 0.5f}, 0, WHITE);
+            draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
         }
         if (e->flags & BLOCKER && e->enemy.blocker_immortal){
             Vector2 triangle1 = {e->position.x, e->position.y + 3};
@@ -6991,8 +7063,9 @@ void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
 
 void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
     //Vector2 screen_pos = rect_screen_pos(position, {(float)tex.width / UNIT_SIZE, (f32)tex.height / UNIT_SIZE}, pivot);
+    // Vector2 screen_pos = world_to_screen(position);
     Vector2 screen_pos = world_to_screen(position);
-    draw_texture(tex, screen_pos, scale, pivot, rotation, color);
+    draw_texture(tex, screen_pos, transform_texture_scale(tex, scale), pivot, rotation, color);
 }
 
 void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
