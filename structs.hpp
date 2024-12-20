@@ -157,12 +157,34 @@ struct Physics_Object{
     Vector2 rope_point = Vector2_zero;
 };
 
+struct Move_Point{
+    Vector2 position = Vector2_zero;  
+    Vector2 normal = Vector2_zero;
+};
+
 struct Jump_Shooter{
-    f32 last_attack_time = 0;
+    f32 standing_start_time      = 0;
+    f32 jump_start_time          = 0;
+    f32 charging_start_time      = 0;
+    f32 recoil_start_time        = 0;
+    f32 picking_point_start_time = 0;
+    f32 flying_start_time        = 0;
+
+    b32 standing = true;
+    b32 jumping = false;
+    b32 charging = false;
+    b32 in_recoil = false;
+    b32 picking_point = false;
+    b32 flying_to_point = false;
+    
+    Vector2 velocity = Vector2_zero;
+    i32 current_index = 0;
 
     i32 shots_count = 10;  
     b32 shoot_explosive = false;
     b32 shoot_blockers = false;
+    
+    Dynamic_Array<Move_Point> move_points;
 };
 
 struct Move_Sequence{
