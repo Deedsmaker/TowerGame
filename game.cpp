@@ -5798,8 +5798,8 @@ void update_move_sequence(Entity *entity, f32 dt){
             Jump_Shooter *shooter = &entity->jump_shooter;
             shooter->move_points.clear();
             for (int i = 0; i < sequence->points.count; i++){
-                Collision nearest_ground = get_nearest_ground_collision(target, 20);
                 Vector2 point = sequence->points.get(i);
+                Collision nearest_ground = get_nearest_ground_collision(point, 20);
                             
                 if (nearest_ground.collided){
                     Vector2 point_to_collision = nearest_ground.point - point;
@@ -5809,6 +5809,7 @@ void update_move_sequence(Entity *entity, f32 dt){
                     
                     if (ray_collision.collided){
                         shooter->move_points.add({ray_collision.point, ray_collision.normal});
+                        print(ray_collision.point);
                     } else{
                         print("WARNING: Jump shooter, one of it's points can't find good ground to land. Will add bad ground point");
                         shooter->move_points.add({nearest_ground.point, nearest_ground.normal});
@@ -5964,7 +5965,6 @@ void update_entities(f32 dt){
                 } else{
                     rope_entity->position = e->position + e->up * e->scale.y * 0.5f;
                     Vector2 vec_to_point = e->physics_object.rope_point - (e->position + e->up * e->scale.y * 0.5f);
-                    print(e->physics_object.rope_point);
                     f32 len = magnitude(vec_to_point);
                     Vector2 dir = normalized(vec_to_point);
                     change_up(rope_entity, dir);
@@ -6092,7 +6092,7 @@ void update_entities(f32 dt){
             
             if (shooter->standing){
                 f32 standing_time = core.time.game_time - shooter->standing_start_time;
-                f32 max_standing_time = 5.0f;
+                f32 max_standing_time = 2.0f;
                 
                 // squizing animation
                 if (standing_time >= max_standing_time - 1.0f){
@@ -6113,22 +6113,22 @@ void update_entities(f32 dt){
                     shooter->jumping = true;
                     shooter->jump_start_time = core.time.game_time;
                     
-                    shooter->velocity = e->up * 300;
+                    shooter->velocity = e->up * 200;
                 }
             }
             
             if (shooter->jumping){
                 f32 jumping_time = core.time.game_time - shooter->jump_start_time;
                 f32 max_jumping_time = 1.5f;
-                f32 jump_t = clamp01((jumping_time / 3.0f));
+                f32 jump_t = clamp01((jumping_time / max_jumping_time));
                 
                 // salto here
                 
-                f32 gravity_multiplier = shooter->velocity.y > 0 ? lerp(4.0f, 0.0f, jump_t * jump_t) : lerp(-0.5f, 0.0f, jump_t * jump_t);
-                shooter->velocity.x *= 1.0f - (dt);
+                f32 gravity_multiplier = e->up.y > 0 ? lerp(3.0f, 2.0f, jump_t * jump_t) : lerp(-2.0f, 0.0f, jump_t * jump_t);
                 shooter->velocity.y -= GRAVITY * gravity_multiplier * dt;
+                shooter->velocity.x = lerp(shooter->velocity.x, 0.0f, jump_t * dt * 6);
                 
-                if (jumping_time >= max_jumping_time){
+                if (jumping_time >= max_jumping_time || (jumping_time >= max_jumping_time * 0.5f && shooter->velocity.y < 40)){
                     shooter->jumping = false;
                     shooter->charging = true;
                     shooter->charging_start_time = core.time.game_time;
@@ -6139,7 +6139,9 @@ void update_entities(f32 dt){
                 f32 charging_time = core.time.game_time - shooter->charging_start_time;
                 f32 charging_t = clamp01(charging_time / shooter->max_charging_time);
                 
-                shooter->velocity *= 1.0f - (lerp(0.0f, 4.0f * dt, charging_t * charging_t));
+                // shooter->velockity *= 1.0f - (lerp(0.0f, 4.0f * dt, charging_t * charging_t));
+                move_vec_towards(&shooter->velocity, Vector2_zero, lerp(0.0f, 100.0f, sqrtf(charging_t)), dt);
+                shooter->velocity.x = lerp(shooter->velocity.x, 0.0f, charging_t * dt * 5);
                 
                 f32 look_speed = lerp(0.0f, 10.0f, charging_t * charging_t);
                 change_right(e, move_towards(e->right, dir_to_player.x > 0 ? dir_to_player : dir_to_player * -1, look_speed, dt));
@@ -6174,7 +6176,7 @@ void update_entities(f32 dt){
                 f32 max_recoil_time = 1.0f;
                 
                 //rotate here
-                f32 gravity_multiplier = shooter->velocity.y > 0 ? 3.0f : 0.4f;
+                f32 gravity_multiplier = shooter->velocity.y > 0 ? 1.5f : 0.7f;
                 shooter->velocity.y -= GRAVITY * gravity_multiplier * dt;
                 
                 if (in_recoil_time >= max_recoil_time){
@@ -6190,12 +6192,13 @@ void update_entities(f32 dt){
                 f32 picking_point_t = clamp01(picking_point_time / max_picking_point_time);
                 
                 Move_Point next_point = shooter->move_points.get((shooter->current_index + 1) % shooter->move_points.count);
+                print(next_point.position);
                 
                 Vector2 vec_to_point = next_point.position - e->position;
                 Vector2 dir = normalized(vec_to_point);
                 
                 // look at next target here (and shake on drawing like birdies)
-                shooter->velocity *= 1.0f - (lerp(0.0f, 4.0f * dt, picking_point_t * picking_point_t));
+                move_vec_towards(&shooter->velocity, Vector2_zero, lerp(0.0f, 100.0f, sqrtf(picking_point_t)), dt);
                 
                 f32 look_speed = lerp(0.0f, 10.0f, picking_point_t * picking_point_t);
                 change_up(e, move_towards(e->up, dir, look_speed, dt));
@@ -6522,6 +6525,10 @@ void draw_entities(){
             }
     
             draw_game_triangle_strip(&visual_entity);
+            
+            for (int i = 0; i < e->jump_shooter.move_points.count; i++){
+                draw_game_circle(e->jump_shooter.move_points.get(i).position, 3, PURPLE);
+            }
         } else if (e->flags & ENEMY){
             draw_enemy(e);
         }
