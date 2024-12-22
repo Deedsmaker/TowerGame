@@ -169,6 +169,8 @@ struct Jump_Shooter{
     f32 recoil_start_time        = 0;
     f32 picking_point_start_time = 0;
     f32 flying_start_time        = 0;
+    
+    f32 max_charging_time = 1.5f;
 
     b32 standing = true;
     b32 jumping = false;

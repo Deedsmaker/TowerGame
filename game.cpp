@@ -1730,12 +1730,13 @@ void clean_up_scene(){
         context.bird_slots[i].occupied = false;
     }
 
+    context.shoot_stopers_count = 0;
+    context.last_bird_attack_time = -11111;
+    context.cam.locked = false;
+    
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
     close_create_box();
-    
-    context.shoot_stopers_count = 0;
-    context.cam.locked = false;
     
     if (player_entity){
         destroy_player();
@@ -2556,6 +2557,7 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
             }
             result = check_collision(start_position, entity->position, ray_vertices, entity->vertices, {0.5f, 1.0f}, entity->pivot);
             if (result.collided){
+                result.other_entity = entity;
                 found = true;
                 result.point = start_position + direction * current_len - direction * result.overlap;
                 break;
@@ -5615,7 +5617,7 @@ void update_editor_entity(Entity *e){
     
     if (e->flags & PHYSICS_OBJECT){
         if (e->physics_object.on_rope && core.time.app_time - e->physics_object.last_pick_rope_point_time > 0.5f){
-            Collision ray_col = raycast(e->position + e->up * e->scale.y * 0.5f, e->up, 300, GROUND, e->id);
+            Collision ray_col = raycast(e->position + e->up * e->scale.y * 0.5f, e->up, 300, GROUND, 4, e->id);
             if (ray_col.collided){
                 e->physics_object.rope_point = ray_col.point;
             }
@@ -5763,6 +5765,7 @@ Collision get_nearest_ground_collision(Vector2 point, f32 radius){
     ForEntities(entity, GROUND){
         Collision col = check_collision(point, entity->position, vertices, entity->vertices, {0.5f, 0.5f}, entity->pivot);
         if (col.collided){
+            col.other_entity = entity;
             return col;
         }
     }
@@ -5961,6 +5964,7 @@ void update_entities(f32 dt){
                 } else{
                     rope_entity->position = e->position + e->up * e->scale.y * 0.5f;
                     Vector2 vec_to_point = e->physics_object.rope_point - (e->position + e->up * e->scale.y * 0.5f);
+                    print(e->physics_object.rope_point);
                     f32 len = magnitude(vec_to_point);
                     Vector2 dir = normalized(vec_to_point);
                     change_up(rope_entity, dir);
@@ -6083,20 +6087,23 @@ void update_entities(f32 dt){
             // update jump shooter
             Jump_Shooter *shooter = &e->jump_shooter;
             
+            Vector2 vec_to_player = player_entity->position - e->position;
+            Vector2 dir_to_player = normalized(vec_to_player);
+            
             if (shooter->standing){
                 f32 standing_time = core.time.game_time - shooter->standing_start_time;
                 f32 max_standing_time = 5.0f;
                 
                 // squizing animation
-                if (standing_time >= max_standing_time - 1.5f){
-                    f32 anim_t = clamp01((standing_time - (max_standing_time - 1.5f)) / 1.5f);
+                if (standing_time >= max_standing_time - 1.0f){
+                    f32 anim_t = clamp01((standing_time - (max_standing_time - 1.0f)) / 1.0f);
                     
                     Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 0.7f};
-                    if (anim_t <= 0.7f){
-                        f32 t = anim_t / 0.7f;
+                    if (anim_t <= 0.85f){
+                        f32 t = anim_t / 0.85f;
                         change_scale(e, lerp(e->enemy.original_scale, target_scale, t * t));
                     } else{
-                        f32 t = (anim_t - 0.7f) / 0.3f;
+                        f32 t = (anim_t - 0.85f) / 0.3f;
                         change_scale(e, lerp(target_scale, e->enemy.original_scale, sqrtf(t)));
                     }
                 } 
@@ -6106,7 +6113,7 @@ void update_entities(f32 dt){
                     shooter->jumping = true;
                     shooter->jump_start_time = core.time.game_time;
                     
-                    shooter->velocity = e->up * 150;
+                    shooter->velocity = e->up * 300;
                 }
             }
             
@@ -6118,6 +6125,7 @@ void update_entities(f32 dt){
                 // salto here
                 
                 f32 gravity_multiplier = shooter->velocity.y > 0 ? lerp(4.0f, 0.0f, jump_t * jump_t) : lerp(-0.5f, 0.0f, jump_t * jump_t);
+                shooter->velocity.x *= 1.0f - (dt);
                 shooter->velocity.y -= GRAVITY * gravity_multiplier * dt;
                 
                 if (jumping_time >= max_jumping_time){
@@ -6129,16 +6137,15 @@ void update_entities(f32 dt){
             
             if (shooter->charging){
                 f32 charging_time = core.time.game_time - shooter->charging_start_time;
-                f32 max_charging_time = 1.5f;
-                f32 charging_t = clamp01(charging_time / max_charging_time);
+                f32 charging_t = clamp01(charging_time / shooter->max_charging_time);
                 
-                shooter->velocity *= 1.0f - (dt);
-                // look at player here
+                shooter->velocity *= 1.0f - (lerp(0.0f, 4.0f * dt, charging_t * charging_t));
+                
+                f32 look_speed = lerp(0.0f, 10.0f, charging_t * charging_t);
+                change_right(e, move_towards(e->right, dir_to_player.x > 0 ? dir_to_player : dir_to_player * -1, look_speed, dt));
                 
                 // jump shooter shoot
-                if (charging_time >= max_charging_time){
-                    Vector2 vec_to_player = player_entity->position - e->position;
-                    Vector2 dir_to_player = normalized(vec_to_player);
+                if (charging_time >= shooter->max_charging_time){
                     f32 spread = 45;
                     f32 angle = -spread * 0.5f;
                     f32 angle_step = spread / shooter->shots_count;
@@ -6154,7 +6161,7 @@ void update_entities(f32 dt){
                         projectile_entity->projectile.velocity = direction * speed;
                     }
                     
-                    shooter->velocity = dir_to_player * -10 + Vector2_up * 30;
+                    shooter->velocity = dir_to_player * -30 + Vector2_up * 100;
                     
                     shooter->charging = false;
                     shooter->in_recoil = true;
@@ -6167,7 +6174,8 @@ void update_entities(f32 dt){
                 f32 max_recoil_time = 1.0f;
                 
                 //rotate here
-                shooter->velocity.y -= GRAVITY * dt;
+                f32 gravity_multiplier = shooter->velocity.y > 0 ? 3.0f : 0.4f;
+                shooter->velocity.y -= GRAVITY * gravity_multiplier * dt;
                 
                 if (in_recoil_time >= max_recoil_time){
                     shooter->in_recoil = false;
@@ -6187,7 +6195,10 @@ void update_entities(f32 dt){
                 Vector2 dir = normalized(vec_to_point);
                 
                 // look at next target here (and shake on drawing like birdies)
+                shooter->velocity *= 1.0f - (lerp(0.0f, 4.0f * dt, picking_point_t * picking_point_t));
                 
+                f32 look_speed = lerp(0.0f, 10.0f, picking_point_t * picking_point_t);
+                change_up(e, move_towards(e->up, dir, look_speed, dt));
                 
                 // jump shooter fly to next
                 if (picking_point_time >= max_picking_point_time){
@@ -6500,6 +6511,17 @@ void draw_entities(){
         } else if (e->flags & CENTIPEDE){
             // draw centipede
             draw_game_triangle_strip(e);
+        } else if (e->flags & JUMP_SHOOTER){
+            // draw jump shooter
+            
+            Entity visual_entity = *e;
+            if (e->jump_shooter.charging){
+                f32 charging_time = core.time.game_time - e->jump_shooter.charging_start_time;
+                f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
+                visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, charging_t * charging_t);
+            }
+    
+            draw_game_triangle_strip(&visual_entity);
         } else if (e->flags & ENEMY){
             draw_enemy(e);
         }
@@ -6921,10 +6943,6 @@ void draw_game(){
     
     draw_entities();
     draw_particles();
-    
-    static Vector2 vec = Vector2_up;
-    vec = get_rotated_vector(vec, 10 * core.time.real_dt);
-    raycast({10, 20}, vec, 100, GROUND);
     
     if (player_entity && debug.draw_player_collisions){
         for (int i = 0; i < player_data.collisions.count; i++){
