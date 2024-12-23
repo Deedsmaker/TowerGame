@@ -1157,7 +1157,8 @@ void init_spawn_objects(){
     str_copy(shoot_stoper_object.name, shoot_stoper_entity.name);
     spawn_objects.add(shoot_stoper_object);
     
-    Entity jump_shooter_entity = Entity({0, 0}, {6, 8}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE);
+    // we use move sequence on jump shooter only to set jump points
+    Entity jump_shooter_entity = Entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
     jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
     str_copy(jump_shooter_entity.name, "jump_shooter"); 
     setup_color_changer(&jump_shooter_entity);
@@ -1377,6 +1378,16 @@ void init_entity(Entity *entity){
             segment->position = previous->position - previous->up * previous->scale.y * 1.2f;
             segment->move_sequence = entity->move_sequence;
         }
+    }
+    
+    if (entity->flags & JUMP_SHOOTER){
+        // init jump shooter
+        entity->emitters.clear();
+        entity->jump_shooter.trail_emitter  = entity->emitters.add(air_dust_emitter);
+        entity->jump_shooter.trail_emitter->follow_entity = false;
+        enable_emitter(entity->jump_shooter.trail_emitter);
+        entity->jump_shooter.flying_emitter = entity->emitters.add(rifle_bullet_emitter);
+        entity->jump_shooter.flying_emitter->follow_entity = false;
     }
     
     if (entity->flags & PHYSICS_OBJECT || entity->collision_flags == 0){
@@ -4177,7 +4188,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             shake_camera(0.1f);
             play_sound(player_data.sword_kill_sound, col.point);
             
-            if (!(other->flags & TRIGGER)){
+            if (!(other->flags & TRIGGER) && other->enemy.gives_ammo){
                 add_player_ammo(1, other->enemy.gives_full_ammo);
             }
         }
@@ -4914,10 +4925,27 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col){
     b32 is_high_velocity = speed > 100;
     
     b32 should_respond = true;
+    
+    if (other->flags & PHYSICS_OBJECT){
+        apply_physics_force(shooter->velocity, 10, &other->physics_object, col.normal);
+    }
+    
     if (other->flags & GROUND){
         resolve_collision(shooter_entity, col);
         
-        
+        // jump shooter stop on ground
+        if (shooter->flying_to_point){
+            shooter->flying_to_point = false;
+            shooter->standing = true;
+            shooter->standing_start_time = core.time.game_time;
+            shooter->velocity = Vector2_zero;
+            emit_particles(ground_splash_emitter, col.point, col.normal, 6, 2.5f);
+            
+            shooter->flying_emitter->enabled = false;
+        } else if (!shooter->standing){
+            shooter->velocity = reflected_vector(shooter->velocity * 0.7f, col.normal);
+            emit_particles(ground_splash_emitter, col.point, col.normal, 1, 0.5f);
+        }
     }
 }
 
@@ -5062,6 +5090,11 @@ void update_bird_enemy(Entity *entity, f32 dt){
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
         rotate(entity, bird->velocity.x);
         bird_clear_formation(bird);
+        
+        f32 since_died_time = core.time.game_time - enemy->died_time;
+        if (since_died_time >= 15 && sqr_magnitude(entity->position - player_entity->position) >= 50000){
+            destroy_enemy(entity);
+        }
         return;
     }
 
@@ -5233,6 +5266,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         emit_particles(*blood_emitter, kill_position, kill_direction, count, particles_speed_modifier, area);
     
         enemy_entity->enemy.dead_man = true;
+        enemy_entity->enemy.died_time = core.time.game_time;
         if (!(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT))){
             enemy_entity->enabled = false;
             destroy_enemy(enemy_entity);
@@ -5352,8 +5386,10 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             emit_particles(*blood_emitter, kill_position, kill_direction, count, speed, area_multiplier);
         
             enemy->dead_man = true;
+            enemy->died_time = core.time.game_time;
             
             if (enemy_entity->flags & BIRD_ENEMY){
+                // birds handle dead state by themselves
                 enable_emitter(enemy_entity->bird_enemy.fire_emitter);
             } else if (enemy_entity->flags & CENTIPEDE_SEGMENT){
                 
@@ -5809,7 +5845,6 @@ void update_move_sequence(Entity *entity, f32 dt){
                     
                     if (ray_collision.collided){
                         shooter->move_points.add({ray_collision.point, ray_collision.normal});
-                        print(ray_collision.point);
                     } else{
                         print("WARNING: Jump shooter, one of it's points can't find good ground to land. Will add bad ground point");
                         shooter->move_points.add({nearest_ground.point, nearest_ground.normal});
@@ -6060,6 +6095,7 @@ void update_entities(f32 dt){
             
             if (alive_count == 0){
                 e->enemy.dead_man = true;
+                e->enemy.died_time = core.time.game_time;
                 e->flags = ENEMY | BIRD_ENEMY;
                 Vector2 rnd = rnd_in_circle();
                 e->bird_enemy.velocity = {e->move_sequence.velocity.x * rnd.x, e->move_sequence.velocity.y * rnd.y};
@@ -6092,9 +6128,23 @@ void update_entities(f32 dt){
             
             if (shooter->standing){
                 f32 standing_time = core.time.game_time - shooter->standing_start_time;
-                f32 max_standing_time = 2.0f;
+                f32 max_standing_time = 4.0f;
+                shooter->velocity = Vector2_zero;
                 
-                // squizing animation
+                //landing animation
+                if (standing_time <= 1.0f){
+                    f32 landing_t = clamp01(standing_time / 1.0f);
+                    
+                    Vector2 target_scale = {e->enemy.original_scale.x * 1.5f, e->enemy.original_scale.y * 0.5f};
+                    if (landing_t <= 0.20f){
+                        f32 t = clamp01(landing_t / 0.25f);
+                        change_scale(e, lerp(e->enemy.original_scale, target_scale, EaseOutElastic(t)));
+                    } else{
+                        f32 t = clamp01((landing_t - 0.25f) / (1.0f - 0.25f));
+                        change_scale(e, lerp(target_scale, e->enemy.original_scale, EaseInOutElastic(t)));
+                    }
+                }
+                // squeezing animation
                 if (standing_time >= max_standing_time - 1.0f){
                     f32 anim_t = clamp01((standing_time - (max_standing_time - 1.0f)) / 1.0f);
                     
@@ -6112,8 +6162,33 @@ void update_entities(f32 dt){
                     shooter->standing = false;
                     shooter->jumping = true;
                     shooter->jump_start_time = core.time.game_time;
+                    shooter->jump_direction = e->up;
                     
-                    shooter->velocity = e->up * 200;
+                    shooter->velocity = shooter->jump_direction * 200;
+                    emit_particles(ground_splash_emitter, e->position - e->up * e->scale.y * 0.5f, e->up, 4, 1.5f);
+                } else{
+                    Collision nearest_ground = get_nearest_ground_collision(e->position, e->scale.y);
+                    if (nearest_ground.collided){
+                        Collision ray_collision = raycast(e->position, normalized(nearest_ground.point - e->position), e->scale.y, GROUND, 1);
+                        Vector2 point = Vector2_zero;
+                        Vector2 normal = Vector2_up;
+                        if (ray_collision.collided){
+                            point = ray_collision.point;
+                            normal = ray_collision.normal;
+                        } else{
+                            point = nearest_ground.point;
+                            normal = nearest_ground.normal;
+                        }
+                        
+                        Vector2 dir = normalized(e->position - point);
+                        e->position = point + dir * e->scale.y * 0.5f;
+                        change_up(e, move_towards(e->up, normal, 10, dt));
+                        
+                        if (nearest_ground.other_entity->flags & PHYSICS_OBJECT){
+                            e->position += nearest_ground.other_entity->physics_object.velocity * dt;
+                        }
+                    }
+                    
                 }
             }
             
@@ -6122,9 +6197,9 @@ void update_entities(f32 dt){
                 f32 max_jumping_time = 1.5f;
                 f32 jump_t = clamp01((jumping_time / max_jumping_time));
                 
-                // salto here
+                rotate(e, shooter->velocity.x * 20 * dt);
                 
-                f32 gravity_multiplier = e->up.y > 0 ? lerp(3.0f, 2.0f, jump_t * jump_t) : lerp(-2.0f, 0.0f, jump_t * jump_t);
+                f32 gravity_multiplier = shooter->jump_direction.y > 0 ? lerp(3.0f, 2.0f, jump_t * jump_t) : lerp(-0.5f, 0.0f, jump_t * jump_t);
                 shooter->velocity.y -= GRAVITY * gravity_multiplier * dt;
                 shooter->velocity.x = lerp(shooter->velocity.x, 0.0f, jump_t * dt * 6);
                 
@@ -6158,9 +6233,11 @@ void update_entities(f32 dt){
                         f32 speed = 100;
                         
                         Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY);
+                        change_color(projectile_entity, ColorBrightness(RED, 0.4f));
                         projectile_entity->projectile.birth_time = core.time.game_time;
                         projectile_entity->projectile.flags = JUMP_SHOOTER_PROJECTILE;
                         projectile_entity->projectile.velocity = direction * speed;
+                        projectile_entity->enemy.gives_ammo = false;
                     }
                     
                     shooter->velocity = dir_to_player * -30 + Vector2_up * 100;
@@ -6175,7 +6252,8 @@ void update_entities(f32 dt){
                 f32 in_recoil_time = core.time.game_time - shooter->recoil_start_time;
                 f32 max_recoil_time = 1.0f;
                 
-                //rotate here
+                rotate(e, shooter->velocity.x * 20 * dt);
+                
                 f32 gravity_multiplier = shooter->velocity.y > 0 ? 1.5f : 0.7f;
                 shooter->velocity.y -= GRAVITY * gravity_multiplier * dt;
                 
@@ -6188,42 +6266,77 @@ void update_entities(f32 dt){
             
             if (shooter->picking_point){
                 f32 picking_point_time = core.time.game_time - shooter->picking_point_start_time;
-                f32 max_picking_point_time = 1.5f;
-                f32 picking_point_t = clamp01(picking_point_time / max_picking_point_time);
+                f32 picking_point_t = clamp01(picking_point_time / shooter->max_picking_point_time);
                 
                 Move_Point next_point = shooter->move_points.get((shooter->current_index + 1) % shooter->move_points.count);
-                print(next_point.position);
                 
                 Vector2 vec_to_point = next_point.position - e->position;
                 Vector2 dir = normalized(vec_to_point);
                 
-                // look at next target here (and shake on drawing like birdies)
                 move_vec_towards(&shooter->velocity, Vector2_zero, lerp(0.0f, 100.0f, sqrtf(picking_point_t)), dt);
                 
                 f32 look_speed = lerp(0.0f, 10.0f, picking_point_t * picking_point_t);
                 change_up(e, move_towards(e->up, dir, look_speed, dt));
                 
+                Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 1.7f};
+                change_scale(e, lerp(e->enemy.original_scale, target_scale, picking_point_t * picking_point_t));
+                
+                shooter->trail_emitter->direction = e->up * -1;
+                shooter->trail_emitter->count_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
+                shooter->trail_emitter->speed_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
+                shooter->trail_emitter->over_time = 50;
+                
                 // jump shooter fly to next
-                if (picking_point_time >= max_picking_point_time){
+                if (picking_point_time >= shooter->max_picking_point_time){
                     shooter->picking_point = false;
                     shooter->flying_to_point = true;
                     shooter->flying_start_time = core.time.game_time;
                     
-                    shooter->velocity = dir * 200;
+                    shooter->velocity = dir * 300;
+                    // change_scale(e, e->enemy.original_scale);
+                    shooter->flying_emitter->position = e->position - e->up * e->scale.y * 0.5f;
+                    enable_emitter(shooter->flying_emitter);
+                    
+                    shooter->trail_emitter->count_multiplier = 1;
+                    shooter->trail_emitter->speed_multiplier = 1;
+                    shooter->trail_emitter->over_time = 10;
                 }
             }
             
             if (shooter->flying_to_point){
-                // when we fly we just wait for ground collision to change state and if it took too long - i think we sould die
+                f32 flying_time = core.time.game_time - shooter->flying_start_time;
+                f32 max_flying_time = 1.2f;
+                f32 flying_t = clamp01(flying_time / max_flying_time);
+                // when we fly we just wait for ground collision to change state and if it took too long - we should die
                 
-                // rotate by normal of point
+                Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 1.7f};
+                change_scale(e, lerp(target_scale, e->enemy.original_scale, sqrtf(flying_t)));
+                
+                if (flying_time >= 10.0f){
+                    kill_enemy(e, e->position, e->up);
+                }
+                
                 Move_Point target_point = shooter->move_points.get((shooter->current_index + 1) % shooter->move_points.count);
-                
                 Vector2 vec_to_point = target_point.position - e->position;
                 Vector2 dir = normalized(vec_to_point);
+                f32 len = magnitude(vec_to_point);
+                
+                change_up(e, lerp(dir, target_point.normal, clamp01(EaseInOutQuad(flying_t) + lerp(0.0f, 1.0f, 1.0f - clamp01(len / 30.0f)))));
             }
             
             move_by_velocity_with_collisions(e, shooter->velocity, e->scale.x * 0.5f + e->scale.y * 0.5f, &respond_jump_shooter_collision, dt);
+            
+            shooter->trail_emitter->position = e->position - e->up * e->scale.y * 0.5f;
+            if (!shooter->picking_point && shooter->velocity != Vector2_zero){
+                shooter->trail_emitter->direction = normalized(shooter->velocity * -1);;
+            }
+            
+            if (shooter->flying_to_point){
+                shooter->flying_emitter->position  = e->position - e->up * e->scale.y * 0.5f;
+                if (shooter->velocity != Vector2_zero){
+                    shooter->flying_emitter->direction = normalized(shooter->velocity * -1);;
+                }
+            }                
         } // end update jump shooter
         
         if (e->flags & DOOR){
@@ -6521,14 +6634,22 @@ void draw_entities(){
             if (e->jump_shooter.charging){
                 f32 charging_time = core.time.game_time - e->jump_shooter.charging_start_time;
                 f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
-                visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, charging_t * charging_t);
+                visual_entity.position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, charging_t * charging_t);
+            }
+            if (e->jump_shooter.picking_point){
+                f32 picking_point_time = core.time.game_time - e->jump_shooter.picking_point_start_time;
+                f32 picking_point_t = picking_point_time / e->jump_shooter.max_picking_point_time;
+                visual_entity.position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, picking_point_t * picking_point_t);
+            }
+            if (e->jump_shooter.flying_to_point){
+                visual_entity.position += get_perlin_in_circle(25);
             }
     
             draw_game_triangle_strip(&visual_entity);
             
-            for (int i = 0; i < e->jump_shooter.move_points.count; i++){
-                draw_game_circle(e->jump_shooter.move_points.get(i).position, 3, PURPLE);
-            }
+            // for (int i = 0; i < e->jump_shooter.move_points.count; i++){
+            //     draw_game_circle(e->jump_shooter.move_points.get(i).position, 3, PURPLE);
+            // }
         } else if (e->flags & ENEMY){
             draw_enemy(e);
         }
@@ -6823,8 +6944,8 @@ void draw_editor(){
         Vector2 vec_to_mouse = input.mouse_position - editor.ruler_start_position;
         f32 length = magnitude(vec_to_mouse);
         
-        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), TextFormat("%.2f", length), 24, RED);
-        draw_game_text(input.mouse_position + Vector2_up, TextFormat("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26, GREEN); 
+        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), TextFormat("%.2f", length), 24.0f / context.cam.cam2D.zoom, RED);
+        draw_game_text(input.mouse_position + Vector2_up, TextFormat("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26.0f / context.cam.cam2D.zoom, GREEN); 
         
     }
 }

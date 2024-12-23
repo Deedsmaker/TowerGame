@@ -171,6 +171,9 @@ struct Jump_Shooter{
     f32 flying_start_time        = 0;
     
     f32 max_charging_time = 1.5f;
+    f32 max_picking_point_time = 1.5f;
+    
+    Vector2 jump_direction = Vector2_up;
 
     b32 standing = true;
     b32 jumping = false;
@@ -187,6 +190,9 @@ struct Jump_Shooter{
     b32 shoot_blockers = false;
     
     Dynamic_Array<Move_Point> move_points;
+    
+    Particle_Emitter *trail_emitter;
+    Particle_Emitter *flying_emitter;
 };
 
 struct Move_Sequence{
@@ -263,6 +269,8 @@ struct Enemy{
     b32 in_stun = false;
     b32 just_awake = true;
     
+    f32 died_time = 0;
+    
     i32 hits_taken = 0;
     i32 max_hits_taken = 3;
     
@@ -277,6 +285,7 @@ struct Enemy{
     b32 blocker_immortal = false;
     i32 blocker_sticky_id = -1;
     
+    b32 gives_ammo = true;
     b32 gives_full_ammo = false;
     
     Vector2 original_scale = {1, 1};

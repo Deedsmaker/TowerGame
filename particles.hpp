@@ -201,6 +201,7 @@ global_variable Particle_Emitter sparks_emitter;
 global_variable Particle_Emitter big_sparks_emitter;
 global_variable Particle_Emitter gunpowder_emitter;
 global_variable Particle_Emitter air_emitter;
+global_variable Particle_Emitter ground_splash_emitter;
 
 void free_emitter(Particle_Emitter *emitter){
     emitter = NULL;
@@ -451,4 +452,21 @@ void setup_particles(){
     air_emitter.gravity_multiplier = -0.01f;
     air_emitter.color              = Fade(WHITE, 0.4f);
     air_emitter.enabled            = false;
+    
+    ground_splash_emitter.spawn_radius             = 4;
+    ground_splash_emitter.over_distance      = 0;
+    ground_splash_emitter.direction_to_move  = 0;
+    ground_splash_emitter.over_time          = 10;
+    ground_splash_emitter.speed_min          = 5;
+    ground_splash_emitter.speed_max          = 10;
+    ground_splash_emitter.count_min          = 10;
+    ground_splash_emitter.count_max          = 30;
+    ground_splash_emitter.scale_min          = 0.8f;
+    ground_splash_emitter.scale_max          = 2.5f;
+    ground_splash_emitter.lifetime_min       = 0.5f;
+    ground_splash_emitter.lifetime_max       = 3.0f;
+    ground_splash_emitter.spread             = 0.4f;
+    ground_splash_emitter.gravity_multiplier = 0.1f;
+    ground_splash_emitter.color              = Fade(WHITE, 0.3f);
+    ground_splash_emitter.enabled            = false;
 }
