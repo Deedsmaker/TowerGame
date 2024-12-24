@@ -163,24 +163,28 @@ struct Move_Point{
 };
 
 struct Jump_Shooter{
-    f32 standing_start_time      = 0;
-    f32 jump_start_time          = 0;
-    f32 charging_start_time      = 0;
-    f32 recoil_start_time        = 0;
-    f32 picking_point_start_time = 0;
-    f32 flying_start_time        = 0;
-    
     f32 max_charging_time = 1.5f;
     f32 max_picking_point_time = 1.5f;
     
     Vector2 jump_direction = Vector2_up;
 
-    b32 standing = true;
-    b32 jumping = false;
-    b32 charging = false;
-    b32 in_recoil = false;
-    b32 picking_point = false;
-    b32 flying_to_point = false;
+    struct shooter_states{
+        f32 standing_start_time      = 0;
+        f32 jump_start_time          = 0;
+        f32 charging_start_time      = 0;
+        f32 recoil_start_time        = 0;
+        f32 picking_point_start_time = 0;
+        f32 flying_start_time        = 0;
+    
+        b32 standing = true;
+        b32 jumping = false;
+        b32 charging = false;
+        b32 in_recoil = false;
+        b32 picking_point = false;
+        b32 flying_to_point = false;
+    };
+    
+    shooter_states states = {};
     
     Vector2 velocity = Vector2_zero;
     i32 current_index = 0;
