@@ -1159,6 +1159,7 @@ void init_spawn_objects(){
     
     // we use move sequence on jump shooter only to set jump points
     Entity jump_shooter_entity = Entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
+    jump_shooter_entity.enemy.max_hits_taken = 6;
     jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
     str_copy(jump_shooter_entity.name, "jump_shooter"); 
     setup_color_changer(&jump_shooter_entity);
@@ -6198,7 +6199,10 @@ void update_entities(f32 dt){
                     enemy->was_in_stun = true;
                 }
             } else if (enemy->was_in_stun){
+                shooter->states.standing = true;
+                shooter->states.standing_start_time = core.time.game_time;
                 
+                enemy->was_in_stun = false;
             }
             
             Vector2 vec_to_player = player_entity->position - e->position;
@@ -6212,48 +6216,43 @@ void update_entities(f32 dt){
                 
                 if (nearest_ground.collided){
                     shooter->velocity = Vector2_zero;
-                } else{
-                    shooter->velocity -= GRAVITY * dt;
-                    shooter->states.standing_start_time = core.time.game_time;
-                }
-                
-                //landing animation
-                if (standing_time <= 1.0f){
-                    f32 landing_t = clamp01(standing_time / 1.0f);
                     
-                    Vector2 target_scale = {e->enemy.original_scale.x * 1.5f, e->enemy.original_scale.y * 0.5f};
-                    if (landing_t <= 0.20f){
-                        f32 t = clamp01(landing_t / 0.25f);
-                        change_scale(e, lerp(e->enemy.original_scale, target_scale, EaseOutElastic(t)));
-                    } else{
-                        f32 t = clamp01((landing_t - 0.25f) / (1.0f - 0.25f));
-                        change_scale(e, lerp(target_scale, e->enemy.original_scale, EaseInOutElastic(t)));
+                  //landing animation
+                    if (standing_time <= 1.0f){
+                        f32 landing_t = clamp01(standing_time / 1.0f);
+                        
+                        Vector2 target_scale = {e->enemy.original_scale.x * 1.5f, e->enemy.original_scale.y * 0.5f};
+                        if (landing_t <= 0.20f){
+                            f32 t = clamp01(landing_t / 0.25f);
+                            change_scale(e, lerp(e->enemy.original_scale, target_scale, EaseOutElastic(t)));
+                        } else{
+                            f32 t = clamp01((landing_t - 0.25f) / (1.0f - 0.25f));
+                            change_scale(e, lerp(target_scale, e->enemy.original_scale, EaseInOutElastic(t)));
+                        }
                     }
-                }
-                // squeezing animation
-                if (standing_time >= max_standing_time - 1.0f){
-                    f32 anim_t = clamp01((standing_time - (max_standing_time - 1.0f)) / 1.0f);
-                    
-                    Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 0.7f};
-                    if (anim_t <= 0.85f){
-                        f32 t = anim_t / 0.85f;
-                        change_scale(e, lerp(e->enemy.original_scale, target_scale, t * t));
+                    // squeezing animation
+                    if (standing_time >= max_standing_time - 1.0f){
+                        f32 anim_t = clamp01((standing_time - (max_standing_time - 1.0f)) / 1.0f);
+                        
+                        Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 0.7f};
+                        if (anim_t <= 0.85f){
+                            f32 t = anim_t / 0.85f;
+                            change_scale(e, lerp(e->enemy.original_scale, target_scale, t * t));
+                        } else{
+                            f32 t = (anim_t - 0.85f) / 0.3f;
+                            change_scale(e, lerp(target_scale, e->enemy.original_scale, sqrtf(t)));
+                        }
+                    } 
+                    //jump shooter jump
+                    if (standing_time >= max_standing_time){
+                        shooter->states.standing = false;
+                        shooter->states.jumping = true;
+                        shooter->states.jump_start_time = core.time.game_time;
+                        shooter->jump_direction = e->up;
+                        
+                        shooter->velocity = shooter->jump_direction * 200;
+                        emit_particles(ground_splash_emitter, e->position - e->up * e->scale.y * 0.5f, e->up, 4, 1.5f);
                     } else{
-                        f32 t = (anim_t - 0.85f) / 0.3f;
-                        change_scale(e, lerp(target_scale, e->enemy.original_scale, sqrtf(t)));
-                    }
-                } 
-                //jump shooter jump
-                if (standing_time >= max_standing_time){
-                    shooter->states.standing = false;
-                    shooter->states.jumping = true;
-                    shooter->states.jump_start_time = core.time.game_time;
-                    shooter->jump_direction = e->up;
-                    
-                    shooter->velocity = shooter->jump_direction * 200;
-                    emit_particles(ground_splash_emitter, e->position - e->up * e->scale.y * 0.5f, e->up, 4, 1.5f);
-                } else{
-                    if (nearest_ground.collided){
                         Collision ray_collision = raycast(e->position, normalized(nearest_ground.point - e->position), e->scale.y, GROUND, 1);
                         Vector2 point = Vector2_zero;
                         Vector2 normal = Vector2_up;
@@ -6277,7 +6276,9 @@ void update_entities(f32 dt){
                             e->position += nearest_ground.other_entity->move_sequence.moved_last_frame;
                         }
                     }
-                    
+                } else{
+                    shooter->velocity.y -= GRAVITY * dt;
+                    shooter->states.standing_start_time = core.time.game_time;
                 }
             }
             
@@ -6320,6 +6321,14 @@ void update_entities(f32 dt){
                         Vector2 direction = get_rotated_vector(dir_to_player, angle);
                         angle += angle_step;
                         f32 speed = 100;
+                        
+                        // FLAGS additional_flags = 0;
+                        // if (shooter->shoot_explosive){
+                        //     additional_flags |= EXPLOSIVE;        
+                        // }
+                        // if (shooter->shoot_blockers){
+                        //     additional_flags |= BLOCKER;
+                        // }
                         
                         Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER);
                         change_color(projectile_entity, ColorBrightness(RED, 0.4f));

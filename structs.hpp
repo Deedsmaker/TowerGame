@@ -162,6 +162,42 @@ struct Move_Point{
     Vector2 normal = Vector2_zero;
 };
 
+struct Enemy{
+    b32 dead_man = false;  
+    b32 in_agro = false;
+    b32 in_stun = false;
+    b32 just_awake = true;
+    
+    b32 was_in_stun = false;
+    
+    f32 died_time = 0;
+    
+    i32 hits_taken = 0;
+    i32 max_hits_taken = 3;
+    
+    f32 stun_start_time = -1234;
+    f32 max_stun_time = 1.0f;
+    
+    f32 birth_time = 0;
+    
+    f32 sword_kill_speed_modifier = 1;
+    
+    b32 blocker_clockwise = false;
+    b32 blocker_immortal = false;
+    i32 blocker_sticky_id = -1;
+    
+    b32 gives_ammo = true;
+    b32 gives_full_ammo = false;
+    
+    Vector2 original_scale = {1, 1};
+    
+    b32 shoot_blocker_immortal = false;
+    Vector2 shoot_blocker_direction = Vector2_up;
+    
+    Sound_Handler *explosion_sound = NULL;
+    Sound_Handler *big_explosion_sound = NULL;
+};
+
 struct Jump_Shooter{
     f32 max_charging_time = 1.5f;
     f32 max_picking_point_time = 1.5f;
@@ -190,8 +226,11 @@ struct Jump_Shooter{
     i32 current_index = 0;
 
     i32 shots_count = 10;  
-    b32 shoot_explosive = false;
-    b32 shoot_blockers = false;
+    
+    b32 shoot_explosive           = false;
+    b32 shoot_sword_blockers            = false;
+    b32 shoot_sword_blockers_clockwise = false;
+    b32 shoot_sword_blockers_immune    = false;
     
     Dynamic_Array<Move_Point> move_points;
     
@@ -265,40 +304,6 @@ struct Velocity_Move{
     
     f32 max_speed = 300;
     Vector2 velocity = Vector2_zero;
-};
-
-struct Enemy{
-    b32 dead_man = false;  
-    b32 in_agro = false;
-    b32 in_stun = false;
-    b32 just_awake = true;
-    
-    f32 died_time = 0;
-    
-    i32 hits_taken = 0;
-    i32 max_hits_taken = 3;
-    
-    f32 stun_start_time = 0;
-    f32 max_stun_time = 1.0f;
-    
-    f32 birth_time = 0;
-    
-    f32 sword_kill_speed_modifier = 1;
-    
-    b32 blocker_clockwise = false;
-    b32 blocker_immortal = false;
-    i32 blocker_sticky_id = -1;
-    
-    b32 gives_ammo = true;
-    b32 gives_full_ammo = false;
-    
-    Vector2 original_scale = {1, 1};
-    
-    b32 shoot_blocker_immortal = false;
-    Vector2 shoot_blocker_direction = Vector2_up;
-    
-    Sound_Handler *explosion_sound = NULL;
-    Sound_Handler *big_explosion_sound = NULL;
 };
 
 struct Propeller{
@@ -491,8 +496,8 @@ struct Player{
     i32 ammo_charges = 0;
     i32 ammo_charges_for_count = 5;
     
-    f32 strong_recoil_stun_start_time = 0;
-    f32 weak_recoil_stun_start_time = 0;
+    f32 strong_recoil_stun_start_time = -190321;
+    f32 weak_recoil_stun_start_time = -123123;
     b32 in_stun = false;
     
     f32 current_move_speed = 0;
