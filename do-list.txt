@@ -11,32 +11,53 @@
 [ ] Player internal-interface (for examplelines that shows how to kill sword-blocker) could be disrupted by some enemy. Funny visual requiered and pretty long gameplay before introduction so player could get used to this information.
 ///////////////////////////////////////////////////
 
+<Levels order>
+[X] Basic spining movement
+[X] Basic shooting/triggers (also some immortal blockers)
+[X] Big sword tutorial and more blockers
+[X] Blocker turorial. Also propeller introduction
+[X] Air movement (Down key for gravity 1)
+[X] Explosive level
+[X] More air movement, fast escape from wall and wide propeller slowing introduction
+[X] Arena
+[X?] Escape level with need to stop spinning ?. + arena (bridge1 level as arena and escape sequence is ok, but we might not want to force player stop sword spinning so early)
+[X] Centipede
+[X] Rope blocks
+[ ] Jump shooters introduction + more rope blocks
+
 <Level ideas>
 ///////////////////////////////////////////////////
 [X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
 [ ] Big bomb in the middle and static camera
 [X] Tutorial for gravity increase - spikes above
-[ ] Cool physics rope block introduction with static camera where we need to cut it and go down
+[X] Cool physics rope block introduction with static camera where we need to cut it and go down
+[ ] Ascending level (spikes go from below) where in parts we need to climb centipedes (and there's no real blocks). 
 ///////////////////////////////////////////////////
 
 <Battle ideas>
 ///////////////////////////////////////////////////
+//WITH EXISTING:
+[ ] Small fast centipedes with full spikes on
+[ ] Big centipedes without spikes that will act like a bridge
+[ ] Room with one explosive birdie, but we can't shoot (because of shoot stoper!!)
+//NEW:
 [ ] Robo-hand that can catch us and throw somewhere
 [ ] Charging stations where we need to spin. Also some enemies could charge of that and we can overcharge them.
 [X] Block on the rope that can be cutted. (Maybe really **physics** objects on ropes that can be cut. So we can cut bombs, blocks etc.)
 [ ] Killable objects for buffs (like homing shot, etc. Already that could be bombs, but big bombs is dangerous for player so we work on explosion radius (maybe show radius to player(done)) or make special bombs that damage only enemies and we can do other funny stuff with it)
 [X] Enemy that doesn't allow to shoot
 [ ] Spiky enemy (Could do that we don't want to kill it in range, but in melee)
-[ ] Shooter jumper
+[X] Shooter jumper
     [X] Base, animations, movement, shooting, interactions with player (kill him, die from him)
-    [ ] Respond on shooting
-    [ ] Options for projectiles
+    [X] Respond on shooting
+    [X] Options for projectiles
 [ ] Катается по блоку туда сюда
 [ ] Враг который триггерится на активированную винтовку. Сам почти невидимый и меняется когда чаржится.
 [ ] Modifier for enemies so they can be killed with big or small sword.
 [ ] Враг/Модификатор . Делает врагу больше хп, но убить можно только если быстро нанести много урона. С мечом нужно крутиться на враге некоторое время (например 1.5 секунды), а с выстрелом настрелять много за короткое время. С мечом круче всего звучит, нужно будет реально подзадержаться на типе и такое можно использовать для боссов. Тяжело будет работать с птичками, но дуабл. Вероятно придется подумать еще над тем чтобы было легче оставаться на месте при сильном вращении, потому что в воздухе точно если будешь крутиться в одну сторону и жать кнопку ходьбы в другую - вращение меча перевесит. Показываться это будет полоской над врагом, которая будет заполняться при нанесении урона и убавляться когда некоторое время не дамажишь.
 ///////////////////////////////////////////////////
 
+[ ] Move sequence setting for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
 [ ] On enemy attack we can briefly show line that will fade away
 [X] Fix texture misplacing on screen resizing
 [X] Drag player with mouse (G)

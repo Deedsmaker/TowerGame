@@ -178,6 +178,8 @@ struct Enemy{
     f32 stun_start_time = -1234;
     f32 max_stun_time = 1.0f;
     
+    f32 last_hit_time = -123;
+    
     f32 birth_time = 0;
     
     f32 sword_kill_speed_modifier = 1;
@@ -226,11 +228,16 @@ struct Jump_Shooter{
     i32 current_index = 0;
 
     i32 shots_count = 10;  
+    f32 spread = 45;
     
-    b32 shoot_explosive           = false;
-    b32 shoot_sword_blockers            = false;
+    b32 shoot_explosive                = false;
+    
+    b32 shoot_sword_blockers           = false;
     b32 shoot_sword_blockers_clockwise = false;
-    b32 shoot_sword_blockers_immune    = false;
+    b32 shoot_sword_blockers_random_direction = false;
+    b32 shoot_sword_blockers_immortal  = false;
+    
+    b32 shoot_bullet_blockers = false;
     
     Dynamic_Array<Move_Point> move_points;
     
@@ -372,6 +379,7 @@ struct Centipede{
     
     i32 segments_count = 32;
     b32 spikes_on_right = true;
+    b32 spikes_on_left = false;
 };
 
 struct Sticky_Texture{
@@ -650,6 +658,7 @@ struct Core{
         f32 unscaled_dt = 0;
         f32 real_dt = 0;
         f32 time_scale = 1;
+        f32 target_time_scale = 1;
         f32 game_time = 0;
         f32 app_time = 0;
         f32 hitstop = 0;
@@ -668,6 +677,7 @@ struct Context{
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     f32 last_bird_attack_time = -11110;
+    f32 last_jump_shooter_attack_time = -11110;
     
     b32 we_got_a_winner = false;
     Vector2 unit_screen_size;
@@ -817,6 +827,7 @@ struct Editor{
     b32 draw_trigger_settings = false;
     b32 draw_enemy_settings = false;
     b32 draw_centipede_settings = false;
+    b32 draw_jump_shooter_settings = false;
     b32 draw_door_settings = false;
 };
 

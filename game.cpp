@@ -474,7 +474,19 @@ int save_level(const char *level_name){
         
         if (e->flags & CENTIPEDE){
             fprintf(fptr, "spikes_on_right:%d: ", e->centipede.spikes_on_right);
+            fprintf(fptr, "spikes_on_left:%d: ", e->centipede.spikes_on_left);
             fprintf(fptr, "segments_count:%d: ", e->centipede.segments_count);
+        }
+        
+        if (e->flags & JUMP_SHOOTER){
+            fprintf(fptr, "jump_shooter_shots_count:%d: ", e->jump_shooter.shots_count);
+            fprintf(fptr, "jump_shooter_spread:%f: ", e->jump_shooter.spread);
+            fprintf(fptr, "jump_shooter_shoot_explosive:%d: ", e->jump_shooter.shoot_explosive);
+            fprintf(fptr, "jump_shooter_shoot_sword_blockers:%d: ", e->jump_shooter.shoot_sword_blockers);
+            fprintf(fptr, "jump_shooter_shoot_sword_blockers_clockwise:%d: ", e->jump_shooter.shoot_sword_blockers_clockwise);
+            fprintf(fptr, "jump_shooter_shoot_sword_blockers_random_direction:%d: ", e->jump_shooter.shoot_sword_blockers_random_direction);
+            fprintf(fptr, "jump_shooter_shoot_sword_blockers_immortal:%d: ", e->jump_shooter.shoot_sword_blockers_immortal);
+            fprintf(fptr, "jump_shooter_shoot_bullet_blockers:%d: ", e->jump_shooter.shoot_bullet_blockers);
         }
         
         if (e->flags & PHYSICS_OBJECT){
@@ -808,6 +820,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "spikes_on_right")){
                 fill_b32_from_string(&entity_to_fill.centipede.spikes_on_right, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "spikes_on_left")){
+                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_left, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "on_rope")){
                 fill_b32_from_string(&entity_to_fill.physics_object.on_rope, splitted_line.get(i+1).data);
                 i++;
@@ -864,6 +879,30 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "spawn_enemy_when_no_ammo")){
                 fill_b32_from_string(&entity_to_fill.spawn_enemy_when_no_ammo, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_explosive")){
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_explosive, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers")){
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers_clockwise")){
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers_clockwise, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers_random_direction")){
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers_random_direction, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers_immortal")){
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers_immortal, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_bullet_blockers")){
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_bullet_blockers, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shots_count")){
+                fill_int_from_string(&entity_to_fill.jump_shooter.shots_count, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_spread")){
+                fill_float_from_string(&entity_to_fill.jump_shooter.spread, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "move_sequence_speed")){
                 fill_float_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get(i+1).data);
@@ -935,7 +974,7 @@ global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spa
 
 Texture cat_texture;
 
-#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY)
+#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT)
 
 Entity *spawn_object_by_name(const char* name, Vector2 position){
     for (int i = 0; i < spawn_objects.count; i++){
@@ -1159,6 +1198,8 @@ void init_spawn_objects(){
     
     // we use move sequence on jump shooter only to set jump points
     Entity jump_shooter_entity = Entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
+    jump_shooter_entity.move_sequence.moving = true;
+    jump_shooter_entity.move_sequence.loop = true;
     jump_shooter_entity.enemy.max_hits_taken = 6;
     jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
     str_copy(jump_shooter_entity.name, "jump_shooter"); 
@@ -1542,6 +1583,13 @@ inline void debug_god_mode(){
     console.str += TextFormat("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled");
 }
 
+inline void set_default_time_scale(){
+    core.time.target_time_scale = 1;    
+}
+inline void set_time_scale(char *text){
+    core.time.target_time_scale = atof(text);    
+}
+
 void init_console(){
     reload_level_files();    
 
@@ -1564,6 +1612,8 @@ void init_console(){
     console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",    NULL, load_level_by_name));
     console.commands.add(make_console_command("level",   print_current_level, load_level_by_name));
+    
+    console.commands.add(make_console_command("timescale",   set_default_time_scale, set_time_scale));
     
     console.commands.add(make_console_command("create",    print_create_level_hint, create_level));
     console.commands.add(make_console_command("new_level", print_create_level_hint, create_level));
@@ -1744,6 +1794,7 @@ void clean_up_scene(){
 
     context.shoot_stopers_count = 0;
     context.last_bird_attack_time = -11111;
+    context.last_jump_shooter_attack_time = -11111;
     context.cam.locked = false;
     
     assign_selected_entity(NULL);
@@ -2174,7 +2225,7 @@ void update_game(){
             core.time.time_scale = 0.1f;
             core.time.hitstop -= core.time.real_dt;
         } else{
-            core.time.time_scale = 1;
+            core.time.time_scale = core.time.target_time_scale;
         }
         
         core.time.dt = GetFrameTime() * core.time.time_scale;
@@ -3081,6 +3132,7 @@ void update_editor_ui(){
             type_info_v_pos += type_font_size;
         }
         
+        // enemy inspector
         if (selected->flags & ENEMY){
             if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Enemy settings", "enemy_settings")){
                 editor.draw_enemy_settings = !editor.draw_enemy_settings;
@@ -3158,7 +3210,7 @@ void update_editor_ui(){
 
             make_ui_text("Enemy settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
             type_info_v_pos += type_font_size;
-        }
+        } // enemy inspector end
         
         if (selected->flags & PROPELLER){
             make_ui_text(TextFormat("Alt+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
@@ -3181,12 +3233,76 @@ void update_editor_ui(){
                     selected->centipede.spikes_on_right = !selected->centipede.spikes_on_right;
                 }
                 v_pos += height_add;
+                make_ui_text("Spikes on left: ", {inspector_position.x + 5, v_pos}, "spikes_on_left");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->centipede.spikes_on_left, "spikes_on_left")){
+                    selected->centipede.spikes_on_left = !selected->centipede.spikes_on_left;
+                }
+                v_pos += height_add;
                 
                 make_ui_text("Segments count: ", {inspector_position.x + 25, v_pos}, "segments_count");
                 if (make_input_field(TextFormat("%d", selected->centipede.segments_count), {inspector_position.x + 100, v_pos}, 100, "segments_count")){
                     selected->centipede.segments_count = fmin(atoi(focus_input_field.content), MAX_CENTIPEDE_SEGMENTS);
                 }
                 v_pos += height_add;
+            }
+        }
+        
+        // jumps shooter inspector
+        if (selected->flags & JUMP_SHOOTER){
+            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Jump shooter settings", "jump_shooter_settings")){
+                editor.draw_jump_shooter_settings = !editor.draw_jump_shooter_settings;
+            }
+            v_pos += height_add;
+            
+            if (editor.draw_jump_shooter_settings){
+                make_ui_text("Shots count: ", {inspector_position.x + 5, v_pos}, "shots_count");
+                if (make_input_field(TextFormat("%d", selected->jump_shooter.shots_count), {inspector_position.x + 100, v_pos}, 100, "shots_count")){
+                    selected->jump_shooter.shots_count = atoi(focus_input_field.content);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Spread: ", {inspector_position.x + 5, v_pos}, "jump_shooter_spread");
+                if (make_input_field(TextFormat("%.1f", selected->jump_shooter.spread), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_spread")){
+                    selected->jump_shooter.spread = clamp(atof(focus_input_field.content), 0.0f, 180.0f);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Shoot explosive: ", {inspector_position.x + 5, v_pos}, "shoot_explosive");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->jump_shooter.shoot_explosive, "shoot_explosive")){
+                    selected->jump_shooter.shoot_explosive = !selected->jump_shooter.shoot_explosive;
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Shoot sword blockers: ", {inspector_position.x + 5, v_pos}, "shoot_sword_blockers");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->jump_shooter.shoot_sword_blockers, "shoot_sword_blockers")){
+                    selected->jump_shooter.shoot_sword_blockers = !selected->jump_shooter.shoot_sword_blockers;
+                }
+                v_pos += height_add;
+                
+                if (selected->jump_shooter.shoot_sword_blockers){
+                    make_ui_text("Sword blockers clockwise: ", {inspector_position.x + 5, v_pos}, "shoot_sword_blockers_clockwise");
+                    if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->jump_shooter.shoot_sword_blockers_clockwise, "shoot_sword_blockers_clockwise")){
+                        selected->jump_shooter.shoot_sword_blockers_clockwise = !selected->jump_shooter.shoot_sword_blockers_clockwise;
+                    }
+                    v_pos += height_add;
+                    make_ui_text("Sword blockers random: ", {inspector_position.x + 5, v_pos}, "shoot_sword_blockers_random_direction");
+                    if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->jump_shooter.shoot_sword_blockers_random_direction, "shoot_sword_blockers_random_direction")){
+                        selected->jump_shooter.shoot_sword_blockers_random_direction = !selected->jump_shooter.shoot_sword_blockers_random_direction;
+                    }
+                    v_pos += height_add;
+                    make_ui_text("Sword blockers immortal: ", {inspector_position.x + 5, v_pos}, "shoot_sword_blockers_immortal");
+                    if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->jump_shooter.shoot_sword_blockers_immortal, "shoot_sword_blockers_immortal")){
+                        selected->jump_shooter.shoot_sword_blockers_immortal = !selected->jump_shooter.shoot_sword_blockers_immortal;
+                    }
+                    v_pos += height_add;
+                }
+                
+                make_ui_text("Shoot bullet blockers: ", {inspector_position.x + 5, v_pos}, "shoot_bullet_blockers");
+                if (make_ui_toggle({inspector_position.x + 250, v_pos}, selected->jump_shooter.shoot_bullet_blockers, "shoot_bullet_blockers")){
+                    selected->jump_shooter.shoot_bullet_blockers = !selected->jump_shooter.shoot_bullet_blockers;
+                }
+                v_pos += height_add;
+
             }
         }
 
@@ -4653,12 +4769,19 @@ void update_player(Entity *entity, f32 dt){
         }
         
         if (other->flags & CENTIPEDE_SEGMENT){
-            Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
-            f32 side_dot = dot(side, entity->position - other->position);
-            // so we on right side of the centipede segments where are SPIKES
-            if (side_dot > 0){
+            if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left){
                 kill_player();
                 return;
+            } else if (!other->centipede_head->centipede.spikes_on_right && !other->centipede_head->centipede.spikes_on_left){
+                
+            } else{
+                Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
+                f32 side_dot = dot(side, entity->position - other->position);
+                // so we on side of the centipede segments where are SPIKES
+                if (side_dot > 0){
+                    kill_player();
+                    return;
+                }
             }
         }
         
@@ -4786,14 +4909,20 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        
         if (other->flags & CENTIPEDE_SEGMENT){
-            Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
-            f32 side_dot = dot(side, entity->position - other->position);
-            // so we on right side of the centipede segments where are SPIKES
-            if (side_dot > 0){
+            if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left){
                 kill_player();
                 return;
+            } else if (!other->centipede_head->centipede.spikes_on_right && !other->centipede_head->centipede.spikes_on_left){
+                
+            } else{
+                Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
+                f32 side_dot = dot(side, entity->position - other->position);
+                // so we on side of the centipede segments where are SPIKES
+                if (side_dot > 0){
+                    kill_player();
+                    return;
+                }
             }
         }
         
@@ -4973,6 +5102,10 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col){
         } else if (!shooter->states.standing){
             shooter->velocity = reflected_vector(shooter->velocity * 0.7f, col.normal);
             emit_particles(ground_splash_emitter, col.point, col.normal, 1, 0.5f);
+            
+            if (enemy->was_in_stun){
+                enemy->stun_start_time = -234;
+            }
         }
     }
 }
@@ -4989,7 +5122,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     b32 is_high_velocity = bird_speed > 100;
     
     b32 should_respond = true;
-    if (other->flags & GROUND){
+    if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
         resolve_collision(bird_entity, col);
         
         if (other->flags & PHYSICS_OBJECT){
@@ -5284,6 +5417,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     
     if (!enemy_entity->enemy.dead_man){
         enemy_entity->enemy.stun_start_time = core.time.game_time;
+        enemy_entity->enemy.last_hit_time   = core.time.game_time;
         f32 count = player_data.is_sword_big ? 3 : 1;
         f32 area = player_data.is_sword_big ? 3 : 1;
         emit_particles(*blood_emitter, kill_position, kill_direction, count, particles_speed_modifier, area);
@@ -5361,7 +5495,7 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity){
         return false;
     }
     
-    b32 recently_got_hit = core.time.game_time - enemy_entity->enemy.stun_start_time <= 0.05f;
+    b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= 0.05f;
     return !recently_got_hit;
 }
 
@@ -5403,9 +5537,10 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         agro_enemy(enemy_entity);
     
         enemy->stun_start_time = core.time.game_time;
+        enemy->last_hit_time = core.time.game_time;
         enemy->hits_taken++;
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
-        if (enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit){
+        if ((enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit) && !enemy->dead_man){
             f32 area_multiplier = serious ? 3 : 1;
             f32 count = serious ? 3 : 1;
             f32 speed = serious ? 3 : 1;
@@ -5428,6 +5563,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             }
         } else{
             enemy->stun_start_time = core.time.game_time;
+            enemy->last_hit_time   = core.time.game_time;
         }
         add_hitmark(enemy_entity, true); 
     }
@@ -5515,7 +5651,8 @@ void calculate_projectile_collisions(Entity *entity){
                     
                     if (!can_damage){
                         need_bounce = true;
-                        other->enemy.stun_start_time = core.time.game_time;
+                        // other->enemy.stun_start_time = core.time.game_time;
+                        other->enemy.last_hit_time = core.time.game_time;
                         play_sound("ShootBlock", col.point);
                     }
                 }
@@ -5525,14 +5662,16 @@ void calculate_projectile_collisions(Entity *entity){
                 } else if (other->flags & BIRD_ENEMY && can_damage){
                     other->bird_enemy.velocity += projectile->velocity * 0.05f;
                     //other->bird_enemy.velocity = projectile->velocity * 0.05f;
-                    projectile->velocity = reflected_vector(projectile->velocity * 0.3f, col.normal);
+                    projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
                     projectile->type = WEAK;
+                    projectile->birth_time = core.time.game_time;
                     stun_enemy(other, entity->position, col.normal);    
                     sparks_speed += 1;
                 } else if (other->flags & JUMP_SHOOTER && can_damage){
                     other->jump_shooter.velocity += projectile->velocity * 0.05f;
-                    projectile->velocity = reflected_vector(projectile->velocity * 0.3f, col.normal);
+                    projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
                     projectile->type = WEAK;
+                    projectile->birth_time = core.time.game_time;
                     stun_enemy(other, entity->position, col.normal);    
                     sparks_speed += 1;
                 } else if (can_damage){
@@ -5582,7 +5721,7 @@ void calculate_projectile_collisions(Entity *entity){
             }
         }
     } else if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
-        fill_collisions(entity, &collisions_data, GROUND | PLAYER);
+        fill_collisions(entity, &collisions_data, GROUND | PLAYER | CENTIPEDE_SEGMENT);
         
         Enemy *enemy = &entity->enemy;
         
@@ -5590,7 +5729,7 @@ void calculate_projectile_collisions(Entity *entity){
             Collision col = collisions_data.get(i);
             Entity *other = col.other_entity;
             
-            if (other->flags & GROUND){
+            if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
                 //entity->destroyed = true;
                 kill_enemy(entity, col.point, col.normal, 1);
                 emit_particles(big_sparks_emitter, col.point, col.normal * -1, 1);
@@ -6185,6 +6324,11 @@ void update_entities(f32 dt){
             Jump_Shooter *shooter = &e->jump_shooter;
             Enemy *enemy = &e->enemy;
             
+            if (!enemy->in_agro){
+                shooter->states = {};
+                shooter->states.standing_start_time = core.time.game_time;
+            }
+            
             f32 in_stun_time = core.time.game_time - enemy->stun_start_time;
             
             b32 is_stunned = in_stun_time <= enemy->max_stun_time;
@@ -6212,7 +6356,7 @@ void update_entities(f32 dt){
                 f32 standing_time = core.time.game_time - shooter->states.standing_start_time;
                 f32 max_standing_time = 3.0f;
                 
-                Collision nearest_ground = get_nearest_ground_collision(e->position, e->scale.y);
+                Collision nearest_ground = get_nearest_ground_collision(e->position, e->scale.x * 0.5f + e->scale.y * 0.5f);
                 
                 if (nearest_ground.collided){
                     shooter->velocity = Vector2_zero;
@@ -6250,10 +6394,10 @@ void update_entities(f32 dt){
                         shooter->states.jump_start_time = core.time.game_time;
                         shooter->jump_direction = e->up;
                         
-                        shooter->velocity = shooter->jump_direction * 200;
+                        shooter->velocity = shooter->jump_direction * 250;
                         emit_particles(ground_splash_emitter, e->position - e->up * e->scale.y * 0.5f, e->up, 4, 1.5f);
                     } else{
-                        Collision ray_collision = raycast(e->position, normalized(nearest_ground.point - e->position), e->scale.y, GROUND, 1);
+                        Collision ray_collision = raycast(e->position, normalized(nearest_ground.point - e->position), e->scale.x + e->scale.y, GROUND, 1.0f);
                         Vector2 point = Vector2_zero;
                         Vector2 normal = Vector2_up;
                         if (ray_collision.collided){
@@ -6312,25 +6456,27 @@ void update_entities(f32 dt){
                 change_right(e, move_towards(e->right, dir_to_player.x > 0 ? dir_to_player : dir_to_player * -1, look_speed, dt));
                 
                 // jump shooter shoot
-                if (charging_time >= shooter->max_charging_time){
-                    f32 spread = 45;
-                    f32 angle = -spread * 0.5f;
-                    f32 angle_step = spread / shooter->shots_count;
+                if (charging_time >= shooter->max_charging_time && core.time.game_time - context.last_jump_shooter_attack_time >= 0.3f){                    
+                    f32 angle = -shooter->spread * 0.5f;
+                    f32 angle_step = shooter->spread / shooter->shots_count;
                     
                     for (int i = 0; i < shooter->shots_count; i++){
                         Vector2 direction = get_rotated_vector(dir_to_player, angle);
                         angle += angle_step;
                         f32 speed = 100;
                         
-                        // FLAGS additional_flags = 0;
-                        // if (shooter->shoot_explosive){
-                        //     additional_flags |= EXPLOSIVE;        
-                        // }
-                        // if (shooter->shoot_blockers){
-                        //     additional_flags |= BLOCKER;
-                        // }
+                        FLAGS additional_flags = 0;
+                        if (shooter->shoot_explosive){
+                            additional_flags |= EXPLOSIVE;        
+                        }
+                        if (shooter->shoot_sword_blockers){
+                            additional_flags |= BLOCKER;
+                        }
+                        if (shooter->shoot_bullet_blockers){
+                            additional_flags |= SHOOT_BLOCKER;
+                        }
                         
-                        Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER);
+                        Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | additional_flags);
                         change_color(projectile_entity, ColorBrightness(RED, 0.4f));
                         projectile_entity->projectile.birth_time = core.time.game_time;
                         projectile_entity->projectile.flags = JUMP_SHOOTER_PROJECTILE;
@@ -6338,9 +6484,23 @@ void update_entities(f32 dt){
                         projectile_entity->projectile.max_lifetime = 10;
                         projectile_entity->enemy.gives_ammo = false;
                         
+                        if (shooter->shoot_sword_blockers){
+                            projectile_entity->enemy.blocker_clockwise = shooter->shoot_sword_blockers_clockwise;
+                            projectile_entity->enemy.blocker_immortal  = shooter->shoot_sword_blockers_immortal;
+                            
+                            if (shooter->shoot_sword_blockers_random_direction){
+                                projectile_entity->enemy.blocker_clockwise = rnd01() >= 0.5f; 
+                            }
+                        }
+                        if (shooter->shoot_bullet_blockers){
+                            projectile_entity->enemy.shoot_blocker_immortal = true;
+                        }
+                        
                         Particle_Emitter *trail_emitter = projectile_entity->emitters.add(rifle_bullet_emitter);                     
                         trail_emitter->position = projectile_entity->position;
                         enable_emitter(trail_emitter);
+                        
+                        init_entity(projectile_entity);
                     }
                     
                     shooter->velocity = dir_to_player * -30 + Vector2_up * 100;
@@ -6348,6 +6508,8 @@ void update_entities(f32 dt){
                     shooter->states.charging = false;
                     shooter->states.in_recoil = true;
                     shooter->states.recoil_start_time = core.time.game_time;
+                    
+                    context.last_jump_shooter_attack_time = core.time.game_time;
                 }
             }
             
@@ -6378,7 +6540,7 @@ void update_entities(f32 dt){
                 
                 move_vec_towards(&shooter->velocity, Vector2_zero, lerp(0.0f, 100.0f, sqrtf(picking_point_t)), dt);
                 
-                f32 look_speed = lerp(0.0f, 10.0f, picking_point_t * picking_point_t);
+                f32 look_speed = lerp(0.0f, 14.0f, picking_point_t * picking_point_t);
                 change_up(e, move_towards(e->up, dir, look_speed, dt));
                 
                 Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 1.7f};
@@ -6395,7 +6557,7 @@ void update_entities(f32 dt){
                     shooter->states.flying_to_point = true;
                     shooter->states.flying_start_time = core.time.game_time;
                     
-                    shooter->velocity = dir * 300;
+                    shooter->velocity = dir * 400;
                     // change_scale(e, e->enemy.original_scale);
                     shooter->flying_emitter->position = e->position - e->up * e->scale.y * 0.5f;
                     enable_emitter(shooter->flying_emitter);
@@ -6722,10 +6884,19 @@ void draw_entities(){
                 color = Fade(BLACK, 0.3f);
             }
             draw_game_triangle_strip(e, color);
-            Vector2 spikes_direction = e->centipede_head->centipede.spikes_on_right ? e->right : (e->right * -1.0f);
-            draw_spikes(e, e->up, spikes_direction, e->scale.y, e->scale.x);
-            if (!e->enemy.dead_man){
-                draw_game_circle(e->position - spikes_direction * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+            if (e->centipede_head->centipede.spikes_on_right){
+                draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
+            } else{
+                if (!e->enemy.dead_man){
+                    draw_game_circle(e->position + e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+                }
+            }
+            if (e->centipede_head->centipede.spikes_on_left){
+                draw_spikes(e, e->up, e->right * -1.0f, e->scale.y, e->scale.x);
+            } else{
+                if (!e->enemy.dead_man){
+                    draw_game_circle(e->position - e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+                }
             }
         } else if (e->flags & CENTIPEDE){
             // draw centipede
@@ -6960,7 +7131,7 @@ void draw_entities(){
         }
         
         if (debug.draw_bounds || editor.selected_entity && (game_state == EDITOR || game_state == PAUSE) && e->id == editor.selected_entity->id){
-            draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 2, GREEN);
+            draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / context.cam.cam2D.zoom, GREEN);
             //draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
         }
     }
