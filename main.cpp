@@ -30,6 +30,9 @@ int screen_height = 900;
 
 #define UNIT_SIZE (screen_width / 150.0f)
 
+//reference 1920x1080 (1500)
+#define UI_SCALING ((screen_width * 0.5f + screen_height * 0.5f) * 0.00066666f) // like / 1500.0f
+
 b32 screen_size_changed = 0;
 b32 bordless_fullscreen = false;
 

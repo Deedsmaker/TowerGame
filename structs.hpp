@@ -230,11 +230,14 @@ struct Jump_Shooter{
     i32 shots_count = 10;  
     f32 spread = 45;
     
-    b32 shoot_explosive                = false;
+    // Internal, used to randomize and decide what we'll shoot if shoot_sword_blockers is picked
+    b32 blocker_clockwise = false;
+    
+    i32 explosive_count                = 0;
     
     b32 shoot_sword_blockers           = false;
-    b32 shoot_sword_blockers_clockwise = false;
-    b32 shoot_sword_blockers_random_direction = false;
+    // b32 shoot_sword_blockers_clockwise = false;
+    // b32 shoot_sword_blockers_random_direction = false;
     b32 shoot_sword_blockers_immortal  = false;
     
     b32 shoot_bullet_blockers = false;

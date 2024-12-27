@@ -7,7 +7,7 @@
 [ ] Per-object motion blur
 [ ] Dynamic decals
 [ ] Simulating only visual entities for fps more than fixed. Better later so less friction because simulation for visual guys should not make something catastrophical.
-[ ] Profiling tool
+[ ] Profiling tool (?)
 [ ] Player internal-interface (for examplelines that shows how to kill sword-blocker) could be disrupted by some enemy. Funny visual requiered and pretty long gameplay before introduction so player could get used to this information.
 ///////////////////////////////////////////////////
 
@@ -51,13 +51,14 @@
     [X] Base, animations, movement, shooting, interactions with player (kill him, die from him)
     [X] Respond on shooting
     [X] Options for projectiles
+    [ ] Indication of bullets that will be shot above head
 [ ] Катается по блоку туда сюда
 [ ] Враг который триггерится на активированную винтовку. Сам почти невидимый и меняется когда чаржится.
 [ ] Modifier for enemies so they can be killed with big or small sword.
 [ ] Враг/Модификатор . Делает врагу больше хп, но убить можно только если быстро нанести много урона. С мечом нужно крутиться на враге некоторое время (например 1.5 секунды), а с выстрелом настрелять много за короткое время. С мечом круче всего звучит, нужно будет реально подзадержаться на типе и такое можно использовать для боссов. Тяжело будет работать с птичками, но дуабл. Вероятно придется подумать еще над тем чтобы было легче оставаться на месте при сильном вращении, потому что в воздухе точно если будешь крутиться в одну сторону и жать кнопку ходьбы в другую - вращение меча перевесит. Показываться это будет полоской над врагом, которая будет заполняться при нанесении урона и убавляться когда некоторое время не дамажишь.
 ///////////////////////////////////////////////////
 
-[ ] Move sequence setting for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
+[ ] Move sequence option for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
 [ ] On enemy attack we can briefly show line that will fade away
 [X] Fix texture misplacing on screen resizing
 [X] Drag player with mouse (G)

@@ -8,9 +8,9 @@
 #define UI_FLAGS i32
 
 enum Ui_Flags{
-    BUTTON = 1 << 1,
-    UI_TEXT = 1 << 2,
-    UI_IMAGE = 1 << 3,
+    BUTTON    = 1 << 1,
+    UI_TEXT   = 1 << 2,
+    UI_IMAGE  = 1 << 3,
     UI_TOGGLE = 1 << 4
 };
 
@@ -35,7 +35,7 @@ struct Ui_Element{
 
     UI_FLAGS ui_flags;
 
-    char tag[32];
+    char tag[64];
     Color color = PINK;
     
     Button button;
@@ -56,6 +56,7 @@ global_variable Ui_Context ui_context = {};
 //all in screen space
 
 static Ui_Element *init_ui_element(Vector2 position, Vector2 size, Vector2 pivot, Color color, const char *tag, UI_FLAGS ui_flags){
+    // size *= UI_SCALING;
     Ui_Element new_ui_element = {position, size, pivot};
     new_ui_element.ui_flags = ui_flags;
     str_copy(new_ui_element.tag, tag);
@@ -68,6 +69,8 @@ static Ui_Element *init_ui_element(Vector2 position, Vector2 size, Vector2 pivot
 
 static void init_ui_text(Ui_Text *ui_text, const char *content, f32 font_size, Color text_color){
     str_copy(ui_text->content, content);
+    
+    font_size *= UI_SCALING;
     
     ui_text->text_color = text_color;
     ui_text->font_size = font_size;
