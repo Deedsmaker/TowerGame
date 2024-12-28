@@ -63,7 +63,7 @@
 [X] Fix texture misplacing on screen resizing
 [X] Drag player with mouse (G)
 [X] Birds delay before attack so they go in order.
-[ ] Space partitioning for collision detection. Static grid i think.
+[X] Space partitioning for collision detection. Static grid i think. (HUGE optimization)
 [ ] Hotreloading
 [X] Explosion radius visualization (so player could understand what would happen when explosion hits)
 [X] Jump off the wall

@@ -623,8 +623,21 @@ struct Entity{
 global_variable Player player_data;
 
 struct Spawn_Object{
-    char name[32];
+    char name[64];
     Entity entity;
+};
+
+#define MAX_COLLISION_CELL_OBJECTS 256
+
+struct Collision_Grid_Cell{
+    Array<i32, MAX_COLLISION_CELL_OBJECTS> entities_ids = Array<i32, MAX_COLLISION_CELL_OBJECTS>();
+};
+
+struct Collision_Grid{  
+    Vector2 origin = Vector2_zero;
+    Vector2 size = {4000, 2000};
+    Vector2 cell_size = {40, 40};
+    Collision_Grid_Cell *cells = NULL;
 };
 
 //scale 150 should be full screen;
@@ -681,11 +694,15 @@ struct Context{
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     f32 last_bird_attack_time = -11110;
     f32 last_jump_shooter_attack_time = -11110;
+    f32 last_collision_cells_clear_time = -2;
     
     b32 we_got_a_winner = false;
     Vector2 unit_screen_size;
     
     char current_level_name[256];
+    
+    Collision_Grid collision_grid;
+    i32 collision_grid_cells_count = 0;
     
     i32 shoot_stopers_count = 0;
     

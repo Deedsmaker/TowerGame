@@ -960,7 +960,8 @@ int load_level(const char *level_name){
     return 1;
 }
 
-global_variable Array<Collision, MAX_COLLISIONS> collisions_data = Array<Collision, MAX_COLLISIONS>();
+global_variable Array<Collision, MAX_COLLISIONS> collisions_buffer        = Array<Collision, MAX_COLLISIONS>();
+global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dynamic_Array<Collision_Grid_Cell*>(128);
 
 #define MAX_SPAWN_OBJECTS 128
 
@@ -1730,6 +1731,15 @@ void init_game(){
     render = {};
     str_copy(context.current_level_name, "test_level");
     
+    i32 cells_columns = (i32)(context.collision_grid.size.x / context.collision_grid.cell_size.x);
+    i32 cells_rows    = (i32)(context.collision_grid.size.y / context.collision_grid.cell_size.y);
+    context.collision_grid.cells = (Collision_Grid_Cell*)malloc(cells_columns * cells_rows * sizeof(Collision_Grid_Cell));
+    context.collision_grid_cells_count = cells_columns * cells_rows;
+    
+    for (int i = 0; i < cells_columns * cells_rows; i++){
+        context.collision_grid.cells[i] = {};
+    }
+    
     render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
     render.test_shader = LoadShader(0, "../test_shader.fs");
 
@@ -1790,6 +1800,7 @@ void clean_up_scene(){
     context.shoot_stopers_count = 0;
     context.last_bird_attack_time = -11111;
     context.last_jump_shooter_attack_time = -11111;
+    context.last_collision_cells_clear_time = -2;
     context.cam.locked = false;
     
     assign_selected_entity(NULL);
@@ -2550,30 +2561,105 @@ void resolve_collision(Entity *entity, Collision col){
     entity->position += col.normal * col.overlap;
 }
 
-void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags){
-    result->count = 0;
+Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position){
+    Collision_Grid grid = context.collision_grid;    
+    
+    Vector2 origin_to_pos = position - grid.origin;
+    
+    i32 max_columns = (i32)(grid.size.x / grid.cell_size.x);
+    
+    i32 column = floor(((origin_to_pos.x + grid.size.x * 0.5f) / grid.cell_size.x));
+    i32 row    = floor(((origin_to_pos.y + grid.size.y * 0.5f) / grid.cell_size.y));
+    
+    if (column < 0 || column >= max_columns || row < 0 || row >= (i32)(grid.size.y / grid.cell_size.y)){
+        return NULL;
+    }
+    
+    Collision_Grid_Cell *cell = &grid.cells[column + row * max_columns];
+    return cell;
+}
 
+void fill_collision_cells(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Dynamic_Array<Collision_Grid_Cell*> *out_cells){
+    out_cells->clear();
+    Collision_Grid grid = context.collision_grid;
+    Vector2 center = position + bounds.offset;
+    center += {(pivot.x - 0.5f) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
+    
+    // In this for loops we go left to right | bottom to top and it doesn't cover right side, so in loop after we cover fully right side.
+    for (f32 h_pos = center.x - bounds.size.x * 0.5f; h_pos < center.x + bounds.size.x * 0.5f; h_pos += grid.cell_size.x){
+        for (f32 v_pos = center.y - bounds.size.y * 0.5f; v_pos < center.y + bounds.size.y * 0.5f; v_pos += grid.cell_size.y){    
+            Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, v_pos});
+            if (cell){
+                out_cells->add(cell);
+            }
+        }
+        
+        Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, center.y + bounds.size.y * 0.5f});
+        if (cell){
+            out_cells->add(cell);
+        }
+    }
+    
+    for (f32 v_pos = center.y - bounds.size.y * 0.5f; v_pos < center.y + bounds.size.y * 0.5f; v_pos += grid.cell_size.y){
+        Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, v_pos});
+        if (cell){
+            out_cells->add(cell);
+        }
+    }
+    
+    Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, center.y + bounds.size.y * 0.5f});
+    if (cell){
+        out_cells->add(cell);
+    }
+}
+
+void update_entity_collision_cells(Entity *entity){
+    fill_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
+    
+    for (int i = 0; i < collision_cells_buffer.count; i++){
+        Collision_Grid_Cell *cell = collision_cells_buffer.get(i);
+        
+        if (cell && !cell->entities_ids.contains(entity->id)){
+            cell->entities_ids.add(entity->id);
+        }
+    }
+}
+
+global_variable Array<i32, MAX_COLLISIONS> added_collision_ids = Array<i32, MAX_COLLISIONS>();
+
+void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags, i32 my_id = -1){
+    result->clear();
+    
+    fill_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
+    added_collision_ids.clear();
+    
+    for (int i = 0; i < collision_cells_buffer.count; i++){
+        Collision_Grid_Cell *cell = collision_cells_buffer.get(i);
+        
+        for (int c = 0; c < cell->entities_ids.count; c++){
+            Entity *other = get_entity_by_id(cell->entities_ids.get(c));
+            
+            if (!other || other->destroyed || !other->enabled || other->flags <= 0 || (other->flags & include_flags) <= 0 || (other->hidden && game_state == GAME) || other->id == my_id || added_collision_ids.contains(other->id)){
+                continue;
+            }
+            
+            Collision col = check_collision(position, other->position, vertices, other->vertices, pivot, other->pivot);
+            
+            if (col.collided){
+                added_collision_ids.add(other->id);
+                col.other_entity = other;
+                result->add(col);
+            }
+        }
+    }
+}
+
+void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags){
     if (entity->destroyed || !entity->enabled){
         return;
     }
     
-    for (int i = 0; i < context.entities.max_count; i++){
-        if (!context.entities.has_index(i)){
-            continue;
-        }
-    
-        Entity *other = context.entities.get_ptr(i);
-        
-        if (other->destroyed || !other->enabled || other == entity || other->flags <= 0 || (other->flags & include_flags) <= 0 || (other->hidden && game_state == GAME)){
-            continue;
-        }
-        
-        Collision col = check_entities_collision(entity, other);
-        
-        if (col.collided){
-            result->add(col);
-        }
-    }
+    fill_collisions(entity->position, entity->vertices, entity->bounds, entity->pivot, result, include_flags, entity->id);
 }
 
 Entity *get_entity_by_index(i32 index){
@@ -2608,18 +2694,16 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
         ray_vertices.add(direction * current_len - east_direction * 0.5f);
         ray_vertices.add(east_direction * 0.5f);
         ray_vertices.add(east_direction * -0.5f);
+        
+        Bounds ray_bounds = get_bounds(ray_vertices, {0.5f, 1.0f});
     
-        ForEntities(entity, include_flags){
-            if (my_id != -1 && my_id == entity->id){
-                continue;
-            }
-            result = check_collision(start_position, entity->position, ray_vertices, entity->vertices, {0.5f, 1.0f}, entity->pivot);
-            if (result.collided){
-                result.other_entity = entity;
-                found = true;
-                result.point = start_position + direction * current_len - direction * result.overlap;
-                break;
-            }
+        fill_collisions(start_position, ray_vertices, ray_bounds, {0.5f, 1.0f}, &collisions_buffer, include_flags, my_id);
+    
+        for (int i = 0; i < collisions_buffer.count; i++){
+            result = collisions_buffer.get(i);
+            found = true;
+            result.point = start_position + direction * current_len - direction * result.overlap;
+            break;
         }
         
         if (found){
@@ -3803,10 +3887,10 @@ void update_editor(){
             b32 wanna_change_locked_camera_position = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_R);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
-                fill_collisions(&mouse_entity, &collisions_data, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER);
+                fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER);
                 
-                for (int i = 0; i < collisions_data.count; i++){
-                    Collision col = collisions_data.get(i);
+                for (int i = 0; i < collisions_buffer.count; i++){
+                    Collision col = collisions_buffer.get(i);
                     
                     if (wanna_assign && !wanna_remove && !selected->trigger.connected.contains(col.other_entity->id)){
                         selected->trigger.connected.add(col.other_entity->id);
@@ -3827,9 +3911,9 @@ void update_editor(){
             }
             
             if (wanna_assign_tracking_enemy){
-                fill_collisions(&mouse_entity, &collisions_data, ENEMY | CENTIPEDE);
-                for (int i = 0; i < collisions_data.count; i++){
-                    Collision col = collisions_data.get(i);
+                fill_collisions(&mouse_entity, &collisions_buffer, ENEMY | CENTIPEDE);
+                for (int i = 0; i < collisions_buffer.count; i++){
+                    Collision col = collisions_buffer.get(i);
                     
                     if (!selected->trigger.tracking.contains(col.other_entity->id)){
                         selected->trigger.tracking.add(col.other_entity->id);
@@ -4770,6 +4854,11 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
+        //now we don't want to stand on projectiles
+        if (other->flags & BLOCKER && other->flags & PROJECTILE){
+            continue;
+        }
+        
         if (other->flags & CENTIPEDE_SEGMENT){
             if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left){
                 kill_player();
@@ -4870,6 +4959,11 @@ void update_player(Entity *entity, f32 dt){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
+        
+        //now we don't want to stand on projectiles
+        if (other->flags & BLOCKER && other->flags & PROJECTILE){
+            continue;
+        }
         
         //triggers
         if (other->flags & PROPELLER){
@@ -4990,10 +5084,10 @@ void update_player(Entity *entity, f32 dt){
 } // update player end
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity){
-    fill_collisions(entity, &collisions_data, entity->collision_flags);
+    fill_collisions(entity, &collisions_buffer, entity->collision_flags);
     
-    for (int i = 0; i < collisions_data.count; i++){
-        Collision col = collisions_data.get(i);
+    for (int i = 0; i < collisions_buffer.count; i++){
+        Collision col = collisions_buffer.get(i);
         respond_func(entity, col);
     }
 }
@@ -5727,12 +5821,12 @@ void calculate_projectile_collisions(Entity *entity){
             }
         }
     } else if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
-        fill_collisions(entity, &collisions_data, GROUND | PLAYER | CENTIPEDE_SEGMENT);
+        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
         
         Enemy *enemy = &entity->enemy;
         
-        for (int i = 0; i < collisions_data.count; i++){
-            Collision col = collisions_data.get(i);
+        for (int i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
             Entity *other = col.other_entity;
             
             if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
@@ -5790,7 +5884,7 @@ void update_projectile(Entity *entity, f32 dt){
     
     if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
         if (lifetime >= 0.5f && !projectile->dying){
-            Collision ray = raycast(entity->position + entity->up * entity->scale.y * 0.5f, entity->up, 10, GROUND, 5, entity->id);
+            Collision ray = raycast(entity->position + entity->up * entity->scale.y * 0.5f, entity->up, 10, GROUND | CENTIPEDE_SEGMENT, 5, entity->id);
             if (ray.collided){
                 projectile->dying = true;
             }
@@ -5867,7 +5961,7 @@ void update_editor_entity(Entity *e){
     }
     
     if (e->flags & PHYSICS_OBJECT){
-        if (e->physics_object.on_rope && core.time.app_time - e->physics_object.last_pick_rope_point_time > 0.5f){
+        if (e->physics_object.on_rope/* && core.time.app_time - e->physics_object.last_pick_rope_point_time > 0.5f*/){
             Collision ray_col = raycast(e->position + e->up * e->scale.y * 0.5f, e->up, 300, GROUND, 4, e->id);
             if (ray_col.collided){
                 e->physics_object.rope_point = ray_col.point;
@@ -6122,6 +6216,18 @@ void update_entities(f32 dt){
     Context *c = &context;
     Hash_Table_Int<Entity> *entities = &c->entities;
     
+    if (core.time.app_time - context.last_collision_cells_clear_time >= 0.2f){
+        context.last_collision_cells_clear_time = core.time.app_time;
+        for (int i = 0; i < context.collision_grid_cells_count; i++){        
+            context.collision_grid.cells[i].entities_ids.clear();
+        }
+        
+        ForEntities(entity, 0){
+            update_entity_collision_cells(entity);
+        }
+    }
+
+    
     for (int entity_index = 0; entity_index < entities->max_count; entity_index++){
         if (!entities->has_index(entity_index)){
             continue;
@@ -6166,6 +6272,7 @@ void update_entities(f32 dt){
             continue;
         }
         
+        update_entity_collision_cells(e);
         update_color_changer(e, dt);            
         
         if (e->flags & PHYSICS_OBJECT){
@@ -6213,6 +6320,8 @@ void update_entities(f32 dt){
                         down_rope_point_entity->destroyed = true;
                     }
                 } else{
+                    update_entity_collision_cells(rope_entity);
+                    
                     rope_entity->position = e->position + e->up * e->scale.y * 0.5f;
                     Vector2 vec_to_point = e->physics_object.rope_point - (e->position + e->up * e->scale.y * 0.5f);
                     f32 len = magnitude(vec_to_point);
@@ -7387,6 +7496,22 @@ void draw_game(){
     
     if (game_state == EDITOR || game_state == PAUSE){
         draw_editor();
+    }
+    
+    // draw collision grid
+    Collision_Grid grid = context.collision_grid;
+    Vector2 player_position = player_entity ? player_entity->position : editor.player_spawn_point;
+    grid.origin = {(f32)((i32)player_position.x - ((i32)player_position.x % (i32)grid.cell_size.x)), (f32)((i32)player_position.y - ((i32)player_position.y % (i32)grid.cell_size.y))};
+    
+    // get_collision_cell_from_position(input.mouse_position);
+    update_entity_collision_cells(&mouse_entity);
+    
+    for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
+        for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
+            auto cell = get_collision_cell_from_position({column, row});
+            
+            draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / context.cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+        }
     }
     
     EndMode2D();
