@@ -974,8 +974,6 @@ global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dyn
 
 global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
 
-Texture cat_texture;
-
 #define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT)
 
 Entity *spawn_object_by_name(const char* name, Vector2 position){
@@ -1231,9 +1229,21 @@ void add_spawn_object_from_texture(Texture texture, char *name){
     spawn_objects.add(texture_object);
 }
 
+// manual textures 
 Texture spiral_clockwise_texture;
 Texture spiral_counterclockwise_texture;
 Texture hitmark_small_texture;
+Texture jump_shooter_bullet_hint_texture;
+
+Texture get_texture(const char *name){
+    Texture found_texture;
+    found_texture = textures_table.get_by_key(hash_str(name));
+    if (found_texture.width == 0){
+        print(TextFormat("WARNING: Texture named %s cannot be found", name));
+    }
+    
+    return found_texture;
+}
 
 void load_textures(){
     FilePathList textures = LoadDirectoryFiles("resources\\textures");
@@ -1247,6 +1257,7 @@ void load_textures(){
         Texture texture = LoadTexture(name);
         
         substring_after_line(name, "resources\\textures\\");
+        // name = get_substring_before_symbol(name, '.');
         
         i64 hash = hash_str(name);
         //assert(!textures_table.has_key(hash));
@@ -1759,6 +1770,9 @@ void init_game(){
     
     init_spawn_objects();
     load_textures();
+    
+    jump_shooter_bullet_hint_texture = get_texture("JumpShooterHintBullet.png");
+    
     load_sounds();
     
     //mouse_entity = add_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, -1);
@@ -1829,8 +1843,17 @@ void enter_game_state(){
     
     clean_up_scene();
     
+    Vector2 grid_target_pos = editor.player_spawn_point;
+    context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)context.collision_grid.cell_size.y))};
+
+    context.last_collision_cells_clear_time = core.time.app_time;
+    for (int i = 0; i < context.collision_grid_cells_count; i++){        
+        context.collision_grid.cells[i].entities_ids.clear();
+    }
+
     ForTable(context.entities, i){
         init_entity(context.entities.get_ptr(i));
+        update_entity_collision_cells(context.entities.get_ptr(i));
     }
     
     context.cam.cam2D.zoom = 0.35f;
@@ -3238,6 +3261,15 @@ void update_editor_ui(){
                     init_entity(selected);
                 }
                 v_pos += height_add;
+                
+                if (selected->flags & EXPLOSIVE){
+                    make_ui_text("Explosion radius: ", {inspector_position.x + 5, v_pos}, "explosive_radius_multiplier");
+                    if (make_input_field(TextFormat("%.2f", selected->enemy.explosive_radius_multiplier), {inspector_position.x + inspector_size.x * 0.5f, v_pos}, 100, "explosive_radius_multiplier")){
+                        selected->enemy.explosive_radius_multiplier = fmax(atof(focus_input_field.content), 0);
+                        // init_entity(selected);
+                    }
+                    v_pos += height_add;
+                }
                 
                 make_ui_text("Blocker: ", {inspector_position.x + 5, v_pos}, "text_enemy_blocker");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & BLOCKER, "toggle_enemy_blocker")){
@@ -5513,6 +5545,10 @@ void update_bird_enemy(Entity *entity, f32 dt){
 }
 
 inline f32 get_explosion_radius(Entity *entity, f32 base_radius = 40){
+    assert(entity->flags & EXPLOSIVE);
+
+    base_radius *= entity->enemy.explosive_radius_multiplier;
+
     f32 scale_sum = (entity->scale.x * 0.5f + entity->scale.y * 0.5f);
     f32 scale_progress = clamp01(scale_sum / 200.0f);
     
@@ -6117,10 +6153,13 @@ Collision get_nearest_ground_collision(Vector2 point, f32 radius){
         *vertices.get_ptr(i) *= 2.0f * radius;
     }
     
-    ForEntities(entity, GROUND){
-        Collision col = check_collision(point, entity->position, vertices, entity->vertices, {0.5f, 0.5f}, entity->pivot);
+    Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
+    
+    fill_collisions(point, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
+    
+    for (int i = 0; i < collisions_buffer.count; i++){
+        Collision col = collisions_buffer.get(i);
         if (col.collided){
-            col.other_entity = entity;
             return col;
         }
     }
@@ -6222,21 +6261,24 @@ void update_move_sequence(Entity *entity, f32 dt){
     }
 }
 
+void update_all_collision_cells(){
+    context.last_collision_cells_clear_time = core.time.app_time;
+    for (int i = 0; i < context.collision_grid_cells_count; i++){        
+        context.collision_grid.cells[i].entities_ids.clear();
+    }
+    
+    ForEntities(entity, 0){
+        update_entity_collision_cells(entity);
+    }
+}
+
 void update_entities(f32 dt){
     Context *c = &context;
     Hash_Table_Int<Entity> *entities = &c->entities;
     
     if (core.time.app_time - context.last_collision_cells_clear_time >= 0.2f){
-        context.last_collision_cells_clear_time = core.time.app_time;
-        for (int i = 0; i < context.collision_grid_cells_count; i++){        
-            context.collision_grid.cells[i].entities_ids.clear();
-        }
-        
-        ForEntities(entity, 0){
-            update_entity_collision_cells(entity);
-        }
+        update_all_collision_cells();        
     }
-
     
     for (int entity_index = 0; entity_index < entities->max_count; entity_index++){
         if (!entities->has_index(entity_index)){
@@ -6485,6 +6527,8 @@ void update_entities(f32 dt){
                 enemy->was_in_stun = false;
             }
             
+            f32 block_direction_switch_time = 1.5f;
+            
             Vector2 vec_to_player = player_entity->position - e->position;
             Vector2 dir_to_player = normalized(vec_to_player);
             
@@ -6586,6 +6630,14 @@ void update_entities(f32 dt){
                 f32 charging_time = core.time.game_time - shooter->states.charging_start_time;
                 f32 charging_t = clamp01(charging_time / shooter->max_charging_time);
                 
+                // Visual hints above jumper head happening in first half of charging
+                if (charging_t <= 0.5f){
+                    f32 t = charging_t * 2;
+                    
+                    // block_direction_switch_time = lerp(1.5f, 0.1f, t * t);
+                    block_direction_switch_time = 0.2f;
+                }
+                
                 // shooter->velockity *= 1.0f - (lerp(0.0f, 4.0f * dt, charging_t * charging_t));
                 move_vec_towards(&shooter->velocity, Vector2_zero, lerp(0.0f, 100.0f, sqrtf(charging_t)), dt);
                 shooter->velocity.x = lerp(shooter->velocity.x, 0.0f, charging_t * dt * 5);
@@ -6663,6 +6715,16 @@ void update_entities(f32 dt){
                     context.last_jump_shooter_attack_time = core.time.game_time;
                 }
             }
+            
+            if (shooter->shoot_sword_blockers){
+                // Mostly visual change direction above blocker head
+                f32 time_since_block_direction_change = core.time.game_time - shooter->last_visual_blocker_direction_change_time;
+                if (time_since_block_direction_change >= block_direction_switch_time){
+                    shooter->blocker_clockwise = !shooter->blocker_clockwise;
+                    shooter->last_visual_blocker_direction_change_time = core.time.game_time;
+                }
+            }
+
             
             if (shooter->states.in_recoil){
                 f32 in_recoil_time = core.time.game_time - shooter->states.recoil_start_time;
@@ -7055,22 +7117,53 @@ void draw_entities(){
         } else if (e->flags & JUMP_SHOOTER){
             // draw jump shooter
             
-            Entity visual_entity = *e;
+            // Entity visual_entity = *e;
             if (e->jump_shooter.states.charging){
                 f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
                 f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
-                visual_entity.position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, charging_t * charging_t);
+                e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, charging_t * charging_t);
             }
             if (e->jump_shooter.states.picking_point){
                 f32 picking_point_time = core.time.game_time - e->jump_shooter.states.picking_point_start_time;
                 f32 picking_point_t = picking_point_time / e->jump_shooter.max_picking_point_time;
-                visual_entity.position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, picking_point_t * picking_point_t);
+                e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, picking_point_t * picking_point_t);
             }
             if (e->jump_shooter.states.flying_to_point){
-                visual_entity.position += get_perlin_in_circle(25);
+                e->position += get_perlin_in_circle(25);
             }
     
-            draw_game_triangle_strip(&visual_entity);
+            draw_game_triangle_strip(e);
+            
+            Color hint_color = Fade(ColorBrightness(WHITE, -0.2f), 0.8f);
+            Vector2 bullet_hint_position = e->position + e->up * e->scale.y * 0.6f;
+            Vector2 bullet_hint_scale = {e->scale.x * 0.7f, e->scale.y * 1.1f};
+            
+            if (e->jump_shooter.explosive_count > 0){
+                Color target_color = ColorBrightness(hint_color, 4);
+                f32 color_t = abs(sinf(core.time.game_time * 3));
+                hint_color = lerp(hint_color, target_color, color_t);
+                
+                if (e->jump_shooter.states.charging){
+                    f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
+                    f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
+                    
+                    f32 radius = lerp(0.0f, 40.0f, charging_t * charging_t);
+                    draw_game_circle(bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f, radius, Fade(ORANGE, 0.1f));
+                }
+            }
+            
+            draw_game_texture(jump_shooter_bullet_hint_texture, bullet_hint_position, bullet_hint_scale, {0.5f, 1.0f}, e->rotation, hint_color);
+            
+            if (e->jump_shooter.shoot_bullet_blockers){
+                draw_game_ring_lines(bullet_hint_position + e->up * e->scale.y * 0.5f, 3, 6, 8, Fade(WHITE, 0.5f));                
+            }
+            
+            if (e->jump_shooter.shoot_sword_blockers){
+                Vector2 scale = {10, 10};
+                
+                Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+                draw_game_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
+            }
             
             // for (int i = 0; i < e->jump_shooter.move_points.count; i++){
             //     draw_game_circle(e->jump_shooter.move_points.get(i).position, 3, PURPLE);

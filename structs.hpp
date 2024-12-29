@@ -184,6 +184,8 @@ struct Enemy{
     
     f32 sword_kill_speed_modifier = 1;
     
+    f32 explosive_radius_multiplier = 1.0f;
+    
     b32 blocker_clockwise = false;
     b32 blocker_immortal = false;
     i32 blocker_sticky_id = -1;
@@ -232,6 +234,7 @@ struct Jump_Shooter{
     
     // Internal, used to randomize and decide what we'll shoot if shoot_sword_blockers is picked
     b32 blocker_clockwise = false;
+    f32 last_visual_blocker_direction_change_time = 0;
     
     i32 explosive_count                = 0;
     
