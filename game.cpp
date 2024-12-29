@@ -5912,12 +5912,15 @@ void calculate_projectile_collisions(Entity *entity){
             }
             
             if (other->flags & PLAYER && !player_data.dead_man && !enemy->dead_man){
-                if (should_kill_player(entity)){
-                    kill_player();
-                } else{
-                    //kill_enemy(entity, entity->position, bird->velocity);
-                    // sword_kill_bird(entity);
-                    kill_enemy(entity, col.point, col.normal, 1);
+                b32 can_kill_player = !projectile->dying || !(entity->flags & (BLOCKER | EXPLOSIVE));
+                if (can_kill_player){
+                    if (should_kill_player(entity)){
+                        kill_player();
+                    } else{
+                        //kill_enemy(entity, entity->position, bird->velocity);
+                        // sword_kill_bird(entity);
+                        kill_enemy(entity, col.point, col.normal, 1);
+                    }
                 }
             }
         }
@@ -5969,6 +5972,7 @@ void update_projectile(Entity *entity, f32 dt){
         if (lifetime >= 3 || projectile->dying){
             f32 damping_factor = projectile->dying ? 25 : 4;
             projectile->velocity *= 1.0f - (dt * damping_factor);
+            projectile->dying = true;
         } else{
         }
     }
@@ -7147,7 +7151,6 @@ void draw_entities(){
         } else if (e->flags & JUMP_SHOOTER){
             // draw jump shooter
             
-            // Entity visual_entity = *e;
             if (e->jump_shooter.states.charging){
                 f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
                 f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
@@ -7169,7 +7172,7 @@ void draw_entities(){
             Vector2 bullet_hint_scale = {e->scale.x * 0.7f, e->scale.y * 1.1f};
             
             if (e->jump_shooter.explosive_count > 0){
-                Color target_color = ColorBrightness(hint_color, 4);
+                Color target_color = ColorBrightness(WHITE, 4);
                 f32 color_t = abs(sinf(core.time.game_time * 3));
                 hint_color = lerp(hint_color, target_color, color_t);
                 
@@ -7196,7 +7199,8 @@ void draw_entities(){
                     Vector2 triangle3 = {center.x + 5, center.y - 5};
                     draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
                 } else{
-                    Vector2 scale = {10, 10};
+                    Vector2 scale = {3, 3};
+                    scale /= context.cam.cam2D.zoom;
                     Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
                     draw_game_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
                 }
