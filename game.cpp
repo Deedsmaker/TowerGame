@@ -515,6 +515,11 @@ int save_level(const char *level_name){
         
         if (e->flags & ENEMY){
             fprintf(fptr, "gives_full_ammo:%d: ", e->enemy.gives_full_ammo);
+            // fprintf(fptr, "max_hits_taken:%d: ", e->enemy.gives_full_ammo);
+        }
+        
+        if (e->flags & EXPLOSIVE){
+            fprintf(fptr, "explosive_radius_multiplier:%fs: ", e->enemy.explosive_radius_multiplier);
         }
         
         if (e->flags & PROPELLER){
@@ -796,6 +801,12 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "gives_full_ammo")){
                 fill_b32_from_string(&entity_to_fill.enemy.gives_full_ammo, splitted_line.get(i+1).data);
+                i++;
+            // } else if (str_equal(splitted_line.get(i).data, "max_hits_taken")){
+            //     fill_int_from_string(&entity_to_fill.enemy.max_hits_taken, splitted_line.get(i+1).data);
+            //     i++;
+            } else if (str_equal(splitted_line.get(i).data, "explosive_radius_multiplier")){
+                fill_float_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
                 fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
@@ -1353,6 +1364,7 @@ void init_entity(Entity *entity){
     }
     
     if (entity->flags & BIRD_ENEMY){
+        entity->enemy.max_hits_taken = 3;
         init_bird_entity(entity);
     }
 
@@ -1437,6 +1449,7 @@ void init_entity(Entity *entity){
     
     if (entity->flags & JUMP_SHOOTER){
         // init jump shooter
+        entity->enemy.max_hits_taken = 6;
         entity->emitters.clear();
         entity->jump_shooter.trail_emitter  = entity->emitters.add(air_dust_emitter);
         entity->jump_shooter.trail_emitter->follow_entity = false;
@@ -4379,18 +4392,29 @@ inline b32 can_damage_blocker(Entity *blocker_entity){
     return is_sword_can_damage() && !blocker_entity->enemy.blocker_immortal && (blocker_entity->enemy.blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0);
 }
 
-void sword_kill_bird(Entity *bird_entity){
-    Entity *sword = context.entities.get_by_key_ptr(player_data.sword_entity_id);
-    bird_entity->bird_enemy.velocity = sword_tip_emitter->direction * sqrtf(player_data.sword_spin_progress) * 100;
-    stun_enemy(bird_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, true);
-    add_hitstop(0.1f);
-}
-
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
     Entity *sword = context.entities.get_by_key_ptr(player_data.sword_entity_id);
-    *enemy_velocity = sword_tip_emitter->direction * sqrtf(player_data.sword_spin_progress) * 100;
+    // *enemy_velocity = sword_tip_emitter->direction * sqrtf(player_data.sword_spin_progress) * 100;
+    enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
+    enemy_velocity->x = player_data.sword_spin_direction * 50 + enemy_velocity->x;
+    
+    if (!enemy_entity->enemy.dead_man){
+        add_hitstop(0.1f);
+    }
+    
     stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, true);
-    add_hitstop(0.1f);
+}
+
+// void sword_kill_bird(Entity *bird_entity){
+//     Entity *sword = context.entities.get_by_key_ptr(player_data.sword_entity_id);
+//     // bird_entity->bird_enemy.velocity = sword_tip_emitter->direction * sqrtf(player_data.sword_spin_progress) * 100;
+//     bird_entity->bird_enemy.velocity = {bird_entity->bird_enemy.velocity.x, fmaxf(100.0f, 100.0f + bird_entity->bird_enemy.velocity.y)};
+//     stun_enemy(bird_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, true);
+//     add_hitstop(0.1f);
+// }
+
+b32 is_type(Entity *entity, FLAGS flags){
+    return entity->flags & flags;
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
@@ -4415,10 +4439,17 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             }
         }
         
-        if (other->flags & ENEMY && is_sword_can_damage() && !other->enemy.dead_man && !player->in_stun && is_enemy_can_take_damage(other)){
+        if (other->flags & ENEMY && is_sword_can_damage() && !player->in_stun && is_enemy_can_take_damage(other)){
+            if (!(other->flags & TRIGGER) && other->enemy.gives_ammo && !other->enemy.dead_man){
+                add_player_ammo(1, other->enemy.gives_full_ammo);
+                add_blood_amount(player, sword, 10);
+            }
+        
+            b32 was_alive_before_hit = !other->enemy.dead_man;
             f32 hitstop_add = 0;
+            
             if (other->flags & BIRD_ENEMY){
-                sword_kill_bird(other);
+                sword_kill_enemy(other, &other->bird_enemy.velocity);
             } else if (other->flags & JUMP_SHOOTER){
                 sword_kill_enemy(other, &other->jump_shooter.velocity);
             } else{
@@ -4437,14 +4468,12 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             player->velocity += Vector2_up   * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
                              + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
                              
-            add_blood_amount(player, sword, 10);
-            add_hitstop(0.01f + hitstop_add);
-            shake_camera(0.1f);
-            play_sound(player_data.sword_kill_sound, col.point);
-            
-            if (!(other->flags & TRIGGER) && other->enemy.gives_ammo){
-                add_player_ammo(1, other->enemy.gives_full_ammo);
+            if (was_alive_before_hit){
+                add_hitstop(0.01f + hitstop_add);
+                shake_camera(0.1f);
             }
+            
+            play_sound(player_data.sword_kill_sound, col.point);
         }
         
         if (other->flags & WIN_BLOCK && !player->in_stun){
@@ -5329,7 +5358,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             kill_player();
         } else{
             //kill_enemy(bird_entity, bird_entity->position, bird->velocity);
-            sword_kill_bird(bird_entity);
+            sword_kill_enemy(bird_entity, &bird_entity->bird_enemy.velocity);
         }
     }
 }
@@ -5641,7 +5670,7 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity){
         return false;
     }
     
-    b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= 0.05f;
+    b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= 0.2f;
     return !recently_got_hit;
 }
 
@@ -5686,6 +5715,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         enemy->last_hit_time = core.time.game_time;
         enemy->hits_taken++;
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
+        
         if ((enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit) && !enemy->dead_man){
             f32 area_multiplier = serious ? 3 : 1;
             f32 count = serious ? 3 : 1;
@@ -7159,10 +7189,17 @@ void draw_entities(){
             }
             
             if (e->jump_shooter.shoot_sword_blockers){
-                Vector2 scale = {10, 10};
-                
-                Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-                draw_game_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
+                if (e->jump_shooter.shoot_sword_blockers_immortal){
+                    Vector2 center = bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f;
+                    Vector2 triangle1 = {center.x, center.y + 5};
+                    Vector2 triangle2 = {center.x - 5, center.y - 5};
+                    Vector2 triangle3 = {center.x + 5, center.y - 5};
+                    draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
+                } else{
+                    Vector2 scale = {10, 10};
+                    Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+                    draw_game_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
+                }
             }
             
             // for (int i = 0; i < e->jump_shooter.move_points.count; i++){
