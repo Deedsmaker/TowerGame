@@ -494,6 +494,10 @@ int save_level(const char *level_name){
             fprintf(fptr, "physics_rotate_by_velocity:%d: ", e->physics_object.rotate_by_velocity);
             fprintf(fptr, "physics_gravity_multiplier:%f: ", e->physics_object.gravity_multiplier);
             fprintf(fptr, "physics_mass:%f: ", e->physics_object.mass);
+            
+            if (e->physics_object.on_rope){
+                fprintf(fptr, "physics_rope_point:{%f, %f}: ", e->physics_object.rope_point.x, e->physics_object.rope_point.y);
+            }
         }
         
         if (e->flags & DOOR){
@@ -829,6 +833,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "physics_rotate_by_velocity")){
                 fill_b32_from_string(&entity_to_fill.physics_object.rotate_by_velocity, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "physics_rope_point")){
+                fill_vector2_from_string(&entity_to_fill.physics_object.rope_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                i += 2;
             } else if (str_equal(splitted_line.get(i).data, "physics_gravity_multiplier")){
                 fill_float_from_string(&entity_to_fill.physics_object.gravity_multiplier, splitted_line.get(i+1).data);
                 i++;
@@ -3579,6 +3586,9 @@ Entity *get_cursor_entity(){
 }
 
 void update_editor(){
+    Vector2 grid_target_pos = context.cam.position;
+    context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)context.collision_grid.cell_size.y))};
+
     Undo_Action undo_action;
     b32 something_in_undo = false;
     b32 can_control_with_single_button = !focus_input_field.in_focus && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_LEFT_ALT);
@@ -5115,7 +5125,7 @@ void respond_physics_object_collision(Entity *entity, Collision col){
             play_sound("BirdToGround", col.point, 0.5f);
         }
         
-        if (col.normal.y >= 0){
+        if (physics_object->rotate_by_velocity && col.normal.y >= 0){
             change_up(entity, move_towards(entity->up, col.normal, speed, core.time.fixed_dt));            
         }
     }        
@@ -6342,6 +6352,8 @@ void update_entities(f32 dt){
             continue;
         }
         
+        context.collision_grid.origin = {(f32)((i32)player_entity->position.x - ((i32)player_entity->position.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)player_entity->position.y - ((i32)player_entity->position.y % (i32)context.collision_grid.cell_size.y))};
+        
         if (e->flags & PLAYER){
             if (IsKeyDown(KEY_G)){
                 e->position = input.mouse_position;
@@ -7498,19 +7510,20 @@ void draw_game(){
         draw_editor();
     }
     
-    // draw collision grid
-    Collision_Grid grid = context.collision_grid;
-    Vector2 player_position = player_entity ? player_entity->position : editor.player_spawn_point;
-    grid.origin = {(f32)((i32)player_position.x - ((i32)player_position.x % (i32)grid.cell_size.x)), (f32)((i32)player_position.y - ((i32)player_position.y % (i32)grid.cell_size.y))};
-    
-    // get_collision_cell_from_position(input.mouse_position);
-    update_entity_collision_cells(&mouse_entity);
-    
-    for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
-        for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
-            auto cell = get_collision_cell_from_position({column, row});
-            
-            draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / context.cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+    if (debug.draw_collision_grid){
+        // draw collision grid
+        Collision_Grid grid = context.collision_grid;
+        Vector2 player_position = player_entity ? player_entity->position : editor.player_spawn_point;
+        
+        // get_collision_cell_from_position(input.mouse_position);
+        update_entity_collision_cells(&mouse_entity);
+        
+        for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
+            for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
+                auto cell = get_collision_cell_from_position({column, row});
+                
+                draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / context.cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+            }
         }
     }
     
