@@ -1758,6 +1758,10 @@ RenderTexture voronoi_seed_rt;
 Shader voronoi_seed_shader;
 RenderTexture jump_flood_rt;
 Shader jump_flood_shader;
+RenderTexture distance_field_rt;
+Shader distance_field_shader;
+RenderTexture global_illumination_rt;
+Shader global_illumination_shader;
 
 #define LIGHT_TEXTURE_SCALING_FACTOR 0.2f
 
@@ -1788,8 +1792,13 @@ void init_game(){
     
     voronoi_seed_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
     jump_flood_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
+    distance_field_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
     voronoi_seed_shader = LoadShader(0, "../voronoi_seed.fs");
     jump_flood_shader = LoadShader(0, "../jump_flood.fs");
+    distance_field_shader = LoadShader(0, "../distance_field.fs");
+    
+    global_illumination_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
+    global_illumination_shader = LoadShader(0, "../global_illumination1.fs");
 
     input = {};
     init_console();
@@ -7703,11 +7712,11 @@ void draw_game(){
     }EndTextureMode();
     
     BeginTextureMode(voronoi_seed_rt);{
-    ClearBackground({0, 0, 0, 0});
-    // BeginMode2D(context.cam.cam2D);
-    BeginShaderMode(voronoi_seed_shader);
-        draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
-    EndShaderMode();
+        ClearBackground({0, 0, 0, 0});
+        // BeginMode2D(context.cam.cam2D);
+        BeginShaderMode(voronoi_seed_shader);
+            draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
+        EndShaderMode();
     // EndMode2D();
     }EndTextureMode();
     
@@ -7723,8 +7732,8 @@ void draw_game(){
         i32 level_loc     = get_shader_location(jump_flood_shader, "u_level");
         i32 max_steps_loc = get_shader_location(jump_flood_shader, "u_max_steps");
         i32 offset_loc    = get_shader_location(jump_flood_shader, "u_offset");
-        i32 pixel_loc     = get_shader_location(jump_flood_shader, "u_pixel");
-        i32 step_loc      = get_shader_location(jump_flood_shader, "u_step");
+        // i32 pixel_loc     = get_shader_location(jump_flood_shader, "u_pixel");
+        // i32 step_loc      = get_shader_location(jump_flood_shader, "u_step");
         i32 tex_loc       = get_shader_location(jump_flood_shader, "u_tex");
         
         set_shader_value(jump_flood_shader, max_steps_loc, passes);
@@ -7745,16 +7754,49 @@ void draw_game(){
             RenderTexture temp = next;
             next = prev;
             prev = temp;
-            draw_render_texture(prev.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
-            
         }
     }
     
+    
+    //distance field pass (Render voronoi)
+    BeginTextureMode(distance_field_rt);{
+        BeginShaderMode(distance_field_shader);
+        i32 tex_loc = get_shader_location(distance_field_shader, "u_tex");
+        set_shader_value_tex(distance_field_shader, tex_loc, prev.texture);
+        draw_render_texture(prev.texture, {1.0f, 1.0f}, WHITE);
+        EndShaderMode();
+    }EndTextureMode();
+    
+    //@TODO: raymarch doing more work because of uv stuff. we need to make our voronoi texture square, but i think we could just make all our light textures squared when we will render them bigger than screen (If that won't break everything!)
+    
+    //global illumination pass
+    BeginTextureMode(global_illumination_rt);{
+        i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
+        i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
+        i32 scene_data_loc         = get_shader_location(global_illumination_shader, "u_scene_data");
+        i32 emission_multi_loc     = get_shader_location(global_illumination_shader, "u_emission_multi");
+        i32 max_raymarch_steps_loc = get_shader_location(global_illumination_shader, "u_max_raymarch_steps");
+        i32 time_loc               = get_shader_location(global_illumination_shader, "u_time");
+        
+        set_shader_value(global_illumination_shader, time_loc, core.time.app_time);
+        
+        set_shader_value(global_illumination_shader, rays_per_pixel_loc, 32);
+        set_shader_value_tex(global_illumination_shader, distance_data_loc, distance_field_rt.texture);
+        set_shader_value_tex(global_illumination_shader, scene_data_loc, emitters_occluders_rt.texture);
+        set_shader_value(global_illumination_shader, emission_multi_loc, 1.0f);
+        set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 128);
+        BeginShaderMode(global_illumination_shader);
+        // draw_render_texture(emitters_occluders_rt.texture, {1, 1}, WHITE);
+        
+        ClearBackground({1, 0, 0, 234});
+        EndShaderMode();
+    } EndTextureMode();
 
     // BeginShaderMode(emitters_occluders_shader);
     context.cam.cam2D.zoom /= LIGHT_TEXTURE_SCALING_FACTOR;
     context.cam.cam2D.offset /= LIGHT_TEXTURE_SCALING_FACTOR;
-    draw_render_texture(prev.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
+    draw_render_texture(global_illumination_rt.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
+    // draw_render_texture(emitters_occluders_rt.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
     // EndShaderMode();
     
     
