@@ -5,7 +5,7 @@ in vec2 fragTexCoord;
 //in vec4 fragColor;
 
 // Input uniform values
-// uniform sampler2D texture0;
+uniform sampler2D texture0;
 
 // constants
 uniform float PI = 3.141596;
@@ -66,7 +66,7 @@ void main()
     float pixel_emis = 0.0;
     vec3 pixel_col = vec3(0.0);
     
-    vec2 screen_pixel_size = vec2(5.0 / 1600.0, 5.0 / 900.0);
+    vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
     
     // convert from uv aspect to world aspect.
     vec2 uv = fragTexCoord;
@@ -99,7 +99,9 @@ void main()
     pixel_col /= pixel_emis;
     pixel_emis /= float(u_rays_per_pixel);
 
-    finalColor = texture(u_scene_data, fragTexCoord);
+    // vec4 scene_color = texture(u_distance_data, fragTexCoord);
+    // finalColor = vec4(scene_color.x * uv.x, scene_color.y * uv.y, 0, 1);
+    // finalColor = scene_color;
     
-    // finalColor = vec4(pixel_emis * pixel_col, 1.0);
+    finalColor = vec4(pixel_emis * pixel_col, 1.0);
 }

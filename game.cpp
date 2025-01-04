@@ -1763,7 +1763,7 @@ Shader distance_field_shader;
 RenderTexture global_illumination_rt;
 Shader global_illumination_shader;
 
-#define LIGHT_TEXTURE_SCALING_FACTOR 0.2f
+#define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
 
 void init_game(){
     HideCursor();
@@ -7702,12 +7702,12 @@ void draw_game(){
     BeginTextureMode(emitters_occluders_rt);{
     ClearBackground({0, 0, 0, 0});
     BeginMode2D(context.cam.cam2D);
-        // ForEntities(entity, GROUND){   
-        //     draw_game_triangle_strip(entity, BLACK);
-        // }
-        
+        ForEntities(entity, 0){   
+            draw_game_triangle_strip(entity);
+        }
+        // draw_game();
         draw_game_circle({60, 50}, 10, WHITE);
-        draw_game_circle({-50, -40}, 10, BLACK);
+        // draw_game_circle({-50, -40}, 10, BLACK);
     EndMode2D();
     }EndTextureMode();
     
@@ -7736,12 +7736,12 @@ void draw_game(){
         // i32 step_loc      = get_shader_location(jump_flood_shader, "u_step");
         i32 tex_loc       = get_shader_location(jump_flood_shader, "u_tex");
         
-        set_shader_value(jump_flood_shader, max_steps_loc, passes);
         
         for (int i = 0; i < passes; i++){
             f32 offset = powf(2.0f, passes - i - 1);
             BeginTextureMode(next);{
                 BeginShaderMode(jump_flood_shader);
+                set_shader_value(jump_flood_shader, max_steps_loc, passes);
                 set_shader_value(jump_flood_shader, level_loc, i);
                 set_shader_value(jump_flood_shader, offset_loc, offset);
                 // set_shader_value(jump_flood_shader, step_loc, 1 << i);
@@ -7771,6 +7771,7 @@ void draw_game(){
     
     //global illumination pass
     BeginTextureMode(global_illumination_rt);{
+        BeginShaderMode(global_illumination_shader);
         i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
         i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
         i32 scene_data_loc         = get_shader_location(global_illumination_shader, "u_scene_data");
@@ -7785,10 +7786,9 @@ void draw_game(){
         set_shader_value_tex(global_illumination_shader, scene_data_loc, emitters_occluders_rt.texture);
         set_shader_value(global_illumination_shader, emission_multi_loc, 1.0f);
         set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 128);
-        BeginShaderMode(global_illumination_shader);
-        // draw_render_texture(emitters_occluders_rt.texture, {1, 1}, WHITE);
-        
-        ClearBackground({1, 0, 0, 234});
+        // ClearBackground({1, 0, 0, 0});
+        draw_render_texture(emitters_occluders_rt.texture, {1, 1}, WHITE);
+        // draw_rect({1, 1}, {1, 1}, WHITE);
         EndShaderMode();
     } EndTextureMode();
 

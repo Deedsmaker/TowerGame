@@ -23,7 +23,7 @@ void main()
     
     float closest_dist = 9999999.9;
     vec2 closest_pos = vec2(0.0);
-    vec2 screen_pixel_size = vec2(5.0 / 1600.0, 5.0 / 900.0);
+    vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
 
     // insert jump flooding algorithm here.
     for (float x = -1.0; x <= 1.0; x += 1.0){
