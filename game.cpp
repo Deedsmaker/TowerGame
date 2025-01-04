@@ -1752,6 +1752,15 @@ void play_sound(const char* name, f32 volume_multiplier = 1){
     play_sound(name, context.cam.position, volume_multiplier);
 }
 
+RenderTexture emitters_occluders_rt;
+Shader emitters_occluders_shader;
+RenderTexture voronoi_seed_rt;
+Shader voronoi_seed_shader;
+RenderTexture jump_flood_rt;
+Shader jump_flood_shader;
+
+#define LIGHT_TEXTURE_SCALING_FACTOR 0.2f
+
 void init_game(){
     HideCursor();
     DisableCursor();
@@ -1773,6 +1782,14 @@ void init_game(){
     
     render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
     render.test_shader = LoadShader(0, "../test_shader.fs");
+    
+    emitters_occluders_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
+    emitters_occluders_shader = LoadShader(0, "../emitters_occluders.fs");
+    
+    voronoi_seed_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
+    jump_flood_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
+    voronoi_seed_shader = LoadShader(0, "../voronoi_seed.fs");
+    jump_flood_shader = LoadShader(0, "../jump_flood.fs");
 
     input = {};
     init_console();
@@ -4120,6 +4137,10 @@ void update_editor(){
     
     //editor Save level
     if (IsKeyPressed(KEY_J) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
+        //save_level("test_level");
+        save_current_level();
+    }
+    if (IsKeyPressed(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)){
         //save_level("test_level");
         save_current_level();
     }
@@ -7665,6 +7686,77 @@ void draw_game(){
     EndTextureMode();
     draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     EndShaderMode();
+    
+    //light emitters/occluders render pass
+    context.cam.cam2D.zoom *= LIGHT_TEXTURE_SCALING_FACTOR;
+    context.cam.cam2D.offset *= LIGHT_TEXTURE_SCALING_FACTOR;
+    BeginTextureMode(emitters_occluders_rt);{
+    ClearBackground({0, 0, 0, 0});
+    BeginMode2D(context.cam.cam2D);
+        // ForEntities(entity, GROUND){   
+        //     draw_game_triangle_strip(entity, BLACK);
+        // }
+        
+        draw_game_circle({60, 50}, 10, WHITE);
+        draw_game_circle({-50, -40}, 10, BLACK);
+    EndMode2D();
+    }EndTextureMode();
+    
+    BeginTextureMode(voronoi_seed_rt);{
+    ClearBackground({0, 0, 0, 0});
+    // BeginMode2D(context.cam.cam2D);
+    BeginShaderMode(voronoi_seed_shader);
+        draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
+    EndShaderMode();
+    // EndMode2D();
+    }EndTextureMode();
+    
+    RenderTexture prev = voronoi_seed_rt;
+    RenderTexture next = jump_flood_rt;
+    
+    //jump flood voronoi render pass
+    Vector2 light_texture_size = {screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR};
+    {
+        i32 passes = ceilf(logf(fmaxf(light_texture_size.x, light_texture_size.y)) / logf(2.0f));
+        // i32 passes = 6;
+        
+        i32 level_loc     = get_shader_location(jump_flood_shader, "u_level");
+        i32 max_steps_loc = get_shader_location(jump_flood_shader, "u_max_steps");
+        i32 offset_loc    = get_shader_location(jump_flood_shader, "u_offset");
+        i32 pixel_loc     = get_shader_location(jump_flood_shader, "u_pixel");
+        i32 step_loc      = get_shader_location(jump_flood_shader, "u_step");
+        i32 tex_loc       = get_shader_location(jump_flood_shader, "u_tex");
+        
+        set_shader_value(jump_flood_shader, max_steps_loc, passes);
+        
+        for (int i = 0; i < passes; i++){
+            f32 offset = powf(2.0f, passes - i - 1);
+            BeginTextureMode(next);{
+                BeginShaderMode(jump_flood_shader);
+                set_shader_value(jump_flood_shader, level_loc, i);
+                set_shader_value(jump_flood_shader, offset_loc, offset);
+                // set_shader_value(jump_flood_shader, step_loc, 1 << i);
+                // set_shader_value(jump_flood_shader, pixel_loc, {LIGHT_TEXTURE_SCALING_FACTOR / screen_width, LIGHT_TEXTURE_SCALING_FACTOR / screen_height});
+                set_shader_value_tex(jump_flood_shader, tex_loc, prev.texture);
+                draw_render_texture(voronoi_seed_rt.texture, {1.0f, 1.0f}, WHITE);
+                EndShaderMode();
+            }EndTextureMode();
+            
+            RenderTexture temp = next;
+            next = prev;
+            prev = temp;
+            draw_render_texture(prev.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
+            
+        }
+    }
+    
+
+    // BeginShaderMode(emitters_occluders_shader);
+    context.cam.cam2D.zoom /= LIGHT_TEXTURE_SCALING_FACTOR;
+    context.cam.cam2D.offset /= LIGHT_TEXTURE_SCALING_FACTOR;
+    draw_render_texture(prev.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
+    // EndShaderMode();
+    
     
     draw_ui("");
     

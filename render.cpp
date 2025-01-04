@@ -125,6 +125,10 @@ int get_shader_location(Shader shader, const char *name){
     return GetShaderLocation(shader, name);
 }
 
+void set_shader_value(Shader shader, int loc, i32 value){
+    SetShaderValue(shader, loc, &value, SHADER_UNIFORM_INT);
+}
+
 void set_shader_value(Shader shader, int loc, float value){
     SetShaderValue(shader, loc, &value, SHADER_UNIFORM_FLOAT);
 }
