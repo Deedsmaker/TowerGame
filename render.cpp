@@ -18,12 +18,24 @@ void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float 
     DrawTexturePro(tex, source, dest, origin, rotation, tint);
 }
 
-void draw_render_texture(Texture tex, Vector2 scale, Color tint){
+void draw_render_texture(Texture tex, Vector2 scale, Color tint, f32 over_screen_multiplier = 1){
     Vector2 target_size = {tex.width * scale.x, tex.height * scale.y};
+    
+    if (over_screen_multiplier > 1){
+        Vector2 target_size = {tex.width * scale.x * 0.5f, tex.height * scale.y * 0.5f};
+    }
     
     Vector2 origin = {target_size.x * 0.5f, target_size.y * 0.5f};
     Rectangle source = {0.0f, 0.0f, (f32)tex.width, -(f32)tex.height};
+    
+    if (over_screen_multiplier > 1){    
+        source = {tex.width * 0.25f, tex.height * 0.25f, (f32)tex.width * 0.5f, tex.height * -0.5f};
+    }
+    
     Rectangle dest = {origin.x, origin.y, (f32)tex.width * scale.x, (f32)tex.height * scale.y};
+    if (over_screen_multiplier > 1){
+        Rectangle dest = {origin.x, origin.y, (f32)tex.width * scale.x * 0.5f, (f32)tex.height * scale.y * 0.5f};
+    }
     
     DrawTexturePro(tex, source, dest, origin, 0, tint);
 }

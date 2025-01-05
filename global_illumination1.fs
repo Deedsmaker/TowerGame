@@ -18,6 +18,7 @@ uniform sampler2D u_scene_data;
 uniform float u_emission_multi = 1.0;
 uniform int u_max_raymarch_steps = 128;
 uniform float u_dist_mod = 1.0;
+uniform vec2 u_screen_pixel_size;
 
 out vec4 finalColor;
 
@@ -66,11 +67,11 @@ void main()
     float pixel_emis = 0.0;
     vec3 pixel_col = vec3(0.0);
     
-    vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
+    //vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
     
     // convert from uv aspect to world aspect.
     vec2 uv = fragTexCoord;
-    float aspect = screen_pixel_size.y / screen_pixel_size.x;
+    float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
     uv.x *= aspect;
     
     float rand2pi = random(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;

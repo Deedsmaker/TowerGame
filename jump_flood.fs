@@ -12,6 +12,7 @@ uniform int u_max_steps;
 uniform float u_offset;
 uniform sampler2D texture0;
 uniform sampler2D u_tex;
+uniform vec2 u_screen_pixel_size;
 
 // Output fragment color
 out vec4 finalColor;
@@ -23,13 +24,13 @@ void main()
     
     float closest_dist = 9999999.9;
     vec2 closest_pos = vec2(0.0);
-    vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
+    //vec2 u_screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
 
     // insert jump flooding algorithm here.
     for (float x = -1.0; x <= 1.0; x += 1.0){
         for (float y = -1.0; y <= 1.0; y += 1.0){
             vec2 voffset = fragTexCoord;
-            voffset += vec2(x, y) * screen_pixel_size * u_offset;
+            voffset += vec2(x, y) * u_screen_pixel_size * u_offset;
     
             vec2 pos = texture(u_tex, voffset).xy;
             float dist = distance(pos.xy, fragTexCoord.xy);
