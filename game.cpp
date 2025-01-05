@@ -1763,6 +1763,11 @@ Shader distance_field_shader;
 RenderTexture global_illumination_rt;
 Shader global_illumination_shader;
 
+RenderTexture final_light_rt;
+Shader env_light_shader;
+
+Shader gaussian_blur_shader;
+
 #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
 #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
 
@@ -1800,6 +1805,11 @@ void init_game(){
     
     global_illumination_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SIZE_MULTIPLIER * LIGHT_TEXTURE_SCALING_FACTOR, screen_height  * LIGHT_TEXTURE_SIZE_MULTIPLIER* LIGHT_TEXTURE_SCALING_FACTOR);
     global_illumination_shader = LoadShader(0, "../global_illumination1.fs");
+    
+    final_light_rt = LoadRenderTexture(screen_width, screen_height);
+    env_light_shader = LoadShader(0, "../env_light.fs");
+    
+    gaussian_blur_shader = LoadShader(0, "../gaussian_blur.fs");
 
     input = {};
     init_console();
@@ -7652,7 +7662,7 @@ void draw_game(){
     apply_shake();
 
     BeginDrawing();
-    BeginShaderMode(render.test_shader);
+    // BeginShaderMode(render.test_shader);
     BeginTextureMode(render.main_render_texture);
     BeginMode2D(context.cam.cam2D);
     Context *c = &context;
@@ -7694,8 +7704,8 @@ void draw_game(){
     
     EndMode2D();
     EndTextureMode();
-    draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
-    EndShaderMode();
+    // draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
+    // EndShaderMode();
     
     //light emitters/occluders render pass
     context.cam.cam2D.zoom   *= LIGHT_TEXTURE_SCALING_FACTOR / LIGHT_TEXTURE_SIZE_MULTIPLIER;
@@ -7703,9 +7713,9 @@ void draw_game(){
     BeginTextureMode(emitters_occluders_rt);{
     ClearBackground({0, 0, 0, 0});
     BeginMode2D(context.cam.cam2D);
-        // ForEntities(entity, ENEMY){   
-        //     draw_game_triangle_strip(entity);
-        // }
+        ForEntities(entity, SWORD){   
+            draw_game_triangle_strip(entity);
+        }
         // draw_game();
         draw_game_circle(editor.player_spawn_point, 10, WHITE);
         draw_game_circle({-50, -40}, 10, BLACK);
@@ -7779,7 +7789,8 @@ void draw_game(){
     
     //global illumination pass
     BeginTextureMode(global_illumination_rt);{
-        // ClearBackground(BLACK);
+        ClearBackground(BLACK);
+        
         BeginShaderMode(global_illumination_shader);
         i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
         i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
@@ -7801,15 +7812,34 @@ void draw_game(){
         draw_render_texture(emitters_occluders_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE);
         // draw_rect({1, 1}, {1, 1}, WHITE);
         EndShaderMode();
+        EndShaderMode();
     } EndTextureMode();
+    
+    
 
     // BeginShaderMode(emitters_occluders_shader);
     context.cam.cam2D.zoom   /= LIGHT_TEXTURE_SCALING_FACTOR * LIGHT_TEXTURE_SIZE_MULTIPLIER;
     context.cam.cam2D.offset /= LIGHT_TEXTURE_SCALING_FACTOR;// * LIGHT_TEXTURE_SIZE_MULTIPLIER;
-    draw_render_texture(global_illumination_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE, LIGHT_TEXTURE_SIZE_MULTIPLIER);
+    // draw_render_texture(global_illumination_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE, LIGHT_TEXTURE_SIZE_MULTIPLIER);
     // draw_render_texture(emitters_occluders_rt.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
     // EndShaderMode();
     
+    
+    BeginTextureMode(final_light_rt);{
+        BeginShaderMode(gaussian_blur_shader);
+        i32 u_pixel_loc = get_shader_location(gaussian_blur_shader, "u_pixel");
+        set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_width, (1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_height});
+        draw_render_texture(global_illumination_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE);
+    }EndTextureMode();
+
+    
+    BeginShaderMode(env_light_shader);
+    i32 gi_data_loc = get_shader_location(env_light_shader, "u_gi_data");
+    
+    set_shader_value_tex(env_light_shader, gi_data_loc, final_light_rt.texture);
+    
+    draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
+    EndShaderMode();
     
     draw_ui("");
     
