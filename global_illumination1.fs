@@ -25,6 +25,7 @@ out vec4 finalColor;
 float random (vec2 st) 
 {
    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+   // return fract((fragTexCoord.x + fragTexCoord.y));
 }
 
 bool raymarch(vec2 origin, vec2 dir, float aspect, out vec2 hit_pos)
@@ -59,7 +60,18 @@ void get_surface(vec2 uv, out float emissive, out vec3 colour)
 {	
    vec4 emissive_data = texture(u_scene_data, uv);
    emissive = max(emissive_data.r, max(emissive_data.g, emissive_data.b)) * u_emission_multi;
-   colour = emissive_data.rgb;
+   colour = emissive_data.rgb * u_emission_multi;
+}
+
+vec3 lin_to_srgb(vec4 color)
+{
+   vec3 x = color.rgb * 12.92;
+   vec3 y = 1.055 * pow(clamp(color.rgb, 0.0, 1.0), vec3(0.4166667)) - 0.055;
+   vec3 clr = color.rgb;
+   clr.r = (color.r < 0.0031308) ? x.r : y.r;
+   clr.g = (color.g < 0.0031308) ? x.g : y.g;
+   clr.b = (color.b < 0.0031308) ? x.b : y.b;
+   return clr.rgb;
 }
 
 void main()
@@ -104,5 +116,5 @@ void main()
     // finalColor = vec4(scene_color.x * uv.x, scene_color.y * uv.y, 0, 1);
     // finalColor = scene_color;
     
-    finalColor = vec4(pixel_emis * pixel_col, 1.0);
+    finalColor = vec4(lin_to_srgb(vec4(pixel_emis * pixel_col, 1)), 1.0);
 }

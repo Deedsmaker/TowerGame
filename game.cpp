@@ -1793,17 +1793,17 @@ void init_game(){
     render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
     render.test_shader = LoadShader(0, "../test_shader.fs");
     
-    emitters_occluders_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR);
+    emitters_occluders_rt = LoadRenderTexture(screen_width, screen_height);
     emitters_occluders_shader = LoadShader(0, "../emitters_occluders.fs");
     
-    voronoi_seed_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SIZE_MULTIPLIER * LIGHT_TEXTURE_SCALING_FACTOR, screen_height  * LIGHT_TEXTURE_SIZE_MULTIPLIER* LIGHT_TEXTURE_SCALING_FACTOR);
-    jump_flood_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SIZE_MULTIPLIER * LIGHT_TEXTURE_SCALING_FACTOR, screen_height  * LIGHT_TEXTURE_SIZE_MULTIPLIER* LIGHT_TEXTURE_SCALING_FACTOR);
-    distance_field_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SIZE_MULTIPLIER * LIGHT_TEXTURE_SCALING_FACTOR, screen_height  * LIGHT_TEXTURE_SIZE_MULTIPLIER* LIGHT_TEXTURE_SCALING_FACTOR);
+    voronoi_seed_rt = LoadRenderTexture(screen_width, screen_height );
+    jump_flood_rt = LoadRenderTexture(screen_width, screen_height );
+    distance_field_rt = LoadRenderTexture(screen_width, screen_height);
     voronoi_seed_shader = LoadShader(0, "../voronoi_seed.fs");
     jump_flood_shader = LoadShader(0, "../jump_flood.fs");
     distance_field_shader = LoadShader(0, "../distance_field.fs");
     
-    global_illumination_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SIZE_MULTIPLIER * LIGHT_TEXTURE_SCALING_FACTOR, screen_height  * LIGHT_TEXTURE_SIZE_MULTIPLIER* LIGHT_TEXTURE_SCALING_FACTOR);
+    global_illumination_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR * LIGHT_TEXTURE_SIZE_MULTIPLIER, screen_height  * LIGHT_TEXTURE_SIZE_MULTIPLIER * LIGHT_TEXTURE_SCALING_FACTOR);
     global_illumination_shader = LoadShader(0, "../global_illumination1.fs");
     
     final_light_rt = LoadRenderTexture(screen_width, screen_height);
@@ -7708,25 +7708,26 @@ void draw_game(){
     // EndShaderMode();
     
     //light emitters/occluders render pass
-    context.cam.cam2D.zoom   *= LIGHT_TEXTURE_SCALING_FACTOR / LIGHT_TEXTURE_SIZE_MULTIPLIER;
-    context.cam.cam2D.offset *= LIGHT_TEXTURE_SCALING_FACTOR;// / LIGHT_TEXTURE_SIZE_MULTIPLIER;
+    context.cam.cam2D.zoom   /=   LIGHT_TEXTURE_SIZE_MULTIPLIER;
+    // context.cam.cam2D.offset *= ;// / LIGHT_TEXTURE_SIZE_MULTIPLIER;
     BeginTextureMode(emitters_occluders_rt);{
     ClearBackground({0, 0, 0, 0});
     BeginMode2D(context.cam.cam2D);
-        ForEntities(entity, SWORD){   
+        ForEntities(entity, GROUND){   
             draw_game_triangle_strip(entity);
         }
         // draw_game();
-        draw_game_circle(editor.player_spawn_point, 10, WHITE);
+        // draw_game_circle(editor.player_spawn_point, 10, WHITE);
         draw_game_circle({-50, -40}, 10, BLACK);
     EndMode2D();
+        draw_rect({0.0f, 0.0f/*-screen_height * LIGHT_TEXTURE_SIZE_MULTIPLIER*/}, {(f32)screen_width * 0.3f, 20}, WHITE);
     }EndTextureMode();
     
     BeginTextureMode(voronoi_seed_rt);{
         ClearBackground({0, 0, 0, 0});
         // BeginMode2D(context.cam.cam2D);
         BeginShaderMode(voronoi_seed_shader);
-            draw_render_texture(emitters_occluders_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE);
+            draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
         EndShaderMode();
     // EndMode2D();
     }EndTextureMode();
@@ -7803,10 +7804,10 @@ void draw_game(){
         set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_width, (1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_height});
         set_shader_value(global_illumination_shader, time_loc, core.time.app_time);
         
-        set_shader_value(global_illumination_shader, rays_per_pixel_loc, 32);
+        set_shader_value(global_illumination_shader, rays_per_pixel_loc, 64);
         set_shader_value_tex(global_illumination_shader, distance_data_loc, distance_field_rt.texture);
         set_shader_value_tex(global_illumination_shader, scene_data_loc, emitters_occluders_rt.texture);
-        set_shader_value(global_illumination_shader, emission_multi_loc, 1.0f);
+        set_shader_value(global_illumination_shader, emission_multi_loc, 5.0f);
         set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 128);
         // ClearBackground({1, 0, 0, 0});
         draw_render_texture(emitters_occluders_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE);
@@ -7815,28 +7816,47 @@ void draw_game(){
         EndShaderMode();
     } EndTextureMode();
     
-    
 
     // BeginShaderMode(emitters_occluders_shader);
-    context.cam.cam2D.zoom   /= LIGHT_TEXTURE_SCALING_FACTOR * LIGHT_TEXTURE_SIZE_MULTIPLIER;
-    context.cam.cam2D.offset /= LIGHT_TEXTURE_SCALING_FACTOR;// * LIGHT_TEXTURE_SIZE_MULTIPLIER;
+    context.cam.cam2D.zoom   *=  LIGHT_TEXTURE_SIZE_MULTIPLIER;
+    // context.cam.cam2D.offset /= LIGHT_TEXTURE_SCALING_FACTOR;// * LIGHT_TEXTURE_SIZE_MULTIPLIER;
     // draw_render_texture(global_illumination_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE, LIGHT_TEXTURE_SIZE_MULTIPLIER);
     // draw_render_texture(emitters_occluders_rt.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
     // EndShaderMode();
     
     
-    BeginTextureMode(final_light_rt);{
-        BeginShaderMode(gaussian_blur_shader);
-        i32 u_pixel_loc = get_shader_location(gaussian_blur_shader, "u_pixel");
-        set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_width, (1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_height});
-        draw_render_texture(global_illumination_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE);
-    }EndTextureMode();
+    //blur pass
+    
+    i32 iterations = 0;
+    prev = global_illumination_rt;
+    next = emitters_occluders_rt;
+    
+    for (i32 i = 0; i < iterations; i++){
+        BeginTextureMode(next);{
+            BeginShaderMode(gaussian_blur_shader);
+            i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+            i32 u_direction_loc = get_shader_location(gaussian_blur_shader, "u_direction");
+            set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_width, (1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_height});
+            f32 radius = (iterations - i - 1);
+            Vector2 direction = {0, radius};
+            if (i % 2 == 0){
+                direction = {radius, 0};
+            }
+            set_shader_value(gaussian_blur_shader, u_direction_loc, direction);
+            
+            draw_render_texture(prev.texture, {1.0f, 1.0f}, WHITE);
+            
+            RenderTexture temp = prev;
+            prev = next;
+            next = temp;
+        }EndTextureMode();
+    }
 
     
     BeginShaderMode(env_light_shader);
     i32 gi_data_loc = get_shader_location(env_light_shader, "u_gi_data");
     
-    set_shader_value_tex(env_light_shader, gi_data_loc, final_light_rt.texture);
+    set_shader_value_tex(env_light_shader, gi_data_loc, prev.texture);
     
     draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     EndShaderMode();

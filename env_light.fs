@@ -9,7 +9,7 @@ uniform sampler2D texture0;
 
 // uniforms
 uniform sampler2D u_gi_data;
-uniform float u_emission_multi = 10.0;
+uniform float u_emission_multi = 1.0;
 
 out vec4 finalColor;
 
@@ -30,6 +30,6 @@ void main()
     
     get_surface(fragTexCoord, pixel_emis, color);
     
-    finalColor = vec4(pixel_emis * vec4(color, 1.0) * current_color * 10);
+    finalColor = vec4(pixel_emis * vec4(color, 1.0) * current_color);
     finalColor.a = current_color.a;
 }
