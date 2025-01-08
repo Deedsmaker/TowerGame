@@ -7714,7 +7714,7 @@ void draw_game(){
     ClearBackground({0, 0, 0, 0});
     BeginMode2D(context.cam.cam2D);
         ForEntities(entity, GROUND){   
-            draw_game_triangle_strip(entity);
+            draw_game_triangle_strip(entity, BLACK);
         }
         // draw_game();
         // draw_game_circle(editor.player_spawn_point, 10, WHITE);
