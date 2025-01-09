@@ -652,6 +652,9 @@ struct Cam{
     Vector2 view_position = Vector2_zero;
     float rotation = 0;
     
+    i32 width = 1600;
+    i32 height = 900;
+    
     //Shake
     f32 trauma = 0;
     f32 trauma_decrease_rate = 1.5f;
@@ -660,6 +663,7 @@ struct Cam{
     
     Camera2D cam2D = {};
     f32 target_zoom = 0.35f;
+    f32 unit_size;
     
     Velocity_Move move_settings = {};
 };
@@ -700,7 +704,7 @@ struct Context{
     f32 last_collision_cells_clear_time = -2;
     
     b32 we_got_a_winner = false;
-    Vector2 unit_screen_size;
+    // Vector2 unit_screen_size;
     
     char current_level_name[256];
     

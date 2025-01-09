@@ -103,7 +103,7 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
 void draw_game_line_strip(Entity *entity, Color color);
 void draw_game_line_strip(Vector2 *points, int count, Color color);
-void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
+void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip = false);
 void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
 void draw_game_line(Vector2 start, Vector2 end, Color color);
 void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle = 0, f32 end_angle = 360);

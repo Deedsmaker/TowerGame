@@ -9,6 +9,7 @@
 [ ] Simulating only visual entities for fps more than fixed. Better later so less friction because simulation for visual guys should not make something catastrophical.
 [ ] Profiling tool (?)
 [ ] Player internal-interface (for examplelines that shows how to kill sword-blocker) could be disrupted by some enemy. Funny visual requiered and pretty long gameplay before introduction so player could get used to this information.
+[ ] Zone in late-game that will make sword not spin continuously, but react to sharp mouse movements to make cuts and fast dashes.
 ///////////////////////////////////////////////////
 
 <Levels order>

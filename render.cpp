@@ -8,34 +8,25 @@ void draw_texture(Texture tex, int x, int y, Color tint){
     DrawTexture(tex, x, y, tint);
 }
 
-void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float rotation, Color tint){
+void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float rotation, Color tint, bool flip = false){
     Vector2 target_size = {tex.width * scale.x, tex.height * scale.y};
     
     Vector2 origin = {target_size.x * pivot.x, target_size.y * pivot.y};
-    Rectangle source = {0.0f, 0.0f, (f32)tex.width, (f32)tex.height};
+    
+    f32 flip_mult = flip ? -1 : 1;
+    Rectangle source = {0.0f, 0.0f, (f32)tex.width, (f32)tex.height * flip_mult};
     Rectangle dest = {pos.x, pos.y, (f32)tex.width * scale.x, (f32)tex.height * scale.y};
     
     DrawTexturePro(tex, source, dest, origin, rotation, tint);
 }
 
-void draw_render_texture(Texture tex, Vector2 scale, Color tint, f32 over_screen_multiplier = 1){
+void draw_render_texture(Texture tex, Vector2 scale, Color tint){
     Vector2 target_size = {tex.width * scale.x, tex.height * scale.y};
-    
-    if (over_screen_multiplier > 1){
-        Vector2 target_size = {tex.width * scale.x * 0.5f, tex.height * scale.y * 0.5f};
-    }
     
     Vector2 origin = {target_size.x * 0.5f, target_size.y * 0.5f};
     Rectangle source = {0.0f, 0.0f, (f32)tex.width, -(f32)tex.height};
     
-    if (over_screen_multiplier > 1){    
-        source = {tex.width * 0.25f, tex.height * 0.25f, (f32)tex.width * 0.5f, tex.height * -0.5f};
-    }
-    
     Rectangle dest = {origin.x, origin.y, (f32)tex.width * scale.x, (f32)tex.height * scale.y};
-    if (over_screen_multiplier > 1){
-        Rectangle dest = {origin.x, origin.y, (f32)tex.width * scale.x * 0.5f, (f32)tex.height * scale.y * 0.5f};
-    }
     
     DrawTexturePro(tex, source, dest, origin, 0, tint);
 }

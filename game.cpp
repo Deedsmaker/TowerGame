@@ -112,7 +112,7 @@ void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 piv
 
 void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture texture, Vector2 pivot){
     vertices->clear();
-    Vector2 scaled_size = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+    Vector2 scaled_size = {texture.width / context.cam.unit_size, texture.height / context.cam.unit_size};
     vertices->add({pivot.x * scaled_size.x, pivot.y * scaled_size.y});
     vertices->add({-pivot.x * scaled_size.x, pivot.y * scaled_size.y});
     vertices->add({pivot.x * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
@@ -202,7 +202,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
     position = _pos;
     pivot    = _pivot;
     texture  = _texture;
-    scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+    scaling_multiplier = {texture.width / context.cam.unit_size, texture.height / context.cam.unit_size};
     //scaling_multiplier = {1, 1};
     color = WHITE;
     //scale = transform_texture_scale(texture, _scale);
@@ -266,7 +266,7 @@ Entity::Entity(Entity *copy){
     
     if (flags & TEXTURE){
         texture = copy->texture;
-        scaling_multiplier = {texture.width / UNIT_SIZE, texture.height / UNIT_SIZE};
+        scaling_multiplier = {texture.width / context.cam.unit_size, texture.height / context.cam.unit_size};
         scale = {texture.width / 10.0f, texture.height / 10.0f};
         str_copy(texture_name, copy->texture_name);
     }
@@ -1803,7 +1803,7 @@ void init_game(){
     jump_flood_shader = LoadShader(0, "../jump_flood.fs");
     distance_field_shader = LoadShader(0, "../distance_field.fs");
     
-    global_illumination_rt = LoadRenderTexture(screen_width * LIGHT_TEXTURE_SCALING_FACTOR * LIGHT_TEXTURE_SIZE_MULTIPLIER, screen_height  * LIGHT_TEXTURE_SIZE_MULTIPLIER * LIGHT_TEXTURE_SCALING_FACTOR);
+    global_illumination_rt = LoadRenderTexture(screen_width * 0.5f, screen_height * 0.5f);
     global_illumination_shader = LoadShader(0, "../global_illumination1.fs");
     
     final_light_rt = LoadRenderTexture(screen_width, screen_height);
@@ -1836,7 +1836,7 @@ void init_game(){
     
     Context *c = &context;
     
-    c->unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
+    // c->unit_screen_size = {screen_width / context.cam.unit_size, screen_height / context.cam.unit_size};
     
     c->cam.position = Vector2_zero;
     c->cam.cam2D.target = world_to_screen({0, 0});
@@ -2018,11 +2018,11 @@ void enter_editor_state(){
 Vector2 screen_to_world(Vector2 pos){
     f32 zoom = context.cam.cam2D.zoom;
 
-    f32 width = screen_width   ;
-    f32 height = screen_height ;
+    f32 width = context.cam.width   ;
+    f32 height = context.cam.height ;
 
     Vector2 screen_pos = pos;
-    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / UNIT_SIZE, (height * 0.5f - screen_pos.y) / UNIT_SIZE};
+    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / context.cam.unit_size, (height * 0.5f - screen_pos.y) / context.cam.unit_size};
     world_pos /= zoom;
     world_pos = world_pos + context.cam.position;// + ( (Vector2){0, -context.unit_screen_size.y * 0.5f});
     
@@ -2155,6 +2155,18 @@ void update_console(){
     }
 }
 
+Cam get_cam_for_resolution(i32 width, i32 height){
+    // context.unit_screen_size = {width / context.cam.unit_size, height / context.cam.unit_size};
+    Cam cam = context.cam;
+    cam.unit_size = width / SCREEN_WORLD_SIZE; 
+    cam.cam2D.target = (Vector2){ width/2.0f, height/2.0f };
+    cam.cam2D.offset = (Vector2){ width/2.0f, height/2.0f };
+    cam.width = width;
+    cam.height = height;
+    
+    return cam;
+}
+
 void update_game(){
     frame_rnd = rnd01();
     frame_on_circle_rnd = rnd_on_circle();
@@ -2260,7 +2272,10 @@ void update_game(){
     //end update input
     
     if (screen_size_changed){
-        context.unit_screen_size = {screen_width / UNIT_SIZE, screen_height / UNIT_SIZE};
+        // context.unit_screen_size = {screen_width / context.cam.unit_size, screen_height / context.cam.unit_size};
+        context.cam.width = screen_width;
+        context.cam.height = screen_height;
+        context.cam.unit_size = screen_width / SCREEN_WORLD_SIZE; 
         context.cam.cam2D.target = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         
@@ -2415,7 +2430,7 @@ void update_game(){
         f32 zoom = context.cam.target_zoom;
 
         if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
-            context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (UNIT_SIZE);
+            context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (context.cam.unit_size);
         }
         if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
             if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
@@ -3695,7 +3710,7 @@ void update_editor(){
 
     
     if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
-        // context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (UNIT_SIZE);
+        // context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (context.cam.unit_size);
         moving_editor_cam = true;
     }
     
@@ -3898,7 +3913,7 @@ void update_editor(){
     }
     
     if (editor.dragging_entity != NULL && !moving_editor_cam){
-        Vector2 move_delta = ((Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (UNIT_SIZE);
+        Vector2 move_delta = ((Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (context.cam.unit_size);
         editor.dragging_entity->position += move_delta;
     }
     
@@ -5800,7 +5815,7 @@ void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_T
 }
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale){
-    Vector2 real_scale = {(f32)texture.width / UNIT_SIZE, (f32)texture.height / UNIT_SIZE};
+    Vector2 real_scale = {(f32)texture.width / context.cam.unit_size, (f32)texture.height / context.cam.unit_size};
     
     return {wish_scale.x / real_scale.x, wish_scale.y / real_scale.y};
 }
@@ -7011,7 +7026,7 @@ Bounds get_cam_bounds(Cam cam, f32 zoom){
     Bounds cam_bounds;
     cam_bounds.size = {(f32)screen_width, (f32)screen_height};
     cam_bounds.size /= zoom;
-    cam_bounds.size /= UNIT_SIZE;
+    cam_bounds.size /= context.cam.unit_size;
     
     cam_bounds.offset = {0, 0};
     
@@ -7661,6 +7676,48 @@ void draw_game(){
 
     apply_shake();
 
+    local_persist RenderTexture test_light_rt = LoadRenderTexture(256, 256);
+    local_persist f32 test_light_zoom;
+    Vector2 test_light_position = editor.player_spawn_point;
+    
+    BeginTextureMode(test_light_rt);{
+        ClearBackground({0, 0, 0, 0});
+        context.cam = get_cam_for_resolution(256, 256);
+        context.cam.position = test_light_position;
+        context.cam.cam2D.zoom = 1.0f;
+        BeginMode2D(context.cam.cam2D);
+        ForEntities(entity, GROUND){
+            draw_game_triangle_strip(entity, Fade(BLACK, 0.8f));
+        }
+        EndMode2D();
+        context.cam = saved_cam;
+    }EndTextureMode();
+    
+        f32 mult = 0.02f;
+        for (int i = 0; i < 8; i++, mult *= 2){
+            BeginTextureMode(test_light_rt);{
+            draw_texture(test_light_rt.texture, {128, 128}, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.9f), true);
+            }EndTextureMode();
+        }
+        
+    local_persist RenderTexture back_light_test_rt = LoadRenderTexture(256, 256);
+    // local_persist RenderTexture back_light_test_rt2 = LoadRenderTexture(256, 256);
+        
+    BeginTextureMode(back_light_test_rt);{
+        ClearBackground({0, 0, 0, 0});
+        context.cam = get_cam_for_resolution(256, 256);
+        context.cam.position = test_light_position;
+        context.cam.cam2D.zoom = 1.0f;
+        BeginMode2D(context.cam.cam2D);
+        ForEntities(entity, ENEMY){
+            draw_game_triangle_strip(entity, Fade(BLACK, 0.7f));
+        }
+        EndMode2D();
+        
+        draw_texture(back_light_test_rt.texture, {128, 128}, {1.0f + 0.1f, 1.0f + 0.1f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
+        context.cam = saved_cam;
+    }; EndTextureMode();
+
     BeginDrawing();
     // BeginShaderMode(render.test_shader);
     BeginTextureMode(render.main_render_texture);
@@ -7704,135 +7761,36 @@ void draw_game(){
     
     EndMode2D();
     EndTextureMode();
+
+    BeginTextureMode(global_illumination_rt);{
+        ClearBackground(WHITE);
+        context.cam = get_cam_for_resolution(screen_width * 0.5f, screen_height * 0.5f);
+        // context.cam.position = test_light_position;
+        // context.cam.cam2D.zoom = 1.0f;        
+        BeginMode2D(context.cam.cam2D);
+            // Vector2 scale = {test_light_rt.texture.width / context.cam.unit_size, test_light_rt.texture.height / context.cam.unit_size};
+            draw_game_texture(test_light_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
+            draw_game_texture(back_light_test_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
+            // draw_game_texture(test_light_rt.texture, {1, 1}, WHITE);
+        EndMode2D();
+        context.cam = saved_cam;
+    }EndTextureMode();
+
     // draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     // EndShaderMode();
     
     //light emitters/occluders render pass
-    context.cam.cam2D.zoom   /=   LIGHT_TEXTURE_SIZE_MULTIPLIER;
+    // context.cam.cam2D.zoom   /=   LIGHT_TEXTURE_SIZE_MULTIPLIER;
     // context.cam.cam2D.offset *= ;// / LIGHT_TEXTURE_SIZE_MULTIPLIER;
-    BeginTextureMode(emitters_occluders_rt);{
-    ClearBackground({0, 0, 0, 0});
-    BeginMode2D(context.cam.cam2D);
-        ForEntities(entity, GROUND){   
-            draw_game_triangle_strip(entity, BLACK);
-        }
-        // draw_game();
-        // draw_game_circle(editor.player_spawn_point, 10, WHITE);
-        draw_game_circle({-50, -40}, 10, BLACK);
-    EndMode2D();
-        draw_rect({0.0f, 0.0f/*-screen_height * LIGHT_TEXTURE_SIZE_MULTIPLIER*/}, {(f32)screen_width * 0.3f, 20}, WHITE);
-    }EndTextureMode();
-    
-    BeginTextureMode(voronoi_seed_rt);{
-        ClearBackground({0, 0, 0, 0});
-        // BeginMode2D(context.cam.cam2D);
-        BeginShaderMode(voronoi_seed_shader);
-            draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
-        EndShaderMode();
-    // EndMode2D();
-    }EndTextureMode();
-    
-    RenderTexture prev = voronoi_seed_rt;
-    RenderTexture next = jump_flood_rt;
-    
-    //jump flood voronoi render pass
-    Vector2 light_texture_size = {screen_width * LIGHT_TEXTURE_SCALING_FACTOR, screen_height * LIGHT_TEXTURE_SCALING_FACTOR};
-    {
-        i32 passes = ceilf(logf(fmaxf(light_texture_size.x, light_texture_size.y)) / logf(2.0f));
-        // i32 passes = 6;
-        
-        i32 level_loc     = get_shader_location(jump_flood_shader, "u_level");
-        i32 max_steps_loc = get_shader_location(jump_flood_shader, "u_max_steps");
-        i32 offset_loc    = get_shader_location(jump_flood_shader, "u_offset");
-        // i32 pixel_loc     = get_shader_location(jump_flood_shader, "u_pixel");
-        // i32 step_loc      = get_shader_location(jump_flood_shader, "u_step");
-        i32 tex_loc       = get_shader_location(jump_flood_shader, "u_tex");
-        
-        
-        for (int i = 0; i < passes; i++){
-            f32 offset = powf(2.0f, passes - i - 1);
-            BeginTextureMode(next);{
-                BeginShaderMode(jump_flood_shader);
-                set_shader_value(jump_flood_shader, max_steps_loc, passes);
-                set_shader_value(jump_flood_shader, level_loc, i);
-                set_shader_value(jump_flood_shader, offset_loc, offset);
-                
-                i32 screen_pixel_size_loc  = get_shader_location(jump_flood_shader, "u_screen_pixel_size");
-        
-                set_shader_value(jump_flood_shader, screen_pixel_size_loc, {(1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_width, (1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_height});
-
-                
-                // set_shader_value(jump_flood_shader, step_loc, 1 << i);
-                // set_shader_value(jump_flood_shader, pixel_loc, {LIGHT_TEXTURE_SCALING_FACTOR / screen_width, LIGHT_TEXTURE_SCALING_FACTOR / screen_height});
-                set_shader_value_tex(jump_flood_shader, tex_loc, prev.texture);
-                draw_render_texture(voronoi_seed_rt.texture, {1.0f, 1.0f}, WHITE);
-                EndShaderMode();
-            }EndTextureMode();
-            
-            RenderTexture temp = next;
-            next = prev;
-            prev = temp;
-        }
-    }
-    
-    
-    //distance field pass (Render voronoi)
-    BeginTextureMode(distance_field_rt);{
-        // ClearBackground(BLACK);
-        BeginShaderMode(distance_field_shader);
-        i32 tex_loc = get_shader_location(distance_field_shader, "u_tex");
-        set_shader_value_tex(distance_field_shader, tex_loc, prev.texture);
-        draw_render_texture(prev.texture, {1.0f, 1.0f}, WHITE);
-        EndShaderMode();
-    }EndTextureMode();
-    
-    //@TODO: raymarch doing more work because of uv stuff. we need to make our voronoi texture square, but i think we could just make all our light textures squared when we will render them bigger than screen (If that won't break everything!)
-    
-    //global illumination pass
-    BeginTextureMode(global_illumination_rt);{
-        ClearBackground(BLACK);
-        
-        BeginShaderMode(global_illumination_shader);
-        i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
-        i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
-        i32 scene_data_loc         = get_shader_location(global_illumination_shader, "u_scene_data");
-        i32 emission_multi_loc     = get_shader_location(global_illumination_shader, "u_emission_multi");
-        i32 max_raymarch_steps_loc = get_shader_location(global_illumination_shader, "u_max_raymarch_steps");
-        i32 time_loc               = get_shader_location(global_illumination_shader, "u_time");
-        i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
-        
-        set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_width, (1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_height});
-        set_shader_value(global_illumination_shader, time_loc, core.time.app_time);
-        
-        set_shader_value(global_illumination_shader, rays_per_pixel_loc, 64);
-        set_shader_value_tex(global_illumination_shader, distance_data_loc, distance_field_rt.texture);
-        set_shader_value_tex(global_illumination_shader, scene_data_loc, emitters_occluders_rt.texture);
-        set_shader_value(global_illumination_shader, emission_multi_loc, 5.0f);
-        set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 128);
-        // ClearBackground({1, 0, 0, 0});
-        draw_render_texture(emitters_occluders_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE);
-        // draw_rect({1, 1}, {1, 1}, WHITE);
-        EndShaderMode();
-        EndShaderMode();
-    } EndTextureMode();
-    
-
-    // BeginShaderMode(emitters_occluders_shader);
-    context.cam.cam2D.zoom   *=  LIGHT_TEXTURE_SIZE_MULTIPLIER;
-    // context.cam.cam2D.offset /= LIGHT_TEXTURE_SCALING_FACTOR;// * LIGHT_TEXTURE_SIZE_MULTIPLIER;
-    // draw_render_texture(global_illumination_rt.texture, {1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER, 1.0f * LIGHT_TEXTURE_SIZE_MULTIPLIER}, WHITE, LIGHT_TEXTURE_SIZE_MULTIPLIER);
-    // draw_render_texture(emitters_occluders_rt.texture, {1.0f / LIGHT_TEXTURE_SCALING_FACTOR, 1.0f / LIGHT_TEXTURE_SCALING_FACTOR}, WHITE);
-    // EndShaderMode();
     
     
     //blur pass
-    
-    i32 iterations = 0;
-    prev = global_illumination_rt;
-    next = emitters_occluders_rt;
+    i32 iterations = 4;
+    // prev = global_illumination_rt;
+    // next = emitters_occluders_rt;
     
     for (i32 i = 0; i < iterations; i++){
-        BeginTextureMode(next);{
+        BeginTextureMode(global_illumination_rt);{
             BeginShaderMode(gaussian_blur_shader);
             i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
             i32 u_direction_loc = get_shader_location(gaussian_blur_shader, "u_direction");
@@ -7844,11 +7802,11 @@ void draw_game(){
             }
             set_shader_value(gaussian_blur_shader, u_direction_loc, direction);
             
-            draw_render_texture(prev.texture, {1.0f, 1.0f}, WHITE);
+            draw_render_texture(global_illumination_rt.texture, {1.0f, 1.0f}, WHITE);
             
-            RenderTexture temp = prev;
-            prev = next;
-            next = temp;
+            // RenderTexture temp = prev;
+            // prev = next;
+            // next = temp;
         }EndTextureMode();
     }
 
@@ -7856,7 +7814,7 @@ void draw_game(){
     BeginShaderMode(env_light_shader);
     i32 gi_data_loc = get_shader_location(env_light_shader, "u_gi_data");
     
-    set_shader_value_tex(env_light_shader, gi_data_loc, prev.texture);
+    set_shader_value_tex(env_light_shader, gi_data_loc, global_illumination_rt.texture);
     
     draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     EndShaderMode();
@@ -8080,15 +8038,15 @@ inline Vector2 world_to_screen(Vector2 position){
     Vector2 cam_pos = context.cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
-    Vector2 pixels   = multiply(with_cam, UNIT_SIZE);
-    //Vector2 pixels   = multiply(position, UNIT_SIZE);
+    Vector2 pixels   = multiply(with_cam, context.cam.unit_size);
+    //Vector2 pixels   = multiply(position, context.cam.unit_size);
     
     //Horizontal center and vertical bottom
     
     f32 width_add, height_add;
     
-    width_add = screen_width * 0.5f;    
-    height_add = screen_height * 0.5f;    
+    width_add = context.cam.width * 0.5f;    
+    height_add = context.cam.height * 0.5f;    
     Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
 
     return to_center;
@@ -8105,24 +8063,24 @@ inline Vector2 rect_screen_pos(Vector2 position, Vector2 scale, Vector2 pivot){
 
 void draw_game_circle(Vector2 position, f32 radius, Color color){
     Vector2 screen_pos = world_to_screen(position);
-    draw_circle(screen_pos, radius * UNIT_SIZE, color);
+    draw_circle(screen_pos, radius * context.cam.unit_size, color);
 }
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect(screen_pos, multiply(scale, UNIT_SIZE), color);
+    draw_rect(screen_pos, multiply(scale, context.cam.unit_size), color);
 }
 
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
     //Vector2 screen_pos = world_to_screen(position);
-    draw_rect_lines(screen_pos, scale * UNIT_SIZE, thick, color);
+    draw_rect_lines(screen_pos, scale * context.cam.unit_size, thick, color);
 }
 
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
     //Vector2 screen_pos = world_to_screen(position);
-    draw_rect_lines(screen_pos, scale * UNIT_SIZE, color);
+    draw_rect_lines(screen_pos, scale * context.cam.unit_size, color);
 }
 
 void draw_game_line_strip(Entity *entity, Color color){
@@ -8165,7 +8123,7 @@ inline void draw_game_triangle_strip(Entity *entity){
 
 void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, {0, 0});
-    draw_rect(screen_pos, multiply(scale, UNIT_SIZE), pivot, rotation, color);
+    draw_rect(screen_pos, multiply(scale, context.cam.unit_size), pivot, rotation, color);
 }
 
 void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
@@ -8173,15 +8131,22 @@ void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
     draw_text(text, screen_pos, size, color);
 }
 
-void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
-    //Vector2 screen_pos = rect_screen_pos(position, {(float)tex.width / UNIT_SIZE, (f32)tex.height / UNIT_SIZE}, pivot);
+void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip){
+    //Vector2 screen_pos = rect_screen_pos(position, {(float)tex.width / context.cam.unit_size, (f32)tex.height / context.cam.unit_size}, pivot);
     // Vector2 screen_pos = world_to_screen(position);
     Vector2 screen_pos = world_to_screen(position);
-    draw_texture(tex, screen_pos, transform_texture_scale(tex, scale), pivot, rotation, color);
+    draw_texture(tex, screen_pos, transform_texture_scale(tex, scale), pivot, rotation, color, flip);
+}
+
+void draw_game_texture_full(Texture tex, Vector2 position, Vector2 pivot, f32 rotation, Color color){
+    //Vector2 screen_pos = rect_screen_pos(position, {(float)tex.width / context.cam.unit_size, (f32)tex.height / context.cam.unit_size}, pivot);
+    // Vector2 screen_pos = world_to_screen(position);
+    Vector2 screen_pos = world_to_screen(position);
+    draw_texture(tex, screen_pos, {6.0f, 6.0f}, pivot, rotation, color, true);
 }
 
 void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
-    draw_line(world_to_screen(start), world_to_screen(end), thick * UNIT_SIZE, color);
+    draw_line(world_to_screen(start), world_to_screen(end), thick * context.cam.unit_size, color);
 }
 
 void draw_game_line(Vector2 start, Vector2 end, Color color){
@@ -8189,7 +8154,7 @@ void draw_game_line(Vector2 start, Vector2 end, Color color){
 }
 
 void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle, f32 end_angle){
-    draw_ring_lines(world_to_screen(center), inner_radius * UNIT_SIZE, outer_radius * UNIT_SIZE, segments, color);
+    draw_ring_lines(world_to_screen(center), inner_radius * context.cam.unit_size, outer_radius * context.cam.unit_size, segments, color);
 }
 
 void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color){
@@ -8203,7 +8168,7 @@ f32 zoom_unit_size(){
         zoom = 1;
     }
 
-    return UNIT_SIZE / zoom;
+    return context.cam.unit_size / zoom;
 }
 
 Vector2 get_left_up_no_rot(Entity *e){

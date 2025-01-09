@@ -28,7 +28,9 @@ Vector2 mouse_position = Vector2_zero;
 int screen_width = 1600;
 int screen_height = 900;
 
-#define UNIT_SIZE (screen_width / 150.0f)
+#define SCREEN_WORLD_SIZE 150.0f
+
+// #define UNIT_SIZE (screen_width / 150.0f)
 
 //reference 1920x1080 (1500)
 #define UI_SCALING ((screen_width * 0.5f + screen_height * 0.5f) * 0.00066666f) // like / 1500.0f

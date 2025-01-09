@@ -15,7 +15,7 @@ out vec4 finalColor;
 
 void get_surface(vec2 uv, out float emissive, out vec3 colour)
 {	
-    vec2 gi_uv = vec2(uv.x * 0.5 + 0.25, uv.y * 0.5 + 0.25);
+    vec2 gi_uv = vec2(uv.x, uv.y);
     vec4 emissive_data = texture(u_gi_data, gi_uv);
     emissive = max(emissive_data.r, max(emissive_data.g, emissive_data.b)) * u_emission_multi;
     colour = emissive_data.rgb;
