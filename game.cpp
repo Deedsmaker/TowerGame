@@ -1803,7 +1803,7 @@ void init_game(){
     jump_flood_shader = LoadShader(0, "../jump_flood.fs");
     distance_field_shader = LoadShader(0, "../distance_field.fs");
     
-    global_illumination_rt = LoadRenderTexture(screen_width * 0.5f, screen_height * 0.5f);
+    global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
     global_illumination_shader = LoadShader(0, "../global_illumination1.fs");
     
     final_light_rt = LoadRenderTexture(screen_width, screen_height);
@@ -7661,6 +7661,7 @@ void apply_shake(){
 }
 
 Cam saved_cam;
+Cam with_shake_cam;
 
 void draw_game(){
     // if (game_state == GAME){
@@ -7675,47 +7676,71 @@ void draw_game(){
     saved_cam = context.cam;
 
     apply_shake();
+    
+    with_shake_cam = context.cam;
 
-    local_persist RenderTexture test_light_rt = LoadRenderTexture(256, 256);
+    local_persist RenderTexture test_light_rt = LoadRenderTexture(512, 512);
     local_persist f32 test_light_zoom;
     Vector2 test_light_position = editor.player_spawn_point;
+    if (player_entity){
+        test_light_position = player_entity->position;
+    }
     
+    local_persist Texture smooth_circle_texture = get_texture("SmoothCircle.png");
+    
+    local_persist Shader smooth_edges_shader = LoadShader(0, "../smooth_edges.fs");
+    
+    Vector2 texture_size = {512, 512};
     BeginTextureMode(test_light_rt);{
-        ClearBackground({0, 0, 0, 0});
-        context.cam = get_cam_for_resolution(256, 256);
+        // ClearBackground({0, 0, 0, 0});
+        ClearBackground(Fade(WHITE, 0));
+        context.cam = get_cam_for_resolution(512, 512);
         context.cam.position = test_light_position;
         context.cam.cam2D.zoom = 1.0f;
         BeginMode2D(context.cam.cam2D);
+        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 1.0f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.1f));
         ForEntities(entity, GROUND){
-            draw_game_triangle_strip(entity, Fade(BLACK, 0.8f));
+            draw_game_triangle_strip(entity, BLACK);
         }
+        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.1f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.1f));
+        draw_particles();
         EndMode2D();
-        context.cam = saved_cam;
+        context.cam = with_shake_cam;
     }EndTextureMode();
     
-        f32 mult = 0.02f;
-        for (int i = 0; i < 8; i++, mult *= 2){
+        assert(texture_size.x >= 1);
+        f32 mult = 2.0f / texture_size.x;
+        for (; ; mult *= 2){
+            
             BeginTextureMode(test_light_rt);{
-            draw_texture(test_light_rt.texture, {128, 128}, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.9f), true);
+            // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.7f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.0f));
+            draw_texture(test_light_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
             }EndTextureMode();
+            
+            if (mult >= 2){
+                break;
+            }
         }
         
-    local_persist RenderTexture back_light_test_rt = LoadRenderTexture(256, 256);
-    // local_persist RenderTexture back_light_test_rt2 = LoadRenderTexture(256, 256);
+    local_persist RenderTexture back_light_test_rt = LoadRenderTexture(512, 512);
+    // local_persist RenderTexture back_light_test_rt2 = LoadRenderTexture(512, 512);
         
     BeginTextureMode(back_light_test_rt);{
         ClearBackground({0, 0, 0, 0});
-        context.cam = get_cam_for_resolution(256, 256);
+        context.cam = get_cam_for_resolution(512, 512);
         context.cam.position = test_light_position;
         context.cam.cam2D.zoom = 1.0f;
         BeginMode2D(context.cam.cam2D);
         ForEntities(entity, ENEMY){
+            // draw_circle(texture_size * 0.5f, texture_size.x * 0.4f, Fade(WHITE, 0.1f));
             draw_game_triangle_strip(entity, Fade(BLACK, 0.7f));
         }
         EndMode2D();
         
-        draw_texture(back_light_test_rt.texture, {128, 128}, {1.0f + 0.1f, 1.0f + 0.1f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
-        context.cam = saved_cam;
+        // draw_circle(texture_size * 0.5f, texture_size.x * 0.4f, Fade(WHITE, 0.1f));
+        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 2.8f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.4f));
+        draw_texture(back_light_test_rt.texture, {256, 256}, {1.0f + 0.1f, 1.0f + 0.1f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
+        context.cam = with_shake_cam;
     }; EndTextureMode();
 
     BeginDrawing();
@@ -7763,17 +7788,29 @@ void draw_game(){
     EndTextureMode();
 
     BeginTextureMode(global_illumination_rt);{
-        ClearBackground(WHITE);
-        context.cam = get_cam_for_resolution(screen_width * 0.5f, screen_height * 0.5f);
-        // context.cam.position = test_light_position;
-        // context.cam.cam2D.zoom = 1.0f;        
+        ClearBackground(Fade(ColorBrightness(SKYBLUE, -0.8f), 1));
+        // context.cam = get_cam_for_resolution(screen_width * 0.5f, screen_height * 0.5f);
         BeginMode2D(context.cam.cam2D);
-            // Vector2 scale = {test_light_rt.texture.width / context.cam.unit_size, test_light_rt.texture.height / context.cam.unit_size};
+        // BeginBlendMode(BLEND_ADDITIVE);
+            BeginShaderMode(smooth_edges_shader);
+            local_persist i32 my_pos_loc     = get_shader_location(smooth_edges_shader, "my_pos");
+            local_persist i32 my_size_loc    = get_shader_location(smooth_edges_shader, "my_size");
+            local_persist i32 gi_size_loc    = get_shader_location(smooth_edges_shader, "gi_size");
+            local_persist i32 gi_texture_loc = get_shader_location(smooth_edges_shader, "gi_texture");
+            
+            Vector2 lightmap_texture_pos = world_to_screen(test_light_position) - texture_size * 0.5f;
+            set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
+            set_shader_value(smooth_edges_shader, my_size_loc, texture_size);
+            set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
+            set_shader_value_tex(smooth_edges_shader, gi_texture_loc, global_illumination_rt.texture);
+            
+            // / 1.0f because zoom was 1.0 when we draw this lightmap
             draw_game_texture(test_light_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
-            draw_game_texture(back_light_test_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
-            // draw_game_texture(test_light_rt.texture, {1, 1}, WHITE);
+            // draw_game_texture(back_light_test_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
+            EndShaderMode();
+        // EndBlendMode();
         EndMode2D();
-        context.cam = saved_cam;
+        context.cam = with_shake_cam;
     }EndTextureMode();
 
     // draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
@@ -7785,7 +7822,7 @@ void draw_game(){
     
     
     //blur pass
-    i32 iterations = 4;
+    i32 iterations = 2;
     // prev = global_illumination_rt;
     // next = emitters_occluders_rt;
     
@@ -7807,6 +7844,7 @@ void draw_game(){
             // RenderTexture temp = prev;
             // prev = next;
             // next = temp;
+            EndShaderMode();
         }EndTextureMode();
     }
 
