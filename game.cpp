@@ -7679,7 +7679,8 @@ void draw_game(){
     
     with_shake_cam = context.cam;
 
-    local_persist RenderTexture test_light_rt = LoadRenderTexture(512, 512);
+    local_persist RenderTexture test_light_shadowmask = LoadRenderTexture(1024, 1024);
+    local_persist RenderTexture test_light_geometry = LoadRenderTexture(1024, 1024);
     local_persist f32 test_light_zoom;
     Vector2 test_light_position = editor.player_spawn_point;
     if (player_entity){
@@ -7690,11 +7691,11 @@ void draw_game(){
     
     local_persist Shader smooth_edges_shader = LoadShader(0, "../smooth_edges.fs");
     
-    Vector2 texture_size = {512, 512};
-    BeginTextureMode(test_light_rt);{
+    Vector2 texture_size = {1024, 1024};
+    BeginTextureMode(test_light_shadowmask);{
         // ClearBackground({0, 0, 0, 0});
         ClearBackground(Fade(WHITE, 0));
-        context.cam = get_cam_for_resolution(512, 512);
+        context.cam = get_cam_for_resolution(1024, 1024);
         context.cam.position = test_light_position;
         context.cam.cam2D.zoom = 1.0f;
         BeginMode2D(context.cam.cam2D);
@@ -7708,13 +7709,31 @@ void draw_game(){
         context.cam = with_shake_cam;
     }EndTextureMode();
     
+    BeginTextureMode(test_light_geometry);{
+        // ClearBackground({0, 0, 0, 0});
+        ClearBackground(Fade(BLACK, 0));
+        context.cam = get_cam_for_resolution(1024, 1024);
+        context.cam.position = test_light_position;
+        context.cam.cam2D.zoom = 1.0f;
+        BeginMode2D(context.cam.cam2D);
+        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 1.0f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.1f));
+        ForEntities(entity, GROUND){
+            draw_game_triangle_strip(entity, WHITE);
+        }
+        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.7f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.2f));
+        draw_particles();
+        EndMode2D();
+        context.cam = with_shake_cam;
+    }EndTextureMode();
+    
+    
         assert(texture_size.x >= 1);
         f32 mult = 2.0f / texture_size.x;
         for (; ; mult *= 2){
             
-            BeginTextureMode(test_light_rt);{
-            // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.7f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.0f));
-            draw_texture(test_light_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
+            BeginTextureMode(test_light_shadowmask);{
+            draw_texture(test_light_shadowmask.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
+            // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.1f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.05f));
             }EndTextureMode();
             
             if (mult >= 2){
@@ -7722,12 +7741,12 @@ void draw_game(){
             }
         }
         
-    local_persist RenderTexture back_light_test_rt = LoadRenderTexture(512, 512);
+    local_persist RenderTexture back_light_test_rt = LoadRenderTexture(texture_size.x, texture_size.y);
     // local_persist RenderTexture back_light_test_rt2 = LoadRenderTexture(512, 512);
         
     BeginTextureMode(back_light_test_rt);{
         ClearBackground({0, 0, 0, 0});
-        context.cam = get_cam_for_resolution(512, 512);
+        context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
         context.cam.position = test_light_position;
         context.cam.cam2D.zoom = 1.0f;
         BeginMode2D(context.cam.cam2D);
@@ -7739,7 +7758,7 @@ void draw_game(){
         
         // draw_circle(texture_size * 0.5f, texture_size.x * 0.4f, Fade(WHITE, 0.1f));
         // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 2.8f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.4f));
-        draw_texture(back_light_test_rt.texture, {256, 256}, {1.0f + 0.1f, 1.0f + 0.1f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
+        draw_texture(back_light_test_rt.texture, texture_size * 0.5f, {1.0f + 0.1f, 1.0f + 0.1f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
         context.cam = with_shake_cam;
     }; EndTextureMode();
 
@@ -7797,15 +7816,17 @@ void draw_game(){
             local_persist i32 my_size_loc    = get_shader_location(smooth_edges_shader, "my_size");
             local_persist i32 gi_size_loc    = get_shader_location(smooth_edges_shader, "gi_size");
             local_persist i32 gi_texture_loc = get_shader_location(smooth_edges_shader, "gi_texture");
+            local_persist i32 geometry_texture_loc = get_shader_location(smooth_edges_shader, "geometry_texture");
             
             Vector2 lightmap_texture_pos = world_to_screen(test_light_position) - texture_size * 0.5f;
             set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
             set_shader_value(smooth_edges_shader, my_size_loc, texture_size);
             set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
             set_shader_value_tex(smooth_edges_shader, gi_texture_loc, global_illumination_rt.texture);
+            set_shader_value_tex(smooth_edges_shader, geometry_texture_loc, test_light_geometry.texture);
             
             // / 1.0f because zoom was 1.0 when we draw this lightmap
-            draw_game_texture(test_light_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
+            draw_game_texture(test_light_shadowmask.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
             // draw_game_texture(back_light_test_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
             EndShaderMode();
         // EndBlendMode();
