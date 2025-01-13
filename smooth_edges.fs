@@ -14,18 +14,24 @@ uniform vec2 my_size;
 uniform vec2 gi_size;
 uniform sampler2D gi_texture;
 uniform sampler2D geometry_texture;
+uniform sampler2D light_texture;
+uniform sampler2D backshadows_texture;
 
 out vec4 finalColor;
 
 void main()
 {
     vec2 uv = fragTexCoord;
-    vec2 my_uv_pos = vec2(my_pos.x + uv.x * my_size.x, -my_pos.y + uv.y * my_size.y);
+    vec2 my_uv_pos = vec2(my_pos.x + uv.x * my_size.x, my_pos.y + uv.y * my_size.y);
     vec2 gi_uv = vec2(my_uv_pos.x / gi_size.x, my_uv_pos.y / gi_size.y);
 
+    vec4 light_texture_color = texture(light_texture, uv);
     vec4 current_color  = texture(texture0, uv);
-    vec4 gi_color       = texture(gi_texture, gi_uv);
-    vec4 geometry_color = texture(geometry_texture, uv);
+    current_color *= light_texture_color;
+    // current_color.a = alpha + light_texture_color.a;
+    vec4 gi_color          = texture(gi_texture, gi_uv);
+    vec4 geometry_color    = texture(geometry_texture, uv) * light_texture_color;
+    vec4 backshadows_color = texture(backshadows_texture, uv) * light_texture_color + geometry_color;
 
     float distance_to_center = distance(uv, vec2(0.5)) * 2;
     float t = 1.0 - (sqrt(distance_to_center));
@@ -35,8 +41,6 @@ void main()
     // current_color.rgb = mix(current_color.rgb, vec3(1, 1, 1), t);
     current_color += geometry_color;
     finalColor = mix(gi_color, gi_color + current_color, t);
+    finalColor *= backshadows_color;
     finalColor.a = t;
-    
-    // finalColor = vec4(uv.x, uv.y, 0, 1);
-    // finalColor.a = t;
 }

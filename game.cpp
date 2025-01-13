@@ -46,6 +46,22 @@ global_variable Hash_Table_Int<Sound_Handler> sounds_table = Hash_Table_Int<Soun
 Player last_player_data = {};
 Player death_player_data = {};
 
+void free_light(Entity *e){
+    if (e->light_index != -1 ){
+        // @OPTIMIZATION we actually don't want unload texture every time entity gets freed.
+        // I think we should mark it as non existing and when the next entity will search for light - check if this one already
+        // has index and size is the same and use it. We will free it when level gets unload.
+        Light *current_light = context.lights.get_ptr(e->light_index);           
+        if (current_light->exists){
+            UnloadRenderTexture(current_light->shadowmask_rt);
+            UnloadRenderTexture(current_light->geometry_rt);
+            UnloadRenderTexture(current_light->backshadows_rt);
+            
+            current_light->exists = false;
+        }
+    }
+}
+
 void free_entity(Entity *e){
     if (e->flags & TRIGGER){
         if (e->trigger.connected.max_count > 0){
@@ -83,6 +99,11 @@ void free_entity(Entity *e){
                 down_rope_point_entity->destroyed = true;
             }
         }
+    }
+    
+    // free light
+    if (e->flags & LIGHT){
+        free_light(e);
     }
 }
 
@@ -357,6 +378,10 @@ void clear_context(Context *c){
     c->entities.clear();
     c->particles.clear();
     c->emitters.clear();
+    
+    for (int i = 0; i < context.lights.max_count; i++){
+        *(context.lights.get_ptr(i)) = {};
+    }
     
     c->we_got_a_winner = false;
     player_data = {};
@@ -937,6 +962,7 @@ int load_level(const char *level_name){
             
             setup_color_changer(&entity_to_fill);
             Entity *added_entity = add_entity(&entity_to_fill, true);
+            init_entity(added_entity);
             //rotate_to(added_entity, added_entity->rotation);
             
             calculate_bounds(added_entity);
@@ -1457,10 +1483,45 @@ void init_entity(Entity *entity){
         entity->jump_shooter.flying_emitter = entity->emitters.add(rifle_bullet_emitter);
         entity->jump_shooter.flying_emitter->follow_entity = false;
         entity->enemy.gives_full_ammo = true;
+        
+        entity->flags |= LIGHT;
     }
     
     if (entity->flags & PHYSICS_OBJECT || entity->collision_flags == 0){
         entity->collision_flags |= GROUND | ENEMY | PLAYER;
+    }
+    
+    //init light
+    if (entity->flags & LIGHT){
+        if (entity->light_index != -1){
+            Light *current_light = context.lights.get_ptr(entity->light_index);           
+            UnloadRenderTexture(current_light->shadowmask_rt);
+            UnloadRenderTexture(current_light->geometry_rt);
+            UnloadRenderTexture(current_light->backshadows_rt);
+            current_light->exists = false;
+        }
+    
+        Light *new_light = NULL;
+        
+        for (int i = 0; i < context.lights.max_count; i++){
+            if (!context.lights.get_ptr(i)->exists){
+                new_light = context.lights.get_ptr(i);
+                entity->light_index = i;
+                break;
+            }
+        }
+        if (new_light){
+            new_light->exists = true;
+            if (new_light->make_shadows){
+                new_light->shadowmask_rt  = LoadRenderTexture(new_light->size, new_light->size);
+                new_light->geometry_rt    = LoadRenderTexture(new_light->size, new_light->size);
+                new_light->backshadows_rt = LoadRenderTexture(new_light->size, new_light->size);
+            }
+            
+            new_light->connected_entity_id = entity->id;
+        } else{
+            print("WARNING: Could not found light to init new, everyting was consumed");
+        }
     }
     
     setup_color_changer(entity);
@@ -1778,6 +1839,11 @@ void init_game(){
     game_state = EDITOR;
 
     context = {};    
+    //init context
+    for (int i = 0; i < context.lights.max_count; i++){
+        *(context.lights.get_ptr(i)) = {};
+    }
+    
     render = {};
     str_copy(context.current_level_name, "test_level");
     
@@ -1918,7 +1984,7 @@ void enter_game_state(){
     
     //copy_context(&saved_level_context, &context);
     
-    player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
+    player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER | LIGHT);
     player_entity->collision_flags = GROUND | ENEMY;
     player_entity->draw_order = 30;
     
@@ -1977,6 +2043,9 @@ void enter_game_state(){
     player_data.rifle_switch_sound->pitch_variation = 0.1f;
     
     player_data.ammo_count = last_player_data.ammo_count;
+    
+    init_entity(player_entity);
+    init_entity(sword_entity);
 }
 
 void kill_player(){
@@ -6477,6 +6546,17 @@ void update_entities(f32 dt){
             }
         }
         
+        //update light
+        if (e->flags & LIGHT){
+            if (e->light_index == -1){
+                print("WARNING: Entity with flag LIGHT don't have corresponding light index");
+            } else{
+                Light *light = context.lights.get_ptr(e->light_index);
+                light->position = e->position;
+            }
+        }
+
+        
         if (game_state == EDITOR || game_state == PAUSE){
             if (game_state == EDITOR){
                 update_editor_entity(e);
@@ -7096,6 +7176,373 @@ inline Vector2 get_shoot_stoper_cross_position(Entity *entity){
     return entity->position + entity->up * entity->scale.y * 0.85f;
 }
 
+void draw_entity(Entity *e){
+    if (!e || !context.entities.has_key(e->id)){
+        return;
+    }
+
+    if (!e->enabled/* || e->flags == -1*/){
+        return;
+    }
+    
+    if (e->flags & TEXTURE){
+        // draw texture
+        Vector2 position = e->position;
+        if (e->flags & STICKY_TEXTURE){
+            position = e->sticky_texture.texture_position;
+            e->scale = ((Vector2){3, 3}) / context.cam.cam2D.zoom; 
+        }
+        draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
+    }
+    
+    if (e->flags & GROUND || e->flags & PLATFORM || e->flags == 0 || e->flags & PROJECTILE){
+        // draw ground
+        if (e->vertices.count > 0){
+            draw_game_triangle_strip(e);
+        } else{
+            draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
+        }
+    }
+    
+    if (e->flags & PHYSICS_OBJECT){
+        // draw physics object
+        if (e->physics_object.on_rope && game_state == EDITOR){
+            Vector2 start_point = e->position + e->up * e->scale.y * 0.5f;
+            draw_game_line(start_point, e->physics_object.rope_point, 1, BLACK);
+        }
+    }
+    
+    if (e->flags & BLOCK_ROPE){
+        draw_game_triangle_strip(e);
+    }
+    
+    if (e->flags & ROPE_POINT){
+        draw_game_circle(e->position, e->scale.x * 0.8f, e->color);
+    }
+    
+    if (e->flags & DUMMY){
+        // draw dummy
+        draw_game_triangle_strip(e);
+        draw_game_line_strip(e, SKYBLUE);
+    }
+    
+    if (e->flags & PLAYER){
+        // draw player
+        draw_player(e);
+    }
+    
+    if (e->flags & SWORD){
+        // draw sword
+        draw_sword(e);
+    }
+    
+    if (e->flags & SHOOT_STOPER){
+        // draw shoot stoper
+        f32 line_width = e->scale.x * 0.1f;
+        Vector2 top = e->position + e->up * e->scale.y * 0.5f;
+        Vector2 cross_position = get_shoot_stoper_cross_position(e);
+        
+        draw_game_line(top, top + e->up * e->scale.y * 0.5f, line_width, BLACK);
+        draw_game_line(cross_position - e->right * e->scale.x * 0.6f, cross_position + e->right * e->scale.x * 0.6f, line_width, BLACK);
+    }
+    
+    // draw enemies
+    if (e->flags & BIRD_ENEMY){
+        draw_bird_enemy(e);
+    } else if (e->flags & CENTIPEDE_SEGMENT){
+        Color color = e->color;
+        if (e->enemy.dead_man){
+            //color = Fade(color, 0.3f);
+            color = Fade(BLACK, 0.3f);
+        }
+        draw_game_triangle_strip(e, color);
+        if (e->centipede_head->centipede.spikes_on_right){
+            draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
+        } else{
+            if (!e->enemy.dead_man){
+                draw_game_circle(e->position + e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+            }
+        }
+        if (e->centipede_head->centipede.spikes_on_left){
+            draw_spikes(e, e->up, e->right * -1.0f, e->scale.y, e->scale.x);
+        } else{
+            if (!e->enemy.dead_man){
+                draw_game_circle(e->position - e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+            }
+        }
+    } else if (e->flags & CENTIPEDE){
+        // draw centipede
+        draw_game_triangle_strip(e);
+    } else if (e->flags & JUMP_SHOOTER){
+        // draw jump shooter
+        
+        if (e->jump_shooter.states.charging){
+            f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
+            f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
+            e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, charging_t * charging_t);
+        }
+        if (e->jump_shooter.states.picking_point){
+            f32 picking_point_time = core.time.game_time - e->jump_shooter.states.picking_point_start_time;
+            f32 picking_point_t = picking_point_time / e->jump_shooter.max_picking_point_time;
+            e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, picking_point_t * picking_point_t);
+        }
+        if (e->jump_shooter.states.flying_to_point){
+            e->position += get_perlin_in_circle(25);
+        }
+
+        draw_game_triangle_strip(e);
+        
+        Color hint_color = Fade(ColorBrightness(WHITE, -0.2f), 0.8f);
+        Vector2 bullet_hint_position = e->position + e->up * e->scale.y * 0.6f;
+        Vector2 bullet_hint_scale = {e->scale.x * 0.7f, e->scale.y * 1.1f};
+        
+        if (e->jump_shooter.explosive_count > 0){
+            Color target_color = ColorBrightness(WHITE, 4);
+            f32 color_t = abs(sinf(core.time.game_time * 3));
+            hint_color = lerp(hint_color, target_color, color_t);
+            
+            if (e->jump_shooter.states.charging){
+                f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
+                f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
+                
+                f32 radius = lerp(0.0f, 40.0f, charging_t * charging_t);
+                draw_game_circle(bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f, radius, Fade(ORANGE, 0.1f));
+            }
+        }
+        
+        draw_game_texture(jump_shooter_bullet_hint_texture, bullet_hint_position, bullet_hint_scale, {0.5f, 1.0f}, e->rotation, hint_color);
+        
+        if (e->jump_shooter.shoot_bullet_blockers){
+            draw_game_ring_lines(bullet_hint_position + e->up * e->scale.y * 0.5f, 3, 6, 8, Fade(WHITE, 0.5f));                
+        }
+        
+        if (e->jump_shooter.shoot_sword_blockers){
+            if (e->jump_shooter.shoot_sword_blockers_immortal){
+                Vector2 center = bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f;
+                Vector2 triangle1 = {center.x, center.y + 5};
+                Vector2 triangle2 = {center.x - 5, center.y - 5};
+                Vector2 triangle3 = {center.x + 5, center.y - 5};
+                draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
+            } else{
+                Vector2 scale = {3, 3};
+                scale /= context.cam.cam2D.zoom;
+                Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+                draw_game_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
+            }
+        }
+        
+        // for (int i = 0; i < e->jump_shooter.move_points.count; i++){
+        //     draw_game_circle(e->jump_shooter.move_points.get(i).position, 3, PURPLE);
+        // }
+    } else if (e->flags & ENEMY){
+        draw_enemy(e);
+    }
+    
+    if (e->flags & WIN_BLOCK){
+        // draw_game_triangle_strip(e);
+        // Vector2 line_from = e->position - e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f - e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
+        // Vector2 line_to   = e->position + e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f + e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
+        // draw_game_line(line_from, line_to, 0.8f, PURPLE * 0.9f);
+    }
+    
+    if (e-> flags & DRAW_TEXT){
+        draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
+    }
+    
+    b32 should_draw_editor_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
+    
+    if (e->flags & TRIGGER){
+        // draw trigger
+        if (should_draw_editor_hints){
+            draw_game_line_strip(e, e->color);
+            draw_game_triangle_strip(e, Fade(e->color, 0.1f));
+            
+            // draw cam zoom trigger draw trigger zoom draw trigger cam
+            if (e->trigger.change_zoom){
+                Bounds cam_bounds = get_cam_bounds(context.cam, e->trigger.zoom_value);
+                Vector2 position = e->position;
+                if (e->trigger.lock_camera){
+                    position = e->trigger.locked_camera_position;
+                }
+                draw_game_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (context.cam.cam2D.zoom), Fade(PINK, 0.4f));
+            }
+            
+            if (e->trigger.lock_camera){
+                draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
+            }
+        }
+        
+        b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == e->id;
+        for (int ii = 0; ii < e->trigger.connected.count; ii++){
+            int id = e->trigger.connected.get(ii);
+            if (!context.entities.has_key(id)){
+                e->trigger.connected.remove(ii);
+                ii--;
+                continue;
+            }
+            Entity *connected_entity = context.entities.get_by_key_ptr(id);
+            
+            if (connected_entity->flags & DOOR && ((e->flags ^ TRIGGER) > 0 || game_state != GAME)){
+                Color color = connected_entity->door.is_open == e->trigger.open_doors ? SKYBLUE : ORANGE;
+                f32 width = connected_entity->door.is_open == e->trigger.open_doors ? 1.0f : 0.2f;
+                draw_game_line(e->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.6f));
+            } else if (is_trigger_selected && should_draw_editor_hints){
+                draw_game_line(e->position, connected_entity->position, RED);
+            }
+        }
+        for (int ii = 0; ii < e->trigger.tracking.count; ii++){
+            int id = e->trigger.tracking.get(ii);
+            if (!context.entities.has_key(id)){
+                e->trigger.tracking.remove(ii);
+                ii--;
+                continue;
+            }
+            Entity *connected_entity = context.entities.get_by_key_ptr(id);
+            
+            if (is_trigger_selected && should_draw_editor_hints){
+                draw_game_line(e->position, connected_entity->position, GREEN);
+            }
+        }
+    }
+    
+    if (e->flags & MOVE_SEQUENCE && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
+        //draw_game_line_strip(e->move_sequence.points.data, e->move_sequence.points.count, BLUE);
+        for (int ii = 0; ii < e->move_sequence.points.count; ii++){
+            Vector2 point = e->move_sequence.points.get(ii);
+            
+            Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.8f);
+            
+            if (IsKeyDown(KEY_LEFT_ALT)){
+                draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
+                draw_game_text(point - Vector2_up, TextFormat("%d", ii), 18 / context.cam.cam2D.zoom, RED);
+                
+                if (e->flags & JUMP_SHOOTER){
+                    Collision nearest_ground = get_nearest_ground_collision(point, 20);
+                    if (nearest_ground.collided){
+                        Collision ray_collision = raycast(point, normalized(nearest_ground.point - point), magnitude(nearest_ground.point - point), GROUND, 1);
+                        if (ray_collision.collided){
+                            draw_game_line(ray_collision.point, ray_collision.point + ray_collision.normal * 5, GREEN);
+                        }
+                    } else{
+                        draw_game_circle(point, 1 * (0.4f / context.cam.cam2D.zoom), RED);
+                    }
+                }
+            }
+            if (ii < e->move_sequence.points.count - 1){
+                draw_game_line(point, e->move_sequence.points.get(ii+1), color);
+            } else if (e->move_sequence.loop){
+                draw_game_line(point, e->move_sequence.points.get(0), color);
+            }
+        }
+    }
+    
+    if (e->flags & SPIKES && (!e->hidden || game_state != GAME)){
+        draw_spikes(e, e->right, e->up, e->scale.x, e->scale.y);
+    }
+    
+    if (e->flags & PLATFORM){
+        // draw platform
+        line_strip_points.clear();
+        f32 frequency = 6;
+        Vector2 start_position = e->position - e->right * e->scale.x * 0.5f + e->up * e->scale.y * 0.5f;
+        Vector2 end_position   = e->position + e->right * e->scale.x * 0.5f + e->up * e->scale.y * 0.5f;
+        
+        Vector2 vertical_removal = e->up * e->scale.y * -0.35f;
+        
+        Vector2 vec = end_position - start_position;
+        Vector2 dir = normalized(vec);
+        f32 len = magnitude(vec);
+        
+        line_strip_points.add(start_position - e->up * e->scale.y);
+        
+        b32 move = false;
+        for (f32 ii = 0; ii <= len - frequency * 0.8f; ii += frequency * 0.8f){
+            line_strip_points.add(start_position + dir * ii);
+            line_strip_points.add(start_position + dir * (ii + frequency * 0.8f));
+            line_strip_points.add(start_position + dir * (ii + frequency * 0.9f) + vertical_removal);
+            line_strip_points.add(start_position + dir * (ii + frequency));
+        
+            move = !move;
+            
+            ii += frequency * 0.2f;
+        }
+        
+        line_strip_points.add(end_position - e->up * e->scale.y);
+        
+        draw_game_line_strip(line_strip_points.data, line_strip_points.count, BROWN);
+    }
+    
+    if (e->flags & EXPLOSIVE){
+        draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
+    }
+    
+    if (e->flags & PROPELLER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
+        draw_game_line_strip(e, e->color);
+        draw_game_triangle_strip(e, e->color * 0.1f);
+        
+        // e->propeller.air_emitter->speed_multiplier = e->propeller.power / 50.0f;
+        // e->propeller.air_emitter->spawn_offset = e->up * e->scale.y * 0.25;
+        // e->propeller.air_emitter->spawn_area = {e->scale.x, e->scale.y * 0.5f};
+        // e->propeller.air_emitter->direction        = e->up;
+    }
+    
+    if (e->flags & BLOCKER && (game_state == EDITOR) && !e->enemy.blocker_immortal){
+        Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+        
+        draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
+    }
+    if (e->flags & BLOCKER && e->enemy.blocker_immortal){
+        Vector2 triangle1 = {e->position.x, e->position.y + 3};
+        Vector2 triangle2 = {e->position.x - 3, e->position.y - 3};
+        Vector2 triangle3 = {e->position.x + 3, e->position.y - 3};
+        draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
+    }
+    
+    if (e->flags & SHOOT_BLOCKER){
+        if (e->enemy.shoot_blocker_immortal){
+            draw_game_ring_lines(e->position, 3, 6, 8, WHITE);                
+        } else{
+            Vector2 direction = get_rotated_vector(e->enemy.shoot_blocker_direction, e->rotation);
+            Vector2 start_position = e->position - direction * e->scale.x * 0.6f;
+            Vector2 end_position   = e->position + direction * e->scale.x * 0.6f;
+            draw_game_line(start_position, end_position, 1.5f, VIOLET);
+        }
+    }
+    
+    if (e->flags & STICKY_TEXTURE){
+        // draw sticky texture
+        f32 lifetime = core.time.game_time - e->sticky_texture.birth_time;
+        f32 lifetime_t = 0.5f;
+        if (e->sticky_texture.max_lifetime > EPSILON){
+            lifetime_t = lifetime / e->sticky_texture.max_lifetime;
+        }
+    
+        if (e->sticky_texture.need_to_follow && player_entity){
+            Entity *follow_entity = context.entities.get_by_key_ptr(e->sticky_texture.follow_id);
+            Color line_color = e->sticky_texture.line_color;
+            if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
+                line_color = follow_entity->enemy.dead_man ? SKYBLUE : RED;
+            }
+
+            Vector2 vec_to_follow = e->sticky_texture.texture_position - player_entity->position;
+            f32 len = magnitude(vec_to_follow);
+            if (len <= e->sticky_texture.max_distance || e->sticky_texture.max_distance <= 0){
+                draw_game_line(player_entity->position, e->sticky_texture.texture_position, lerp(Fade(line_color, 0.8f), Fade(line_color, 0), lifetime_t * lifetime_t));
+            }
+        }
+    }
+    
+    if (game_state == EDITOR || debug.draw_up_right){
+        draw_game_line(e->position, e->position + e->right * 3, RED);
+        draw_game_line(e->position, e->position + e->up    * 3, GREEN);
+    }
+    
+    if (debug.draw_bounds || editor.selected_entity && (game_state == EDITOR || game_state == PAUSE) && e->id == editor.selected_entity->id){
+        draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / context.cam.cam2D.zoom, GREEN);
+        //draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
+    }
+}
+
 void draw_entities(){
     fill_entities_draw_queue();
 
@@ -7108,373 +7555,8 @@ void draw_entities(){
         // }
         
         Entity *e = entities->get_ptr(entity_index);
-        if (!e || !context.entities.has_key(e->id)){
-            continue;
-        }
-    
-        if (!e->enabled/* || e->flags == -1*/){
-            continue;
-        }
         
-        if (e->flags & TEXTURE){
-            // draw texture
-            Vector2 position = e->position;
-            if (e->flags & STICKY_TEXTURE){
-                position = e->sticky_texture.texture_position;
-                e->scale = ((Vector2){3, 3}) / context.cam.cam2D.zoom; 
-            }
-            draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
-        }
-        
-        if (e->flags & GROUND || e->flags & PLATFORM || e->flags == 0 || e->flags & PROJECTILE){
-            // draw ground
-            if (e->vertices.count > 0){
-                draw_game_triangle_strip(e);
-            } else{
-                draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
-            }
-        }
-        
-        if (e->flags & PHYSICS_OBJECT){
-            // draw physics object
-            if (e->physics_object.on_rope && game_state == EDITOR){
-                Vector2 start_point = e->position + e->up * e->scale.y * 0.5f;
-                draw_game_line(start_point, e->physics_object.rope_point, 1, BLACK);
-            }
-        }
-        
-        if (e->flags & BLOCK_ROPE){
-            draw_game_triangle_strip(e);
-        }
-        
-        if (e->flags & ROPE_POINT){
-            draw_game_circle(e->position, e->scale.x * 0.8f, e->color);
-        }
-        
-        if (e->flags & DUMMY){
-            // draw dummy
-            draw_game_triangle_strip(e);
-            draw_game_line_strip(e, SKYBLUE);
-        }
-        
-        if (e->flags & PLAYER){
-            // draw player
-            draw_player(e);
-        }
-        
-        if (e->flags & SWORD){
-            // draw sword
-            draw_sword(e);
-        }
-        
-        if (e->flags & SHOOT_STOPER){
-            // draw shoot stoper
-            f32 line_width = e->scale.x * 0.1f;
-            Vector2 top = e->position + e->up * e->scale.y * 0.5f;
-            Vector2 cross_position = get_shoot_stoper_cross_position(e);
-            
-            draw_game_line(top, top + e->up * e->scale.y * 0.5f, line_width, BLACK);
-            draw_game_line(cross_position - e->right * e->scale.x * 0.6f, cross_position + e->right * e->scale.x * 0.6f, line_width, BLACK);
-        }
-        
-        // draw enemies
-        if (e->flags & BIRD_ENEMY){
-            draw_bird_enemy(e);
-        } else if (e->flags & CENTIPEDE_SEGMENT){
-            Color color = e->color;
-            if (e->enemy.dead_man){
-                //color = Fade(color, 0.3f);
-                color = Fade(BLACK, 0.3f);
-            }
-            draw_game_triangle_strip(e, color);
-            if (e->centipede_head->centipede.spikes_on_right){
-                draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
-            } else{
-                if (!e->enemy.dead_man){
-                    draw_game_circle(e->position + e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
-                }
-            }
-            if (e->centipede_head->centipede.spikes_on_left){
-                draw_spikes(e, e->up, e->right * -1.0f, e->scale.y, e->scale.x);
-            } else{
-                if (!e->enemy.dead_man){
-                    draw_game_circle(e->position - e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
-                }
-            }
-        } else if (e->flags & CENTIPEDE){
-            // draw centipede
-            draw_game_triangle_strip(e);
-        } else if (e->flags & JUMP_SHOOTER){
-            // draw jump shooter
-            
-            if (e->jump_shooter.states.charging){
-                f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
-                f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
-                e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, charging_t * charging_t);
-            }
-            if (e->jump_shooter.states.picking_point){
-                f32 picking_point_time = core.time.game_time - e->jump_shooter.states.picking_point_start_time;
-                f32 picking_point_t = picking_point_time / e->jump_shooter.max_picking_point_time;
-                e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, picking_point_t * picking_point_t);
-            }
-            if (e->jump_shooter.states.flying_to_point){
-                e->position += get_perlin_in_circle(25);
-            }
-    
-            draw_game_triangle_strip(e);
-            
-            Color hint_color = Fade(ColorBrightness(WHITE, -0.2f), 0.8f);
-            Vector2 bullet_hint_position = e->position + e->up * e->scale.y * 0.6f;
-            Vector2 bullet_hint_scale = {e->scale.x * 0.7f, e->scale.y * 1.1f};
-            
-            if (e->jump_shooter.explosive_count > 0){
-                Color target_color = ColorBrightness(WHITE, 4);
-                f32 color_t = abs(sinf(core.time.game_time * 3));
-                hint_color = lerp(hint_color, target_color, color_t);
-                
-                if (e->jump_shooter.states.charging){
-                    f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
-                    f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
-                    
-                    f32 radius = lerp(0.0f, 40.0f, charging_t * charging_t);
-                    draw_game_circle(bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f, radius, Fade(ORANGE, 0.1f));
-                }
-            }
-            
-            draw_game_texture(jump_shooter_bullet_hint_texture, bullet_hint_position, bullet_hint_scale, {0.5f, 1.0f}, e->rotation, hint_color);
-            
-            if (e->jump_shooter.shoot_bullet_blockers){
-                draw_game_ring_lines(bullet_hint_position + e->up * e->scale.y * 0.5f, 3, 6, 8, Fade(WHITE, 0.5f));                
-            }
-            
-            if (e->jump_shooter.shoot_sword_blockers){
-                if (e->jump_shooter.shoot_sword_blockers_immortal){
-                    Vector2 center = bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f;
-                    Vector2 triangle1 = {center.x, center.y + 5};
-                    Vector2 triangle2 = {center.x - 5, center.y - 5};
-                    Vector2 triangle3 = {center.x + 5, center.y - 5};
-                    draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
-                } else{
-                    Vector2 scale = {3, 3};
-                    scale /= context.cam.cam2D.zoom;
-                    Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-                    draw_game_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
-                }
-            }
-            
-            // for (int i = 0; i < e->jump_shooter.move_points.count; i++){
-            //     draw_game_circle(e->jump_shooter.move_points.get(i).position, 3, PURPLE);
-            // }
-        } else if (e->flags & ENEMY){
-            draw_enemy(e);
-        }
-        
-        if (e->flags & WIN_BLOCK){
-            // draw_game_triangle_strip(e);
-            // Vector2 line_from = e->position - e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f - e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
-            // Vector2 line_to   = e->position + e->up * e->win_block.kill_direction.y * e->scale.y * 0.5f + e->right * e->win_block.kill_direction.x * e->scale.x * 0.5f;
-            // draw_game_line(line_from, line_to, 0.8f, PURPLE * 0.9f);
-        }
-        
-        if (e-> flags & DRAW_TEXT){
-            draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
-        }
-        
-        b32 should_draw_editor_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
-        
-        if (e->flags & TRIGGER){
-            // draw trigger
-            if (should_draw_editor_hints){
-                draw_game_line_strip(e, e->color);
-                draw_game_triangle_strip(e, Fade(e->color, 0.1f));
-                
-                // draw cam zoom trigger draw trigger zoom draw trigger cam
-                if (e->trigger.change_zoom){
-                    Bounds cam_bounds = get_cam_bounds(context.cam, e->trigger.zoom_value);
-                    Vector2 position = e->position;
-                    if (e->trigger.lock_camera){
-                        position = e->trigger.locked_camera_position;
-                    }
-                    draw_game_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (context.cam.cam2D.zoom), Fade(PINK, 0.4f));
-                }
-                
-                if (e->trigger.lock_camera){
-                    draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
-                }
-            }
-            
-            b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == e->id;
-            for (int ii = 0; ii < e->trigger.connected.count; ii++){
-                int id = e->trigger.connected.get(ii);
-                if (!context.entities.has_key(id)){
-                    e->trigger.connected.remove(ii);
-                    ii--;
-                    continue;
-                }
-                Entity *connected_entity = context.entities.get_by_key_ptr(id);
-                
-                if (connected_entity->flags & DOOR && ((e->flags ^ TRIGGER) > 0 || game_state != GAME)){
-                    Color color = connected_entity->door.is_open == e->trigger.open_doors ? SKYBLUE : ORANGE;
-                    f32 width = connected_entity->door.is_open == e->trigger.open_doors ? 1.0f : 0.2f;
-                    draw_game_line(e->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.6f));
-                } else if (is_trigger_selected && should_draw_editor_hints){
-                    draw_game_line(e->position, connected_entity->position, RED);
-                }
-            }
-            for (int ii = 0; ii < e->trigger.tracking.count; ii++){
-                int id = e->trigger.tracking.get(ii);
-                if (!context.entities.has_key(id)){
-                    e->trigger.tracking.remove(ii);
-                    ii--;
-                    continue;
-                }
-                Entity *connected_entity = context.entities.get_by_key_ptr(id);
-                
-                if (is_trigger_selected && should_draw_editor_hints){
-                    draw_game_line(e->position, connected_entity->position, GREEN);
-                }
-            }
-        }
-        
-        if (e->flags & MOVE_SEQUENCE && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
-            //draw_game_line_strip(e->move_sequence.points.data, e->move_sequence.points.count, BLUE);
-            for (int ii = 0; ii < e->move_sequence.points.count; ii++){
-                Vector2 point = e->move_sequence.points.get(ii);
-                
-                Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.8f);
-                
-                if (IsKeyDown(KEY_LEFT_ALT)){
-                    draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
-                    draw_game_text(point - Vector2_up, TextFormat("%d", ii), 18 / context.cam.cam2D.zoom, RED);
-                    
-                    if (e->flags & JUMP_SHOOTER){
-                        Collision nearest_ground = get_nearest_ground_collision(point, 20);
-                        if (nearest_ground.collided){
-                            Collision ray_collision = raycast(point, normalized(nearest_ground.point - point), magnitude(nearest_ground.point - point), GROUND, 1);
-                            if (ray_collision.collided){
-                                draw_game_line(ray_collision.point, ray_collision.point + ray_collision.normal * 5, GREEN);
-                            }
-                        } else{
-                            draw_game_circle(point, 1 * (0.4f / context.cam.cam2D.zoom), RED);
-                        }
-                    }
-                }
-                if (ii < e->move_sequence.points.count - 1){
-                    draw_game_line(point, e->move_sequence.points.get(ii+1), color);
-                } else if (e->move_sequence.loop){
-                    draw_game_line(point, e->move_sequence.points.get(0), color);
-                }
-            }
-        }
-        
-        if (e->flags & SPIKES && (!e->hidden || game_state != GAME)){
-            draw_spikes(e, e->right, e->up, e->scale.x, e->scale.y);
-        }
-        
-        if (e->flags & PLATFORM){
-            // draw platform
-            line_strip_points.clear();
-            f32 frequency = 6;
-            Vector2 start_position = e->position - e->right * e->scale.x * 0.5f + e->up * e->scale.y * 0.5f;
-            Vector2 end_position   = e->position + e->right * e->scale.x * 0.5f + e->up * e->scale.y * 0.5f;
-            
-            Vector2 vertical_removal = e->up * e->scale.y * -0.35f;
-            
-            Vector2 vec = end_position - start_position;
-            Vector2 dir = normalized(vec);
-            f32 len = magnitude(vec);
-            
-            line_strip_points.add(start_position - e->up * e->scale.y);
-            
-            b32 move = false;
-            for (f32 ii = 0; ii <= len - frequency * 0.8f; ii += frequency * 0.8f){
-                line_strip_points.add(start_position + dir * ii);
-                line_strip_points.add(start_position + dir * (ii + frequency * 0.8f));
-                line_strip_points.add(start_position + dir * (ii + frequency * 0.9f) + vertical_removal);
-                line_strip_points.add(start_position + dir * (ii + frequency));
-            
-                move = !move;
-                
-                ii += frequency * 0.2f;
-            }
-            
-            line_strip_points.add(end_position - e->up * e->scale.y);
-            
-            draw_game_line_strip(line_strip_points.data, line_strip_points.count, BROWN);
-        }
-        
-        if (e->flags & EXPLOSIVE){
-            draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
-        }
-        
-        if (e->flags & PROPELLER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
-            draw_game_line_strip(e, e->color);
-            draw_game_triangle_strip(e, e->color * 0.1f);
-            
-            // e->propeller.air_emitter->speed_multiplier = e->propeller.power / 50.0f;
-            // e->propeller.air_emitter->spawn_offset = e->up * e->scale.y * 0.25;
-            // e->propeller.air_emitter->spawn_area = {e->scale.x, e->scale.y * 0.5f};
-            // e->propeller.air_emitter->direction        = e->up;
-        }
-        
-        if (e->flags & BLOCKER && (game_state == EDITOR) && !e->enemy.blocker_immortal){
-            Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-            
-            draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
-        }
-        if (e->flags & BLOCKER && e->enemy.blocker_immortal){
-            Vector2 triangle1 = {e->position.x, e->position.y + 3};
-            Vector2 triangle2 = {e->position.x - 3, e->position.y - 3};
-            Vector2 triangle3 = {e->position.x + 3, e->position.y - 3};
-            draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
-        }
-        
-        if (e->flags & SHOOT_BLOCKER){
-            if (e->enemy.shoot_blocker_immortal){
-                draw_game_ring_lines(e->position, 3, 6, 8, WHITE);                
-            } else{
-                Vector2 direction = get_rotated_vector(e->enemy.shoot_blocker_direction, e->rotation);
-                Vector2 start_position = e->position - direction * e->scale.x * 0.6f;
-                Vector2 end_position   = e->position + direction * e->scale.x * 0.6f;
-                draw_game_line(start_position, end_position, 1.5f, VIOLET);
-            }
-        }
-        
-        if (e->flags & STICKY_TEXTURE){
-            // draw sticky texture
-            f32 lifetime = core.time.game_time - e->sticky_texture.birth_time;
-            f32 lifetime_t = 0.5f;
-            if (e->sticky_texture.max_lifetime > EPSILON){
-                lifetime_t = lifetime / e->sticky_texture.max_lifetime;
-            }
-        
-            if (e->sticky_texture.need_to_follow && player_entity){
-                Entity *follow_entity = context.entities.get_by_key_ptr(e->sticky_texture.follow_id);
-                Color line_color = e->sticky_texture.line_color;
-                if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
-                    line_color = follow_entity->enemy.dead_man ? SKYBLUE : RED;
-                }
-
-                Vector2 vec_to_follow = e->sticky_texture.texture_position - player_entity->position;
-                f32 len = magnitude(vec_to_follow);
-                if (len <= e->sticky_texture.max_distance || e->sticky_texture.max_distance <= 0){
-                    draw_game_line(player_entity->position, e->sticky_texture.texture_position, lerp(Fade(line_color, 0.8f), Fade(line_color, 0), lifetime_t * lifetime_t));
-                }
-            }
-        }
-        
-        if (e->flags & TEST){
-        }
-        
-        if (game_state == EDITOR || debug.draw_up_right){
-            draw_game_line(e->position, e->position + e->right * 3, RED);
-            draw_game_line(e->position, e->position + e->up    * 3, GREEN);
-        }
-        
-        if (debug.draw_bounds || editor.selected_entity && (game_state == EDITOR || game_state == PAUSE) && e->id == editor.selected_entity->id){
-            draw_game_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / context.cam.cam2D.zoom, GREEN);
-            //draw_game_text(e->position, TextFormat("{%.2f, %.2f}", e->bounds.offset.x, e->bounds.offset.y), 22, PURPLE);
-        }
+        draw_entity(e);
     }
 }
 
@@ -7679,89 +7761,8 @@ void draw_game(){
     
     with_shake_cam = context.cam;
 
-    local_persist RenderTexture test_light_shadowmask = LoadRenderTexture(1024, 1024);
-    local_persist RenderTexture test_light_geometry = LoadRenderTexture(1024, 1024);
-    local_persist f32 test_light_zoom;
-    Vector2 test_light_position = editor.player_spawn_point;
-    if (player_entity){
-        test_light_position = player_entity->position;
-    }
-    
-    local_persist Texture smooth_circle_texture = get_texture("SmoothCircle.png");
-    
     local_persist Shader smooth_edges_shader = LoadShader(0, "../smooth_edges.fs");
     
-    Vector2 texture_size = {1024, 1024};
-    BeginTextureMode(test_light_shadowmask);{
-        // ClearBackground({0, 0, 0, 0});
-        ClearBackground(Fade(WHITE, 0));
-        context.cam = get_cam_for_resolution(1024, 1024);
-        context.cam.position = test_light_position;
-        context.cam.cam2D.zoom = 1.0f;
-        BeginMode2D(context.cam.cam2D);
-        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 1.0f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.1f));
-        ForEntities(entity, GROUND){
-            draw_game_triangle_strip(entity, BLACK);
-        }
-        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.1f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.1f));
-        draw_particles();
-        EndMode2D();
-        context.cam = with_shake_cam;
-    }EndTextureMode();
-    
-    BeginTextureMode(test_light_geometry);{
-        // ClearBackground({0, 0, 0, 0});
-        ClearBackground(Fade(BLACK, 0));
-        context.cam = get_cam_for_resolution(1024, 1024);
-        context.cam.position = test_light_position;
-        context.cam.cam2D.zoom = 1.0f;
-        BeginMode2D(context.cam.cam2D);
-        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 1.0f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.1f));
-        ForEntities(entity, GROUND){
-            draw_game_triangle_strip(entity, WHITE);
-        }
-        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.7f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.2f));
-        draw_particles();
-        EndMode2D();
-        context.cam = with_shake_cam;
-    }EndTextureMode();
-    
-    
-        assert(texture_size.x >= 1);
-        f32 mult = 2.0f / texture_size.x;
-        for (; ; mult *= 2){
-            
-            BeginTextureMode(test_light_shadowmask);{
-            draw_texture(test_light_shadowmask.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
-            // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 0.1f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.05f));
-            }EndTextureMode();
-            
-            if (mult >= 2){
-                break;
-            }
-        }
-        
-    local_persist RenderTexture back_light_test_rt = LoadRenderTexture(texture_size.x, texture_size.y);
-    // local_persist RenderTexture back_light_test_rt2 = LoadRenderTexture(512, 512);
-        
-    BeginTextureMode(back_light_test_rt);{
-        ClearBackground({0, 0, 0, 0});
-        context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
-        context.cam.position = test_light_position;
-        context.cam.cam2D.zoom = 1.0f;
-        BeginMode2D(context.cam.cam2D);
-        ForEntities(entity, ENEMY){
-            // draw_circle(texture_size * 0.5f, texture_size.x * 0.4f, Fade(WHITE, 0.1f));
-            draw_game_triangle_strip(entity, Fade(BLACK, 0.7f));
-        }
-        EndMode2D();
-        
-        // draw_circle(texture_size * 0.5f, texture_size.x * 0.4f, Fade(WHITE, 0.1f));
-        // draw_texture(smooth_circle_texture, texture_size * 0.5f, Vector2_one * 2.8f, {0.5f, 0.5f}, 0, Fade(WHITE, 0.4f));
-        draw_texture(back_light_test_rt.texture, texture_size * 0.5f, {1.0f + 0.1f, 1.0f + 0.1f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
-        context.cam = with_shake_cam;
-    }; EndTextureMode();
-
     BeginDrawing();
     // BeginShaderMode(render.test_shader);
     BeginTextureMode(render.main_render_texture);
@@ -7806,34 +7807,122 @@ void draw_game(){
     EndMode2D();
     EndTextureMode();
 
+    //Light render pass
     BeginTextureMode(global_illumination_rt);{
-        ClearBackground(Fade(ColorBrightness(SKYBLUE, -0.8f), 1));
-        // context.cam = get_cam_for_resolution(screen_width * 0.5f, screen_height * 0.5f);
-        BeginMode2D(context.cam.cam2D);
-        // BeginBlendMode(BLEND_ADDITIVE);
-            BeginShaderMode(smooth_edges_shader);
-            local_persist i32 my_pos_loc     = get_shader_location(smooth_edges_shader, "my_pos");
-            local_persist i32 my_size_loc    = get_shader_location(smooth_edges_shader, "my_size");
-            local_persist i32 gi_size_loc    = get_shader_location(smooth_edges_shader, "gi_size");
-            local_persist i32 gi_texture_loc = get_shader_location(smooth_edges_shader, "gi_texture");
-            local_persist i32 geometry_texture_loc = get_shader_location(smooth_edges_shader, "geometry_texture");
-            
-            Vector2 lightmap_texture_pos = world_to_screen(test_light_position) - texture_size * 0.5f;
-            set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
-            set_shader_value(smooth_edges_shader, my_size_loc, texture_size);
-            set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
-            set_shader_value_tex(smooth_edges_shader, gi_texture_loc, global_illumination_rt.texture);
-            set_shader_value_tex(smooth_edges_shader, geometry_texture_loc, test_light_geometry.texture);
-            
-            // / 1.0f because zoom was 1.0 when we draw this lightmap
-            draw_game_texture(test_light_shadowmask.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
-            // draw_game_texture(back_light_test_rt.texture, test_light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
-            EndShaderMode();
-        // EndBlendMode();
-        EndMode2D();
-        context.cam = with_shake_cam;
-    }EndTextureMode();
+        ClearBackground(Fade(ColorBrightness(SKYBLUE, -0.6f), 1));
+    } EndTextureMode();
 
+    for (int i = 0; i < context.lights.max_count; i++){
+        Light light = context.lights.get(i);
+        
+        if (!light.exists){
+            continue;
+        }
+        
+        Vector2 light_position = light.position;
+        local_persist Texture smooth_circle_texture = get_texture("SmoothCircle.png");
+        
+        Vector2 texture_size = {(f32)light.size, (f32)light.size};
+        BeginTextureMode(light.shadowmask_rt);{
+            ClearBackground(Fade(WHITE, 0));
+            context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
+            context.cam.position = light_position;
+            context.cam.cam2D.zoom = light.zoom;
+            BeginMode2D(context.cam.cam2D);
+            ForEntities(entity, GROUND){
+                Color prev_color = entity->color;
+                change_color(entity, BLACK);
+                draw_entity(entity);
+                change_color(entity, prev_color);
+            }
+            draw_particles();
+            EndMode2D();
+            context.cam = with_shake_cam;
+        }EndTextureMode();
+        
+        BeginTextureMode(light.geometry_rt);{
+            ClearBackground(Fade(BLACK, 0));
+            context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
+            context.cam.position = light_position;
+            context.cam.cam2D.zoom = light.zoom;
+            BeginMode2D(context.cam.cam2D);
+            ForEntities(entity, GROUND | ENEMY){
+                Color prev_color = entity->color;
+                change_color(entity, WHITE);
+                draw_entity(entity);
+                change_color(entity, prev_color);
+            }
+            draw_particles();
+            EndMode2D();
+            context.cam = with_shake_cam;
+        }EndTextureMode();
+        
+        assert(texture_size.x >= 1);
+        f32 mult = 2.0f / texture_size.x;
+        for (; ; mult *= 2){
+            
+            BeginTextureMode(light.shadowmask_rt);{
+            draw_texture(light.shadowmask_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
+            }EndTextureMode();
+            
+            if (mult >= 2){
+                break;
+            }
+        }
+            
+        BeginTextureMode(light.backshadows_rt);{
+            ClearBackground(Fade(WHITE, 0));
+            context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
+            context.cam.position = light_position;
+            context.cam.cam2D.zoom = light.zoom;
+            BeginMode2D(context.cam.cam2D);
+            ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES){
+                Color prev_color = entity->color;
+                change_color(entity, Fade(BLACK, 0.7f));
+                draw_entity(entity);
+                change_color(entity, prev_color);
+
+            }
+            EndMode2D();
+            
+            draw_texture(light.backshadows_rt.texture, texture_size * 0.5f, {1.0f + 0.2f, 1.0f + 0.2f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
+            context.cam = with_shake_cam;
+        }; EndTextureMode();
+    
+            // context.cam = get_cam_for_resolution(screen_width * 0.5f, screen_height * 0.5f);
+            
+        BeginTextureMode(global_illumination_rt);{
+
+            // / 1.0f because zoom was 1.0 when we draw this lightmap
+            Vector2 lightmap_game_scale = {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f};
+            
+            Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(light.shadowmask_rt.texture, light_position, lightmap_game_scale);
+            BeginMode2D(context.cam.cam2D);{
+                BeginShaderMode(smooth_edges_shader);
+                local_persist i32 my_pos_loc     = get_shader_location(smooth_edges_shader, "my_pos");
+                local_persist i32 my_size_loc    = get_shader_location(smooth_edges_shader, "my_size");
+                local_persist i32 gi_size_loc    = get_shader_location(smooth_edges_shader, "gi_size");
+                local_persist i32 gi_texture_loc = get_shader_location(smooth_edges_shader, "gi_texture");
+                local_persist i32 geometry_texture_loc = get_shader_location(smooth_edges_shader, "geometry_texture");
+                local_persist i32 light_texture_loc = get_shader_location(smooth_edges_shader, "light_texture");
+                local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
+                
+                set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
+                set_shader_value(smooth_edges_shader, my_size_loc, get_texture_pixels_size(light.shadowmask_rt.texture, lightmap_game_scale));
+                set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
+                set_shader_value_tex(smooth_edges_shader, gi_texture_loc, global_illumination_rt.texture);
+                set_shader_value_tex(smooth_edges_shader, geometry_texture_loc, light.geometry_rt.texture);
+                set_shader_value_tex(smooth_edges_shader, light_texture_loc, smooth_circle_texture);
+                set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, light.backshadows_rt.texture);
+                
+                // draw_game_texture(smooth_circle_texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
+                draw_game_texture(light.shadowmask_rt.texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
+                // draw_game_texture(light.backshadows_rt.texture, light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
+                EndShaderMode();
+            } EndMode2D();
+            context.cam = with_shake_cam;
+        } EndTextureMode();
+    }
     // draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     // EndShaderMode();
     
@@ -8093,7 +8182,7 @@ inline Vector2 local(Entity *e, Vector2 global_pos){
     return global_pos - e->position;
 }
 
-inline Vector2 world_to_screen(Vector2 position){
+Vector2 world_to_screen(Vector2 position){
     Vector2 cam_pos = context.cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
@@ -8109,6 +8198,39 @@ inline Vector2 world_to_screen(Vector2 position){
     Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
 
     return to_center;
+}
+
+//This gives us real screen pixel position
+Vector2 world_to_screen_with_zoom(Vector2 position){
+    Vector2 cam_pos = context.cam.position;
+
+    Vector2 with_cam = subtract(position, cam_pos);
+    Vector2 pixels   = multiply(with_cam, context.cam.unit_size * context.cam.cam2D.zoom);
+    //Vector2 pixels   = multiply(position, context.cam.unit_size);
+    
+    //Horizontal center and vertical bottom
+    
+    f32 width_add, height_add;
+    
+    width_add = context.cam.width * 0.5f;    
+    height_add = context.cam.height * 0.5f;    
+    Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
+
+    return to_center;
+}
+
+Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale){
+    Vector2 screen_texture_size_multiplier = transform_texture_scale(texture, game_scale);
+    return multiply({(f32)texture.width, (f32)texture.height}, screen_texture_size_multiplier) * context.cam.cam2D.zoom;
+}
+
+Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale){
+    Vector2 pixels_size = get_texture_pixels_size(texture, game_scale);
+    pixels_size.y *= -1;
+    Vector2 texture_pos = world_to_screen_with_zoom(world_position) - pixels_size  * 0.5f;
+    texture_pos.y = screen_height - texture_pos.y;
+    
+    return texture_pos;
 }
 
 inline Vector2 rect_screen_pos(Vector2 position, Vector2 scale, Vector2 pivot){

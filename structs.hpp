@@ -103,7 +103,7 @@ struct Sound_Handler{
     f32 pitch_variation = 0.3f;
 };
 
-enum Flags : u64{
+enum Flags : i64{
     GROUND            = 1 << 0,
     DRAW_TEXT         = 1 << 1,
     PLAYER            = 1 << 2,
@@ -132,8 +132,7 @@ enum Flags : u64{
     BLOCK_ROPE        = 1 << 27,
     ROPE_POINT        = 1 << 28,
     JUMP_SHOOTER      = 1 << 29,
-    
-    TEST = 1 << 30
+    LIGHT             = 1 << 30
 };
 
 struct Ground{
@@ -621,6 +620,23 @@ struct Entity{
     Centipede centipede;
     Physics_Object physics_object;
     Jump_Shooter jump_shooter;
+    
+    i32 light_index = -1;
+};
+
+struct Light{
+    b32 exists = false;
+    Vector2 position = Vector2_zero;
+
+    i32 connected_entity_id = -1;
+    
+    i32 size = 512;
+    f32 zoom = 1.0f;
+    b32 make_shadows = true;
+    
+    RenderTexture shadowmask_rt;
+    RenderTexture backshadows_rt;
+    RenderTexture geometry_rt;
 };
 
 global_variable Player player_data;
@@ -697,6 +713,8 @@ struct Context{
     Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(20000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
+    
+    Dynamic_Array<Light> lights = Dynamic_Array<Light>(128);
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     f32 last_bird_attack_time = -11110;
