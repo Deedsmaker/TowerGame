@@ -438,6 +438,13 @@ int save_level(const char *level_name){
         fprintf(fptr, "hidden:%d: ", e->hidden);
         fprintf(fptr, "spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo);
         
+        if (e->flags & LIGHT & e->light_index >= 0){
+            Light *light = context.lights.get_ptr(e->light_index);
+            fprintf(fptr, "light_size_flag:%d: ",    light->size_flags);
+            fprintf(fptr, "light_make_shadows:%d: ", light->make_shadows);
+            fprintf(fptr, "light_zoom:%f: ", light->zoom);
+        }
+        
         if (e->flags & TRIGGER){
             if (e->trigger.connected.count > 0){
                 fprintf(fptr, "trigger_connected [ ");
@@ -605,12 +612,12 @@ b32 is_digit_or_minus(char ch){
     return ch == '-' || is_digit(ch);
 }
 
-void fill_int_from_string(int *int_ptr, char *str_data){
+void fill_i32_from_string(int *int_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
     *int_ptr = atoi(str_data);
 }    
 
-void fill_int_from_string(u64 *int_ptr, char *str_data){
+void fill_i32_from_string(u64 *int_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
     *int_ptr = atoi(str_data);
 }    
@@ -620,7 +627,7 @@ void fill_b32_from_string(b32 *b32_ptr, char *str_data){
     *b32_ptr = atoi(str_data);
 }    
 
-void fill_float_from_string(float *float_ptr, char *str_data){
+void fill_f32_from_string(float *float_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
     *float_ptr = atof(str_data);
 }    
@@ -685,7 +692,7 @@ void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_St
         Medium_Str current = line_arr.get((*index_ptr));
         //Medium_Str next    = line_arr.get((*index_ptr) + 1);
         int value = -1;
-        fill_int_from_string(&value, current.data);  
+        fill_i32_from_string(&value, current.data);  
         arr->add(value);
         //fill_vector2_from_string(arr->get_ptr(arr->count), current.data, next.data);
         //arr->count++;
@@ -759,7 +766,7 @@ int load_level(const char *level_name){
                 i++;
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "id")){
-                fill_int_from_string(&entity_to_fill.id, splitted_line.get(i+1).data);
+                fill_i32_from_string(&entity_to_fill.id, splitted_line.get(i+1).data);
                 i++;
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "pos")){
@@ -775,7 +782,7 @@ int load_level(const char *level_name){
                 i += 2;
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "rotation")){
-                fill_float_from_string(&entity_to_fill.rotation, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.rotation, splitted_line.get(i+1).data);
                 i += 1;
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "color")){
@@ -783,16 +790,21 @@ int load_level(const char *level_name){
                 i += 4;
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "flags")){
-                fill_int_from_string(&entity_to_fill.flags, splitted_line.get(i+1).data);
+                fill_i32_from_string(&entity_to_fill.flags, splitted_line.get(i+1).data);
                 i++;
+                
+                if (entity_to_fill.flags & LIGHT){
+                    entity_to_fill.light_index = context.lights.count;
+                    context.lights.add({});
+                }
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "vertices")){
-                // fill_int_from_string(&entity_to_fill.rotation);
+                // fill_i32_from_string(&entity_to_fill.rotation);
                 fill_vertices_array_from_string(&entity_to_fill.vertices, splitted_line, &i);
                 // i--;
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "unscaled_vertices")){
-                // fill_int_from_string(&entity_to_fill.rotation);
+                // fill_i32_from_string(&entity_to_fill.rotation);
                 fill_vertices_array_from_string(&entity_to_fill.unscaled_vertices, splitted_line, &i);
                 //i--;
                 continue;
@@ -800,7 +812,7 @@ int load_level(const char *level_name){
                 str_copy(entity_to_fill.texture_name, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "draw_order")){
-                fill_int_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
+                fill_i32_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_connected")){
                 fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
@@ -813,10 +825,10 @@ int load_level(const char *level_name){
                 fill_b32_from_string(&entity_to_fill.enemy.blocker_immortal, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "propeller_power")){
-                fill_float_from_string(&entity_to_fill.propeller.power, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.propeller.power, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "sword_kill_speed_modifier")){
-                fill_float_from_string(&entity_to_fill.enemy.sword_kill_speed_modifier, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.enemy.sword_kill_speed_modifier, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_direction")){
                 fill_vector2_from_string(&entity_to_fill.enemy.shoot_blocker_direction, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
@@ -828,10 +840,22 @@ int load_level(const char *level_name){
                 fill_b32_from_string(&entity_to_fill.enemy.gives_full_ammo, splitted_line.get(i+1).data);
                 i++;
             // } else if (str_equal(splitted_line.get(i).data, "max_hits_taken")){
-            //     fill_int_from_string(&entity_to_fill.enemy.max_hits_taken, splitted_line.get(i+1).data);
+            //     fill_i32_from_string(&entity_to_fill.enemy.max_hits_taken, splitted_line.get(i+1).data);
             //     i++;
             } else if (str_equal(splitted_line.get(i).data, "explosive_radius_multiplier")){
-                fill_float_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_size_flag")){
+                fill_i32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->size_flags, splitted_line.get(i+1).data);
+                print("ayo");
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_make_shadows")){
+                fill_b32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->make_shadows, splitted_line.get(i+1).data);
+                print("ayo2");
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_zoom")){
+                fill_f32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->zoom, splitted_line.get(i+1).data);
+                print("ayo3");
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
                 fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
@@ -873,13 +897,13 @@ int load_level(const char *level_name){
                 fill_vector2_from_string(&entity_to_fill.physics_object.rope_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
                 i += 2;
             } else if (str_equal(splitted_line.get(i).data, "physics_gravity_multiplier")){
-                fill_float_from_string(&entity_to_fill.physics_object.gravity_multiplier, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.physics_object.gravity_multiplier, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "physics_mass")){
-                fill_float_from_string(&entity_to_fill.physics_object.mass, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.physics_object.mass, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "segments_count")){
-                fill_int_from_string(&entity_to_fill.centipede.segments_count, splitted_line.get(i+1).data);
+                fill_i32_from_string(&entity_to_fill.centipede.segments_count, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "door_open")){
                 fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get(i+1).data);
@@ -897,7 +921,7 @@ int load_level(const char *level_name){
                 fill_b32_from_string(&entity_to_fill.trigger.change_zoom, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_zoom_value")){
-                fill_float_from_string(&entity_to_fill.trigger.zoom_value, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.trigger.zoom_value, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_sound_name")){
                 str_copy(entity_to_fill.trigger.sound_name, splitted_line.get(i+1).data);  
@@ -924,7 +948,7 @@ int load_level(const char *level_name){
                 fill_b32_from_string(&entity_to_fill.spawn_enemy_when_no_ammo, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "jump_shooter_explosive_count")){
-                fill_int_from_string(&entity_to_fill.jump_shooter.explosive_count, splitted_line.get(i+1).data);
+                fill_i32_from_string(&entity_to_fill.jump_shooter.explosive_count, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers")){
                 fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers, splitted_line.get(i+1).data);
@@ -936,13 +960,13 @@ int load_level(const char *level_name){
                 fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_bullet_blockers, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shots_count")){
-                fill_int_from_string(&entity_to_fill.jump_shooter.shots_count, splitted_line.get(i+1).data);
+                fill_i32_from_string(&entity_to_fill.jump_shooter.shots_count, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "jump_shooter_spread")){
-                fill_float_from_string(&entity_to_fill.jump_shooter.spread, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.jump_shooter.spread, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "move_sequence_speed")){
-                fill_float_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get(i+1).data);
+                fill_f32_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "move_sequence_points")){
                 fill_vector2_array_from_string(&entity_to_fill.move_sequence.points, splitted_line, &i);
@@ -1512,6 +1536,17 @@ void init_entity(Entity *entity){
         }
         if (new_light){
             new_light->exists = true;
+            
+            if (new_light->size_flags & SMALL_LIGHT){
+                new_light->size = 128;
+            } else if (new_light->size_flags & MEDIUM_LIGHT){
+                new_light->size = 256;
+            } else if (new_light->size_flags & BIG_LIGHT){
+                new_light->size = 512;
+            } else if (new_light->size_flags & HUGE_LIGHT){
+                new_light->size = 1024;
+            }
+            
             if (new_light->make_shadows){
                 new_light->shadowmask_rt  = LoadRenderTexture(new_light->size, new_light->size);
                 new_light->geometry_rt    = LoadRenderTexture(new_light->geometry_size, new_light->geometry_size);
@@ -3248,7 +3283,7 @@ void update_editor_ui(){
             }
         }
         
-        // inspector light
+        // inspector light inspector
         if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Light settings", "light_settings")){
             editor.draw_light_settings = !editor.draw_light_settings;
         }
@@ -3265,6 +3300,54 @@ void update_editor_ui(){
                 }
             }
             v_pos += height_add;
+            
+            if (selected->flags & LIGHT && selected->light_index >= 0){
+                Light *light = context.lights.get_ptr(selected->light_index);
+                make_ui_text("Size flags: ", {inspector_position.x + 5, v_pos}, "size_flags");
+                v_pos += height_add;
+                
+                make_ui_text("Small (128): ", {inspector_position.x + 25, v_pos}, "small_size_flag");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & SMALL_LIGHT, "small_size_flag")){
+                    light->size_flags = SMALL_LIGHT;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Medium (256): ", {inspector_position.x + 25, v_pos}, "medium_size_flag");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & MEDIUM_LIGHT, "medium_size_flag")){
+                    light->size_flags = MEDIUM_LIGHT;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Big (512): ", {inspector_position.x + 25, v_pos}, "big_size_flag");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & BIG_LIGHT, "big_size_flag")){
+                    light->size_flags = BIG_LIGHT;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("HUGE (1024): ", {inspector_position.x + 25, v_pos}, "huge_size_flag");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & HUGE_LIGHT, "huge_size_flag")){
+                    light->size_flags = HUGE_LIGHT;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Make shadows (expensive): ", {inspector_position.x + 25, v_pos}, "light_make_shadows");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->make_shadows, "light_make_shadows")){
+                    light->make_shadows = !light->make_shadows;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Light zoom: ", {inspector_position.x + 5, v_pos}, "light_zoom");
+                if (make_input_field(TextFormat("%.2f", light->zoom), {inspector_position.x + 100, v_pos}, {150, 20}, "light_zoom") ){
+                    light->zoom = atof(focus_input_field.content);
+                }
+                v_pos += height_add;
+                
+            }
         }
         
         if (selected->flags & TRIGGER){
@@ -7888,7 +7971,7 @@ void draw_game(){
                     draw_entity(entity);
                     entity->color = prev_color;
                 }
-                draw_particles();
+                //draw_particles();
             EndShaderMode();
             EndMode2D();
             context.cam = with_shake_cam;
@@ -7926,7 +8009,7 @@ void draw_game(){
                 entity->color = prev_color;
 
             }
-            draw_particles();
+            //draw_particles();
             EndMode2D();
             
             BeginShaderMode(gaussian_blur_shader);
@@ -7988,21 +8071,11 @@ void draw_game(){
     for (i32 i = 0; i < iterations; i++){
         BeginTextureMode(global_illumination_rt);{
             BeginShaderMode(gaussian_blur_shader);
-            i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-            i32 u_direction_loc = get_shader_location(gaussian_blur_shader, "u_direction");
-            set_shader_value(gaussian_blur_shader, u_pixel_loc, {(2.0f) / screen_width, (2.0f) / screen_height});
-            f32 radius = (iterations - i - 1);
-            Vector2 direction = {0, radius};
-            if (i % 2 == 0){
-                direction = {radius, 0};
-            }
-            set_shader_value(gaussian_blur_shader, u_direction_loc, direction);
             
+            i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+            set_shader_value(gaussian_blur_shader, u_pixel_loc, {(2.0f) / screen_width, (2.0f) / screen_height});
             draw_render_texture(global_illumination_rt.texture, {1.0f, 1.0f}, WHITE);
             
-            // RenderTexture temp = prev;
-            // prev = next;
-            // next = temp;
             EndShaderMode();
         }EndTextureMode();
     }

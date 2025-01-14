@@ -624,11 +624,20 @@ struct Entity{
     i32 light_index = -1;
 };
 
+enum Light_Size_Flags{
+    SMALL_LIGHT  = 1 << 0,  
+    MEDIUM_LIGHT = 1 << 1,
+    BIG_LIGHT    = 1 << 2,
+    HUGE_LIGHT   = 1 << 3
+};
+
 struct Light{
     b32 exists = false;
     Vector2 position = Vector2_zero;
 
     i32 connected_entity_id = -1;
+    
+    i32 size_flags = MEDIUM;
     
     i32 size = 256;
     i32 geometry_size = 1024;
