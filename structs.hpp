@@ -630,7 +630,8 @@ struct Light{
 
     i32 connected_entity_id = -1;
     
-    i32 size = 512;
+    i32 size = 256;
+    i32 geometry_size = 1024;
     f32 zoom = 1.0f;
     b32 make_shadows = true;
     
@@ -874,6 +875,7 @@ struct Editor{
     b32 draw_centipede_settings = false;
     b32 draw_jump_shooter_settings = false;
     b32 draw_door_settings = false;
+    b32 draw_light_settings = false;
 };
 
 struct Debug{

@@ -18,6 +18,7 @@ out vec4 finalColor;
 
 // Iterate over all pixels in 3x3 kernel area
 vec4 convolute(vec2 uv, mat3 kernel) {
+    vec4 current_color = texture(texture0, uv);
     vec4 color = vec4(0);
     
     float direction[3];
@@ -29,7 +30,11 @@ vec4 convolute(vec2 uv, mat3 kernel) {
         for (int y = 0; y < 3; y++)
         {
             vec2 offset = vec2(direction[x], direction[y]) * u_pixel;
-            color += texture2D(texture0, uv+offset) * kernel[x][y];
+            vec4 nearby_color = texture2D(texture0, uv+offset);
+            if (nearby_color.a > 0){
+                color += nearby_color * kernel[x][y];
+            }
+            // color.a = current_color.a;
         }
     }
     return color;

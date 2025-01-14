@@ -1514,7 +1514,7 @@ void init_entity(Entity *entity){
             new_light->exists = true;
             if (new_light->make_shadows){
                 new_light->shadowmask_rt  = LoadRenderTexture(new_light->size, new_light->size);
-                new_light->geometry_rt    = LoadRenderTexture(new_light->size, new_light->size);
+                new_light->geometry_rt    = LoadRenderTexture(new_light->geometry_size, new_light->geometry_size);
                 new_light->backshadows_rt = LoadRenderTexture(new_light->size, new_light->size);
             }
             
@@ -2407,13 +2407,12 @@ void update_game(){
     }
 
     
-    update_input_field();
-    update_console();
-    
     if (game_state == EDITOR || game_state == PAUSE){
         update_editor_ui();
         update_editor();
     }
+    
+    update_console();
     
     //zoom_entity->text_drawer.text = TextFormat("%f", context.cam.cam2D.zoom);
     
@@ -3247,6 +3246,25 @@ void update_editor_ui(){
             type_info_v_pos += type_font_size;
 
             }
+        }
+        
+        // inspector light
+        if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Light settings", "light_settings")){
+            editor.draw_light_settings = !editor.draw_light_settings;
+        }
+        v_pos += height_add;
+        
+        if (editor.draw_light_settings){
+            make_ui_text("Make light: ", {inspector_position.x + 5, v_pos}, "make_light");
+            if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & LIGHT, "make_light")){
+                selected->flags ^= LIGHT;
+                if (selected->flags & LIGHT){
+                    init_entity(selected);                    
+                } else{
+                    free_light(selected);
+                }
+            }
+            v_pos += height_add;
         }
         
         if (selected->flags & TRIGGER){
@@ -7113,6 +7131,16 @@ Bounds get_cam_bounds(Cam cam, f32 zoom){
     return cam_bounds;
 }
 
+inline b32 should_draw_entity_anyway(Entity *e){
+    b32 is_should_draw_anyway = e->flags & (TRIGGER | MOVE_SEQUENCE);
+    return is_should_draw_anyway;
+}
+
+inline b32 should_not_draw_entity(Entity *e, Cam cam){
+    Bounds cam_bounds = get_cam_bounds(cam, cam.cam2D.zoom);
+    return !should_draw_entity_anyway(e) && !check_bounds_collision(cam.view_position, cam_bounds, e);
+}
+
 void fill_entities_draw_queue(){
     context.entities_draw_queue.clear();
     
@@ -7125,14 +7153,12 @@ void fill_entities_draw_queue(){
         }
         
         //now we want entities that have external lines
-        b32 is_should_draw_anyway = e.flags & (TRIGGER | MOVE_SEQUENCE);
         
-        if (e.hidden && game_state == GAME && !is_should_draw_anyway){
+        if (e.hidden && game_state == GAME && !should_draw_entity_anyway(&e)){
             continue;
         }
         
-        Bounds cam_bounds = get_cam_bounds(context.cam, context.cam.cam2D.zoom);
-        if (!is_should_draw_anyway && !check_bounds_collision(context.cam.view_position, cam_bounds, &e)){
+        if (should_not_draw_entity(&e, context.cam)){
             e_ptr->visible = false;
             continue;
         } else{
@@ -7830,39 +7856,53 @@ void draw_game(){
             context.cam.cam2D.zoom = light.zoom;
             BeginMode2D(context.cam.cam2D);
             ForEntities(entity, GROUND){
+                if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, with_shake_cam)){
+                    continue;
+                }
                 Color prev_color = entity->color;
-                change_color(entity, BLACK);
+                entity->color = BLACK;
                 draw_entity(entity);
-                change_color(entity, prev_color);
+                entity->color = prev_color;
             }
-            draw_particles();
+            // draw_particles();
             EndMode2D();
             context.cam = with_shake_cam;
         }EndTextureMode();
         
         BeginTextureMode(light.geometry_rt);{
             ClearBackground(Fade(BLACK, 0));
-            context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
+            context.cam = get_cam_for_resolution(light.geometry_size, light.geometry_size);
             context.cam.position = light_position;
             context.cam.cam2D.zoom = light.zoom;
             BeginMode2D(context.cam.cam2D);
-            ForEntities(entity, GROUND | ENEMY){
-                Color prev_color = entity->color;
-                change_color(entity, WHITE);
-                draw_entity(entity);
-                change_color(entity, prev_color);
-            }
-            draw_particles();
+            BeginShaderMode(gaussian_blur_shader);
+                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (light.geometry_size), (1.0f) / (light.geometry_size)});
+
+                ForEntities(entity, GROUND | ENEMY | PLAYER){
+                    if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, with_shake_cam)){
+                        continue;
+                    }
+                    Color prev_color = entity->color;
+                    entity->color = WHITE;
+                    draw_entity(entity);
+                    entity->color = prev_color;
+                }
+                draw_particles();
+            EndShaderMode();
             EndMode2D();
             context.cam = with_shake_cam;
         }EndTextureMode();
         
         assert(texture_size.x >= 1);
         f32 mult = 2.0f / texture_size.x;
-        for (; ; mult *= 2){
-            
+        for (; ; mult *= 1.5f){
             BeginTextureMode(light.shadowmask_rt);{
-            draw_texture(light.shadowmask_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
+                BeginShaderMode(gaussian_blur_shader);
+                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.size, (1.0f) / light.size});
+                draw_texture(light.shadowmask_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
+                EndShaderMode();
             }EndTextureMode();
             
             if (mult >= 2){
@@ -7876,16 +7916,25 @@ void draw_game(){
             context.cam.position = light_position;
             context.cam.cam2D.zoom = light.zoom;
             BeginMode2D(context.cam.cam2D);
-            ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES){
+            ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER){
+                if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, with_shake_cam)){
+                    continue;
+                }
                 Color prev_color = entity->color;
-                change_color(entity, Fade(BLACK, 0.7f));
+                entity->color = Fade(BLACK, 0.7f);
                 draw_entity(entity);
-                change_color(entity, prev_color);
+                entity->color = prev_color;
 
             }
+            draw_particles();
             EndMode2D();
             
-            draw_texture(light.backshadows_rt.texture, texture_size * 0.5f, {1.0f + 0.2f, 1.0f + 0.2f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
+            BeginShaderMode(gaussian_blur_shader);
+                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.size, (1.0f) / light.size});
+
+                draw_texture(light.backshadows_rt.texture, texture_size * 0.5f, {1.0f + 0.2f, 1.0f + 0.2f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
+            EndShaderMode();
             context.cam = with_shake_cam;
         }; EndTextureMode();
     
@@ -7894,7 +7943,7 @@ void draw_game(){
         BeginTextureMode(global_illumination_rt);{
 
             // / 1.0f because zoom was 1.0 when we draw this lightmap
-            Vector2 lightmap_game_scale = {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f};
+            Vector2 lightmap_game_scale = {SCREEN_WORLD_SIZE / light.zoom, SCREEN_WORLD_SIZE / light.zoom};
             
             Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(light.shadowmask_rt.texture, light_position, lightmap_game_scale);
             BeginMode2D(context.cam.cam2D);{
@@ -7932,7 +7981,7 @@ void draw_game(){
     
     
     //blur pass
-    i32 iterations = 2;
+    i32 iterations = 1;
     // prev = global_illumination_rt;
     // next = emitters_occluders_rt;
     
@@ -7941,7 +7990,7 @@ void draw_game(){
             BeginShaderMode(gaussian_blur_shader);
             i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
             i32 u_direction_loc = get_shader_location(gaussian_blur_shader, "u_direction");
-            set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_width, (1.0f / LIGHT_TEXTURE_SCALING_FACTOR) / screen_height});
+            set_shader_value(gaussian_blur_shader, u_pixel_loc, {(2.0f) / screen_width, (2.0f) / screen_height});
             f32 radius = (iterations - i - 1);
             Vector2 direction = {0, radius};
             if (i % 2 == 0){
@@ -7966,6 +8015,8 @@ void draw_game(){
     
     draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     EndShaderMode();
+    
+    update_input_field();
     
     draw_ui("");
     

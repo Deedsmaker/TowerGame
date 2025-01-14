@@ -6,6 +6,7 @@
 struct Input_Field{
     Vector2 position;
     Vector2 size;
+    i32 index = -1;
     //Vector2 pivot;
     
     char content[INPUT_FIELD_MAX_CHARS];
@@ -27,6 +28,8 @@ global_variable b32 just_focused = false;
 float backspace_press_time = 0;
 float last_hold_deleted_time = 0;
 
+void copy_input_field(Input_Field *dest, Input_Field *src);
+
 void set_focus_input_field(char *data){
     str_copy(focus_input_field.content, data);
     focus_input_field.chars_count = str_len(data);
@@ -44,8 +47,21 @@ void update_input_field(){
         focus_input_field.in_focus = false;
     }
 
-    if (focus_input_field.in_focus)
-    {
+    if (IsKeyPressed(KEY_TAB) && !console.is_open && input_fields.count > 0){
+        focus_input_field.in_focus = false;
+        Input_Field *next;
+        if (IsKeyDown(KEY_LEFT_SHIFT)){
+            next = input_fields.get_ptr((focus_input_field.index - 1) < 0 ? input_fields.count - 1 : focus_input_field.index - 1);
+        } else{
+            next = input_fields.get_ptr((focus_input_field.index + 1) % input_fields.count);
+        }
+        next->in_focus = true;
+        copy_input_field(&focus_input_field, next);
+        just_focused = true;
+    }
+    
+    if (focus_input_field.in_focus){
+    
         //SetMouseCursor(MOUSE_CURSOR_IBEAM);
 
         int key = GetCharPressed();
@@ -62,8 +78,8 @@ void update_input_field(){
                 int content_len = str_len(focus_input_field.content);
                 char char_key = (char)key;
                 
-                //NO SPACES FIRST
-                if (char_key != ' ' || content_len > 0){
+                //NO SPACES OR SLASHES FIRST
+                if ((char_key != ' ' && char_key != '/') || content_len > 0){
                     focus_input_field.content[focus_input_field.chars_count] = char_key;
                     focus_input_field.content[focus_input_field.chars_count+1] = '\0';
                     focus_input_field.chars_count++;
@@ -132,6 +148,7 @@ void copy_input_field(Input_Field *dest, Input_Field *src){
     str_copy(dest->tag,     src->tag);
     dest->chars_count = src->chars_count;
     dest->in_focus = src->in_focus;
+    dest->index = src->index;
 }
 
 b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag, Color color = GRAY, bool remove_focus_after_enter = true){
@@ -139,8 +156,11 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     Input_Field input_field = {position, size};
     input_field.size.y = input_field.font_size;
     input_field.color = color;
+    input_field.index = input_fields.count;
+    
     if (focus_input_field.in_focus && str_equal(focus_input_field.tag, tag)){
         input_field.in_focus = true;
+        input_field.index = input_fields.count;
         copy_input_field(&input_field, &focus_input_field);
         
         input_fields.add(input_field);
@@ -171,8 +191,8 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     if (make_next_in_focus || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && hovered_over){
         input_field.in_focus = true;
         //str_copy(input_field.content, "");
-        copy_input_field(&focus_input_field, &input_field);
         make_next_in_focus = false;
+        copy_input_field(&focus_input_field, &input_field);
         just_focused = true;
         clicked_ui = true;
     }
