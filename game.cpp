@@ -53,12 +53,16 @@ void free_light(Entity *e){
         // has index and size is the same and use it. We will free it when level gets unload.
         Light *current_light = context.lights.get_ptr(e->light_index);           
         if (current_light->exists){
-            UnloadRenderTexture(current_light->shadowmask_rt);
+            if (current_light->make_shadows){
+                UnloadRenderTexture(current_light->shadowmask_rt);
+            }
             UnloadRenderTexture(current_light->geometry_rt);
             UnloadRenderTexture(current_light->backshadows_rt);
             
             current_light->exists = false;
         }
+        
+        e->light_index = -1;
     }
 }
 
@@ -334,6 +338,11 @@ Entity::Entity(Entity *copy){
         door = copy->door;
     }
     
+    if (flags & LIGHT){
+        light_index = -1;
+        init_new_light(this, context.lights.get_ptr(copy->light_index));        
+    }
+    
     // if (flags & PARTICLE_EMITTER){
     //     for (int i = 0; i < copy->emitters.count; i++){
     //         emitters.add(copy->emitters.get(i));
@@ -438,11 +447,11 @@ int save_level(const char *level_name){
         fprintf(fptr, "hidden:%d: ", e->hidden);
         fprintf(fptr, "spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo);
         
-        if (e->flags & LIGHT & e->light_index >= 0){
+        if (e->flags & LIGHT && e->light_index >= 0){
             Light *light = context.lights.get_ptr(e->light_index);
             fprintf(fptr, "light_size_flag:%d: ",    light->size_flags);
             fprintf(fptr, "light_make_shadows:%d: ", light->make_shadows);
-            fprintf(fptr, "light_zoom:%f: ", light->zoom);
+            fprintf(fptr, "light_radius:%f: ", light->radius);
         }
         
         if (e->flags & TRIGGER){
@@ -794,8 +803,9 @@ int load_level(const char *level_name){
                 i++;
                 
                 if (entity_to_fill.flags & LIGHT){
-                    entity_to_fill.light_index = context.lights.count;
-                    context.lights.add({});
+                    // entity_to_fill.light_index = context.lights.count;
+                    // context.lights.add({});
+                    init_new_light(&entity_to_fill);
                 }
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "vertices")){
@@ -847,15 +857,12 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "light_size_flag")){
                 fill_i32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->size_flags, splitted_line.get(i+1).data);
-                print("ayo");
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "light_make_shadows")){
                 fill_b32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->make_shadows, splitted_line.get(i+1).data);
-                print("ayo2");
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_zoom")){
-                fill_f32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->zoom, splitted_line.get(i+1).data);
-                print("ayo3");
+            } else if (str_equal(splitted_line.get(i).data, "light_radius")){
+                fill_f32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->radius, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
                 fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
@@ -1081,6 +1088,9 @@ void init_bird_entity(Entity *entity){
     setup_color_changer(entity);
     
     entity->bird_enemy.attack_sound = sounds_table.get_by_key_ptr(hash_str("BirdAttack"));
+    
+    // if (entity->flags & EXPLOSIVE){
+    // }        
 }
 
 void init_spawn_objects(){
@@ -1403,6 +1413,71 @@ inline int next_entity_avaliable(int index, Entity **entity, FLAGS flags){
 //     str_copy(entity->texture_name, texture_name);
 // }
 
+i32 init_new_light(Entity *entity, Light *copy_light){
+    Light *new_light = NULL;
+    
+    //Means we will copy ourselves, maybe someone changed size or any other shit
+    if (!copy_light && entity->light_index > -1){
+        copy_light = context.lights.get_ptr(entity->light_index);
+    } else if (!copy_light){
+        //lol
+        // *copy_light = {};
+    }
+    
+    // if (entity->light_index > -1 && context.lights.get(entity->light_index).exists){
+    //     return entity->light_index;
+    // }
+        
+    free_light(entity);
+    
+    for (int i = 0; i < context.lights.max_count; i++){
+        if (!context.lights.get_ptr(i)->exists){
+            new_light = context.lights.get_ptr(i);
+            entity->light_index = i;
+            break;
+        }
+    }
+    if (new_light){
+        if (copy_light){
+            new_light->radius       = copy_light->radius;            
+            new_light->make_shadows = copy_light->make_shadows;
+            new_light->size_flags   = copy_light->size_flags;
+        } else{
+            *new_light = {};
+            new_light->color = WHITE;
+        }
+        
+        new_light->exists = true;
+        
+        if (new_light->size_flags & SMALL_LIGHT){
+            new_light->size = 128;
+        } else if (new_light->size_flags & MEDIUM_LIGHT){
+            new_light->size = 256;
+        } else if (new_light->size_flags & BIG_LIGHT){
+            new_light->size = 512;
+        } else if (new_light->size_flags & HUGE_LIGHT){
+            new_light->size = 1024;
+        }
+        
+        
+        new_light->connected_entity_id = entity->id;
+        
+        // if (!new_light->make_shadows){
+            new_light->geometry_size = fminf(new_light->size * 4, 2048);
+        // }
+        
+        if (new_light->make_shadows){
+            new_light->shadowmask_rt  = LoadRenderTexture(new_light->size, new_light->size);
+        }
+        new_light->geometry_rt    = LoadRenderTexture(new_light->geometry_size, new_light->geometry_size);
+        new_light->backshadows_rt = LoadRenderTexture(new_light->size, new_light->size);
+    } else{
+        print("WARNING: Could not found light to init new, everyting was consumed");
+    }
+    
+    return new_light ? entity->light_index : -1;
+}
+
 void init_entity(Entity *entity){
     if (entity->flags & ENEMY){
         entity->enemy.original_scale = entity->scale;
@@ -1420,6 +1495,11 @@ void init_entity(Entity *entity){
 
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
+        entity->flags |= LIGHT;
+        init_new_light(entity);
+        Light *new_light = context.lights.get_ptr(entity->light_index);
+        new_light->radius = 120;
+        new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 0.9f);
     }
     
     if (entity->flags & BLOCKER && game_state == GAME){
@@ -1517,49 +1597,21 @@ void init_entity(Entity *entity){
     
     //init light
     if (entity->flags & LIGHT){
-        if (entity->light_index != -1){
-            Light *current_light = context.lights.get_ptr(entity->light_index);           
-            UnloadRenderTexture(current_light->shadowmask_rt);
-            UnloadRenderTexture(current_light->geometry_rt);
-            UnloadRenderTexture(current_light->backshadows_rt);
-            current_light->exists = false;
-        }
-    
-        Light *new_light = NULL;
-        
-        for (int i = 0; i < context.lights.max_count; i++){
-            if (!context.lights.get_ptr(i)->exists){
-                new_light = context.lights.get_ptr(i);
-                entity->light_index = i;
-                break;
-            }
-        }
-        if (new_light){
-            new_light->exists = true;
-            
-            if (new_light->size_flags & SMALL_LIGHT){
-                new_light->size = 128;
-            } else if (new_light->size_flags & MEDIUM_LIGHT){
-                new_light->size = 256;
-            } else if (new_light->size_flags & BIG_LIGHT){
-                new_light->size = 512;
-            } else if (new_light->size_flags & HUGE_LIGHT){
-                new_light->size = 1024;
-            }
-            
-            if (new_light->make_shadows){
-                new_light->shadowmask_rt  = LoadRenderTexture(new_light->size, new_light->size);
-                new_light->geometry_rt    = LoadRenderTexture(new_light->geometry_size, new_light->geometry_size);
-                new_light->backshadows_rt = LoadRenderTexture(new_light->size, new_light->size);
-            }
-            
-            new_light->connected_entity_id = entity->id;
-        } else{
-            print("WARNING: Could not found light to init new, everyting was consumed");
-        }
+        // Light old_light = {};
+        // if (entity->light_index != -1){
+        //     Light *current_light = context.lights.get_ptr(entity->light_index);           
+        //     UnloadRenderTexture(current_light->shadowmask_rt);
+        //     UnloadRenderTexture(current_light->geometry_rt);
+        //     UnloadRenderTexture(current_light->backshadows_rt);
+        //     current_light->exists = false;
+        //     old_light = *current_light;
+        //     *current_light = {};
+        //     entity->light_index = -1;
+        // }
+        init_new_light(entity);
     }
     
-    setup_color_changer(entity);
+    // setup_color_changer(entity);
 }
 
 inline void save_current_level(){
@@ -1864,6 +1916,11 @@ Shader env_light_shader;
 
 Shader gaussian_blur_shader;
 
+global_variable Image white_pixel_image;
+global_variable Texture white_pixel_texture;
+global_variable Image black_pixel_image;
+global_variable Texture black_pixel_texture;
+
 #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
 #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
 
@@ -1891,23 +1948,29 @@ void init_game(){
         context.collision_grid.cells[i] = {};
     }
     
-    render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
+    white_pixel_image = GenImageColor(1, 1, WHITE);
+    white_pixel_texture = LoadTextureFromImage(white_pixel_image);
+    
+    black_pixel_image = GenImageColor(1, 1, BLACK);
+    black_pixel_texture = LoadTextureFromImage(black_pixel_image);
+    
+    // render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
     render.test_shader = LoadShader(0, "../test_shader.fs");
     
-    emitters_occluders_rt = LoadRenderTexture(screen_width, screen_height);
-    emitters_occluders_shader = LoadShader(0, "../emitters_occluders.fs");
+    // emitters_occluders_rt = LoadRenderTexture(screen_width, screen_height);
+    // emitters_occluders_shader = LoadShader(0, "../emitters_occluders.fs");
     
-    voronoi_seed_rt = LoadRenderTexture(screen_width, screen_height );
-    jump_flood_rt = LoadRenderTexture(screen_width, screen_height );
-    distance_field_rt = LoadRenderTexture(screen_width, screen_height);
-    voronoi_seed_shader = LoadShader(0, "../voronoi_seed.fs");
-    jump_flood_shader = LoadShader(0, "../jump_flood.fs");
-    distance_field_shader = LoadShader(0, "../distance_field.fs");
+    // voronoi_seed_rt = LoadRenderTexture(screen_width, screen_height );
+    // jump_flood_rt = LoadRenderTexture(screen_width, screen_height );
+    // distance_field_rt = LoadRenderTexture(screen_width, screen_height);
+    // voronoi_seed_shader = LoadShader(0, "../voronoi_seed.fs");
+    // jump_flood_shader = LoadShader(0, "../jump_flood.fs");
+    // distance_field_shader = LoadShader(0, "../distance_field.fs");
     
-    global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
+    // global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
     global_illumination_shader = LoadShader(0, "../global_illumination1.fs");
     
-    final_light_rt = LoadRenderTexture(screen_width, screen_height);
+    // final_light_rt = LoadRenderTexture(screen_width, screen_height);
     env_light_shader = LoadShader(0, "../env_light.fs");
     
     gaussian_blur_shader = LoadShader(0, "../gaussian_blur.fs");
@@ -1987,6 +2050,7 @@ void clean_up_scene(){
 
 void enter_game_state(){
     game_state = GAME;
+    context.just_entered_game_state = true;
     core.time.game_time = 0;
     
     HideCursor();
@@ -2384,8 +2448,10 @@ void update_game(){
         context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         
         UnloadRenderTexture(render.main_render_texture);
+        UnloadRenderTexture(global_illumination_rt);
         
         render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
+        global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
         // UnloadRenderTexture(context.up_render_target);
         // UnloadRenderTexture(context.down_render_target);
         // UnloadRenderTexture(context.up_render_target);
@@ -2558,6 +2624,8 @@ void update_game(){
             
     //     }
     // }
+    
+    context.just_entered_game_state = false;
 } // update game end
 
 void update_color_changer(Entity *entity, f32 dt){
@@ -2570,6 +2638,11 @@ void update_color_changer(Entity *entity, f32 dt){
         Color target_color = ColorBrightness(changer->start_color, 2);
         f32 t = abs(sinf(core.time.game_time * changer->change_time));
         entity->color = lerp(changer->start_color, target_color, t);
+        
+        if (entity->light_index > -1){
+            context.lights.get_ptr(entity->light_index)->color = lerp(target_color, Fade(ColorBrightness(ORANGE, 0.3f), 0.9f), t);
+            context.lights.get_ptr(entity->light_index)->radius = get_explosion_radius(entity) * 2 * lerp(0.9f, 1.3f, t);
+        }
     } else if (changer->interpolating) {
         entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
     }
@@ -3341,9 +3414,9 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
-                make_ui_text("Light zoom: ", {inspector_position.x + 5, v_pos}, "light_zoom");
-                if (make_input_field(TextFormat("%.2f", light->zoom), {inspector_position.x + 100, v_pos}, {150, 20}, "light_zoom") ){
-                    light->zoom = atof(focus_input_field.content);
+                make_ui_text("Light radius: ", {inspector_position.x + 5, v_pos}, "light_radius");
+                if (make_input_field(TextFormat("%.2f", light->radius), {inspector_position.x + 100, v_pos}, {150, 20}, "light_radius") ){
+                    light->radius = atof(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
@@ -5799,7 +5872,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
     bird->trail_emitter->direction = entity->up * -1;
 }
 
-inline f32 get_explosion_radius(Entity *entity, f32 base_radius = 40){
+inline f32 get_explosion_radius(Entity *entity, f32 base_radius){
     assert(entity->flags & EXPLOSIVE);
 
     base_radius *= entity->enemy.explosive_radius_multiplier;
@@ -6743,9 +6816,10 @@ void update_entities(f32 dt){
             }
             
             if (alive_count == 0){
+                                
                 e->enemy.dead_man = true;
                 e->enemy.died_time = core.time.game_time;
-                e->flags = ENEMY | BIRD_ENEMY;
+                e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT);
                 Vector2 rnd = rnd_in_circle();
                 e->bird_enemy.velocity = {e->move_sequence.velocity.x * rnd.x, e->move_sequence.velocity.y * rnd.y};
 
@@ -7221,7 +7295,7 @@ inline b32 should_draw_entity_anyway(Entity *e){
 
 inline b32 should_not_draw_entity(Entity *e, Cam cam){
     Bounds cam_bounds = get_cam_bounds(cam, cam.cam2D.zoom);
-    return !should_draw_entity_anyway(e) && !check_bounds_collision(cam.view_position, cam_bounds, e);
+    return !should_draw_entity_anyway(e) && (!check_bounds_collision(cam.view_position, cam_bounds, e) || !e->enabled);
 }
 
 void fill_entities_draw_queue(){
@@ -7582,7 +7656,9 @@ void draw_entity(Entity *e){
     }
     
     if (e->flags & EXPLOSIVE){
-        draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
+        // draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
+        if (e->light_index > -1){
+        }
     }
     
     if (e->flags & PROPELLER && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
@@ -7854,6 +7930,10 @@ void apply_shake(){
 Cam saved_cam;
 Cam with_shake_cam;
 
+inline f32 get_light_zoom(f32 radius){
+    return SCREEN_WORLD_SIZE / radius;
+}
+
 void draw_game(){
     // if (game_state == GAME){
     f32 zoom_speed = game_state == GAME ? 3 : 10;
@@ -7923,84 +8003,101 @@ void draw_game(){
 
     for (int i = 0; i < context.lights.max_count; i++){
         Light light = context.lights.get(i);
+        Light *light_ptr = context.lights.get_ptr(i);
         
         if (!light.exists){
             continue;
         }
         
         Vector2 light_position = light.position;
+        Vector2 lightmap_game_scale = {light.radius, light.radius};
+        
+        Bounds lightmap_bounds = {lightmap_game_scale, {0, 0}};
+        if (!check_bounds_collision(context.cam.position, light_position, get_cam_bounds(context.cam, context.cam.cam2D.zoom), lightmap_bounds)){
+            continue;
+        }
+        
         local_persist Texture smooth_circle_texture = get_texture("SmoothCircle.png");
         
         Vector2 texture_size = {(f32)light.size, (f32)light.size};
-        BeginTextureMode(light.shadowmask_rt);{
-            ClearBackground(Fade(WHITE, 0));
-            context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
-            context.cam.position = light_position;
-            context.cam.cam2D.zoom = light.zoom;
-            BeginMode2D(context.cam.cam2D);
-            ForEntities(entity, GROUND){
-                if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, with_shake_cam)){
-                    continue;
-                }
-                Color prev_color = entity->color;
-                entity->color = BLACK;
-                draw_entity(entity);
-                entity->color = prev_color;
-            }
-            // draw_particles();
-            EndMode2D();
-            context.cam = with_shake_cam;
-        }EndTextureMode();
         
-        BeginTextureMode(light.geometry_rt);{
-            ClearBackground(Fade(BLACK, 0));
-            context.cam = get_cam_for_resolution(light.geometry_size, light.geometry_size);
-            context.cam.position = light_position;
-            context.cam.cam2D.zoom = light.zoom;
-            BeginMode2D(context.cam.cam2D);
-            BeginShaderMode(gaussian_blur_shader);
-                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (light.geometry_size), (1.0f) / (light.geometry_size)});
-
-                ForEntities(entity, GROUND | ENEMY | PLAYER){
-                    if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, with_shake_cam)){
+        if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (game_state == EDITOR))) || context.just_entered_game_state){
+            light_ptr->last_bake_time = core.time.app_time;
+            
+            BeginTextureMode(light.shadowmask_rt);{
+                ClearBackground(Fade(WHITE, 0));
+                context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
+                context.cam.position = light_position;
+                context.cam.view_position = light_position;
+                context.cam.cam2D.zoom = get_light_zoom(light.radius);
+                BeginMode2D(context.cam.cam2D);
+                ForEntities(entity, GROUND){
+                    if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, context.cam)){
                         continue;
                     }
+                    
                     Color prev_color = entity->color;
-                    entity->color = WHITE;
+                    entity->color = BLACK;
                     draw_entity(entity);
                     entity->color = prev_color;
                 }
-                //draw_particles();
-            EndShaderMode();
-            EndMode2D();
-            context.cam = with_shake_cam;
-        }EndTextureMode();
-        
-        assert(texture_size.x >= 1);
-        f32 mult = 2.0f / texture_size.x;
-        for (; ; mult *= 1.5f){
-            BeginTextureMode(light.shadowmask_rt);{
-                BeginShaderMode(gaussian_blur_shader);
-                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.size, (1.0f) / light.size});
-                draw_texture(light.shadowmask_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
-                EndShaderMode();
+                // draw_particles();
+                EndMode2D();
+                context.cam = with_shake_cam;
             }EndTextureMode();
             
-            if (mult >= 2){
-                break;
+            assert(texture_size.x >= 1);
+            f32 mult = 2.0f / texture_size.x;
+            for (; ; mult *= 1.5f){
+                BeginTextureMode(light.shadowmask_rt);{
+                    BeginShaderMode(gaussian_blur_shader);
+                    i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+                    set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.size, (1.0f) / light.size});
+                    draw_texture(light.shadowmask_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
+                    EndShaderMode();
+                }EndTextureMode();
+                
+                if (mult >= 2){
+                    break;
+                }
             }
-        }
+        }        
+
+         BeginTextureMode(light.geometry_rt);{
+                ClearBackground(Fade(BLACK, 0));
+                context.cam = get_cam_for_resolution(light.geometry_size, light.geometry_size);
+                context.cam.position = light_position;
+                context.cam.view_position = light_position;
+                context.cam.cam2D.zoom = get_light_zoom(light.radius);
+                BeginMode2D(context.cam.cam2D);
+                BeginShaderMode(gaussian_blur_shader);
+                    i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+                    set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (light.geometry_size), (1.0f) / (light.geometry_size)});
+    
+                    ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM){
+                        if (should_not_draw_entity(entity, context.cam)){
+                            continue;
+                        }
+                        Color prev_color = entity->color;
+                        entity->color = BLACK;
+                        draw_entity(entity);
+                        entity->color = prev_color;
+                    }
+                    //draw_particles();
+                EndShaderMode();
+                EndMode2D();
+                context.cam = with_shake_cam;
+            }EndTextureMode();
             
-        BeginTextureMode(light.backshadows_rt);{
+            BeginTextureMode(light.backshadows_rt);{
             ClearBackground(Fade(WHITE, 0));
             context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
             context.cam.position = light_position;
-            context.cam.cam2D.zoom = light.zoom;
+            context.cam.view_position = light_position;
+            context.cam.cam2D.zoom = get_light_zoom(light.radius);
             BeginMode2D(context.cam.cam2D);
-            ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER){
-                if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, with_shake_cam)){
+            ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER | PLATFORM){
+                if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, context.cam)){
                     continue;
                 }
                 Color prev_color = entity->color;
@@ -8020,17 +8117,16 @@ void draw_game(){
             EndShaderMode();
             context.cam = with_shake_cam;
         }; EndTextureMode();
+
     
             // context.cam = get_cam_for_resolution(screen_width * 0.5f, screen_height * 0.5f);
             
         BeginTextureMode(global_illumination_rt);{
 
-            // / 1.0f because zoom was 1.0 when we draw this lightmap
-            Vector2 lightmap_game_scale = {SCREEN_WORLD_SIZE / light.zoom, SCREEN_WORLD_SIZE / light.zoom};
-            
             Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(light.shadowmask_rt.texture, light_position, lightmap_game_scale);
             BeginMode2D(context.cam.cam2D);{
                 BeginShaderMode(smooth_edges_shader);
+                local_persist i32 light_color_loc    = get_shader_location(smooth_edges_shader, "light_color");
                 local_persist i32 my_pos_loc     = get_shader_location(smooth_edges_shader, "my_pos");
                 local_persist i32 my_size_loc    = get_shader_location(smooth_edges_shader, "my_size");
                 local_persist i32 gi_size_loc    = get_shader_location(smooth_edges_shader, "gi_size");
@@ -8039,16 +8135,17 @@ void draw_game(){
                 local_persist i32 light_texture_loc = get_shader_location(smooth_edges_shader, "light_texture");
                 local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
                 
+                set_shader_value_color(smooth_edges_shader, light_color_loc, ColorNormalize(light.color));
                 set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
                 set_shader_value(smooth_edges_shader, my_size_loc, get_texture_pixels_size(light.shadowmask_rt.texture, lightmap_game_scale));
                 set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
-                set_shader_value_tex(smooth_edges_shader, gi_texture_loc, global_illumination_rt.texture);
-                set_shader_value_tex(smooth_edges_shader, geometry_texture_loc, light.geometry_rt.texture);
-                set_shader_value_tex(smooth_edges_shader, light_texture_loc, smooth_circle_texture);
-                set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, light.backshadows_rt.texture);
+                set_shader_value_tex(smooth_edges_shader, gi_texture_loc,          global_illumination_rt.texture);
+                set_shader_value_tex(smooth_edges_shader, light_texture_loc,       smooth_circle_texture);
+                set_shader_value_tex(smooth_edges_shader, geometry_texture_loc,    /*light.make_shadows ? */light.geometry_rt.texture /*: white_pixel_texture*/);
+                set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, /*light.make_shadows ? */light.backshadows_rt.texture /*: white_pixel_texture*/);
                 
                 // draw_game_texture(smooth_circle_texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
-                draw_game_texture(light.shadowmask_rt.texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
+                draw_game_texture(light.make_shadows ? light.shadowmask_rt.texture : white_pixel_texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
                 // draw_game_texture(light.backshadows_rt.texture, light_position, {SCREEN_WORLD_SIZE / 1.0f, SCREEN_WORLD_SIZE / 1.0f}, {0.5f, 0.5f}, 0, WHITE, true);
                 EndShaderMode();
             } EndMode2D();

@@ -123,6 +123,7 @@ void copy_entity(Entity *dest, Entity *src);
 
 inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
+i32 init_new_light(Entity *entity, Light *copy_light = NULL);
 void init_entity(Entity *entity);
 
 void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_Type type);
@@ -142,6 +143,8 @@ Particle_Emitter* add_emitter(Particle_Emitter *copy);
 f32 zoom_unit_size();
 
 inline Vector2 get_perlin_in_circle(f32 speed);
+
+inline f32 get_explosion_radius(Entity *entity, f32 base_radius = 40);
 
 Vector2 get_left_up_no_rot(Entity *e);
 Vector2 get_left_up(Entity *e);

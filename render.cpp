@@ -140,6 +140,10 @@ void set_shader_value(Shader shader, int loc, Vector2 value){
     SetShaderValue(shader, loc, &value, SHADER_UNIFORM_VEC2);
 }
 
+void set_shader_value_color(Shader shader, int loc, Vector4 value){
+    SetShaderValue(shader, loc, &value, SHADER_UNIFORM_VEC4);
+}
+
 void set_shader_value_vec3(Shader shader, int loc, Vector3 value){
     SetShaderValue(shader, loc, &value, SHADER_UNIFORM_VEC3);
 }

@@ -639,10 +639,15 @@ struct Light{
     
     i32 size_flags = MEDIUM;
     
+    Color color = WHITE;
+    
     i32 size = 256;
     i32 geometry_size = 1024;
-    f32 zoom = 1.0f;
+    f32 radius = 150.0f;
     b32 make_shadows = true;
+    
+    b32 bake_shadows = true;
+    f32 last_bake_time = -12;
     
     RenderTexture shadowmask_rt;
     RenderTexture backshadows_rt;
@@ -732,6 +737,7 @@ struct Context{
     f32 last_collision_cells_clear_time = -2;
     
     b32 we_got_a_winner = false;
+    b32 just_entered_game_state = false;
     // Vector2 unit_screen_size;
     
     char current_level_name[256];

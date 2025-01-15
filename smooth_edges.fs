@@ -9,6 +9,7 @@ uniform sampler2D texture0;
 
 // uniforms
 //We think that gi texture pos is {0, 0} and this is left-down corner. So my pos will be relative to that and it's also left-down.
+uniform vec4 light_color;
 uniform vec2 my_pos;
 uniform vec2 my_size;
 uniform vec2 gi_size;
@@ -42,5 +43,6 @@ void main()
     current_color += geometry_color;
     finalColor = mix(gi_color, gi_color + current_color, t);
     finalColor *= backshadows_color;
+    finalColor *= light_color;
     finalColor.a = t;
 }
