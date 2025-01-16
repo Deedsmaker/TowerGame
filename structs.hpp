@@ -556,7 +556,7 @@ struct Entity{
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture texture, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices);
-    Entity(Entity *copy);
+    Entity(Entity *copy, b32 keep_id);
 
     i32 id = -1;
     b32 need_to_save = true;
@@ -625,10 +625,12 @@ struct Entity{
 };
 
 enum Light_Size_Flags{
-    SMALL_LIGHT  = 1 << 0,  
-    MEDIUM_LIGHT = 1 << 1,
-    BIG_LIGHT    = 1 << 2,
-    HUGE_LIGHT   = 1 << 3
+    ULTRA_SMALL_LIGHT = 1 << 0,
+    SMALL_LIGHT       = 1 << 1,  
+    MEDIUM_LIGHT      = 1 << 2,
+    BIG_LIGHT         = 1 << 3,
+    HUGE_LIGHT        = 1 << 4,
+    GIANT_LIGHT       = 1 << 5
 };
 
 struct Light{
@@ -637,16 +639,22 @@ struct Light{
 
     i32 connected_entity_id = -1;
     
-    i32 size_flags = MEDIUM;
+    i32 shadows_size_flags     = SMALL_LIGHT;
+    i32 backshadows_size_flags = SMALL_LIGHT;
     
     Color color = WHITE;
     
-    i32 size = 256;
-    i32 geometry_size = 1024;
-    f32 radius = 150.0f;
-    b32 make_shadows = true;
+    i32 shadows_size     = 256;
+    i32 backshadows_size = 256;
+    i32 geometry_size    = 1024;
     
-    b32 bake_shadows = true;
+    f32 opacity = 1.0f;
+    f32 power = 1.0f;
+    f32 radius           = 150.0f;
+    b32 make_shadows     = true;
+    b32 make_backshadows = true;
+    
+    b32 bake_shadows = false;
     f32 last_bake_time = -12;
     
     RenderTexture shadowmask_rt;
@@ -738,6 +746,7 @@ struct Context{
     
     b32 we_got_a_winner = false;
     b32 just_entered_game_state = false;
+    b32 baked_shadows_this_frame = false;
     // Vector2 unit_screen_size;
     
     char current_level_name[256];

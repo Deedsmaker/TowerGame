@@ -46,22 +46,25 @@ global_variable Hash_Table_Int<Sound_Handler> sounds_table = Hash_Table_Int<Soun
 Player last_player_data = {};
 Player death_player_data = {};
 
-void free_light(Entity *e){
+void free_light(Light *light){
+    if (light->exists){
+        if (light->make_shadows){
+            UnloadRenderTexture(light->shadowmask_rt);
+        }
+        UnloadRenderTexture(light->geometry_rt);
+        UnloadRenderTexture(light->backshadows_rt);
+        
+        light->exists = false;
+    }
+}
+
+void free_entity_light(Entity *e){
     if (e->light_index != -1 ){
         // @OPTIMIZATION we actually don't want unload texture every time entity gets freed.
         // I think we should mark it as non existing and when the next entity will search for light - check if this one already
         // has index and size is the same and use it. We will free it when level gets unload.
         Light *current_light = context.lights.get_ptr(e->light_index);           
-        if (current_light->exists){
-            if (current_light->make_shadows){
-                UnloadRenderTexture(current_light->shadowmask_rt);
-            }
-            UnloadRenderTexture(current_light->geometry_rt);
-            UnloadRenderTexture(current_light->backshadows_rt);
-            
-            current_light->exists = false;
-        }
-        
+        free_light(current_light);        
         e->light_index = -1;
     }
 }
@@ -107,7 +110,7 @@ void free_entity(Entity *e){
     
     // free light
     if (e->flags & LIGHT){
-        free_light(e);
+        free_entity_light(e);
     }
 }
 
@@ -270,10 +273,17 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     setup_color_changer(this);
 }
 
-Entity::Entity(Entity *copy){
+Entity::Entity(Entity *copy, b32 keep_id){
     *this = *copy;
 
     id = copy->id;
+    
+    if (!keep_id){
+        id = context.entities.total_added_count + core.time.app_time * 10000 + 100;
+    }
+    
+    check_avaliable_ids_and_set_if_found(&id);
+    
     position = copy->position;
     pivot    = copy->pivot;
     
@@ -389,6 +399,7 @@ void clear_context(Context *c){
     c->emitters.clear();
     
     for (int i = 0; i < context.lights.max_count; i++){
+        free_light(context.lights.get_ptr(i));       
         *(context.lights.get_ptr(i)) = {};
     }
     
@@ -449,9 +460,15 @@ int save_level(const char *level_name){
         
         if (e->flags & LIGHT && e->light_index >= 0){
             Light *light = context.lights.get_ptr(e->light_index);
-            fprintf(fptr, "light_size_flag:%d: ",    light->size_flags);
+            fprintf(fptr, "light_shadows_size_flag:%d: ",     light->shadows_size_flags);
+            fprintf(fptr, "light_backshadows_size_flag:%d: ", light->backshadows_size_flags);
             fprintf(fptr, "light_make_shadows:%d: ", light->make_shadows);
+            fprintf(fptr, "light_make_backshadows:%d: ", light->make_backshadows);
+            fprintf(fptr, "light_bake_shadows:%d: ", light->bake_shadows);
             fprintf(fptr, "light_radius:%f: ", light->radius);
+            fprintf(fptr, "light_opacity:%f: ", light->opacity);
+            fprintf(fptr, "light_power:%f: ", light->power);
+            fprintf(fptr, "light_color{:%d:, :%d:, :%d:, :%d:} ", (i32)light->color.r, (i32)light->color.g, (i32)light->color.b, (i32)light->color.a);
         }
         
         if (e->flags & TRIGGER){
@@ -805,7 +822,12 @@ int load_level(const char *level_name){
                 if (entity_to_fill.flags & LIGHT){
                     // entity_to_fill.light_index = context.lights.count;
                     // context.lights.add({});
-                    init_new_light(&entity_to_fill);
+                    // init_new_light(&entity_to_fill);
+                    for (int i = 0; i < context.lights.max_count; i++){                    
+                        if (!context.lights.get(i).exists){
+                            entity_to_fill.light_index = i;   
+                        }
+                    }
                 }
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "vertices")){
@@ -855,15 +877,33 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "explosive_radius_multiplier")){
                 fill_f32_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_size_flag")){
-                fill_i32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->size_flags, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get(i).data, "light_shadows_size_flag")){
+                fill_i32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->shadows_size_flags, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_backshadows_size_flag")){
+                fill_i32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->backshadows_size_flags, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "light_make_shadows")){
                 fill_b32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->make_shadows, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_make_backshadows")){
+                fill_b32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->make_backshadows, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_bake_shadows")){
+                fill_b32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->bake_shadows, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "light_radius")){
                 fill_f32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->radius, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_opacity")){
+                fill_f32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->opacity, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_power")){
+                fill_f32_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->power, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "light_color")){
+                fill_vector4_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->color, splitted_line.get(i+1).data, splitted_line.get(i+2).data, splitted_line.get(i+3).data, splitted_line.get(i+4).data);
+                i += 4;
             } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
                 fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
                 i++;
@@ -1106,7 +1146,7 @@ void init_spawn_objects(){
     
     Entity dummy_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
     dummy_entity.color  = Fade(GREEN, 0.5f);
-    dummy_entity.hidden = true;
+    // dummy_entity.hidden = true;
     str_copy(dummy_entity.name, "dummy_entity"); 
     setup_color_changer(&dummy_entity);
     
@@ -1428,20 +1468,26 @@ i32 init_new_light(Entity *entity, Light *copy_light){
     //     return entity->light_index;
     // }
         
-    free_light(entity);
+    free_entity_light(entity);
     
     for (int i = 0; i < context.lights.max_count; i++){
         if (!context.lights.get_ptr(i)->exists){
             new_light = context.lights.get_ptr(i);
             entity->light_index = i;
             break;
+        } else{
+            assert(context.lights.get_ptr(i)->connected_entity_id != entity->id);
         }
     }
     if (new_light){
         if (copy_light){
-            new_light->radius       = copy_light->radius;            
-            new_light->make_shadows = copy_light->make_shadows;
-            new_light->size_flags   = copy_light->size_flags;
+            // new_light->radius                 = copy_light->radius;            
+            // new_light->make_shadows           = copy_light->make_shadows;
+            // new_light->make_backshadows       = copy_light->make_backshadows;
+            // new_light->bake_shadows           = copy_light->bake_shadows;
+            // new_light->shadows_size_flags     = copy_light->shadows_size_flags;
+            // new_light->backshadows_size_flags = copy_light->backshadows_size_flags;
+            *new_light = *copy_light;
         } else{
             *new_light = {};
             new_light->color = WHITE;
@@ -1449,28 +1495,52 @@ i32 init_new_light(Entity *entity, Light *copy_light){
         
         new_light->exists = true;
         
-        if (new_light->size_flags & SMALL_LIGHT){
-            new_light->size = 128;
-        } else if (new_light->size_flags & MEDIUM_LIGHT){
-            new_light->size = 256;
-        } else if (new_light->size_flags & BIG_LIGHT){
-            new_light->size = 512;
-        } else if (new_light->size_flags & HUGE_LIGHT){
-            new_light->size = 1024;
+        if (new_light->shadows_size_flags        & ULTRA_SMALL_LIGHT){
+            new_light->shadows_size = 64;
+        } else if (new_light->shadows_size_flags & SMALL_LIGHT){
+            new_light->shadows_size = 128;
+        } else if (new_light->shadows_size_flags & MEDIUM_LIGHT){
+            new_light->shadows_size = 256;
+        } else if (new_light->shadows_size_flags & BIG_LIGHT){
+            new_light->shadows_size = 512;
+        } else if (new_light->shadows_size_flags & HUGE_LIGHT){
+            new_light->shadows_size = 1024;
+        } else if (new_light->shadows_size_flags & GIANT_LIGHT){
+            new_light->shadows_size = 2048;
+        }
+        
+        if (new_light->backshadows_size_flags        & ULTRA_SMALL_LIGHT){
+            new_light->backshadows_size = 64;
+        } else if (new_light->backshadows_size_flags & SMALL_LIGHT){
+            new_light->backshadows_size = 128;
+        } else if (new_light->backshadows_size_flags & MEDIUM_LIGHT){
+            new_light->backshadows_size = 256;
+        } else if (new_light->backshadows_size_flags & BIG_LIGHT){
+            new_light->backshadows_size = 512;
+        } else if (new_light->backshadows_size_flags & HUGE_LIGHT){
+            new_light->backshadows_size = 1024;
+        } else if (new_light->backshadows_size_flags & GIANT_LIGHT){
+            new_light->backshadows_size = 2048;
         }
         
         
         new_light->connected_entity_id = entity->id;
         
-        // if (!new_light->make_shadows){
-            new_light->geometry_size = fminf(new_light->size * 4, 2048);
-        // }
+        if (new_light->bake_shadows){
+            new_light->geometry_size = fminf(new_light->shadows_size * 4, 2048);
+        }
         
         if (new_light->make_shadows){
-            new_light->shadowmask_rt  = LoadRenderTexture(new_light->size, new_light->size);
+            new_light->shadowmask_rt  = LoadRenderTexture(new_light->shadows_size, new_light->shadows_size);
         }
-        new_light->geometry_rt    = LoadRenderTexture(new_light->geometry_size, new_light->geometry_size);
-        new_light->backshadows_rt = LoadRenderTexture(new_light->size, new_light->size);
+        
+        if (new_light->make_backshadows){
+            new_light->backshadows_rt = LoadRenderTexture(new_light->backshadows_size, new_light->backshadows_size);
+        }
+                
+        if (new_light->make_shadows || new_light->make_backshadows){
+            new_light->geometry_rt = LoadRenderTexture(new_light->geometry_size, new_light->geometry_size);
+        }
     } else{
         print("WARNING: Could not found light to init new, everyting was consumed");
     }
@@ -2083,7 +2153,7 @@ void enter_game_state(){
     
     //copy_context(&saved_level_context, &context);
     
-    player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER | LIGHT);
+    player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
     player_entity->collision_flags = GROUND | ENEMY;
     player_entity->draw_order = 30;
     
@@ -2626,6 +2696,7 @@ void update_game(){
     // }
     
     context.just_entered_game_state = false;
+    context.baked_shadows_this_frame = false;
 } // update game end
 
 void update_color_changer(Entity *entity, f32 dt){
@@ -3141,6 +3212,110 @@ void close_create_box(){
     editor.create_box_lifetime = 0;
 }
 
+void make_color_picker(Vector2 inspector_position, Vector2 inspector_size, f32 v_pos, Color *color_ptr){
+    make_ui_text("Color: ", {inspector_position.x + 25, v_pos}, "light_bake_shadows");
+    f32 color_h_pos_mult = 0.2f;
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, WHITE, *color_ptr == WHITE, "light_color_picker_white")){
+        *color_ptr = WHITE;
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(RED, 0.3f), *color_ptr == ColorBrightness(RED, 0.3f), "light_color_picker_RED")){
+        *color_ptr = ColorBrightness(RED, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(ORANGE, 0.3f), *color_ptr == ColorBrightness(ORANGE, 0.3f), "light_color_picker_ORANGE")){
+        *color_ptr = ColorBrightness(ORANGE, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(SKYBLUE, 0.3f), *color_ptr == ColorBrightness(SKYBLUE, 0.3f), "light_color_picker_SKYBLUE")){
+        *color_ptr = ColorBrightness(SKYBLUE, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(BLUE, 0.3f), *color_ptr == ColorBrightness(BLUE, 0.3f), "light_color_picker_BLUE")){
+        *color_ptr = ColorBrightness(BLUE, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(GREEN, 0.3f), *color_ptr == ColorBrightness(GREEN, 0.3f), "light_color_picker_GREEN")){
+        *color_ptr = ColorBrightness(GREEN, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(LIME, 0.3f), *color_ptr == ColorBrightness(LIME, 0.3f), "light_color_picker_LIME")){
+        *color_ptr = ColorBrightness(LIME, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(PINK, 0.3f), *color_ptr == ColorBrightness(PINK, 0.3f), "light_color_picker_PINK")){
+        *color_ptr = ColorBrightness(PINK, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(VIOLET, 0.3f), *color_ptr == ColorBrightness(VIOLET, 0.3f), "light_color_picker_VIOLET")){
+        *color_ptr = ColorBrightness(VIOLET, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(MAGENTA, 0.3f), *color_ptr == ColorBrightness(MAGENTA, 0.3f), "light_color_picker_MAGENTA")){
+        *color_ptr = ColorBrightness(MAGENTA, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+    
+    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(BROWN, 0.3f), *color_ptr == ColorBrightness(BROWN, 0.3f), "light_color_picker_MAGENTA")){
+        *color_ptr = ColorBrightness(BROWN, 0.3f);
+    }
+    color_h_pos_mult += 0.05f;
+}
+
+void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, f32 v_pos, f32 height_add, i32 *size_flags, Entity *selected){
+    f32 h_pos_mult = 0.05f;
+    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & ULTRA_SMALL_LIGHT, "ultra_small_size_flag")){
+        *size_flags = ULTRA_SMALL_LIGHT;
+        init_entity(selected);
+    }
+    make_ui_text("(64): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "ultra_small_size_flag");
+    h_pos_mult += 0.15f;
+    
+    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & SMALL_LIGHT, "small_size_flag")){
+        *size_flags = SMALL_LIGHT;
+        init_entity(selected);
+    }
+    make_ui_text("(128): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "small_size_flag");
+    h_pos_mult += 0.15f;
+    
+    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & MEDIUM_LIGHT, "medium_light_flag")){
+        *size_flags = MEDIUM_LIGHT;
+        init_entity(selected);
+    }
+    make_ui_text("(256): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "medium_light_flag");
+    h_pos_mult += 0.15f;
+
+    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & BIG_LIGHT, "big_light_flag")){
+        *size_flags = BIG_LIGHT;
+        init_entity(selected);
+    }
+    make_ui_text("(512): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "big_light_flag");
+    h_pos_mult += 0.15f;
+
+    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & HUGE_LIGHT, "huge_light_flag")){
+        *size_flags = HUGE_LIGHT;
+        init_entity(selected);
+    }
+    make_ui_text("(1024): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "huge_light_flag");
+    h_pos_mult += 0.15f;
+
+    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & GIANT_LIGHT, "giant_light_flag")){
+        *size_flags = GIANT_LIGHT;
+        init_entity(selected);
+    }
+    make_ui_text("(2048): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "giant_light_flag");
+    h_pos_mult += 0.15f;
+}
+
 void update_editor_ui(){
     //inspector logic
     Entity *selected = editor.selected_entity;
@@ -3369,49 +3544,15 @@ void update_editor_ui(){
                 if (selected->flags & LIGHT){
                     init_entity(selected);                    
                 } else{
-                    free_light(selected);
+                    free_entity_light(selected);
                 }
             }
             v_pos += height_add;
             
             if (selected->flags & LIGHT && selected->light_index >= 0){
                 Light *light = context.lights.get_ptr(selected->light_index);
-                make_ui_text("Size flags: ", {inspector_position.x + 5, v_pos}, "size_flags");
-                v_pos += height_add;
                 
-                make_ui_text("Small (128): ", {inspector_position.x + 25, v_pos}, "small_size_flag");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & SMALL_LIGHT, "small_size_flag")){
-                    light->size_flags = SMALL_LIGHT;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Medium (256): ", {inspector_position.x + 25, v_pos}, "medium_size_flag");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & MEDIUM_LIGHT, "medium_size_flag")){
-                    light->size_flags = MEDIUM_LIGHT;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Big (512): ", {inspector_position.x + 25, v_pos}, "big_size_flag");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & BIG_LIGHT, "big_size_flag")){
-                    light->size_flags = BIG_LIGHT;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
-                
-                make_ui_text("HUGE (1024): ", {inspector_position.x + 25, v_pos}, "huge_size_flag");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->size_flags & HUGE_LIGHT, "huge_size_flag")){
-                    light->size_flags = HUGE_LIGHT;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Make shadows (expensive): ", {inspector_position.x + 25, v_pos}, "light_make_shadows");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.65f, v_pos}, light->make_shadows, "light_make_shadows")){
-                    light->make_shadows = !light->make_shadows;
-                    init_entity(selected);
-                }
+                make_color_picker(inspector_position, inspector_size, v_pos, &light->color);
                 v_pos += height_add;
                 
                 make_ui_text("Light radius: ", {inspector_position.x + 5, v_pos}, "light_radius");
@@ -3420,6 +3561,53 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
+                make_ui_text("Light opacity: ", {inspector_position.x + 5, v_pos}, "light_opacity");
+                if (make_input_field(TextFormat("%.2f", light->opacity), {inspector_position.x + 100, v_pos}, {150, 20}, "light_opacity") ){
+                    light->opacity = atof(focus_input_field.content);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Light power: ", {inspector_position.x + 5, v_pos}, "light_power");
+                if (make_input_field(TextFormat("%.2f", light->power), {inspector_position.x + 100, v_pos}, {150, 20}, "light_power") ){
+                    light->power = atof(focus_input_field.content);
+                }
+                v_pos += height_add;
+
+                
+                make_ui_text("Bake shadows: ", {inspector_position.x + 5, v_pos}, "light_bake_shadows", 17, ColorBrightness(light->bake_shadows ? GREEN : RED, 0.5f));
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->bake_shadows, "light_bake_shadows")){
+                    light->bake_shadows = !light->bake_shadows;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Make shadows (expensive): ", {inspector_position.x + 5, v_pos}, "light_make_shadows");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->make_shadows, "light_make_shadows")){
+                    light->make_shadows = !light->make_shadows;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+
+                if (light->make_shadows){
+                    make_ui_text("Shadows Size flags: ", {inspector_position.x + 5, v_pos}, "shadows_size_flags");
+                    v_pos += height_add;
+                    make_light_size_picker(inspector_position, inspector_size, v_pos, height_add, &light->shadows_size_flags, selected);
+                    v_pos += height_add * 2;
+                }
+                
+                make_ui_text("Make backshadows: ", {inspector_position.x + 5, v_pos}, "light_make_backshadows");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->make_backshadows, "light_make_backshadows")){
+                    light->make_backshadows = !light->make_backshadows;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+
+                if (light->make_backshadows){
+                    make_ui_text("Backshadows Size flags: ", {inspector_position.x + 5, v_pos}, "backshadows_size_flags");
+                    v_pos += height_add;
+                    make_light_size_picker(inspector_position, inspector_size, v_pos, height_add, &light->backshadows_size_flags, selected);
+                    v_pos += height_add * 2;
+                }
             }
         }
         
@@ -3846,7 +4034,7 @@ void update_editor_ui(){
                 need_close_create_box = true;
                 
                 Undo_Action undo_action;
-                undo_action.spawned_entity = entity;
+                undo_action.spawned_entity = *entity;
                 //undo_action.entity = entity;
                 undo_action.entity_id = entity->id;
                 undo_action.entity_was_spawned = true;
@@ -6348,6 +6536,15 @@ void update_editor_entity(Entity *e){
             e->physics_object.last_pick_rope_point_time = core.time.app_time;
         }
     }
+    
+    if (e->flags & LIGHT){
+        if (e->light_index == -1){
+            print("WARNING: Entity with flag LIGHT don't have corresponding light index");
+        } else{
+            Light *light = context.lights.get_ptr(e->light_index);
+            light->position = e->position;
+        }
+    }
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected){
@@ -7405,8 +7602,10 @@ void draw_entity(Entity *e){
     
     if (e->flags & DUMMY){
         // draw dummy
-        draw_game_triangle_strip(e);
-        draw_game_line_strip(e, SKYBLUE);
+        if (game_state == EDITOR || game_state == PAUSE){
+            draw_game_triangle_strip(e);
+            draw_game_line_strip(e, SKYBLUE);
+        }
     }
     
     if (e->flags & PLAYER){
@@ -7875,6 +8074,14 @@ void draw_ui(const char *tag){
                 draw_line(element.position, down_pos, WHITE);
                 draw_line(down_pos, down_pos + Vector2_right * element.size.x * 0.4f - Vector2_up * element.size.y * 0.9f, WHITE);
             }
+            
+            if (element.ui_flags & UI_COLOR_PICKER){
+                draw_rect(element.position, element.size, element.pivot, 0, element.color);
+                
+                if (element.toggle_value){
+                    draw_rect_lines(element.position, element.size * 1.1f, element.size.x * 0.075f, element.color == WHITE ? PINK : WHITE);
+                }
+            }
         }
         
         if (element.ui_flags & UI_TEXT){
@@ -8019,14 +8226,18 @@ void draw_game(){
         
         local_persist Texture smooth_circle_texture = get_texture("SmoothCircle.png");
         
-        Vector2 texture_size = {(f32)light.size, (f32)light.size};
+        Vector2 shadows_texture_size = {(f32)light.shadows_size, (f32)light.shadows_size};
         
-        if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (game_state == EDITOR))) || context.just_entered_game_state){
+        if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (game_state == EDITOR) && !context.baked_shadows_this_frame)) || context.just_entered_game_state){
             light_ptr->last_bake_time = core.time.app_time;
+            
+            if (light.bake_shadows){
+                context.baked_shadows_this_frame = true;
+            }
             
             BeginTextureMode(light.shadowmask_rt);{
                 ClearBackground(Fade(WHITE, 0));
-                context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
+                context.cam = get_cam_for_resolution(shadows_texture_size.x, shadows_texture_size.y);
                 context.cam.position = light_position;
                 context.cam.view_position = light_position;
                 context.cam.cam2D.zoom = get_light_zoom(light.radius);
@@ -8046,15 +8257,19 @@ void draw_game(){
                 context.cam = with_shake_cam;
             }EndTextureMode();
             
-            assert(texture_size.x >= 1);
-            f32 mult = 2.0f / texture_size.x;
+            assert(shadows_texture_size.x >= 1);
+            f32 mult = 2.0f / shadows_texture_size.x;
             for (; ; mult *= 1.5f){
                 BeginTextureMode(light.shadowmask_rt);{
-                    BeginShaderMode(gaussian_blur_shader);
+                    // if (0 && !light.bake_shadows){
+                        BeginShaderMode(gaussian_blur_shader);
+                    // }
                     i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                    set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.size, (1.0f) / light.size});
-                    draw_texture(light.shadowmask_rt.texture, texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
-                    EndShaderMode();
+                    set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.shadows_size, (1.0f) / light.shadows_size});
+                    draw_texture(light.shadowmask_rt.texture, shadows_texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
+                    // if (0 && !light.bake_shadows){
+                        EndShaderMode();
+                    // }
                 }EndTextureMode();
                 
                 if (mult >= 2){
@@ -8063,7 +8278,40 @@ void draw_game(){
             }
         }        
 
-         BeginTextureMode(light.geometry_rt);{
+        Vector2 backshadows_texture_size = {(f32)light.backshadows_size, (f32)light.backshadows_size};
+        if (light.make_backshadows){
+            BeginTextureMode(light.backshadows_rt);{
+                ClearBackground(Fade(WHITE, 0));
+                context.cam = get_cam_for_resolution(backshadows_texture_size.x, backshadows_texture_size.y);
+                context.cam.position = light_position;
+                context.cam.view_position = light_position;
+                context.cam.cam2D.zoom = get_light_zoom(light.radius);
+                BeginMode2D(context.cam.cam2D);
+                ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER | PLATFORM | SWORD){
+                    if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, context.cam)){
+                        continue;
+                    }
+                    Color prev_color = entity->color;
+                    entity->color = Fade(BLACK, 0.7f);
+                    draw_entity(entity);
+                    entity->color = prev_color;
+    
+                }
+                //draw_particles();
+                EndMode2D();
+                
+                BeginShaderMode(gaussian_blur_shader);
+                    i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+                    set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.backshadows_size, (1.0f) / light.backshadows_size});
+    
+                    draw_texture(light.backshadows_rt.texture, backshadows_texture_size * 0.5f, {1.0f + 0.2f, 1.0f + 0.2f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
+                EndShaderMode();
+                context.cam = with_shake_cam;
+            }; EndTextureMode();
+        }
+        
+        if (light.make_shadows || light.make_backshadows){
+            BeginTextureMode(light.geometry_rt);{
                 ClearBackground(Fade(BLACK, 0));
                 context.cam = get_cam_for_resolution(light.geometry_size, light.geometry_size);
                 context.cam.position = light_position;
@@ -8074,7 +8322,7 @@ void draw_game(){
                     i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
                     set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (light.geometry_size), (1.0f) / (light.geometry_size)});
     
-                    ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM){
+                    ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD){
                         if (should_not_draw_entity(entity, context.cam)){
                             continue;
                         }
@@ -8088,44 +8336,13 @@ void draw_game(){
                 EndMode2D();
                 context.cam = with_shake_cam;
             }EndTextureMode();
-            
-            BeginTextureMode(light.backshadows_rt);{
-            ClearBackground(Fade(WHITE, 0));
-            context.cam = get_cam_for_resolution(texture_size.x, texture_size.y);
-            context.cam.position = light_position;
-            context.cam.view_position = light_position;
-            context.cam.cam2D.zoom = get_light_zoom(light.radius);
-            BeginMode2D(context.cam.cam2D);
-            ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER | PLATFORM){
-                if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, context.cam)){
-                    continue;
-                }
-                Color prev_color = entity->color;
-                entity->color = Fade(BLACK, 0.7f);
-                draw_entity(entity);
-                entity->color = prev_color;
-
-            }
-            //draw_particles();
-            EndMode2D();
-            
-            BeginShaderMode(gaussian_blur_shader);
-                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.size, (1.0f) / light.size});
-
-                draw_texture(light.backshadows_rt.texture, texture_size * 0.5f, {1.0f + 0.2f, 1.0f + 0.2f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
-            EndShaderMode();
-            context.cam = with_shake_cam;
-        }; EndTextureMode();
-
-    
-            // context.cam = get_cam_for_resolution(screen_width * 0.5f, screen_height * 0.5f);
+        }
             
         BeginTextureMode(global_illumination_rt);{
-
             Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(light.shadowmask_rt.texture, light_position, lightmap_game_scale);
             BeginMode2D(context.cam.cam2D);{
                 BeginShaderMode(smooth_edges_shader);
+                local_persist i32 light_power_loc    = get_shader_location(smooth_edges_shader, "light_power");
                 local_persist i32 light_color_loc    = get_shader_location(smooth_edges_shader, "light_color");
                 local_persist i32 my_pos_loc     = get_shader_location(smooth_edges_shader, "my_pos");
                 local_persist i32 my_size_loc    = get_shader_location(smooth_edges_shader, "my_size");
@@ -8135,14 +8352,15 @@ void draw_game(){
                 local_persist i32 light_texture_loc = get_shader_location(smooth_edges_shader, "light_texture");
                 local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
                 
-                set_shader_value_color(smooth_edges_shader, light_color_loc, ColorNormalize(light.color));
+                set_shader_value_color(smooth_edges_shader, light_color_loc, ColorNormalize(Fade(light.color, light.opacity)));
+                set_shader_value(smooth_edges_shader, light_power_loc, light.power);
                 set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
                 set_shader_value(smooth_edges_shader, my_size_loc, get_texture_pixels_size(light.shadowmask_rt.texture, lightmap_game_scale));
                 set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
                 set_shader_value_tex(smooth_edges_shader, gi_texture_loc,          global_illumination_rt.texture);
                 set_shader_value_tex(smooth_edges_shader, light_texture_loc,       smooth_circle_texture);
-                set_shader_value_tex(smooth_edges_shader, geometry_texture_loc,    /*light.make_shadows ? */light.geometry_rt.texture /*: white_pixel_texture*/);
-                set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, /*light.make_shadows ? */light.backshadows_rt.texture /*: white_pixel_texture*/);
+                set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, light.make_backshadows ? light.backshadows_rt.texture : white_pixel_texture);
+                set_shader_value_tex(smooth_edges_shader, geometry_texture_loc,    light.make_shadows || light.make_backshadows ? light.geometry_rt.texture : white_pixel_texture);
                 
                 // draw_game_texture(smooth_circle_texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
                 draw_game_texture(light.make_shadows ? light.shadowmask_rt.texture : white_pixel_texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
@@ -8294,13 +8512,7 @@ void check_avaliable_ids_and_set_if_found(int *id){
 }
 
 Entity* add_entity(Entity *copy, b32 keep_id){
-    Entity e = Entity(copy);
-    
-    if (!keep_id){
-        e.id = context.entities.total_added_count + core.time.app_time * 10000 + 100;
-    }
-    
-    check_avaliable_ids_and_set_if_found(&e.id);
+    Entity e = Entity(copy, keep_id);
     
     if (!keep_id && game_state == EDITOR){
         ForTable(context.entities, i){

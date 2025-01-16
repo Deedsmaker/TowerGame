@@ -11,7 +11,8 @@ enum Ui_Flags{
     BUTTON    = 1 << 1,
     UI_TEXT   = 1 << 2,
     UI_IMAGE  = 1 << 3,
-    UI_TOGGLE = 1 << 4
+    UI_TOGGLE = 1 << 4,
+    UI_COLOR_PICKER = 1 << 5
 };
 
 struct Button{
@@ -119,6 +120,10 @@ void make_ui_text(const char *content, Vector2 position, const char *tag, f32 fo
 b32 make_ui_toggle(Vector2 position, b32 current_value, const char *tag){
     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
     return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
+}
+
+b32 make_ui_color_picker(Vector2 position, Color color, b32 current_value, const char *tag){
+    return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, color, VIOLET, UI_COLOR_PICKER, current_value);
 }
 
 b32 make_ui_toggle(Vector2 position, Entity* e, b32 (get_value)(Entity*), const char *tag){

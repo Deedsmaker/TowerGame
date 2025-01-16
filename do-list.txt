@@ -57,13 +57,14 @@
 [ ] Враг который триггерится на активированную винтовку. Сам почти невидимый и меняется когда чаржится.
 [ ] Modifier for enemies so they can be killed with big or small sword.
 [ ] Враг/Модификатор . Делает врагу больше хп, но убить можно только если быстро нанести много урона. С мечом нужно крутиться на враге некоторое время (например 1.5 секунды), а с выстрелом настрелять много за короткое время. С мечом круче всего звучит, нужно будет реально подзадержаться на типе и такое можно использовать для боссов. Тяжело будет работать с птичками, но дуабл. Вероятно придется подумать еще над тем чтобы было легче оставаться на месте при сильном вращении, потому что в воздухе точно если будешь крутиться в одну сторону и жать кнопку ходьбы в другую - вращение меча перевесит. Показываться это будет полоской над врагом, которая будет заполняться при нанесении урона и убавляться когда некоторое время не дамажишь.
+[ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
 ///////////////////////////////////////////////////
 
-[ ] Color changer changes real color of object when works with light on one entity
-[ ] On lightmap drawing - draws all entities and not occludes (not all but not that we care about)
-    [ ] Occluding on lightmaps occludes real shadowcast geometry. Related ↑.
-
-[ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
+[X] Weird bug when reloading by pressing T in game after dying. Lights seems not to unload; (That was because dummy entities is hidden and we don't updated their position when reloading. Need to think about should be show light on hidden objects or not).
+[ ] Color picker for lights
+[X] Color changer changes real color of object when works with light on one entity
+[X] On lightmap drawing - draws all entities and not occludes (not all but not that we care about)
+    [X] Occluding on lightmaps occludes real shadowcast geometry. Related ↑.
 [ ] Move sequence option for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
 [ ] On enemy attack we can briefly show line that will fade away
 [X] Fix texture misplacing on screen resizing
