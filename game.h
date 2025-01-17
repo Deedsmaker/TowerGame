@@ -121,10 +121,14 @@ Entity* add_text(Vector2 pos, f32 size, const char *text);
 
 void copy_entity(Entity *dest, Entity *src);
 
+void init_light(Light *light);
+i32 init_entity_light(Entity *entity, Light *copy_light = NULL);
+
 inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
-i32 init_new_light(Entity *entity, Light *copy_light = NULL);
 void init_entity(Entity *entity);
+
+void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color);
 
 void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_Type type);
 

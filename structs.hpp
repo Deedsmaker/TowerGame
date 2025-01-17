@@ -544,6 +544,8 @@ struct Projectile{
     f32 birth_time = 0;
     f32 max_lifetime = 5;
     b32 dying = false;
+    
+    f32 last_light_spawn_time = -112;
     //Particle_Emitter trail_emitter;
 };
 
@@ -637,7 +639,10 @@ struct Light{
     b32 exists = false;
     Vector2 position = Vector2_zero;
 
+
     i32 connected_entity_id = -1;
+    
+    FLAGS additional_shadows_flags = 0;
     
     i32 shadows_size_flags     = SMALL_LIGHT;
     i32 backshadows_size_flags = SMALL_LIGHT;
@@ -656,6 +661,12 @@ struct Light{
     
     b32 bake_shadows = false;
     f32 last_bake_time = -12;
+    
+    //temp light options
+    f32 birth_time = -12;
+    f32 target_radius = 150;
+    f32 grow_time = 0;
+    f32 shrink_time = 0;
     
     RenderTexture shadowmask_rt;
     RenderTexture backshadows_rt;
@@ -737,7 +748,10 @@ struct Context{
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(20000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
     
-    Dynamic_Array<Light> lights = Dynamic_Array<Light>(128);
+    Dynamic_Array<Light> lights = Dynamic_Array<Light>(256);
+    i32 temp_lights_count = 64;
+    // We should set it in beginning 
+    i32 entity_lights_start_index = -1;
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     f32 last_bird_attack_time = -11110;

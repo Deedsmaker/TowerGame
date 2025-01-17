@@ -350,7 +350,7 @@ Entity::Entity(Entity *copy, b32 keep_id){
     
     if (flags & LIGHT){
         light_index = -1;
-        init_new_light(this, context.lights.get_ptr(copy->light_index));        
+        init_entity_light(this, context.lights.get_ptr(copy->light_index));        
     }
     
     // if (flags & PARTICLE_EMITTER){
@@ -399,8 +399,10 @@ void clear_context(Context *c){
     c->emitters.clear();
     
     for (int i = 0; i < context.lights.max_count; i++){
-        free_light(context.lights.get_ptr(i));       
-        *(context.lights.get_ptr(i)) = {};
+        if (i >= context.entity_lights_start_index){
+            free_light(context.lights.get_ptr(i));       
+            *(context.lights.get_ptr(i)) = {};
+        }
     }
     
     c->we_got_a_winner = false;
@@ -822,9 +824,9 @@ int load_level(const char *level_name){
                 if (entity_to_fill.flags & LIGHT){
                     // entity_to_fill.light_index = context.lights.count;
                     // context.lights.add({});
-                    // init_new_light(&entity_to_fill);
+                    // init_entity_light(&entity_to_fill);
                     for (int i = 0; i < context.lights.max_count; i++){                    
-                        if (!context.lights.get(i).exists){
+                        if (i >= context.entity_lights_start_index && !context.lights.get(i).exists){
                             entity_to_fill.light_index = i;   
                         }
                     }
@@ -1453,7 +1455,53 @@ inline int next_entity_avaliable(int index, Entity **entity, FLAGS flags){
 //     str_copy(entity->texture_name, texture_name);
 // }
 
-i32 init_new_light(Entity *entity, Light *copy_light){
+void init_light(Light *light){
+    if (light->shadows_size_flags        & ULTRA_SMALL_LIGHT){
+        light->shadows_size = 64;
+    } else if (light->shadows_size_flags & SMALL_LIGHT){
+        light->shadows_size = 128;
+    } else if (light->shadows_size_flags & MEDIUM_LIGHT){
+        light->shadows_size = 256;
+    } else if (light->shadows_size_flags & BIG_LIGHT){
+        light->shadows_size = 512;
+    } else if (light->shadows_size_flags & HUGE_LIGHT){
+        light->shadows_size = 1024;
+    } else if (light->shadows_size_flags & GIANT_LIGHT){
+        light->shadows_size = 2048;
+    }
+    
+    if (light->backshadows_size_flags        & ULTRA_SMALL_LIGHT){
+        light->backshadows_size = 64;
+    } else if (light->backshadows_size_flags & SMALL_LIGHT){
+        light->backshadows_size = 128;
+    } else if (light->backshadows_size_flags & MEDIUM_LIGHT){
+        light->backshadows_size = 256;
+    } else if (light->backshadows_size_flags & BIG_LIGHT){
+        light->backshadows_size = 512;
+    } else if (light->backshadows_size_flags & HUGE_LIGHT){
+        light->backshadows_size = 1024;
+    } else if (light->backshadows_size_flags & GIANT_LIGHT){
+        light->backshadows_size = 2048;
+    }
+    
+    if (light->bake_shadows){
+        light->geometry_size = fminf(light->shadows_size * 4, 2048);
+    }
+    
+    if (light->make_shadows){
+        light->shadowmask_rt  = LoadRenderTexture(light->shadows_size, light->shadows_size);
+    }
+    
+    if (light->make_backshadows){
+        light->backshadows_rt = LoadRenderTexture(light->backshadows_size, light->backshadows_size);
+    }
+            
+    if (light->make_shadows || light->make_backshadows){
+        light->geometry_rt = LoadRenderTexture(light->geometry_size, light->geometry_size);
+    }
+}
+
+i32 init_entity_light(Entity *entity, Light *copy_light){
     Light *new_light = NULL;
     
     //Means we will copy ourselves, maybe someone changed size or any other shit
@@ -1471,7 +1519,7 @@ i32 init_new_light(Entity *entity, Light *copy_light){
     free_entity_light(entity);
     
     for (int i = 0; i < context.lights.max_count; i++){
-        if (!context.lights.get_ptr(i)->exists){
+        if (!context.lights.get_ptr(i)->exists && i >= context.entity_lights_start_index){
             new_light = context.lights.get_ptr(i);
             entity->light_index = i;
             break;
@@ -1494,53 +1542,9 @@ i32 init_new_light(Entity *entity, Light *copy_light){
         }
         
         new_light->exists = true;
-        
-        if (new_light->shadows_size_flags        & ULTRA_SMALL_LIGHT){
-            new_light->shadows_size = 64;
-        } else if (new_light->shadows_size_flags & SMALL_LIGHT){
-            new_light->shadows_size = 128;
-        } else if (new_light->shadows_size_flags & MEDIUM_LIGHT){
-            new_light->shadows_size = 256;
-        } else if (new_light->shadows_size_flags & BIG_LIGHT){
-            new_light->shadows_size = 512;
-        } else if (new_light->shadows_size_flags & HUGE_LIGHT){
-            new_light->shadows_size = 1024;
-        } else if (new_light->shadows_size_flags & GIANT_LIGHT){
-            new_light->shadows_size = 2048;
-        }
-        
-        if (new_light->backshadows_size_flags        & ULTRA_SMALL_LIGHT){
-            new_light->backshadows_size = 64;
-        } else if (new_light->backshadows_size_flags & SMALL_LIGHT){
-            new_light->backshadows_size = 128;
-        } else if (new_light->backshadows_size_flags & MEDIUM_LIGHT){
-            new_light->backshadows_size = 256;
-        } else if (new_light->backshadows_size_flags & BIG_LIGHT){
-            new_light->backshadows_size = 512;
-        } else if (new_light->backshadows_size_flags & HUGE_LIGHT){
-            new_light->backshadows_size = 1024;
-        } else if (new_light->backshadows_size_flags & GIANT_LIGHT){
-            new_light->backshadows_size = 2048;
-        }
-        
-        
         new_light->connected_entity_id = entity->id;
-        
-        if (new_light->bake_shadows){
-            new_light->geometry_size = fminf(new_light->shadows_size * 4, 2048);
-        }
-        
-        if (new_light->make_shadows){
-            new_light->shadowmask_rt  = LoadRenderTexture(new_light->shadows_size, new_light->shadows_size);
-        }
-        
-        if (new_light->make_backshadows){
-            new_light->backshadows_rt = LoadRenderTexture(new_light->backshadows_size, new_light->backshadows_size);
-        }
-                
-        if (new_light->make_shadows || new_light->make_backshadows){
-            new_light->geometry_rt = LoadRenderTexture(new_light->geometry_size, new_light->geometry_size);
-        }
+
+        init_light(new_light);
     } else{
         print("WARNING: Could not found light to init new, everyting was consumed");
     }
@@ -1566,7 +1570,7 @@ void init_entity(Entity *entity){
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
         entity->flags |= LIGHT;
-        init_new_light(entity);
+        init_entity_light(entity);
         Light *new_light = context.lights.get_ptr(entity->light_index);
         new_light->radius = 120;
         new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 0.9f);
@@ -1678,7 +1682,7 @@ void init_entity(Entity *entity){
         //     *current_light = {};
         //     entity->light_index = -1;
         // }
-        init_new_light(entity);
+        init_entity_light(entity);
     }
     
     // setup_color_changer(entity);
@@ -1991,8 +1995,20 @@ global_variable Texture white_pixel_texture;
 global_variable Image black_pixel_image;
 global_variable Texture black_pixel_texture;
 
-#define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
-#define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
+// #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
+// #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
+
+void fill_light_by_temp_light_template(Light *light){
+    light->shadows_size_flags       = SMALL_LIGHT;
+    light->backshadows_size_flags   = SMALL_LIGHT;
+    light->geometry_size = 512;
+    light->make_shadows             = true;
+    light->make_backshadows         = true;
+    light->additional_shadows_flags = 0;
+    light->grow_time                = 0;
+    light->shrink_time              = 0;
+    light->birth_time = -12;
+}
 
 void init_game(){
     HideCursor();
@@ -2001,10 +2017,18 @@ void init_game(){
     game_state = EDITOR;
 
     context = {};    
+    
     //init context
     for (int i = 0; i < context.lights.max_count; i++){
-        *(context.lights.get_ptr(i)) = {};
+        Light *light = context.lights.get_ptr(i);
+        *(light) = {};
+        
+        if (i < context.temp_lights_count){
+            fill_light_by_temp_light_template(light);
+            init_light(light);
+        }
     }
+    context.entity_lights_start_index = context.temp_lights_count; 
     
     render = {};
     str_copy(context.current_level_name, "test_level");
@@ -5487,7 +5511,7 @@ void update_player(Entity *entity, f32 dt){
                 if (before_speed > 200 && magnitude(player_data.velocity) < 100){
                     player_data.heavy_collision_time = core.time.game_time;
                     player_data.heavy_collision_velocity = player_data.velocity;
-                    emit_particles(air_dust_emitter, col.point, col.normal, 4, 3);
+                    emit_particles(ground_splash_emitter, col.point, col.normal, 1, 1.5f);
                     shake_camera(0.7f);
                     
                     play_sound("HeavyLanding", col.point, 1.5f);
@@ -5613,7 +5637,7 @@ void update_player(Entity *entity, f32 dt){
         if (before_speed > 200 && magnitude(player_data.velocity) < 100){
             player_data.heavy_collision_time = core.time.game_time;
             player_data.heavy_collision_velocity = player_data.velocity;
-            emit_particles(air_dust_emitter, col.point, col.normal, 10, 2);
+            emit_particles(ground_splash_emitter, col.point, col.normal, 1, 1.5f);
             shake_camera(0.7f);
             play_sound("HeavyLanding", col.point, 1.5f);
         }
@@ -5741,6 +5765,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col){
         if (enemy->dead_man){
             emit_particles(fire_emitter, shooter_entity->position, col.normal, 4, 3);
             play_sound("Explosion", shooter_entity->position, shooter_entity->volume_multiplier);
+            add_explosion_light(shooter_entity->position, 125, 0.15f, 0.4f, ColorBrightness(RED, 0.5f));
             shooter_entity->destroyed = true;
             shooter_entity->enabled = false;
             shake_camera(0.6f);
@@ -5795,6 +5820,9 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             if (enemy->dead_man){
                 emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
                 play_sound("Explosion", bird_entity->position, bird_entity->volume_multiplier);
+                
+                add_explosion_light(bird_entity->position, 100, 0.1f, 0.3f, ColorBrightness(ORANGE, 0.5f));
+                
                 bird_entity->destroyed = true;
                 bird_entity->enabled = false;
                 shake_camera(0.6f);
@@ -6071,6 +6099,32 @@ inline f32 get_explosion_radius(Entity *entity, f32 base_radius){
     return lerp(base_radius, base_radius * 6, scale_progress);
 }
 
+void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color){
+    Light *light = NULL;
+    
+    for (i32 i = 0; i < context.temp_lights_count; i++){
+        if (!context.lights.get_ptr(i)->exists){
+            light = context.lights.get_ptr(i);
+            break;
+        }
+    }
+    
+    if (light){
+        light->birth_time   = core.time.game_time;
+        light->target_radius = radius;
+        light->grow_time    = grow_time;
+        light->shrink_time  = shrink_time;
+        light->color        = color;
+        light->opacity = 1;
+        light->exists = true;
+        light->position = position;
+        
+        light->additional_shadows_flags = ENEMY | PLAYER | SWORD;
+    } else{
+        print("WARNING: Could not find temp light for explosion");
+    }
+}
+
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
     
@@ -6101,6 +6155,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             f32 explosion_radius = get_explosion_radius(enemy_entity);
             emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, get_explosion_radius(enemy_entity) / 40.0f);
             play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
+            
+            add_explosion_light(enemy_entity->position, 300, 0.15f, 1.0f, ColorBrightness(ORANGE, 0.3f));
             
             f32 explosion_add_speed = 80;
             ForTable(context.entities, i){
@@ -6289,6 +6345,8 @@ void calculate_projectile_collisions(Entity *entity){
         
         Player *player = &player_data;
         
+        b32 damaged_enemy = false;
+        
         for (int i = 0; i < player->collisions.count; i++){
             Collision col = player->collisions.get(i);
             Entity *other = col.other_entity;
@@ -6354,7 +6412,7 @@ void calculate_projectile_collisions(Entity *entity){
                     play_sound(player_data.rifle_hit_sound, col.point);
                 }
             
-            
+                damaged_enemy = can_damage;
             } else if (other->flags & ENEMY && projectile->type == WEAK){
                 need_bounce = true;
             }
@@ -6381,6 +6439,11 @@ void calculate_projectile_collisions(Entity *entity){
             
             if (need_bounce){
                 projectile->velocity = reflected_vector(projectile->velocity * 0.5f, col.normal);
+            }
+            
+            if (!projectile->dying && core.time.game_time - projectile->last_light_spawn_time >= 0.1f){
+                add_explosion_light(col.point, 75, 0.05f, 0.1f, ColorBrightness(damaged_enemy ? RED : SKYBLUE, 0.4f));
+                projectile->last_light_spawn_time = core.time.game_time;
             }
         }
     } else if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
@@ -8209,12 +8272,33 @@ void draw_game(){
     } EndTextureMode();
 
     for (int i = 0; i < context.lights.max_count; i++){
-        Light light = context.lights.get(i);
         Light *light_ptr = context.lights.get_ptr(i);
         
-        if (!light.exists){
+        if (!light_ptr->exists){
             continue;
         }
+        
+        // update temp lights
+        if (i < context.temp_lights_count){
+            f32 lifetime = core.time.game_time - light_ptr->birth_time;
+            if (lifetime < light_ptr->grow_time){
+                f32 grow_t = lifetime / light_ptr->grow_time;
+                light_ptr->radius = lerp(0.0f, light_ptr->target_radius, sqrtf(grow_t));
+                light_ptr->power = lerp(4.0f, 2.0f, grow_t * grow_t);
+            } else{ //shrinking
+                f32 shrink_t = clamp01((lifetime - light_ptr->grow_time) / light_ptr->shrink_time);
+                light_ptr->radius = lerp(light_ptr->target_radius, light_ptr->target_radius * 0.5f, shrink_t * shrink_t);
+                light_ptr->opacity = lerp(1.0f, 0.0f, shrink_t * shrink_t * shrink_t);
+                light_ptr->power = lerp(2.0f, 1.0f, shrink_t * shrink_t);
+            }
+            
+            if (lifetime > light_ptr->grow_time + light_ptr->shrink_time){
+                // fill_light_by_temp_light_template(light_ptr);
+                light_ptr->exists = false;
+            }
+        }
+        
+        Light light = context.lights.get(i);
         
         Vector2 light_position = light.position;
         Vector2 lightmap_game_scale = {light.radius, light.radius};
@@ -8224,7 +8308,8 @@ void draw_game(){
             continue;
         }
         
-        local_persist Texture smooth_circle_texture = get_texture("SmoothCircle.png");
+        // local_persist Texture smooth_circle_texture = get_texture("SmoothCircle.png");
+        local_persist Texture smooth_circle_texture = white_pixel_texture;
         
         Vector2 shadows_texture_size = {(f32)light.shadows_size, (f32)light.shadows_size};
         
@@ -8242,7 +8327,7 @@ void draw_game(){
                 context.cam.view_position = light_position;
                 context.cam.cam2D.zoom = get_light_zoom(light.radius);
                 BeginMode2D(context.cam.cam2D);
-                ForEntities(entity, GROUND){
+                ForEntities(entity, GROUND | light.additional_shadows_flags){
                     if (entity->id == light.connected_entity_id || should_not_draw_entity(entity, context.cam)){
                         continue;
                     }
