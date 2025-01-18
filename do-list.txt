@@ -95,6 +95,11 @@
 [X] Bullet for every x enemy
 [X]! Scaling fix (Suka ne doljno) (budet)
 
+<VISUAL>
+/////////////////////////////////////////////////////////
+[ ] Snow with light blinks
+/////////////////////////////////////////////////////////
+
 <RAW>
 /////////////////////////////////////////////////////////
 [ ] Maybe levels with static camera where world will wrap around, like that item in world turns red or that item in duck game?

@@ -279,6 +279,11 @@ struct Door{
     Sound_Handler *open_sound = NULL;
 };
 
+enum Trigger_Action_Type{
+    TRIGGER_SOME_ACTION = 1 << 0,  
+    TRIGGER_LEVEL_LOAD  = 1 << 1
+};
+
 struct Trigger{
     Dynamic_Array<int> connected;
     Dynamic_Array<int> tracking;
@@ -651,7 +656,7 @@ struct Light{
     
     i32 shadows_size     = 256;
     i32 backshadows_size = 256;
-    i32 geometry_size    = 1024;
+    // i32 geometry_size    = 1024;
     
     f32 opacity = 1.0f;
     f32 power = 1.0f;
@@ -670,7 +675,7 @@ struct Light{
     
     RenderTexture shadowmask_rt;
     RenderTexture backshadows_rt;
-    RenderTexture geometry_rt;
+    // RenderTexture geometry_rt;
 };
 
 global_variable Player player_data;

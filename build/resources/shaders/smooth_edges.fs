@@ -32,7 +32,7 @@ void main()
     current_color *= light_texture_color;
     // current_color.a = alpha + light_texture_color.a;
     vec4 gi_color          = texture(gi_texture, gi_uv);
-    vec4 geometry_color    = texture(geometry_texture, uv) * light_texture_color;
+    vec4 geometry_color    = texture(geometry_texture, gi_uv) * light_texture_color;
     vec4 backshadows_color = texture(backshadows_texture, uv) * light_texture_color + geometry_color;
 
     float distance_to_center = distance(uv, vec2(0.5)) * 2;
