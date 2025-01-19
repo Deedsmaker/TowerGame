@@ -1499,7 +1499,7 @@ void init_light(Light *light){
     }
 }
 
-i32 init_entity_light(Entity *entity, Light *copy_light){
+i32 init_entity_light(Entity *entity, Light *copy_light, b32 free_light){
     Light *new_light = NULL;
     
     //Means we will copy ourselves, maybe someone changed size or any other shit
@@ -1514,7 +1514,9 @@ i32 init_entity_light(Entity *entity, Light *copy_light){
     //     return entity->light_index;
     // }
         
-    free_entity_light(entity);
+    if (free_light){
+        free_entity_light(entity);
+    }
     
     for (int i = 0; i < context.lights.max_count; i++){
         if (!context.lights.get_ptr(i)->exists && i >= context.entity_lights_start_index){
@@ -1568,7 +1570,7 @@ void init_entity(Entity *entity){
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
         entity->flags |= LIGHT;
-        init_entity_light(entity);
+        init_entity_light(entity, NULL, true);
         Light *new_light = context.lights.get_ptr(entity->light_index);
         new_light->radius = 120;
         new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 0.9f);
@@ -1680,7 +1682,7 @@ void init_entity(Entity *entity){
         //     *current_light = {};
         //     entity->light_index = -1;
         // }
-        init_entity_light(entity);
+        init_entity_light(entity, NULL, true);
     }
     
     // setup_color_changer(entity);
@@ -5196,7 +5198,7 @@ void update_player(Entity *entity, f32 dt){
     if (can_activate_rifle && input.press_flags & SHOOT){
         player_data.rifle_active = true;
         
-        add_explosion_light(player_entity->position, 50, 0.05f, 0.1f, ColorBrightness(GREEN, 0.3f));
+        add_explosion_light(player_entity->position, 50, 0.02f, 0.06f, ColorBrightness(GREEN, 0.3f));
         
         //player_data.rifle_current_power += player_data.sword_spin_progress * 50;
         //player_data.sword_spin_progress *= 0.1f;
@@ -5451,6 +5453,11 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
+        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other)){
+            stun_enemy(other, col.point, col.normal, true);
+            continue;
+        }
+        
         if (other->flags & CENTIPEDE_SEGMENT){
             if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left){
                 kill_player();
@@ -5596,6 +5603,12 @@ void update_player(Entity *entity, f32 dt){
         if (other->flags & PLATFORM && dot(player_data.velocity, other->up) > 0){
             continue;
         }
+        
+        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other)){
+            stun_enemy(other, col.point, col.normal, true);
+            continue;
+        }
+
         
         if (other->flags & CENTIPEDE_SEGMENT){
             if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left){

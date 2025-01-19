@@ -122,7 +122,7 @@ Entity* add_text(Vector2 pos, f32 size, const char *text);
 void copy_entity(Entity *dest, Entity *src);
 
 void init_light(Light *light);
-i32 init_entity_light(Entity *entity, Light *copy_light = NULL);
+i32 init_entity_light(Entity *entity, Light *copy_light = NULL, b32 free_light = false);
 
 inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
