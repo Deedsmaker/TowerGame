@@ -644,7 +644,6 @@ struct Light{
     b32 exists = false;
     Vector2 position = Vector2_zero;
 
-
     i32 connected_entity_id = -1;
     
     FLAGS additional_shadows_flags = 0;
@@ -658,6 +657,8 @@ struct Light{
     i32 backshadows_size = 256;
     // i32 geometry_size    = 1024;
     
+    b32 fire_effect = false;
+    
     f32 opacity = 1.0f;
     f32 power = 1.0f;
     f32 radius           = 150.0f;
@@ -665,6 +666,8 @@ struct Light{
     b32 make_backshadows = true;
     
     b32 bake_shadows = false;
+    b32 baked = false;
+    
     f32 last_bake_time = -12;
     
     //temp light options
@@ -924,6 +927,8 @@ struct Editor{
 struct Debug{
     b32 free_cam = false;
     f32 last_zoom = 0.35f;
+
+    b32 full_light = false;
 
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;

@@ -402,6 +402,8 @@ void clear_context(Context *c){
         if (i >= context.entity_lights_start_index){
             free_light(context.lights.get_ptr(i));       
             *(context.lights.get_ptr(i)) = {};
+        } else{ // So we in temp lights section
+            // fill_light_by_temp_light_template(context.lights.get_ptr(i));
         }
     }
     
@@ -1570,7 +1572,18 @@ void init_entity(Entity *entity){
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
         entity->flags |= LIGHT;
-        init_entity_light(entity, NULL, true);
+        Light explosive_light = {};
+        if (entity->light_index != -1){
+            explosive_light = context.lights.get(entity->light_index);
+        } 
+        if (entity->enemy.explosive_radius_multiplier >= 4){
+            explosive_light.shadows_size_flags = HUGE_LIGHT;
+            explosive_light.backshadows_size_flags = HUGE_LIGHT;
+        } else if (entity->enemy.explosive_radius_multiplier >= 2){
+            explosive_light.shadows_size_flags = MEDIUM_LIGHT;
+            explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
+        }
+        init_entity_light(entity, &explosive_light, true);
         Light *new_light = context.lights.get_ptr(entity->light_index);
         new_light->radius = 120;
         new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 0.9f);
@@ -1799,17 +1812,18 @@ void print_debug_commands_to_console(){
     console.str += "\t>enemy_ai\n";
     console.str += "\t>god_mode\n";
     console.str += "\t>unlock_camera\n";
+    console.str += "\t>full_light\n";
     
     console.str += "\t\t>Debug Info:\n";
     console.str += "\t>player_speed\n";
     console.str += "\t>entities_count\n";
 }
 
-inline void debug_toggle_player_speed(){
+void debug_toggle_player_speed(){
     debug.info_player_speed = !debug.info_player_speed;
 }
 
-inline void debug_print_entities_count(){
+void debug_print_entities_count(){
     i32 count = 0;
     ForTable(context.entities, i){
         count++;
@@ -1817,25 +1831,30 @@ inline void debug_print_entities_count(){
     console.str += TextFormat("\t>Entities count: %d\n", count);
 }
 
-inline void debug_infinite_ammo(){
+void debug_infinite_ammo(){
     debug.infinite_ammo = !debug.infinite_ammo;
     console.str += TextFormat("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled");
 }
 
-inline void debug_enemy_ai(){
+void debug_enemy_ai(){
     debug.enemy_ai = !debug.enemy_ai;
     console.str += TextFormat("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled");
 }
 
-inline void debug_god_mode(){
+void debug_god_mode(){
     debug.god_mode = !debug.god_mode;
     console.str += TextFormat("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled");
 }
 
-inline void set_default_time_scale(){
+void debug_toggle_full_light(){
+    debug.full_light = !debug.full_light;
+    console.str += TextFormat("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled");
+}
+
+void set_default_time_scale(){
     core.time.target_time_scale = 1;    
 }
-inline void set_time_scale(char *text){
+void set_time_scale(char *text){
     core.time.target_time_scale = atof(text);    
 }
 
@@ -1857,6 +1876,7 @@ void init_console(){
     console.commands.add(make_console_command("enemy_ai",       debug_enemy_ai));
     console.commands.add(make_console_command("god_mode",       debug_god_mode));
     console.commands.add(make_console_command("unlock_camera",  debug_unlock_camera));
+    console.commands.add(make_console_command("full_light",     debug_toggle_full_light));
     
     console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",    NULL, load_level_by_name));
@@ -2728,6 +2748,8 @@ void update_game(){
     // }
     
     context.just_entered_game_state = false;
+    
+    // We do this so lights don't bake all at one frame 
     context.baked_shadows_this_frame = false;
 } // update game end
 
@@ -3794,7 +3816,7 @@ void update_editor_ui(){
                     make_ui_text("Explosion radius: ", {inspector_position.x + 5, v_pos}, "explosive_radius_multiplier");
                     if (make_input_field(TextFormat("%.2f", selected->enemy.explosive_radius_multiplier), {inspector_position.x + inspector_size.x * 0.5f, v_pos}, 100, "explosive_radius_multiplier")){
                         selected->enemy.explosive_radius_multiplier = fmax(atof(focus_input_field.content), 0);
-                        // init_entity(selected);
+                        init_entity(selected);
                     }
                     v_pos += height_add;
                 }
@@ -4936,6 +4958,49 @@ b32 is_type(Entity *entity, FLAGS flags){
     return entity->flags & flags;
 }
 
+void try_sword_damage_enemy(Entity *enemy_entity, Entity *sword, Vector2 hit_position){
+    if (enemy_entity->flags & BLOCKER && !can_damage_blocker(enemy_entity)){
+        return;
+    }
+
+    if (is_sword_can_damage() && !player_data.in_stun && is_enemy_can_take_damage(enemy_entity)){
+        if (!(enemy_entity->flags & TRIGGER) && enemy_entity->enemy.gives_ammo && !enemy_entity->enemy.dead_man){
+            add_player_ammo(1, enemy_entity->enemy.gives_full_ammo);
+            add_blood_amount(&player_data, sword, 10);
+        }
+    
+        b32 was_alive_before_hit = !enemy_entity->enemy.dead_man;
+        f32 hitstop_add = 0;
+        
+        if (enemy_entity->flags & BIRD_ENEMY){
+            sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
+        } else if (enemy_entity->flags & JUMP_SHOOTER){
+            sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
+        } else{
+            kill_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, lerp(1.0f, 4.0f, sqrtf(player_data.sword_spin_progress)));
+        }
+        
+        f32 max_speed_boost = 6 * player_data.sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
+        if (!player_data.grounded){
+            //max_speed_boost *= -1;
+        }
+        f32 max_vertical_speed_boost = player_data.grounded ? 0 : 20;
+        if (player_data.velocity.y > 0){
+            max_vertical_speed_boost *= 0.3f;   
+        }
+        f32 spin_t = player_data.sword_spin_progress;
+        player_data.velocity += Vector2_up   * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
+                         + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
+                         
+        if (was_alive_before_hit){
+            add_hitstop(0.01f + hitstop_add);
+            shake_camera(0.1f);
+        }
+        
+        play_sound(player_data.sword_kill_sound, hit_position);
+    }
+}
+
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
     fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE);
     
@@ -4958,41 +5023,8 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             }
         }
         
-        if (other->flags & ENEMY && is_sword_can_damage() && !player->in_stun && is_enemy_can_take_damage(other)){
-            if (!(other->flags & TRIGGER) && other->enemy.gives_ammo && !other->enemy.dead_man){
-                add_player_ammo(1, other->enemy.gives_full_ammo);
-                add_blood_amount(player, sword, 10);
-            }
-        
-            b32 was_alive_before_hit = !other->enemy.dead_man;
-            f32 hitstop_add = 0;
-            
-            if (other->flags & BIRD_ENEMY){
-                sword_kill_enemy(other, &other->bird_enemy.velocity);
-            } else if (other->flags & JUMP_SHOOTER){
-                sword_kill_enemy(other, &other->jump_shooter.velocity);
-            } else{
-                kill_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y, sword_tip_emitter->direction, lerp(1.0f, 4.0f, sqrtf(player_data.sword_spin_progress)));
-            }
-            
-            f32 max_speed_boost = 6 * player->sword_spin_direction * other->enemy.sword_kill_speed_modifier;
-            if (!player->grounded){
-                //max_speed_boost *= -1;
-            }
-            f32 max_vertical_speed_boost = player->grounded ? 0 : 20;
-            if (player_data.velocity.y > 0){
-                max_vertical_speed_boost *= 0.3f;   
-            }
-            f32 spin_t = player->sword_spin_progress;
-            player->velocity += Vector2_up   * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
-                             + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
-                             
-            if (was_alive_before_hit){
-                add_hitstop(0.01f + hitstop_add);
-                shake_camera(0.1f);
-            }
-            
-            play_sound(player_data.sword_kill_sound, col.point);
+        if (other->flags & ENEMY){
+            try_sword_damage_enemy(other, sword, col.point);
         }
         
         if (other->flags & WIN_BLOCK && !player->in_stun){
@@ -5454,7 +5486,7 @@ void update_player(Entity *entity, f32 dt){
         }
         
         if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other)){
-            stun_enemy(other, col.point, col.normal, true);
+            try_sword_damage_enemy(other, sword, col.point);
             continue;
         }
         
@@ -5605,10 +5637,9 @@ void update_player(Entity *entity, f32 dt){
         }
         
         if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other)){
-            stun_enemy(other, col.point, col.normal, true);
+            try_sword_damage_enemy(other, sword, col.point);
             continue;
         }
-
         
         if (other->flags & CENTIPEDE_SEGMENT){
             if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left){
@@ -5788,7 +5819,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col){
         if (enemy->dead_man){
             emit_particles(fire_emitter, shooter_entity->position, col.normal, 4, 3);
             play_sound("Explosion", shooter_entity->position, shooter_entity->volume_multiplier);
-            add_explosion_light(shooter_entity->position, 125, 0.15f, 0.4f, ColorBrightness(RED, 0.5f));
+            add_explosion_light(shooter_entity->position, rnd(100.0f, 250.0f), 0.15f, 0.4f, ColorBrightness(RED, 0.5f));
             shooter_entity->destroyed = true;
             shooter_entity->enabled = false;
             shake_camera(0.6f);
@@ -5844,7 +5875,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
                 emit_particles(fire_emitter, bird_entity->position, col.normal, 2, 3);
                 play_sound("Explosion", bird_entity->position, bird_entity->volume_multiplier);
                 
-                add_explosion_light(bird_entity->position, 100, 0.1f, 0.3f, ColorBrightness(ORANGE, 0.5f));
+                add_explosion_light(bird_entity->position, rnd(75.0f, 200.0f), 0.1f, 0.3f, ColorBrightness(ORANGE, 0.5f));
                 
                 bird_entity->destroyed = true;
                 bird_entity->enabled = false;
@@ -6176,10 +6207,10 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             hitmark_scale += 4;
             hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
             f32 explosion_radius = get_explosion_radius(enemy_entity);
-            emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, get_explosion_radius(enemy_entity) / 40.0f);
+            emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, explosion_radius / 40.0f);
             play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
             
-            add_explosion_light(enemy_entity->position, get_explosion_radius(enemy_entity) * 4, 0.15f, 1.0f, ColorBrightness(ORANGE, 0.3f));
+            add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy_entity->enemy.explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f));
             
             f32 explosion_add_speed = 80;
             ForTable(context.entities, i){
@@ -6261,6 +6292,20 @@ void destroy_enemy(Entity *entity){
     }
 }
 
+void add_fire_light_to_entity(Entity *entity){
+    i32 new_light_index = init_entity_light(entity, NULL, true);
+    if (new_light_index != -1){
+        Light *new_fire_light = context.lights.get_ptr(new_light_index);
+        new_fire_light->make_shadows = true;
+        new_fire_light->make_backshadows = true;
+        new_fire_light->shadows_size_flags = MEDIUM;
+        new_fire_light->backshadows_size_flags = MEDIUM;
+        new_fire_light->color = ColorBrightness(ORANGE, 0.4f);
+        new_fire_light->fire_effect = true;
+        entity->flags |= LIGHT;
+    }
+}
+
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious){
     assert(enemy_entity->flags & ENEMY);
     
@@ -6294,10 +6339,12 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             if (enemy_entity->flags & BIRD_ENEMY){
                 // birds handle dead state by themselves
                 enable_emitter(enemy_entity->bird_enemy.fire_emitter);
+                add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & JUMP_SHOOTER){
                 Particle_Emitter *dead_fire_emitter = enemy_entity->emitters.add(fire_emitter);
                 dead_fire_emitter->position = enemy_entity->position;
                 enable_emitter(dead_fire_emitter);
+                add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & CENTIPEDE_SEGMENT){
                 
             } else{
@@ -7012,9 +7059,14 @@ void update_entities(f32 dt){
             } else{
                 Light *light = context.lights.get_ptr(e->light_index);
                 light->position = e->position;
+                
+                if (light->fire_effect){
+                    f32 perlin_rnd = (perlin_noise3(core.time.game_time * 5, e->id, core.time.game_time * 4) + 1) * 0.5f;
+                    light->radius = perlin_rnd * 30 + 45;
+                    light->power  = perlin_rnd * 1.0f + 0.5f;
+                }
             }
         }
-
         
         if (game_state == EDITOR || game_state == PAUSE){
             if (game_state == EDITOR){
@@ -7104,7 +7156,6 @@ void update_entities(f32 dt){
             }
             
             if (alive_count == 0){
-                                
                 e->enemy.dead_man = true;
                 e->enemy.died_time = core.time.game_time;
                 e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT);
@@ -7114,6 +7165,7 @@ void update_entities(f32 dt){
                 e->move_sequence.moving = false;
                 e->collision_flags = GROUND;
                 init_bird_emitters(e);
+                add_fire_light_to_entity(e);
                 
                 for (int i = 0; i < centipede->segments_count; i++){
                     Entity *segment = context.entities.get_by_key_ptr(centipede->segments_ids.get(i));
@@ -8300,7 +8352,11 @@ void draw_game(){
 
     //Light render pass
     BeginTextureMode(global_illumination_rt);{
-        ClearBackground(Fade(ColorBrightness(SKYBLUE, -0.6f), 1));
+        if (!debug.full_light){
+            ClearBackground(Fade(ColorBrightness(SKYBLUE, -0.6f), 1));
+        } else{
+            ClearBackground(WHITE);
+        }
     } EndTextureMode();
 
     for (int i = 0; i < context.lights.max_count; i++){
@@ -8340,7 +8396,7 @@ void draw_game(){
         b32 should_calculate_light_anyway = light_ptr->bake_shadows && context.just_entered_game_state;
         
         Bounds lightmap_bounds = {lightmap_game_scale, {0, 0}};
-        if (!should_calculate_light_anyway && (!check_bounds_collision(context.cam.position, light_position, get_cam_bounds(context.cam, context.cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME))){
+        if (!should_calculate_light_anyway && (!check_bounds_collision(context.cam.position, light_position, get_cam_bounds(context.cam, context.cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME)) || debug.full_light){
             continue;
         }
         
@@ -8349,11 +8405,14 @@ void draw_game(){
         
         Vector2 shadows_texture_size = {(f32)light.shadows_size, (f32)light.shadows_size};
         
-        if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (game_state == EDITOR) && !context.baked_shadows_this_frame)) || context.just_entered_game_state){
+        if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (game_state == EDITOR) && !context.baked_shadows_this_frame) || context.just_entered_game_state || !light_ptr->baked && game_state == GAME)){
             light_ptr->last_bake_time = core.time.app_time;
             
             if (light.bake_shadows){
                 context.baked_shadows_this_frame = true;
+                if (game_state == GAME){
+                    light_ptr->baked = true;
+                }
             }
             
             BeginTextureMode(light.shadowmask_rt);{
