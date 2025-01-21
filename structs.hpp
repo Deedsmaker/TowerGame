@@ -673,6 +673,7 @@ struct Light{
     //temp light options
     f32 birth_time = -12;
     f32 target_radius = 150;
+    f32 target_power = 4;
     f32 grow_time = 0;
     f32 shrink_time = 0;
     
@@ -758,6 +759,9 @@ struct Context{
     
     Dynamic_Array<Light> lights = Dynamic_Array<Light>(256);
     i32 temp_lights_count = 64;
+    //big lights are also in temp lights, it's first N 
+    i32 big_temp_lights_count = 8;
+    i32 huge_temp_lights_count = 4;
     // We should set it in beginning 
     i32 entity_lights_start_index = -1;
     

@@ -37,7 +37,7 @@ void update_entities(f32 dt);
 
 void activate_door(Entity *entity, b32 is_open);
 
-void add_hitstop(f32 added);
+void add_hitstop(f32 added, b32 can_go_over_limit = false);
 
 void resolve_physics_collision(Vector2 *my_velocity, f32 my_mass, Vector2 &their_velocity, f32 their_mass, Vector2 normal = Vector2_zero);
 f32 apply_physics_force(Vector2 velocity, f32 mass, Physics_Object *to_whom, Vector2 normal = Vector2_zero);
@@ -128,7 +128,7 @@ inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
 void init_entity(Entity *entity);
 
-void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color);
+void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size = SMALL_LIGHT);
 
 void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_Type type);
 

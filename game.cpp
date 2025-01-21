@@ -399,6 +399,7 @@ void clear_context(Context *c){
     c->emitters.clear();
     
     for (int i = 0; i < context.lights.max_count; i++){
+        context.lights.get_ptr(i)->exists = false;
         if (i >= context.entity_lights_start_index){
             free_light(context.lights.get_ptr(i));       
             *(context.lights.get_ptr(i)) = {};
@@ -1577,8 +1578,8 @@ void init_entity(Entity *entity){
             explosive_light = context.lights.get(entity->light_index);
         } 
         if (entity->enemy.explosive_radius_multiplier >= 4){
-            explosive_light.shadows_size_flags = HUGE_LIGHT;
-            explosive_light.backshadows_size_flags = HUGE_LIGHT;
+            explosive_light.shadows_size_flags = BIG_LIGHT;
+            explosive_light.backshadows_size_flags = BIG_LIGHT;
         } else if (entity->enemy.explosive_radius_multiplier >= 2){
             explosive_light.shadows_size_flags = MEDIUM_LIGHT;
             explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
@@ -1813,6 +1814,7 @@ void print_debug_commands_to_console(){
     console.str += "\t>god_mode\n";
     console.str += "\t>unlock_camera\n";
     console.str += "\t>full_light\n";
+    console.str += "\t>collision_grid\n";
     
     console.str += "\t\t>Debug Info:\n";
     console.str += "\t>player_speed\n";
@@ -1851,6 +1853,11 @@ void debug_toggle_full_light(){
     console.str += TextFormat("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled");
 }
 
+void debug_toggle_collision_grid(){
+    debug.draw_collision_grid = !debug.draw_collision_grid;
+    console.str += TextFormat("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled");
+}
+
 void set_default_time_scale(){
     core.time.target_time_scale = 1;    
 }
@@ -1877,6 +1884,7 @@ void init_console(){
     console.commands.add(make_console_command("god_mode",       debug_god_mode));
     console.commands.add(make_console_command("unlock_camera",  debug_unlock_camera));
     console.commands.add(make_console_command("full_light",     debug_toggle_full_light));
+    console.commands.add(make_console_command("collision_grid",     debug_toggle_collision_grid));
     
     console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",    NULL, load_level_by_name));
@@ -2022,18 +2030,6 @@ global_variable Texture black_pixel_texture;
 // #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
 // #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
 
-void fill_light_by_temp_light_template(Light *light){
-    light->shadows_size_flags       = SMALL_LIGHT;
-    light->backshadows_size_flags   = SMALL_LIGHT;
-    // light->geometry_size = 512;
-    light->make_shadows             = true;
-    light->make_backshadows         = true;
-    light->additional_shadows_flags = 0;
-    light->grow_time                = 0;
-    light->shrink_time              = 0;
-    light->birth_time = -12;
-}
-
 void init_game(){
     HideCursor();
     DisableCursor();
@@ -2048,7 +2044,24 @@ void init_game(){
         *(light) = {};
         
         if (i < context.temp_lights_count){
-            fill_light_by_temp_light_template(light);
+            light->make_shadows             = true;
+            light->make_backshadows         = true;
+            light->additional_shadows_flags = 0;
+            light->grow_time                = 0;
+            light->shrink_time              = 0;
+            light->birth_time = -12;
+            
+            i32 size = SMALL_LIGHT;
+            if (i < context.big_temp_lights_count){
+                size = BIG_LIGHT;
+            } else if (i < context.big_temp_lights_count + context.huge_temp_lights_count){
+                size = HUGE_LIGHT;
+            }
+            
+            light->shadows_size_flags       = size;
+            light->backshadows_size_flags   = size;
+
+
             init_light(light);
         }
     }
@@ -2075,20 +2088,8 @@ void init_game(){
     black_pixel_image = GenImageColor(1, 1, BLACK);
     black_pixel_texture = LoadTextureFromImage(black_pixel_image);
     
-    // render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
     render.test_shader = LoadShader(0, "./resources/shaders/test_shader.fs");
     
-    // emitters_occluders_rt = LoadRenderTexture(screen_width, screen_height);
-    // emitters_occluders_shader = LoadShader(0, "./resources/shaders/emitters_occluders.fs");
-    
-    // voronoi_seed_rt = LoadRenderTexture(screen_width, screen_height );
-    // jump_flood_rt = LoadRenderTexture(screen_width, screen_height );
-    // distance_field_rt = LoadRenderTexture(screen_width, screen_height);
-    // voronoi_seed_shader = LoadShader(0, "./resources/shaders/voronoi_seed.fs");
-    // jump_flood_shader = LoadShader(0, "./resources/shaders/jump_flood.fs");
-    // distance_field_shader = LoadShader(0, "./resources/shaders/distance_field.fs");
-    
-    // global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
     global_illumination_shader = LoadShader(0, "./resources/shaders/global_illumination1.fs");
     
     // final_light_rt = LoadRenderTexture(screen_width, screen_height);
@@ -4871,14 +4872,19 @@ void player_air_move(Entity *entity, f32 dt){
     player_accelerate(entity, input.sum_direction, wish_speed, acceleration, dt);
 }
 
-void add_hitstop(f32 added){
+void add_hitstop(f32 added, b32 can_go_over_limit){
+    b32 was_over_limit = core.time.hitstop > 0.1f;
     if (core.time.hitstop < 0){
         core.time.hitstop = 0;
     }
 
     core.time.hitstop += added;
     
-    clamp(&core.time.hitstop, 0, 0.1f);
+    if (can_go_over_limit && core.time.hitstop > 0.5f){
+        clamp(&core.time.hitstop, 0, 0.5f);
+    } else if (core.time.hitstop > 0.1f && !was_over_limit){
+        clamp(&core.time.hitstop, 0,  0.1f);
+    }
 }
 
 void shake_camera(f32 trauma){
@@ -6153,10 +6159,21 @@ inline f32 get_explosion_radius(Entity *entity, f32 base_radius){
     return lerp(base_radius, base_radius * 6, scale_progress);
 }
 
-void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color){
+void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size){
     Light *light = NULL;
     
-    for (i32 i = 0; i < context.temp_lights_count; i++){
+    i32 start_index = context.big_temp_lights_count + context.huge_temp_lights_count;
+    i32 max_count_to_seek = context.temp_lights_count;
+    if (size >= BIG_LIGHT){ //Means we set huge light
+        max_count_to_seek = context.big_temp_lights_count + context.huge_temp_lights_count;   
+        start_index = context.big_temp_lights_count;
+    } else if (size >= MEDIUM_LIGHT){ //Means we set big light
+        max_count_to_seek = context.big_temp_lights_count;   
+        start_index = 0;
+    } else{
+    }
+    
+    for (i32 i = start_index; i < max_count_to_seek; i++){
         if (!context.lights.get_ptr(i)->exists){
             light = context.lights.get_ptr(i);
             break;
@@ -6164,14 +6181,14 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     }
     
     if (light){
-        light->birth_time   = core.time.game_time;
+        light->birth_time    = core.time.game_time;
         light->target_radius = radius;
-        light->grow_time    = grow_time;
-        light->shrink_time  = shrink_time;
-        light->color        = color;
-        light->opacity = 1;
-        light->exists = true;
-        light->position = position;
+        light->grow_time     = grow_time;
+        light->shrink_time   = shrink_time;
+        light->color         = color;
+        light->opacity       = 1;
+        light->exists        = true;
+        light->position      = position;
         
         light->additional_shadows_flags = ENEMY | PLAYER | SWORD;
     } else{
@@ -6210,7 +6227,9 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, explosion_radius / 40.0f);
             play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
             
-            add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy_entity->enemy.explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f));
+            i32 light_size_flag = SMALL_LIGHT;
+            if (enemy_entity->light_index != -1) light_size_flag = context.lights.get(enemy_entity->light_index).shadows_size_flags;
+            add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy_entity->enemy.explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f), light_size_flag);
             
             f32 explosion_add_speed = 80;
             ForTable(context.entities, i){
@@ -6223,6 +6242,14 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
                 
                 Vector2 dir_to_other = normalized(vec_to_other);
+                u64 additional_flags = 0;
+                if (other_entity->flags & PLAYER) additional_flags |= CENTIPEDE_SEGMENT | CENTIPEDE;
+                
+                Collision raycast_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other, GROUND | additional_flags, 4, enemy_entity->id);
+                if (raycast_collision.collided){
+                    emit_particles(ground_splash_emitter, raycast_collision.point, raycast_collision.normal, 4, 5.5f);
+                    continue;
+                }
                 
                 if (other_entity->flags & ENEMY){
                     if (!other_entity->enemy.dead_man){
@@ -6246,8 +6273,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
             }
             
-            add_hitstop(0.1f);
-            shake_camera(0.5f);
+            add_hitstop(0.1f * fmaxf(1.0f, enemy_entity->enemy.explosive_radius_multiplier * 0.5f), true);
+            shake_camera(0.5f * fmaxf(1.0f, enemy_entity->enemy.explosive_radius_multiplier * 0.5f));
         }
         
         b32 is_hitmark_follow = false;
@@ -8372,14 +8399,14 @@ void draw_game(){
         if (i < context.temp_lights_count){
             f32 lifetime = core.time.game_time - light_ptr->birth_time;
             if (lifetime < light_ptr->grow_time){
-                f32 grow_t = lifetime / light_ptr->grow_time;
+                f32 grow_t        = lifetime / light_ptr->grow_time;
                 light_ptr->radius = lerp(0.0f, light_ptr->target_radius, sqrtf(grow_t));
-                light_ptr->power = lerp(4.0f, 2.0f, grow_t * grow_t);
+                light_ptr->power  = lerp(4.0f, 2.0f, grow_t * grow_t);
             } else{ //shrinking
-                f32 shrink_t = clamp01((lifetime - light_ptr->grow_time) / light_ptr->shrink_time);
-                light_ptr->radius = lerp(light_ptr->target_radius, light_ptr->target_radius * 0.5f, shrink_t * shrink_t);
+                f32 shrink_t       = clamp01((lifetime - light_ptr->grow_time) / light_ptr->shrink_time);
+                light_ptr->radius  = lerp(light_ptr->target_radius, light_ptr->target_radius * 0.5f, shrink_t * shrink_t);
                 light_ptr->opacity = lerp(1.0f, 0.0f, shrink_t * shrink_t * shrink_t);
-                light_ptr->power = lerp(2.0f, 1.0f, shrink_t * shrink_t);
+                light_ptr->power   = lerp(2.0f, 1.0f, shrink_t * shrink_t);
             }
             
             if (lifetime > light_ptr->grow_time + light_ptr->shrink_time){
