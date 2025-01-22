@@ -140,6 +140,8 @@ struct Ground{
 };
 
 struct Physics_Object{
+    b32 simulating = true;
+
     Vector2 velocity = Vector2_zero;  
     f32 angular_velocity = 0;
     
@@ -259,6 +261,11 @@ struct Move_Sequence{
     Vector2 wish_position = Vector2_zero;
     b32 just_born = true;
     
+    b32 speed_related_player_distance = false;
+    f32 min_distance = 100;
+    f32 max_distance = 300;
+    f32 max_distance_speed = 20;
+    
     b32 rotate = false;
     b32 loop = false;
     
@@ -290,6 +297,7 @@ struct Trigger{
     b32 player_touch = true;
     b32 kill_player = false;
     b32 open_doors = true;
+    b32 start_physics_simulation = true;
     b32 track_enemies = false;
     b32 agro_enemies = true;
     

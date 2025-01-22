@@ -467,12 +467,12 @@ int save_level(const char *level_name){
             Light *light = context.lights.get_ptr(e->light_index);
             fprintf(fptr, "light_shadows_size_flag:%d: ",     light->shadows_size_flags);
             fprintf(fptr, "light_backshadows_size_flag:%d: ", light->backshadows_size_flags);
-            fprintf(fptr, "light_make_shadows:%d: ", light->make_shadows);
-            fprintf(fptr, "light_make_backshadows:%d: ", light->make_backshadows);
-            fprintf(fptr, "light_bake_shadows:%d: ", light->bake_shadows);
-            fprintf(fptr, "light_radius:%f: ", light->radius);
-            fprintf(fptr, "light_opacity:%f: ", light->opacity);
-            fprintf(fptr, "light_power:%f: ", light->power);
+            fprintf(fptr, "light_make_shadows:%d: ",          light->make_shadows);
+            fprintf(fptr, "light_make_backshadows:%d: ",      light->make_backshadows);
+            fprintf(fptr, "light_bake_shadows:%d: ",          light->bake_shadows);
+            fprintf(fptr, "light_radius:%f: ",                light->radius);
+            fprintf(fptr, "light_opacity:%f: ",               light->opacity);
+            fprintf(fptr, "light_power:%f: ",                 light->power);
             fprintf(fptr, "light_color{:%d:, :%d:, :%d:, :%d:} ", (i32)light->color.r, (i32)light->color.g, (i32)light->color.b, (i32)light->color.a);
         }
         
@@ -493,15 +493,16 @@ int save_level(const char *level_name){
                 fprintf(fptr, "] "); 
             }
             
-            fprintf(fptr, "trigger_kill_player:%d: ", e->trigger.kill_player);
-            fprintf(fptr, "trigger_open_doors:%d: ", e->trigger.open_doors);
-            fprintf(fptr, "trigger_track_enemies:%d: ", e->trigger.track_enemies);
-            fprintf(fptr, "trigger_agro_enemies:%d: ", e->trigger.agro_enemies);
-            fprintf(fptr, "trigger_player_touch:%d: ", e->trigger.player_touch);
-            fprintf(fptr, "trigger_shows_entities:%d: ", e->trigger.shows_entities);
-            fprintf(fptr, "trigger_starts_moving_sequence:%d: ", e->trigger.starts_moving_sequence);
-            fprintf(fptr, "trigger_lock_camera:%d: ", e->trigger.lock_camera);
-            fprintf(fptr, "trigger_unlock_camera:%d: ", e->trigger.unlock_camera);
+            fprintf(fptr, "trigger_kill_player:%d: ",                    e->trigger.kill_player);
+            fprintf(fptr, "trigger_open_doors:%d: ",                     e->trigger.open_doors);
+            fprintf(fptr, "trigger_start_physics_simulation:%d: ",       e->trigger.start_physics_simulation);
+            fprintf(fptr, "trigger_track_enemies:%d: ",                  e->trigger.track_enemies);
+            fprintf(fptr, "trigger_agro_enemies:%d: ",                   e->trigger.agro_enemies);
+            fprintf(fptr, "trigger_player_touch:%d: ",                   e->trigger.player_touch);
+            fprintf(fptr, "trigger_shows_entities:%d: ",                 e->trigger.shows_entities);
+            fprintf(fptr, "trigger_starts_moving_sequence:%d: ",         e->trigger.starts_moving_sequence);
+            fprintf(fptr, "trigger_lock_camera:%d: ",                    e->trigger.lock_camera);
+            fprintf(fptr, "trigger_unlock_camera:%d: ",                  e->trigger.unlock_camera);
             fprintf(fptr, "trigger_locked_camera_position{:%f:, :%f:} ", e->trigger.locked_camera_position.x, e->trigger.locked_camera_position.y);
             
             fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
@@ -529,10 +530,14 @@ int save_level(const char *level_name){
                 fprintf(fptr, "] "); 
             }
             
-            fprintf(fptr, "move_sequence_moving:%d: ", e->move_sequence.moving);
-            fprintf(fptr, "move_sequence_speed:%f: ", e->move_sequence.speed);
-            fprintf(fptr, "move_sequence_loop:%d: ", e->move_sequence.loop);
-            fprintf(fptr, "move_sequence_rotate:%d: ", e->move_sequence.rotate);
+            fprintf(fptr, "move_sequence_moving:%d: ",                        e->move_sequence.moving);
+            fprintf(fptr, "move_sequence_speed:%f: ",                         e->move_sequence.speed);
+            fprintf(fptr, "move_sequence_loop:%d: ",                          e->move_sequence.loop);
+            fprintf(fptr, "move_sequence_rotate:%d: ",                        e->move_sequence.rotate);
+            fprintf(fptr, "move_sequence_speed_related_player_distance:%d: ", e->move_sequence.speed_related_player_distance);
+            fprintf(fptr, "move_sequence_min_distance:%f: ",                  e->move_sequence.min_distance);
+            fprintf(fptr, "move_sequence_max_distance:%f: ",                  e->move_sequence.max_distance);
+            fprintf(fptr, "move_sequence_max_distance_speed:%f: ",            e->move_sequence.max_distance_speed);
         }
         
         if (e->flags & CENTIPEDE){
@@ -553,6 +558,7 @@ int save_level(const char *level_name){
         }
         
         if (e->flags & PHYSICS_OBJECT){
+            fprintf(fptr, "physics_simulating:%d: ", e->physics_object.simulating);
             fprintf(fptr, "on_rope:%d: ", e->physics_object.on_rope);
             fprintf(fptr, "physics_rotate_by_velocity:%d: ", e->physics_object.rotate_by_velocity);
             fprintf(fptr, "physics_gravity_multiplier:%f: ", e->physics_object.gravity_multiplier);
@@ -790,7 +796,8 @@ int load_level(const char *level_name){
                 continue;
             }
 
-            if (str_equal(splitted_line.get(i).data, "name")){
+            if (0){
+            } else if (str_equal(splitted_line.get(i).data, "name")){
                 str_copy(entity_to_fill.name, splitted_line.get(i+1).data);  
                 i++;
                 continue;
@@ -913,6 +920,9 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "trigger_open_doors")){
                 fill_b32_from_string(&entity_to_fill.trigger.open_doors, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_start_physics_simulation")){
+                fill_b32_from_string(&entity_to_fill.trigger.start_physics_simulation, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_track_enemies")){
                 fill_b32_from_string(&entity_to_fill.trigger.track_enemies, splitted_line.get(i+1).data);
                 i++;
@@ -936,6 +946,9 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "spikes_on_left")){
                 fill_b32_from_string(&entity_to_fill.centipede.spikes_on_left, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "physics_simulating")){
+                fill_b32_from_string(&entity_to_fill.physics_object.simulating, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "on_rope")){
                 fill_b32_from_string(&entity_to_fill.physics_object.on_rope, splitted_line.get(i+1).data);
@@ -990,6 +1003,18 @@ int load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "move_sequence_rotate")){
                 fill_b32_from_string(&entity_to_fill.move_sequence.rotate, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_speed_related_player_distance")){
+                fill_b32_from_string(&entity_to_fill.move_sequence.speed_related_player_distance, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_min_distance")){
+                fill_f32_from_string(&entity_to_fill.move_sequence.min_distance, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_max_distance")){
+                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "move_sequence_max_distance_speed")){
+                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance_speed, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "hidden")){
                 fill_b32_from_string(&entity_to_fill.hidden, splitted_line.get(i+1).data);
@@ -1675,8 +1700,6 @@ void init_entity(Entity *entity){
         entity->jump_shooter.flying_emitter = entity->emitters.add(rifle_bullet_emitter);
         entity->jump_shooter.flying_emitter->follow_entity = false;
         entity->enemy.gives_full_ammo = true;
-        
-        entity->flags |= LIGHT;
     }
     
     if (entity->flags & PHYSICS_OBJECT || entity->collision_flags == 0){
@@ -2051,7 +2074,7 @@ void init_game(){
             light->shrink_time              = 0;
             light->birth_time = -12;
             
-            i32 size = SMALL_LIGHT;
+            i32 size = ULTRA_SMALL_LIGHT;
             if (i < context.big_temp_lights_count){
                 size = BIG_LIGHT;
             } else if (i < context.big_temp_lights_count + context.huge_temp_lights_count){
@@ -3516,6 +3539,12 @@ void update_editor_ui(){
             v_pos += height_add;
             
             if (selected->flags & PHYSICS_OBJECT){
+                make_ui_text("Simulating: ", {inspector_position.x + 5, v_pos}, "physics_simulating");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->physics_object.simulating, "physics_simulating")){
+                    selected->physics_object.simulating = !selected->physics_object.simulating;
+                }
+                v_pos += height_add;
+                
                 make_ui_text("On rope: ", {inspector_position.x + 5, v_pos}, "on_rope");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->physics_object.on_rope, "on_rope")){
                     selected->physics_object.on_rope = !selected->physics_object.on_rope;
@@ -3566,10 +3595,33 @@ void update_editor_ui(){
                 v_pos += height_add;
             
                 make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
-                if (make_input_field(TextFormat("%.2f", selected->move_sequence.speed), {inspector_position.x + 100, v_pos}, 100, "move_sequence_speed")){
+                if (make_input_field(TextFormat("%.1f", selected->move_sequence.speed), {inspector_position.x + 100, v_pos}, 100, "move_sequence_speed")){
                     selected->move_sequence.speed = atof(focus_input_field.content);
                 }
                 v_pos += height_add;
+                
+                make_ui_text("Speed related player distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_speed_related_player_distance");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.8f, v_pos}, selected->move_sequence.speed_related_player_distance, "move_sequence_speed_related_player_distance")){
+                    selected->move_sequence.speed_related_player_distance = !selected->move_sequence.speed_related_player_distance;
+                }
+                v_pos += height_add;
+                if (selected->move_sequence.speed_related_player_distance){
+                    make_ui_text("Min distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_min_distance");
+                    if (make_input_field(TextFormat("%.1f", selected->move_sequence.min_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_min_distance")){
+                        selected->move_sequence.min_distance = atof(focus_input_field.content);
+                    }
+                    v_pos += height_add;
+                    make_ui_text("Max distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_max_distance");
+                    if (make_input_field(TextFormat("%.1f", selected->move_sequence.max_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance")){
+                        selected->move_sequence.max_distance = atof(focus_input_field.content);
+                    }
+                    v_pos += height_add;
+                    make_ui_text("Max distance speed: ", {inspector_position.x + 25, v_pos}, "move_sequence_max_distance_speed");
+                    if (make_input_field(TextFormat("%.1f", selected->move_sequence.max_distance_speed), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance_speed")){
+                        selected->move_sequence.max_distance_speed = atof(focus_input_field.content);
+                    }
+                    v_pos += height_add;
+                }
                 
                 make_ui_text(TextFormat("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
                 type_info_v_pos += type_font_size;
@@ -3666,6 +3718,7 @@ void update_editor_ui(){
             }
         }
         
+        // trigger inspector
         if (selected->flags & TRIGGER){
             if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Trigger settings", "trigger_settings")){
                 editor.draw_trigger_settings = !editor.draw_trigger_settings;
@@ -3688,6 +3741,12 @@ void update_editor_ui(){
                 make_ui_text("Open or close Doors: ", {inspector_position.x + 5, v_pos}, "trigger_open_doors");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.open_doors, "toggle_open_doors")){
                     selected->trigger.open_doors = !selected->trigger.open_doors;                 
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Start physics: ", {inspector_position.x + 5, v_pos}, "trigger_start_physics_simulation");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_physics_simulation, "trigger_start_physics_simulation")){
+                    selected->trigger.start_physics_simulation = !selected->trigger.start_physics_simulation;                 
                 }
                 v_pos += height_add;
                 
@@ -6718,6 +6777,10 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
         activate_door(connected, trigger_entity->trigger.open_doors);
     }
     
+    if (connected->flags & PHYSICS_OBJECT && trigger_entity->trigger.start_physics_simulation){
+        connected->physics_object.simulating = true;
+    }
+    
     if (connected->flags & MOVE_SEQUENCE){
         connected->move_sequence.moving = trigger_entity->trigger.starts_moving_sequence;
     }
@@ -6879,6 +6942,14 @@ void update_move_sequence(Entity *entity, f32 dt){
         target = sequence->points.last();
     }
     
+    f32 speed = sequence->speed;
+    
+    if (sequence->speed_related_player_distance && game_state == GAME){
+        f32 distance_to_player = magnitude(player_entity->position - entity->position);
+        f32 distance_t = clamp01((distance_to_player + sequence->min_distance) / sequence->max_distance);
+        speed = lerp(sequence->speed, sequence->max_distance_speed, distance_t * distance_t);
+    }
+    
     if (sequence->just_born){
         if (entity->flags & JUMP_SHOOTER){
             Jump_Shooter *shooter = &entity->jump_shooter;
@@ -6909,7 +6980,7 @@ void update_move_sequence(Entity *entity, f32 dt){
             change_up(entity, shooter->move_points.get(0).normal);
             entity->position = shooter->move_points.get(0).position + entity->up * entity->scale.y * (1.0f - entity->pivot.y);
         } else{
-            sequence->velocity = normalized(target - entity->position) * sequence->speed;
+            sequence->velocity = normalized(target - entity->position) * speed;
             sequence->wish_position = entity->position;
         }
         
@@ -6923,16 +6994,16 @@ void update_move_sequence(Entity *entity, f32 dt){
         
     } else{
         Vector2 previous_position = entity->position;
-        sequence->wish_position = move_towards(sequence->wish_position, target, sequence->speed, dt);
+        sequence->wish_position = move_towards(sequence->wish_position, target, speed, dt);
         
         if (!sequence->loop && sequence->current_index >= sequence->points.count - 2){
-            entity->position = move_towards(entity->position, sequence->wish_position, sequence->speed, dt);
+            entity->position = move_towards(entity->position, sequence->wish_position, speed, dt);
         } else{
             Vector2 wish_vec = sequence->wish_position - entity->position;
             f32 wish_len = magnitude(wish_vec);
             if (wish_len > 0){
-                sequence->wish_velocity = (wish_vec / wish_len) * sequence->speed;
-                sequence->velocity = move_towards(sequence->velocity, sequence->wish_velocity, sequence->speed * 4, dt);
+                sequence->wish_velocity = (wish_vec / wish_len) * speed;
+                sequence->velocity = move_towards(sequence->velocity, sequence->wish_velocity, speed * 4, dt);
                 entity->position += sequence->velocity * dt;
             }
         }
@@ -7149,10 +7220,8 @@ void update_entities(f32 dt){
             update_move_sequence(e, dt);
         }
         
-        if (e->flags & PHYSICS_OBJECT){
+        if (e->flags & PHYSICS_OBJECT && e->physics_object.simulating){
             //update physics object 
-            
-            // if (e->physics_object.on_rope && 
             
             e->physics_object.velocity.y -= GRAVITY * e->physics_object.gravity_multiplier * dt;
             
@@ -7963,6 +8032,12 @@ void draw_entity(Entity *e){
     
     if (e->flags & MOVE_SEQUENCE && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
         //draw_game_line_strip(e->move_sequence.points.data, e->move_sequence.points.count, BLUE);
+        
+        if (e->move_sequence.speed_related_player_distance && editor.selected_entity && editor.selected_entity->id == e->id){
+            draw_game_circle(e->position, e->move_sequence.max_distance, Fade(RED, 0.05f));
+            draw_game_circle(e->position, e->move_sequence.min_distance, Fade(BLUE, 0.2f));
+        }
+            
         for (int ii = 0; ii < e->move_sequence.points.count; ii++){
             Vector2 point = e->move_sequence.points.get(ii);
             
@@ -8029,7 +8104,9 @@ void draw_entity(Entity *e){
     }
     
     if (e->flags & EXPLOSIVE){
-        // draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
+        if (game_state == EDITOR){
+            draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
+        }
         if (e->light_index > -1){
         }
     }
@@ -8451,6 +8528,10 @@ void draw_game(){
                 BeginMode2D(context.cam.cam2D);
                 ForEntities(entity, GROUND | light.additional_shadows_flags){
                     if (entity->hidden || entity->id == light.connected_entity_id || should_not_draw_entity(entity, context.cam)){
+                        continue;
+                    }
+                    
+                    if (light.bake_shadows && (entity->flags & DOOR || entity->flags & PHYSICS_OBJECT)){
                         continue;
                     }
                     

@@ -60,6 +60,7 @@
 [ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
 ///////////////////////////////////////////////////
 
+[ ] One-frame arena for stuff like strings. Should also change string lib for that
 [X] Make that explosion won't damage anything if behing obstacle
 [ ] When time comes - Make that wall climbing was on timer and resets when ground touched (or also when enemy killed with sword)
 [X] Weird bug when reloading by pressing T in game after dying. Lights seems not to unload; (That was because dummy entities is hidden and we don't updated their position when reloading. Need to think about should be show light on hidden objects or not).
@@ -67,8 +68,7 @@
 [X] Color changer changes real color of object when works with light on one entity
 [X] On lightmap drawing - draws all entities and not occludes (not all but not that we care about)
     [X] Occluding on lightmaps occludes real shadowcast geometry. Related ↑.
-[ ] Move sequence option for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
-[ ] On enemy attack we can briefly show line that will fade away
+[X] Move sequence option for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
 [X] Fix texture misplacing on screen resizing
 [X] Drag player with mouse (G)
 [X] Birds delay before attack so they go in order.
@@ -100,6 +100,7 @@
 <VISUAL>
 /////////////////////////////////////////////////////////
 [ ] Snow with light blinks
+[ ] On enemy attack we can briefly show line that will fade away
 /////////////////////////////////////////////////////////
 
 <RAW>
