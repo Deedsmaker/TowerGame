@@ -105,7 +105,7 @@
 
 <RAW>
 /////////////////////////////////////////////////////////
-[ ] Maybe levels with static camera where world will wrap around, like that item in world turns red or that item in duck game?
+[ ] Maybe levels with static camera where world will wrap around, like in world turns red or that item in duck game?
 /////////////////////////////////////////////////////////
 
 -----------------------------------------------------------------------

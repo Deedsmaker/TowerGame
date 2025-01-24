@@ -25,8 +25,6 @@ struct Particle{
     f32 max_lifetime;
     f32 gravity_multiplier = 1;
     
-    //b32 colliding;
-    
     Color color = YELLOW;
 };
 
@@ -83,8 +81,6 @@ struct Particle_Emitter{
     f32 lifetime_multiplier = 1;
     
     f32 emitter_lifetime = 0;
-    
-    //f32 colliding_chance = 1.0f;
     
     Color color = YELLOW;
 };
@@ -240,8 +236,6 @@ struct Jump_Shooter{
     i32 explosive_count                = 0;
     
     b32 shoot_sword_blockers           = false;
-    // b32 shoot_sword_blockers_clockwise = false;
-    // b32 shoot_sword_blockers_random_direction = false;
     b32 shoot_sword_blockers_immortal  = false;
     
     b32 shoot_bullet_blockers = false;
@@ -341,10 +335,10 @@ struct Win_Block{
     Vector2 kill_direction = Vector2_up;
 };
 
-//highest - 80. sides - 200
-#define MAX_BIRD_POSITIONS 12
+//highest - 80. sides - 100
+#define MAX_BIRD_POSITIONS 8
 Vector2 bird_formation_positions[MAX_BIRD_POSITIONS] = {
-        {0, 80}, {-30, 50}, {30, 50}, {0, 40}, {-100, 30}, {100, 30}, {-80, 50}, {80, 50}, {-150, 20}, {150, 20}, {-200, 5}, {200, 5}
+        {0, 80}, {-30, 50}, {30, 50}, {0, 40}, {-100, 30}, {100, 30}, {-80, 50}, {80, 50}
 };
 
 struct Bird_Slot{
@@ -358,18 +352,16 @@ struct Bird_Enemy{
     //Attacking state
     b32 attacking = false;
     f32 attack_start_time = 0;
-    //f32 attack_timer = 0;
+    f32 attacked_time = -12;
     f32 max_attack_time = 3.0f;
 
     //Charging attack state
     b32 charging = false;
-    //f32 charging_attack_timer = 0;
     f32 charging_start_time = 0;
     f32 max_charging_time = 3.0f;
 
     //Roam state
     b32 roaming = true;
-    //f32 roam_timer = 0;
     f32 roam_start_time = 0;
     f32 max_roam_time = 6.0f;
     f32 max_roam_speed = 300;
@@ -377,7 +369,6 @@ struct Bird_Enemy{
 
     Vector2 target_position;  
     Vector2 velocity = Vector2_zero;
-    // Vector2 speed = V;
     
     Particle_Emitter *attack_emitter;
     Particle_Emitter *trail_emitter;
@@ -480,17 +471,16 @@ struct Player{
     b32 on_moving_object = false;
     Vector2 moving_object_velocity = Vector2_zero;
     
-    //int ground_checker_index_offset = -1;
-    int ground_checker_id = -1;
-    int left_wall_checker_id = -1;
-    int right_wall_checker_id = -1;
+    i32 ground_checker_id = -1;
+    i32 left_wall_checker_id = -1;
+    i32 right_wall_checker_id = -1;
     
     Vector2 velocity = {0, 0};
     
     f32 since_jump_timer = 0;
     f32 since_airborn_timer = 0;
     //Sword
-    int sword_entity_id = -1;
+    i32 sword_entity_id = -1;
     f32 sword_rotation_speed = 5.0f;
     
     f32 sword_spin_direction = 0;
@@ -499,16 +489,11 @@ struct Player{
     
     b32 sword_hit_ground = false;
     
-    //int sword_entity_index_offset = -1;
-    
     //Rifle
     b32 rifle_active = false;
     b32 rifle_perfect_shot_avaliable = false;
     f32 rifle_weak_speed = 800;
     f32 rifle_strong_speed = 1400;
-    //f32 rifle_current_power = 0;
-    //f32 rifle_max_power = 100;
-    //f32 rifle_power_progress = 0;
     f32 rifle_shake_start_time = 0;
     f32 rifle_activate_time = 0;
     f32 rifle_max_active_time = 3.0f;
@@ -559,7 +544,6 @@ struct Projectile{
     b32 dying = false;
     
     f32 last_light_spawn_time = -112;
-    //Particle_Emitter trail_emitter;
 };
 
 struct Entity{
@@ -577,7 +561,6 @@ struct Entity{
     b32 need_to_save = true;
     b32 visible = true;
     b32 hidden = false;
-    //i32 index = -1;
     
     char name[128] = "unknown_name";
 
@@ -599,7 +582,6 @@ struct Entity{
     
     FLAGS flags;
     FLAGS collision_flags = 0;
-    //b32 need_to_destroy = 0;
     
     //lower - closer to camera
     i32 draw_order = 100;
@@ -619,7 +601,6 @@ struct Entity{
     
     Entity *centipede_head;
     
-    //Player player;
     Ground ground;
     Text_Drawer text_drawer;
     Enemy enemy;
@@ -663,7 +644,6 @@ struct Light{
     
     i32 shadows_size     = 256;
     i32 backshadows_size = 256;
-    // i32 geometry_size    = 1024;
     
     b32 fire_effect = false;
     
@@ -687,7 +667,6 @@ struct Light{
     
     RenderTexture shadowmask_rt;
     RenderTexture backshadows_rt;
-    // RenderTexture geometry_rt;
 };
 
 global_variable Player player_data;
@@ -781,7 +760,6 @@ struct Context{
     b32 we_got_a_winner = false;
     b32 just_entered_game_state = false;
     b32 baked_shadows_this_frame = false;
-    // Vector2 unit_screen_size;
     
     char current_level_name[256];
     
@@ -794,14 +772,9 @@ struct Context{
 };
 
 struct Render{
-    // Shader base_light_shader;  
-    // Shader ray_tracer_shader;  
-    // Shader light_sampler_shader;  
     Shader lights_shader;
     Shader test_shader;
     
-    // RenderTexture ray_collision_render_texture;
-    // RenderTexture rays_render_texture;
     RenderTexture lights_buffer_render_texture;
     RenderTexture main_render_texture;
 };
@@ -902,10 +875,6 @@ struct Editor{
     Entity copied_entity;
     b32 is_copied;
     
-    b32 need_validate_entity_pointers = false;
-    
-    // Vector2 *last_selected_vertex;
-    // int last_selected_vertex_index;
     Vector2 *moving_vertex = NULL;
     int moving_vertex_index;
     

@@ -62,8 +62,8 @@ void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 directio
     }
 }
 
-void update_overtime_emitter(Particle_Emitter *emitter){
-    emitter->emitting_timer += core.time.dt;
+void update_overtime_emitter(Particle_Emitter *emitter, f32 dt){
+    emitter->emitting_timer += dt;
     f32 emit_delay = 1.0f / (emitter->over_time * emitter->count_multiplier);
     while (emitter->emitting_timer >= emit_delay){
         emitter->emitting_timer -= emit_delay;
@@ -108,16 +108,16 @@ void enable_emitter(Particle_Emitter *emitter){
     emitter->enabled = true;
 }
 
-void update_emitter(Particle_Emitter *emitter){
+void update_emitter(Particle_Emitter *emitter, f32 dt){
     if (!emitter->enabled){
         emitter->emitter_lifetime = 0;
         return;
     }
 
-    emitter->emitter_lifetime += core.time.dt;
+    emitter->emitter_lifetime += dt;
     
     if (emitter->over_time > 0){
-        update_overtime_emitter(emitter);
+        update_overtime_emitter(emitter, dt);
     }
     
     if (emitter->over_distance > 0){
@@ -125,7 +125,7 @@ void update_emitter(Particle_Emitter *emitter){
     }
 }
 
-void update_emitters(){
+void update_emitters(f32 dt){
     for (int i = 0; i < context.emitters.count; i++){
         Particle_Emitter *emitter = context.emitters.get_ptr(i);
         
@@ -136,19 +136,19 @@ void update_emitters(){
             emitter->emitter_lifetime = 0;
             continue;
         }
-        update_emitter(emitter);        
+        update_emitter(emitter, dt);        
     }
 }
 
 
-void update_particles(){
+void update_particles(f32 dt){
     for (int i = 0; i < context.particles.max_count; i++){
         if (!context.particles.get(i).enabled){
             continue;
         }
     
         Particle *particle = context.particles.get_ptr(i);
-        f32 dt = game_state == EDITOR ? core.time.real_dt : core.time.dt;
+        dt = game_state == EDITOR ? core.time.real_dt : dt;
         
         if (particle->lifetime <= 0.2f && game_state == GAME){
             dt = core.time.real_dt;
@@ -171,19 +171,9 @@ void update_particles(){
         
         particle->velocity += frame_on_circle_rnd * 100 * dt;
         
-        // if (particle->colliding){
-        //     calculate_particle_tilemap_collisions(game, particle, check_tilemap_collisions(game, particle->velocity, particle->entity));
-        // }
-        
         Vector2 next_position = add(particle->position, multiply(particle->velocity, dt));
         
         particle->position = next_position;
-        
-        // loop_world_position(game, &particle->entity.position);
-        
-        // if (particle->leave_splash){
-        //     add_splash(game, particle->entity, particle-> splash_color == 0 ? particle->color : particle->splash_color);
-        // }
     }
 }
 

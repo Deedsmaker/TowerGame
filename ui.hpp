@@ -5,7 +5,7 @@
 #define MAX_UI_TEXTS 64
 #define MAX_UI_ELEMENTS 256
 
-#define UI_FLAGS i32
+#define UI_FLAGS u32
 
 enum Ui_Flags{
     BUTTON    = 1 << 1,
