@@ -60,6 +60,7 @@
 [ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
 ///////////////////////////////////////////////////
 
+[X] Try white flash on whole background
 [ ] One-frame arena for stuff like strings. Should also change string lib for that
 [X] Make that explosion won't damage anything if behing obstacle
 [ ] When time comes - Make that wall climbing was on timer and resets when ground touched (or also when enemy killed with sword)

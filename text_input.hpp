@@ -182,7 +182,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     
     Rectangle field_rect = {input_field.position.x, input_field.position.y, input_field.size.x, input_field.size.y};
     
-    b32 hovered_over = CheckCollisionPointRec(mouse_position, field_rect);
+    b32 hovered_over = CheckCollisionPointRec(input.screen_mouse_position, field_rect);
     
     if (hovered_over){
         input_field.color = ColorBrightness(input_field.color, 0.2f);

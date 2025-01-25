@@ -718,21 +718,21 @@ struct Cam{
 struct Particle;
 struct Particle_Emitter;
 
+struct Time{      
+    f32 target_dt = TARGET_FRAME_TIME;
+    f32 previous_dt = 0;
+    f32 dt = 0;  
+    f32 fixed_dt = 0;
+    f32 unscaled_dt = 0;
+    f32 real_dt = 0;
+    f32 time_scale = 1;
+    f32 target_time_scale = 1;
+    f32 game_time = 0;
+    f32 app_time = 0;
+    f32 hitstop = 0;
+};
+
 struct Core{
-    struct Time{      
-        f32 target_dt = TARGET_FRAME_TIME;
-        f32 previous_dt = 0;
-        f32 dt = 0;  
-        f32 fixed_dt = 0;
-        f32 unscaled_dt = 0;
-        f32 real_dt = 0;
-        f32 time_scale = 1;
-        f32 target_time_scale = 1;
-        f32 game_time = 0;
-        f32 app_time = 0;
-        f32 hitstop = 0;
-    };
-    
     Time time;
 };
 
@@ -757,11 +757,17 @@ struct Context{
     f32 last_jump_shooter_attack_time = -11110;
     f32 last_collision_cells_clear_time = -2;
     
+    i32 game_frame_count = 0;
+    b32 playing_replay = false;
+    
     b32 we_got_a_winner = false;
     b32 just_entered_game_state = false;
     b32 baked_shadows_this_frame = false;
     
     char current_level_name[256];
+    
+    f32 explosion_trauma = 0;
+    f32 background_flash_time = -21;
     
     Collision_Grid collision_grid;
     i32 collision_grid_cells_count = 0;
@@ -796,17 +802,30 @@ enum Press_Flags{
 };
 
 struct Input{
-    Vector2 direction;
-    Vector2 tap_direction;
-    Vector2 mouse_position;
-    Vector2 mouse_delta;
-    f32     mouse_wheel;
+    Vector2 direction             = Vector2_zero;
+    Vector2 tap_direction         = Vector2_zero;
+    Vector2 screen_mouse_position = Vector2_zero;
+    Vector2 mouse_position        = Vector2_zero;
+    Vector2 mouse_delta           = Vector2_zero;
+    f32     mouse_wheel           = 0;
     
     Vector2 sum_mouse_delta = Vector2_zero;
     f32     sum_mouse_wheel = 0;
-    Vector2 sum_direction = Vector2_zero;
-    FLAGS hold_flags = 0;
-    FLAGS press_flags = 0;
+    Vector2 sum_direction   = Vector2_zero;
+    FLAGS hold_flags        = 0;
+    FLAGS press_flags       = 0;
+    
+    u32 rnd_state           = 0;
+};
+
+#define MAX_INPUT_RECORDS (FIXED_FPS * 60)
+struct Replay_Frame_Data{
+    Input frame_input = {};  
+    // Time frame_time_data = {};
+};
+
+struct Level_Replay{
+    Dynamic_Array<Replay_Frame_Data> input_record = Dynamic_Array<Replay_Frame_Data>(MAX_INPUT_RECORDS);
 };
 
 struct Level{
@@ -951,7 +970,7 @@ struct Console{
     int history_max = 0;
     
     String str = String();
-    f32 closed_time = 0;
-    f32 opened_time = 0;
+    f32 closed_time = -12;
+    f32 opened_time = -12;
     f32 open_progress = 0;
 };

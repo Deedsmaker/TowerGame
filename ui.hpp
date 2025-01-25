@@ -84,7 +84,7 @@ b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text,
     
     Rectangle button_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
     
-    if (CheckCollisionPointRec(mouse_position, button_rec)){
+    if (CheckCollisionPointRec(input.screen_mouse_position, button_rec)){
         new_ui_element->color = ColorBrightness(new_ui_element->color, 0.5f);
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
             clicked_ui = true;
@@ -102,7 +102,7 @@ void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color, c
     Ui_Element *new_ui_element = init_ui_element(position, size, pivot, color, tag, UI_IMAGE);
     
     Rectangle image_rec = {position.x - size.x * (pivot.x), position.y - size.y * pivot.y, size.x, size.y};
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(mouse_position, image_rec)){
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(input.screen_mouse_position, image_rec)){
         clicked_ui = true;
     }
 }

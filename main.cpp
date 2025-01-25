@@ -20,8 +20,6 @@
 
 global_variable Core core = {};
 
-Vector2 mouse_position = Vector2_zero;
-
 #include "utils.cpp"
 #include "render.cpp"
 

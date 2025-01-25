@@ -13,8 +13,9 @@
 global_variable Input input;
 global_variable Level current_level;
 global_variable Context context = {};
+global_variable Level_Replay level_replay = {};
 global_variable Render render = {};
-global_variable Context saved_level_context = {};
+// global_variable Context saved_level_context = {};
 global_variable Console console = {};
 global_variable Editor editor  = {};
 global_variable Debug  debug  = {};
@@ -412,14 +413,12 @@ void clear_context(Context *c){
     player_data = {};
 }
 
-int save_level(const char *level_name){
+i32 save_level(const char *level_name){
     char *name;
     name = get_substring_before_symbol(level_name, '.');
 
     String level_path = init_string();
-    level_path += "levels/";
-    level_path += name;
-    level_path += ".level";
+    level_path += TextFormat("levels/%s.level", name);
     FILE *fptr;
     fptr = fopen(level_path.data, "w");
     
@@ -1884,8 +1883,72 @@ void debug_toggle_collision_grid(){
 void set_default_time_scale(){
     core.time.target_time_scale = 1;    
 }
+
 void set_time_scale(char *text){
     core.time.target_time_scale = atof(text);    
+}
+
+void set_time_scale(f32 scale){
+    core.time.target_time_scale = scale;    
+}
+
+void save_temp_replay(){
+    // String level_path = init_string();    
+    // level_path += TextFormat("replays/%s.replay", TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
+    
+    const char *name = TextFormat("replays/%s.replay", TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
+    
+    FILE *fptr;
+    fptr = fopen(name, "wb");
+    
+    size_t write_result = fwrite(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.count, fptr);
+    
+    if (write_result != -1){
+        console.str += TextFormat("\t>Temp replay named %s is saved\n", name);
+    }
+}
+
+void load_temp_replay(){
+    const char *name = TextFormat("replays/%s.replay", TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
+    FILE *fptr;
+    fptr = fopen(name, "rb");
+
+    size_t read_result = fread(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.max_count, fptr);
+    level_replay.input_record.count = read_result;    
+    
+    if (read_result != -1){
+        context.playing_replay = true;
+        enter_editor_state();
+        enter_game_state();
+    
+        console.str += TextFormat("\t>Temp replay named %s is loaded\n", name);
+    }
+}
+
+void load_replay(char *replay_name){
+    
+}
+
+void save_replay(char *replay_name){
+    String level_path = init_string();    
+    char *name = 0;
+    if (replay_name){
+        name = get_substring_before_symbol(replay_name, '.');
+    }
+    level_path += TextFormat("replays/%s.replay", name ? name : TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
+}
+
+// void l
+
+void debug_toggle_play_replay(){
+    context.playing_replay = !context.playing_replay;
+        
+    if (context.playing_replay){
+        enter_editor_state();
+        enter_game_state();
+    }
+    
+    console.str += TextFormat("\t>Replay mode is %s\n", context.playing_replay ? "enabled" : "disabled");
 }
 
 void init_console(){
@@ -1917,6 +1980,10 @@ void init_console(){
     
     console.commands.add(make_console_command("create",    print_create_level_hint, create_level));
     console.commands.add(make_console_command("new_level", print_create_level_hint, create_level));
+    
+    console.commands.add(make_console_command("play_replay", debug_toggle_play_replay, NULL));
+    console.commands.add(make_console_command("save_replay", save_temp_replay, save_replay));
+    console.commands.add(make_console_command("replay_load",   load_temp_replay, load_replay));
 }
 
 Music ambient_theme;
@@ -2185,6 +2252,10 @@ void enter_game_state(){
     game_state = GAME;
     context.just_entered_game_state = true;
     core.time.game_time = 0;
+    core.time.hitstop = 0;
+    core.time.previous_dt = 0;
+    // core.time.app_time = 0;
+    // core.time = {};
     
     HideCursor();
     DisableCursor();
@@ -2206,6 +2277,11 @@ void enter_game_state(){
     
     context.cam.cam2D.zoom = 0.35f;
     context.cam.target_zoom = 0.35f;
+    
+    context.game_frame_count = 0;
+    if (!context.playing_replay){
+        level_replay.input_record.clear();
+    }
     
     String temp_level_name = init_string();
     temp_level_name += "TEMP_";
@@ -2320,18 +2396,91 @@ Vector2 screen_to_world(Vector2 pos){
     return world_pos;
 }
 
-Vector2 game_mouse_pos(){
-    return screen_to_world(mouse_position);
+inline Vector2 game_mouse_pos(){
+    return screen_to_world(input.screen_mouse_position);
 }
 
 void fixed_game_update(f32 dt){
+    if (game_state == GAME){
+        if (!context.playing_replay){
+            //record input
+            if (level_replay.input_record.count >= MAX_INPUT_RECORDS - 1){
+                // level_replay.input_record.remove_first_half();
+            } else{
+                input.rnd_state = rnd_state;
+                level_replay.input_record.add({input});
+            }
+        } else{
+            if (context.game_frame_count >= level_replay.input_record.count){
+                // set_time_scale(0);
+                context.playing_replay = false;
+            } else{
+                input = level_replay.input_record.get(context.game_frame_count).frame_input;
+                // core.time = level_replay.input_record.get(context.game_frame_count).frame_time_data;
+                rnd_state = input.rnd_state;
+            }
+        }
+    }
+
     update_entities(dt);
     update_emitters(dt);
     update_particles(dt);
+    
+    // update camera
+    if (game_state == GAME && player_entity && !debug.free_cam){
+        if (!context.cam.locked){
+            Vector2 player_velocity = player_data.velocity;
+            f32 target_speed_multiplier = 1;
+        
+            f32 time_since_heavy_collision = core.time.game_time - player_data.heavy_collision_time;
+            if (magnitude(player_data.velocity) < 80 && core.time.game_time > 5 && time_since_heavy_collision <= 1.0f){
+                player_velocity = player_data.heavy_collision_velocity;
+                target_speed_multiplier = 0.05f;
+            }
+            
+            f32 player_speed = magnitude(player_velocity);
+        
+            Vector2 target_position = player_entity->position + Vector2_up * 10 + player_velocity * 0.25f;
+            
+            Vector2 vec_to_target = target_position - context.cam.target;
+            Vector2 vec_to_player = player_entity->position - context.cam.target;
+            
+            f32 target_dot = dot(vec_to_target, vec_to_player);
+            
+            f32 speed_t = clamp01(player_speed / 200.0f);
+            
+            f32 target_speed = lerp(3, 10, speed_t * speed_t);
+            target_speed *= target_speed_multiplier;
+            
+            context.cam.target = lerp(context.cam.target, target_position, clamp01(dt * target_speed));
+            
+            f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
+            
+            context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * cam_speed));
+        } else{
+            context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * 4));
+            if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
+                context.cam.position = context.cam.target;
+            }
+        }
+    }
+    context.cam.trauma -= dt * context.cam.trauma_decrease_rate;
+    context.cam.trauma = clamp01(context.cam.trauma);
+    
+    context.explosion_trauma = clamp01(context.explosion_trauma - dt * 20);
+
+    f32 zoom_speed = game_state == GAME ? 3 : 10;
+    context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, dt * zoom_speed);
+    
+    if (abs(context.cam.cam2D.zoom - context.cam.target_zoom) <= EPSILON){
+        context.cam.cam2D.zoom = context.cam.target_zoom;
+    }
 
     input.press_flags = 0;
     input.sum_mouse_delta = Vector2_zero;
     input.sum_mouse_wheel = 0;
+    
+    context.game_frame_count += 1;
 }
 
 void update_console(){
@@ -2465,101 +2614,104 @@ void update_game(){
     frame_on_circle_rnd = rnd_on_circle();
     
     //update input
-    input.mouse_delta = GetMouseDelta();
-    mouse_position += input.mouse_delta;
-    input.sum_mouse_delta += input.mouse_delta;
-    clamp(&mouse_position.x, 0, screen_width);
-    clamp(&mouse_position.y, 0, screen_height);
-    
-    input.mouse_position = game_mouse_pos();
-    input.mouse_wheel = GetMouseWheelMove();
-    input.sum_mouse_wheel += input.mouse_wheel;
-    
-    input.direction.x = 0;
-    input.direction.y = 0;
-    
-    b32 can_player_input = !console.is_open;
-    
-    if (can_player_input){
-        if (IsKeyDown(KEY_RIGHT)){
-            input.direction.x = 1;
-            input.hold_flags |= RIGHT;
-        } else if (IsKeyDown(KEY_LEFT)){
-            input.direction.x = -1;
-            input.hold_flags |= LEFT;
-        }
-        if (IsKeyDown(KEY_UP)){
-            input.direction.y = 1;
-            input.hold_flags |= UP;
-        } else if (IsKeyDown(KEY_DOWN)){
-            input.direction.y = -1;
-            input.hold_flags |= DOWN;
-        }
-        if (IsKeyDown(KEY_D)){
-            input.direction.x = 1;
-            input.hold_flags |= RIGHT;
-        } else if (IsKeyDown(KEY_A)){
-            input.direction.x = -1;
-            input.hold_flags |= LEFT;
-        }
-        if (IsKeyDown(KEY_W)){
-            input.direction.y = 1;
-            input.hold_flags |= UP;
-        } else if (IsKeyDown(KEY_S)){
-            input.direction.y = -1;
-            input.hold_flags |= DOWN;
+    if (!context.playing_replay){    
+        input.rnd_state = rnd_state;
+        input.mouse_delta = GetMouseDelta();
+        input.screen_mouse_position += input.mouse_delta;
+        input.sum_mouse_delta += input.mouse_delta;
+        clamp(&input.screen_mouse_position.x, 0, screen_width);
+        clamp(&input.screen_mouse_position.y, 0, screen_height);
+        
+        input.mouse_position = game_mouse_pos();
+        input.mouse_wheel = GetMouseWheelMove();
+        input.sum_mouse_wheel += input.mouse_wheel;
+        
+        input.direction.x = 0;
+        input.direction.y = 0;
+        
+        b32 can_player_input = !console.is_open;
+        
+        if (can_player_input){
+            if (IsKeyDown(KEY_RIGHT)){
+                input.direction.x = 1;
+                input.hold_flags |= RIGHT;
+            } else if (IsKeyDown(KEY_LEFT)){
+                input.direction.x = -1;
+                input.hold_flags |= LEFT;
+            }
+            if (IsKeyDown(KEY_UP)){
+                input.direction.y = 1;
+                input.hold_flags |= UP;
+            } else if (IsKeyDown(KEY_DOWN)){
+                input.direction.y = -1;
+                input.hold_flags |= DOWN;
+            }
+            if (IsKeyDown(KEY_D)){
+                input.direction.x = 1;
+                input.hold_flags |= RIGHT;
+            } else if (IsKeyDown(KEY_A)){
+                input.direction.x = -1;
+                input.hold_flags |= LEFT;
+            }
+            if (IsKeyDown(KEY_W)){
+                input.direction.y = 1;
+                input.hold_flags |= UP;
+            } else if (IsKeyDown(KEY_S)){
+                input.direction.y = -1;
+                input.hold_flags |= DOWN;
+            }
+            
+            if (input.direction.x != 0 || input.direction.y != 0){
+                normalize(&input.direction);
+            }
+            
+            if (input.tap_direction.x == 0 && IsKeyPressed(KEY_RIGHT)){
+                input.tap_direction.x = 1;
+            } else if (input.tap_direction.x == 0 && IsKeyPressed(KEY_LEFT)){
+                input.tap_direction.x = -1;
+            } else{
+                input.tap_direction.x = 0;
+            }
+            if (input.tap_direction.y == 0 && IsKeyPressed(KEY_UP)){
+                input.tap_direction.y = 1;
+            } else if (input.tap_direction.y == 0 && IsKeyPressed(KEY_DOWN)){
+                input.tap_direction.y = -1;
+            } else{
+                input.tap_direction.y = 0;
+            }
         }
         
-        if (input.direction.x != 0 || input.direction.y != 0){
-            normalize(&input.direction);
+        if (input.hold_flags & RIGHT){
+            input.sum_direction.x = 1;
+        } else if (input.hold_flags & LEFT){
+            input.sum_direction.x = -1;
         }
         
-        if (input.tap_direction.x == 0 && IsKeyPressed(KEY_RIGHT)){
-            input.tap_direction.x = 1;
-        } else if (input.tap_direction.x == 0 && IsKeyPressed(KEY_LEFT)){
-            input.tap_direction.x = -1;
-        } else{
-            input.tap_direction.x = 0;
+        if (input.hold_flags & UP){
+            input.sum_direction.y = 1;
+        } else if (input.hold_flags & DOWN){
+            input.sum_direction.y = -1;
         }
-        if (input.tap_direction.y == 0 && IsKeyPressed(KEY_UP)){
-            input.tap_direction.y = 1;
-        } else if (input.tap_direction.y == 0 && IsKeyPressed(KEY_DOWN)){
-            input.tap_direction.y = -1;
-        } else{
-            input.tap_direction.y = 0;
+        
+        if (IsKeyPressed(KEY_SPACE)){
+            input.press_flags |= JUMP;
         }
-    }
-    
-    if (input.hold_flags & RIGHT){
-        input.sum_direction.x = 1;
-    } else if (input.hold_flags & LEFT){
-        input.sum_direction.x = -1;
-    }
-    
-    if (input.hold_flags & UP){
-        input.sum_direction.y = 1;
-    } else if (input.hold_flags & DOWN){
-        input.sum_direction.y = -1;
-    }
-    
-    if (IsKeyPressed(KEY_SPACE)){
-        input.press_flags |= JUMP;
-    }
-    if (IsKeyPressed(KEY_F)){
-        input.press_flags |= SWORD_BIG;
-    }
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-        input.press_flags |= SHOOT;
-    }
-    
-    if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
-        input.hold_flags |= SPIN_DOWN;
-    }
-    if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
-        input.press_flags |= SPIN;
-    }
-    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
-        input.press_flags |= SPIN_RELEASED;
+        if (IsKeyPressed(KEY_F)){
+            input.press_flags |= SWORD_BIG;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+            input.press_flags |= SHOOT;
+        }
+        
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
+            input.hold_flags |= SPIN_DOWN;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+            input.press_flags |= SPIN;
+        }
+        if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
+            input.press_flags |= SPIN_RELEASED;
+        }
     }
     //end update input
     
@@ -2611,7 +2763,9 @@ void update_game(){
         if (core.time.hitstop > 0){
             core.time.time_scale = 0.1f;
             core.time.hitstop -= core.time.real_dt;
-        } else{
+        } 
+        
+        if (core.time.hitstop <= 0){
             core.time.time_scale = core.time.target_time_scale;
         }
         
@@ -2633,7 +2787,7 @@ void update_game(){
         float full_delta = core.time.dt + core.time.previous_dt;
         core.time.previous_dt = 0;
         
-        full_delta = Clamp(full_delta, 0, 0.5f);
+        full_delta = Clamp(full_delta, 0, 0.5f * core.time.time_scale);
         b32 updated_today = false;
         while (full_delta >= TARGET_FRAME_TIME){
             core.time.fixed_dt = TARGET_FRAME_TIME;
@@ -2671,42 +2825,6 @@ void update_game(){
     }
     
     if (game_state == GAME && player_entity && !debug.free_cam){
-        // camera logic
-        if (!context.cam.locked){
-            Vector2 player_velocity = player_data.velocity;
-            f32 target_speed_multiplier = 1;
-        
-            f32 time_since_heavy_collision = core.time.game_time - player_data.heavy_collision_time;
-            if (magnitude(player_data.velocity) < 80 && core.time.game_time > 5 && time_since_heavy_collision <= 1.0f){
-                player_velocity = player_data.heavy_collision_velocity;
-                target_speed_multiplier = 0.05f;
-            }
-            
-            f32 player_speed = magnitude(player_velocity);
-        
-            Vector2 target_position = player_entity->position + Vector2_up * 10 + player_velocity * 0.25f;
-            
-            Vector2 vec_to_target = target_position - context.cam.target;
-            Vector2 vec_to_player = player_entity->position - context.cam.target;
-            
-            f32 target_dot = dot(vec_to_target, vec_to_player);
-            
-            f32 speed_t = clamp01(player_speed / 200.0f);
-            
-            f32 target_speed = lerp(3, 10, speed_t * speed_t);
-            target_speed *= target_speed_multiplier;
-            
-            context.cam.target = lerp(context.cam.target, target_position, clamp01(core.time.dt * target_speed));
-            
-            f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
-            
-            context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(core.time.dt * cam_speed));
-        } else{
-            context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(core.time.dt * 4));
-            if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
-                context.cam.position = context.cam.target;
-            }
-        }
     } else{
         f32 zoom = context.cam.target_zoom;
 
@@ -6044,7 +6162,25 @@ inline f32 get_explosion_radius(Entity *entity, f32 base_radius){
     return lerp(base_radius, base_radius * 6, scale_progress);
 }
 
+b32 is_explosion_trauma_active(){
+    return core.time.app_time - context.background_flash_time <= 0.1f;
+}
+
+void add_explosion_trauma(f32 explosion_radius){
+    if (explosion_radius < 100 || is_explosion_trauma_active()){
+        return;
+    }
+    
+    context.explosion_trauma += explosion_radius / 500.0f;
+    if (context.explosion_trauma >= 1){
+        context.background_flash_time = core.time.app_time;
+        context.explosion_trauma = 0;
+    }
+}
+
 void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size){
+    add_explosion_trauma(radius);
+    
     Light *light = NULL;
     
     i32 start_index = context.big_temp_lights_count + context.huge_temp_lights_count;
@@ -6879,8 +7015,8 @@ void update_entities(f32 dt){
         update_color_changer(e, dt);            
         
         if (e->flags & PHYSICS_OBJECT){
+            // update rope stuff
              if (e->physics_object.on_rope){
-                // spawn rope and update it
                 Entity *rope_entity = NULL;
                 if (e->physics_object.rope_id == -1){
                     rope_entity = add_entity(e->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
@@ -7035,7 +7171,7 @@ void update_entities(f32 dt){
                 e->enemy.dead_man = true;
                 e->enemy.died_time = core.time.game_time;
                 e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT);
-                Vector2 rnd = rnd_in_circle();
+                Vector2 rnd = /*rnd_in_circle()*/ e->move_sequence.moved_last_frame;
                 e->bird_enemy.velocity = {e->move_sequence.velocity.x * rnd.x, e->move_sequence.velocity.y * rnd.y};
 
                 e->move_sequence.moving = false;
@@ -7050,7 +7186,7 @@ void update_entities(f32 dt){
                     segment->flags = ENEMY | BIRD_ENEMY;
                     segment->move_sequence.moving = false;
                     segment->collision_flags = GROUND;
-                    Vector2 rnd = rnd_in_circle();
+                    Vector2 rnd = /*rnd_in_circle()*/ segment->move_sequence.moved_last_frame;
                     segment->bird_enemy.velocity = {segment->move_sequence.velocity.x * rnd.x, segment->move_sequence.velocity.y * rnd.y};
                     init_bird_emitters(segment);
                 }
@@ -7183,7 +7319,7 @@ void update_entities(f32 dt){
                     shooter->states.charging = true;
                     shooter->states.charging_start_time = core.time.game_time;
                     
-                    shooter->blocker_clockwise = rnd01() >= 0.5f;
+                    shooter->blocker_clockwise = /*rnd01() >= 0.5f*/ (core.time.game_time - (i32)core.time.game_time) >= 0.5f;
                 }
             }
             
@@ -7213,7 +7349,7 @@ void update_entities(f32 dt){
                     explosive_indexes.clear();
                     
                     for (i32 i = 0; i < shooter->explosive_count; i++){
-                        i32 explosive_index = rnd(0, shooter->shots_count);
+                        i32 explosive_index = /*rnd(0, shooter->shots_count)*/ (i32)core.time.game_time % shooter->shots_count;
                         while (explosive_indexes.contains(explosive_index)){
                             explosive_index = (explosive_index+1) % shooter->shots_count;
                         }
@@ -8121,13 +8257,6 @@ inline f32 get_light_zoom(f32 radius){
 }
 
 void draw_game(){
-    f32 zoom_speed = game_state == GAME ? 3 : 10;
-    context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, core.time.real_dt * zoom_speed);
-    
-    if (abs(context.cam.cam2D.zoom - context.cam.target_zoom) <= EPSILON){
-        context.cam.cam2D.zoom = context.cam.target_zoom;
-    }
-
     saved_cam = context.cam;
 
     apply_shake();
@@ -8141,9 +8270,10 @@ void draw_game(){
     BeginMode2D(context.cam.cam2D);
     Context *c = &context;
     
-    ClearBackground(GRAY);
+    ClearBackground(is_explosion_trauma_active() ? WHITE : GRAY);
     
     draw_entities();
+    // ClearBackground(WHITE);
     draw_particles();
     
     if (player_entity && debug.draw_player_collisions){
@@ -8431,8 +8561,6 @@ void draw_game(){
     draw_ui("");
     
     context.cam = saved_cam;
-    context.cam.trauma -= core.time.dt * context.cam.trauma_decrease_rate;
-    context.cam.trauma = clamp01(context.cam.trauma);
     
     f32 v_pos = 10;
     f32 font_size = 18;
@@ -8489,7 +8617,6 @@ void draw_game(){
         
         if (since_console_closed <= 0.4f){
             f32 t = clamp01(since_console_closed / 0.4f);
-            
             Color text_color = lerp(GREEN, GREEN * 0, t * t);
             f32 y_position = lerp(0.0f, -screen_height * 0.6f, EaseOutQuint(t));
             
@@ -8501,15 +8628,15 @@ void draw_game(){
     // draw cursor
     if (game_state == GAME){
         if (player_data.rifle_active){
-            draw_line(mouse_position - Vector2_right * 10 - Vector2_up * 10, mouse_position + Vector2_right * 10 + Vector2_up * 10, WHITE);
-            draw_line(mouse_position + Vector2_right * 10 - Vector2_up * 10, mouse_position - Vector2_right * 10 + Vector2_up * 10, WHITE);
-            draw_rect({mouse_position.x - 2.5f, mouse_position.y - 2.5f}, {5, 5}, GREEN);
+            draw_line(input.screen_mouse_position - Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position + Vector2_right * 10 + Vector2_up * 10, WHITE);
+            draw_line(input.screen_mouse_position + Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position - Vector2_right * 10 + Vector2_up * 10, WHITE);
+            draw_rect({input.screen_mouse_position.x - 2.5f, input.screen_mouse_position.y - 2.5f}, {5, 5}, GREEN);
         } else{
-            draw_rect({mouse_position.x - 5, mouse_position.y - 5}, {10, 10}, RED);
+            draw_rect({input.screen_mouse_position.x - 5, input.screen_mouse_position.y - 5}, {10, 10}, RED);
         }
     } else{
-        draw_circle({mouse_position.x, mouse_position.y}, 20, Fade(RED, 0.1f));
-        draw_rect({mouse_position.x - 5, mouse_position.y - 5}, {10, 10}, WHITE);
+        draw_circle({input.screen_mouse_position.x, input.screen_mouse_position.y}, 20, Fade(RED, 0.1f));
+        draw_rect({input.screen_mouse_position.x - 5, input.screen_mouse_position.y - 5}, {10, 10}, WHITE);
     }
     
     EndDrawing();
@@ -8550,6 +8677,9 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
     e.id = context.entities.total_added_count + core.time.app_time * 10000 + 100;
     check_avaliable_ids_and_set_if_found(&e.id);
+    if (flags & PLAYER){
+        e.id = 1;
+    }
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
 }
