@@ -83,6 +83,7 @@ Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 Collision get_nearest_ground_collision(Vector2 point, f32 radius);
 b32 check_col_circles(Circle a, Circle b);
 
+void print_to_console(const char *text);
 void print_hotkeys_to_console();
 
 inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index, FLAGS flags = 0);

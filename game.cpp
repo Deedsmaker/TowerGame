@@ -414,6 +414,11 @@ void clear_context(Context *c){
 }
 
 i32 save_level(const char *level_name){
+    if (game_state == GAME){
+        print_to_console("Will not save in game mode under any circumstances!");
+        return -1;
+    }
+
     char *name;
     name = get_substring_before_symbol(level_name, '.');
 
@@ -1434,12 +1439,6 @@ inline void loop_entities(void (func)(Entity*)){
     }
 }
 
-void print_to_console(char *text){
-    console.str += "\t>";
-    console.str += text;
-    console.str += "\n";
-}
-
 void print_to_console(const char *text){
     console.str += "\t>";
     console.str += text;
@@ -1601,10 +1600,10 @@ void init_entity(Entity *entity){
         if (entity->light_index != -1){
             explosive_light = context.lights.get(entity->light_index);
         } 
-        if (entity->enemy.explosive_radius_multiplier >= 4){
+        if (entity->enemy.explosive_radius_multiplier >= 3){
             explosive_light.shadows_size_flags = BIG_LIGHT;
             explosive_light.backshadows_size_flags = BIG_LIGHT;
-        } else if (entity->enemy.explosive_radius_multiplier >= 2){
+        } else if (entity->enemy.explosive_radius_multiplier > 1){
             explosive_light.shadows_size_flags = MEDIUM_LIGHT;
             explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
         }
@@ -1729,15 +1728,37 @@ inline void save_current_level(){
 }
 
 inline void autosave_level(){
-    String temp_level_name = init_string();
-    temp_level_name += "AUTOSAVE_";
-    temp_level_name += context.current_level_name;
+    i32 max_autosaves = 5;
+    i32 autosave_index = -1;    
+    for (int i = 0; i < max_autosaves; i++){
+        const char *path = TextFormat("levels/AUTOSAVE_%d_%s.level", i, context.current_level_name);        
+        if (!FileExists(path)){
+            autosave_index = i;
+            break;
+        }
+    }
     
-    save_level(temp_level_name.data);
-    temp_level_name.free_str();
+    // Means we did not found vacant number so we'll see for oldest
+    if (autosave_index == -1){
+        i64 oldest_time = -1;
+        
+        for (int i = 0; i < max_autosaves; i++){
+            const char *path = TextFormat("levels/AUTOSAVE_%d_%s.level", i, context.current_level_name);        
+            u64 modification_time = GetFileModTime(path);
+            if (oldest_time == -1 || modification_time < oldest_time){
+                oldest_time = modification_time;
+                autosave_index = i;
+            }
+        }
+    }
+    
+    assert(autosave_index != -1);
+    
+    save_level(TextFormat("AUTOSAVE_%d_%s", autosave_index, context.current_level_name));
 }
 
 inline void load_level_by_name(char *name){
+    editor.last_autosave_time = core.time.app_time;
     if (load_level(name)){
     } else{
     }
@@ -4721,7 +4742,7 @@ void update_editor(){
     }
     
     f32 time_since_autosave = core.time.app_time - editor.last_autosave_time;
-    if (time_since_autosave > 20){
+    if (time_since_autosave > 40){
         autosave_level();
         editor.last_autosave_time = core.time.app_time;
     }
@@ -7281,8 +7302,8 @@ void update_entities(f32 dt){
                             point = ray_collision.point;
                             normal = ray_collision.normal;
                         } else{
-                            point = nearest_ground.point;
-                            normal = nearest_ground.normal;
+                            // point = nearest_ground.point;
+                            // normal = nearest_ground.normal;
                         }
                         
                         Vector2 dir = normalized(e->position - point);

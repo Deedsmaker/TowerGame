@@ -24,7 +24,7 @@
 [X?] Escape level with need to stop spinning ?. + arena (bridge1 level as arena and escape sequence is ok, but we might not want to force player stop sword spinning so early)
 [X] Centipede
 [X] Rope blocks
-[ ] Jump shooters introduction + more rope blocks
+[X] Jump shooters introduction + more rope blocks
 
 <Level ideas>
 ///////////////////////////////////////////////////
@@ -60,6 +60,7 @@
 [ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
 ///////////////////////////////////////////////////
 
+[X]! Multiple autosaves
 [X] Try white flash on whole background
 [ ] One-frame arena for stuff like strings. Should also change string lib for that
 [X] Make that explosion won't damage anything if behing obstacle
