@@ -33,6 +33,7 @@
 [X] Tutorial for gravity increase - spikes above
 [X] Cool physics rope block introduction with static camera where we need to cut it and go down
 [ ] Ascending level (spikes go from below) where in parts we need to climb centipedes (and there's no real blocks). 
+[ ] One-screen survival level
 ///////////////////////////////////////////////////
 
 <Battle ideas>
@@ -60,6 +61,7 @@
 [ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
 ///////////////////////////////////////////////////
 
+[ ] Think about how we should control/block dynamic camera. Blockers seems to complicated, so maybe some rails system will be not only good enough, but also really cool. (We should just change (localvariable) target position in update camera for that to happen)
 [X]! Multiple autosaves
 [X] Try white flash on whole background
 [ ] One-frame arena for stuff like strings. Should also change string lib for that

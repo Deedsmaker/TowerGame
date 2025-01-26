@@ -24,6 +24,7 @@ void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
 void calculate_bounds(Entity *entity);
 Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
+Bounds get_cam_bounds(Cam cam, f32 zoom);
 
 Entity *get_entity_by_id(i32 id);
 Entity *get_entity_by_index(i32 index);
@@ -78,6 +79,7 @@ inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity
 
 void resolve_collision(Entity *entity, Collision col);
 //Array<Collision> get_collisions(Entity *entity);
+void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags, i32 my_id = -1);
 void fill_collisions(Entity *entity, Array<Collision, MAX_VERTICES> *result);
 Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 Collision get_nearest_ground_collision(Vector2 point, f32 radius);

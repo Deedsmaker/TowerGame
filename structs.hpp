@@ -113,6 +113,7 @@ enum Flags : i64{
     EXPLOSIVE         = 1 << 11,
     BLOCKER           = 1 << 12,
     STICKY_TEXTURE    = 1 << 13,
+    CAM_BLOCKER       = 1 << 14,
     PROPELLER         = 1 << 15,
     SHOOT_BLOCKER     = 1 << 16,
     DOOR              = 1 << 17,

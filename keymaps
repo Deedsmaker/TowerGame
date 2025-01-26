@@ -1,15 +1,15 @@
 Trigger:
-    - Clear ALL Connected: Alt+L
-    - Remove selected: Alt+D
-    - Assign New: Alt+A
-    - Assign tracking enemy: Alt+V
-    - Change locked cam position: Alt+R
+    - Clear ALL Connected: Ctrl+L
+    - Remove selected: Ctrl+D
+    - Assign New: Ctrl+A
+    - Assign tracking enemy: Ctrl+Q
+    - Change locked cam position: Ctrl+R
     
 Enemy:
-    - Toggle shoot blocker change direction : Alt+F ; Alt+G
-    - Sword kill speed modifier change : Alt+O ; Alt+P
+    - Toggle shoot blocker change direction : Ctrl+F ; Ctrl+G
+    - Sword kill speed modifier change : Ctrl+O ; Ctrl+P
     
 Environment:
-    - Propeller power change : Alt+Q ; Alt+E
-    - Door trigger : Alt+T
-    - Move sequence add/remove/clear : Alt+N ; Alt+M ; Alt+C
+    - Propeller power change : Ctrl+Q ; Ctrl+E
+    - Door trigger : Ctrl+T
+    - Move sequence add/remove/clear : Ctrl+N ; Ctrl+M ; Ctrl+C

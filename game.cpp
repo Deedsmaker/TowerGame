@@ -1101,7 +1101,6 @@ int load_level(const char *level_name){
         player_data.ammo_count = last_player_data.ammo_count;
     }
     
-    editor.last_autosave_time = core.time.app_time;
     context.cam.position = editor.player_spawn_point;
     context.cam.target = editor.player_spawn_point;
     return 1;
@@ -1352,6 +1351,16 @@ void init_spawn_objects(){
     copy_entity(&jump_shooter_object.entity, &jump_shooter_entity);
     str_copy(jump_shooter_object.name, jump_shooter_entity.name);
     spawn_objects.add(jump_shooter_object);
+    
+    Entity cam_blocker_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, CAM_BLOCKER);
+    cam_blocker_entity.color = ColorBrightness(WHITE, -0.2f);
+    str_copy(cam_blocker_entity.name, "cam_blocker"); 
+    setup_color_changer(&cam_blocker_entity);
+    
+    Spawn_Object cam_blocker_object;
+    copy_entity(&cam_blocker_object.entity, &cam_blocker_entity);
+    str_copy(cam_blocker_object.name, cam_blocker_entity.name);
+    spawn_objects.add(cam_blocker_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -1832,12 +1841,12 @@ void print_hotkeys_to_console(){
     console.str += "\t>Ctrl+Shift+Space - Toggle Game/Editor\n";
     console.str += "\t>Ctrl+Shift+J - Save current level\n";
     console.str += "\t>Alt - See and move vertices\n";
-    console.str += "\t>Alt+V - While moving vertex for snap it to closest\n";
+    console.str += "\t>Ctrl+V - While moving vertex for snap it to closest\n";
     console.str += "\t>Space - Create menu\n";
     console.str += "\t>P - Move player spawn point\n";
     console.str += "\t>Ctrl+Space - Pause in game\n\n";
     console.str += "\t>Shift+Space - Freecam in game\n\n";
-    console.str += "\t>Right_Alt+L - Unlock camera\n\n";
+    console.str += "\t>Right_Ctrl+L - Unlock camera\n\n";
     
     console.str += "Commands:\n\t>debug - debug commands info\n";
     console.str += "\t>save <level> - save current level or specify level where to save\n";
@@ -2270,7 +2279,6 @@ void clean_up_scene(){
 }
 
 void enter_game_state(){
-    game_state = GAME;
     context.just_entered_game_state = true;
     core.time.game_time = 0;
     core.time.hitstop = 0;
@@ -2290,7 +2298,11 @@ void enter_game_state(){
     for (int i = 0; i < context.collision_grid_cells_count; i++){        
         context.collision_grid.cells[i].entities_ids.clear();
     }
+    
+    save_level(TextFormat("TEMP_%s", context.current_level_name));
 
+    game_state = GAME;
+    
     ForTable(context.entities, i){
         init_entity(context.entities.get_ptr(i));
         update_entity_collision_cells(context.entities.get_ptr(i));
@@ -2303,13 +2315,6 @@ void enter_game_state(){
     if (!context.playing_replay){
         level_replay.input_record.clear();
     }
-    
-    String temp_level_name = init_string();
-    temp_level_name += "TEMP_";
-    temp_level_name += context.current_level_name;
-    
-    save_level(temp_level_name.data);
-    temp_level_name.free_str();
     
     player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
     player_entity->collision_flags = GROUND | ENEMY;
@@ -2383,6 +2388,7 @@ void kill_player(){
     emit_particles(big_blood_emitter, player_entity->position, player_entity->up, 1, 1);
     player_data.dead_man = true;
     play_sound(player_data.player_death_sound, player_entity->position);
+    context.background_flash_time = core.time.app_time;
 }
 
 void enter_editor_state(){
@@ -2392,7 +2398,11 @@ void enter_editor_state(){
     temp_level_name += "TEMP_";
     temp_level_name += context.current_level_name;
     
-    load_level(temp_level_name.data);
+    if (!load_level(temp_level_name.data)){
+        print("Could not load level on entering editor state");    
+        return;
+    }
+    
     temp_level_name.free_str();
     
     SetMusicVolume(tires_theme, 0);
@@ -2461,7 +2471,7 @@ void fixed_game_update(f32 dt){
             
             f32 player_speed = magnitude(player_velocity);
         
-            Vector2 target_position = player_entity->position + Vector2_up * 10 + player_velocity * 0.25f;
+            Vector2 target_position = player_entity->position + Vector2_up * 20 + player_velocity * 0.25f;
             
             Vector2 vec_to_target = target_position - context.cam.target;
             Vector2 vec_to_player = player_entity->position - context.cam.target;
@@ -2477,7 +2487,29 @@ void fixed_game_update(f32 dt){
             
             f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
             
+            Vector2 cam_position_before = context.cam.position;
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * cam_speed));
+                        
+            // Bounds cam_bounds = get_cam_bounds(context.cam, context.cam.cam2D.zoom);
+            // Array<Vector2, MAX_VERTICES> cam_vertices = Array<Vector2, MAX_VERTICES>();
+            // cam_vertices.add(cam_bounds.size * 0.5f);
+            // cam_vertices.add({cam_bounds.size.x * -0.5f, cam_bounds.size.y * 0.5f});
+            // cam_vertices.add({cam_bounds.size.x * 0.5f, cam_bounds.size.y * -0.5f});
+            // cam_vertices.add({cam_bounds.size.x * -0.5f, cam_bounds.size.y * -0.5f});
+            
+            // b32 hit_blocker = false;
+            // fill_collisions(context.cam.position, cam_vertices, cam_bounds, {0.5f, 0.5f}, &collisions_buffer, CAM_BLOCKER);
+            // for (i32 i = 0; i < collisions_buffer.count; i++){
+            //     Collision col = collisions_buffer.get(i);
+            //     Entity *other = col.other_entity;
+                
+            //     context.cam.position += normalized(context.cam.position - other->position) * col.overlap;
+            //     hit_blocker = true;
+            // }
+            
+            // if (hit_blocker){
+            //     context.cam.position = cam_position_before;
+            // }
         } else{
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * 4));
             if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
@@ -3127,7 +3159,7 @@ void update_entity_collision_cells(Entity *entity){
 
 global_variable Array<i32, MAX_COLLISIONS> added_collision_ids = Array<i32, MAX_COLLISIONS>();
 
-void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags, i32 my_id = -1){
+void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags, i32 my_id){
     result->clear();
     
     fill_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
@@ -3690,11 +3722,11 @@ void update_editor_ui(){
                 
                 make_ui_text(TextFormat("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Alt+C clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
+                make_ui_text("Ctrl+C clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Alt+M Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_remove");
+                make_ui_text("Ctrl+M Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_remove");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Alt+N Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_add_point");
+                make_ui_text("Ctrl+N Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_add_point");
                 type_info_v_pos += type_font_size;
                 
                 make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "move_sequence_settings");
@@ -3897,16 +3929,16 @@ void update_editor_ui(){
             }
         
             if (selected->trigger.lock_camera){
-                make_ui_text("Alt+R: Locked cam position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
+                make_ui_text("Ctrl+R: Locked cam position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
                 type_info_v_pos += type_font_size;
             }
-            make_ui_text("Clear ALL Connected: Alt+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_clear");
+            make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_clear");
             type_info_v_pos += type_font_size;
-            make_ui_text("Remove selected: Alt+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_remove");
+            make_ui_text("Remove selected: Ctrl+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_remove");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign New: Alt+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
+            make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign tracking enemy: Alt+V", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
+            make_ui_text("Assign tracking enemy: Ctrl+Q", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
             make_ui_text(TextFormat("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_connected_count");
             type_info_v_pos += type_font_size;
@@ -3991,12 +4023,12 @@ void update_editor_ui(){
             if (selected->flags & BLOCKER){
             }
             
-            make_ui_text(TextFormat("Alt+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
+            make_ui_text(TextFormat("Ctrl+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
             type_info_v_pos += type_font_size;
             
             if (selected->flags & SHOOT_BLOCKER){
                 if (!selected->enemy.shoot_blocker_immortal){
-                    make_ui_text(TextFormat("Alt+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
+                    make_ui_text(TextFormat("Ctrl+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
                     type_info_v_pos += type_font_size;
                 }
             }
@@ -4006,7 +4038,7 @@ void update_editor_ui(){
         } // enemy inspector end
         
         if (selected->flags & PROPELLER){
-            make_ui_text(TextFormat("Alt+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
+            make_ui_text(TextFormat("Ctrl+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
@@ -4104,7 +4136,7 @@ void update_editor_ui(){
                 v_pos += height_add;
             }
         
-            make_ui_text(TextFormat("Alt+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
+            make_ui_text(TextFormat("Ctrl+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Door settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "door_settings");
@@ -4276,6 +4308,20 @@ Entity *get_cursor_entity(){
     return cursor_entity_candidate;
 }
 
+Entity *editor_spawn_entity(const char *name, Vector2 position){
+    Entity *entity = spawn_object_by_name(name, input.mouse_position);
+    
+    if (entity){
+        Undo_Action undo_action;
+        undo_action.spawned_entity = *entity;
+        undo_action.entity_id = entity->id;
+        undo_action.entity_was_spawned = true;
+        add_undo_action(undo_action);
+    }
+    
+    return entity;
+}
+
 void update_editor(){
     Vector2 grid_target_pos = context.cam.position;
     context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)context.collision_grid.cell_size.y))};
@@ -4315,6 +4361,25 @@ void update_editor(){
     
     Entity *moving_vertex_entity_candidate = NULL;
     int moving_vertex_candidate = -1;
+    
+    // Spawn shortcuts
+    if (IsKeyDown(KEY_LEFT_ALT)){
+        if (IsKeyPressed(KEY_ONE)){
+            editor_spawn_entity("block_base", input.mouse_position);
+        }
+        if (IsKeyPressed(KEY_TWO)){
+            editor_spawn_entity("dummy_entity", input.mouse_position);
+        }
+        if (IsKeyPressed(KEY_THREE)){
+            editor_spawn_entity("enemy_base", input.mouse_position);
+        }
+        if (IsKeyPressed(KEY_FOUR)){
+            editor_spawn_entity("enemy_bird", input.mouse_position);
+        }
+        if (IsKeyPressed(KEY_FIVE)){
+            editor_spawn_entity("dummy_entity", input.mouse_position);
+        }
+    }
     
     //editor entities loop
     for (int i = 0; i < context.entities.max_count; i++){        
@@ -4496,56 +4561,81 @@ void update_editor(){
     }
     
     //editor Entity rotation
-    if (can_control_with_single_button && editor.selected_entity != NULL){
-        f32 rotation = 0;
-        f32 speed = 50;
-        if (!editor.is_rotating_entity && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_Q))){
-            editor.rotating_start = editor.selected_entity->rotation;
-            undo_remember_vertices_start(editor.selected_entity);
-            editor.is_rotating_entity = true;
-        } 
-        
-        if (IsKeyDown(KEY_E)){
-            rotation = dt * speed;
-        } else if (IsKeyDown(KEY_Q)){
-            rotation = -dt * speed;
+    if (editor.selected_entity != NULL){
+        if (can_control_with_single_button){
+            f32 rotation = 0;
+            f32 speed = 50;
+            if (!editor.is_rotating_entity && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_Q))){
+                editor.rotating_start = editor.selected_entity->rotation;
+                undo_remember_vertices_start(editor.selected_entity);
+                editor.is_rotating_entity = true;
+            } 
+            
+            if (IsKeyDown(KEY_E)){
+                rotation = dt * speed;
+            } else if (IsKeyDown(KEY_Q)){
+                rotation = -dt * speed;
+            }
+            
+            if (rotation != 0 && editor.is_rotating_entity){
+                rotate(editor.selected_entity, rotation);
+            }
         }
-        
-        if (rotation != 0){
-            rotate(editor.selected_entity, rotation);
-        }
-        
         if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))){
             undo_add_rotation(editor.selected_entity, editor.selected_entity->rotation - editor.rotating_start);
             editor.is_rotating_entity = false;
         } 
     }
+    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT) && IsKeyUp(KEY_LEFT_SHIFT)){
+        local_persist f32 holding_time = 0;
+        if (IsKeyPressed(KEY_E)){
+            undo_remember_vertices_start(editor.selected_entity);
+            rotate(editor.selected_entity, 30);
+            undo_add_rotation(editor.selected_entity, 30);
+        }
+        if (IsKeyPressed(KEY_Q)){
+            undo_remember_vertices_start(editor.selected_entity);
+            rotate(editor.selected_entity, -30);
+            undo_add_rotation(editor.selected_entity, (-30));
+        }
+        
+        if (IsKeyReleased(KEY_E) || IsKeyReleased(KEY_Q)){
+            holding_time = 0;
+        }
+        
+        if (IsKeyDown(KEY_E) || IsKeyDown(KEY_Q)){
+            holding_time += dt;
+            if (holding_time >= 0.2f){
+                f32 direction = IsKeyDown(KEY_E) ? 30 : -30;
+                undo_remember_vertices_start(editor.selected_entity);
+                rotate(editor.selected_entity, direction);
+                undo_add_rotation(editor.selected_entity, (direction));
+                holding_time = 0;
+            }
+        }
+    }
     
     //editor entity scaling
-    if (can_control_with_single_button && editor.selected_entity != NULL){
-        Vector2 scaling = {};
-        f32 speed = 80;
-        
-        if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))){
-            editor.scaling_start = editor.selected_entity->scale;
-            undo_remember_vertices_start(editor.selected_entity);
-            editor.is_scaling_entity = true;
-        }
-        if (IsKeyDown(KEY_W)){
-            scaling.y += speed * dt;
-        } else if (IsKeyDown(KEY_S)){
-            scaling.y -= speed * dt;
-        }
-        if (IsKeyDown(KEY_D)){
-            scaling.x += speed * dt;
-        } else if (IsKeyDown(KEY_A)){
-            scaling.x -= speed * dt;
-        }
-        
-        if (scaling != Vector2_zero){
-            add_scale(editor.selected_entity, scaling);
-        }
-        
+    if (editor.selected_entity != NULL){
+        if (can_control_with_single_button){
+            Vector2 scaling = {};
+            f32 speed = 80;
+            
+            if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))){
+                editor.scaling_start = editor.selected_entity->scale;
+                undo_remember_vertices_start(editor.selected_entity);
+                editor.is_scaling_entity = true;
+            }
+            if      (IsKeyDown(KEY_W)) scaling.y += speed * dt;
+            else if (IsKeyDown(KEY_S)) scaling.y -= speed * dt;
+            if      (IsKeyDown(KEY_D)) scaling.x += speed * dt;
+            else if (IsKeyDown(KEY_A)) scaling.x -= speed * dt;
+    
+            
+            if (scaling != Vector2_zero && editor.is_scaling_entity){
+                add_scale(editor.selected_entity, scaling);
+            }
+        } 
         if (editor.is_scaling_entity && (IsKeyUp(KEY_W) && IsKeyUp(KEY_S) && IsKeyUp(KEY_A) && IsKeyUp(KEY_D))){
             Vector2 scale_change = editor.selected_entity->scale - editor.scaling_start;
             
@@ -4553,15 +4643,50 @@ void update_editor(){
             editor.is_scaling_entity = false;
         } 
     }
+    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT) && IsKeyUp(KEY_LEFT_SHIFT)){
+        local_persist f32 holding_time = 0;
+        Vector2 scaling = Vector2_zero;
+        
+        if      (IsKeyPressed(KEY_W)) scaling.y += 50;
+        else if (IsKeyPressed(KEY_S)) scaling.y -= 50;
+        if      (IsKeyPressed(KEY_D)) scaling.x += 50;
+        else if (IsKeyPressed(KEY_A)) scaling.x -= 50;
+
+
+        if (scaling != Vector2_zero){
+            undo_remember_vertices_start(editor.selected_entity);
+            add_scale(editor.selected_entity, scaling);
+            undo_add_scaling(editor.selected_entity, scaling);
+        }
+        
+        if (IsKeyReleased(KEY_W) || IsKeyReleased(KEY_S) || IsKeyReleased(KEY_A) || IsKeyReleased(KEY_D)){
+            holding_time = 0;
+        }
+        
+        if (IsKeyDown(KEY_W) || IsKeyDown(KEY_S) || IsKeyDown(KEY_A) || IsKeyDown(KEY_D)){
+            holding_time += dt;
+            if (holding_time >= 0.2f){
+                if      (IsKeyDown(KEY_W)) scaling.y += 50;
+                else if (IsKeyDown(KEY_S)) scaling.y -= 50;
+                if      (IsKeyDown(KEY_D)) scaling.x += 50;
+                else if (IsKeyDown(KEY_A)) scaling.x -= 50;
+                
+                undo_remember_vertices_start(editor.selected_entity);
+                add_scale(editor.selected_entity, scaling);
+                undo_add_scaling(editor.selected_entity, scaling);
+                holding_time = 0;
+            }
+        }
+    }
     
     //editor components management
     if (editor.selected_entity){
         Entity *selected = editor.selected_entity;
         if (selected->flags & TRIGGER){
-            b32 wanna_assign = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_A);
-            b32 wanna_assign_tracking_enemy = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
-            b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_D);
-            b32 wanna_change_locked_camera_position = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_R);
+            b32 wanna_assign = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_A);
+            b32 wanna_assign_tracking_enemy = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Q);
+            b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_D);
+            b32 wanna_change_locked_camera_position = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
                 fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY);
@@ -4599,17 +4724,17 @@ void update_editor(){
             }
             
             //trigger clear
-            if (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_L)){
+            if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L)){
                 selected->trigger.connected.clear();
             }
         }
         
         //enemy components
         if (selected->flags & ENEMY){
-            b32 wanna_increase_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_P);
-            b32 wanna_decrease_sword_kill_speed  = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_O);
+            b32 wanna_increase_sword_kill_speed  = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_P);
+            b32 wanna_decrease_sword_kill_speed  = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_O);
             
-            b32 wanna_rotate_shoot_blocker_direction   = IsKeyDown(KEY_LEFT_ALT) && (IsKeyDown(KEY_F) || IsKeyDown(KEY_G));
+            b32 wanna_rotate_shoot_blocker_direction   = IsKeyDown(KEY_LEFT_CONTROL) && (IsKeyDown(KEY_F) || IsKeyDown(KEY_G));
             
             if (wanna_increase_sword_kill_speed || wanna_decrease_sword_kill_speed){   
                 f32 speed_change = wanna_increase_sword_kill_speed ? 0.5f : -0.5f;
@@ -4624,8 +4749,8 @@ void update_editor(){
         
         // propeller change
         if (selected->flags & PROPELLER){
-            b32 wanna_increase_power = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_E);
-            b32 wanna_decrease_power = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_Q);
+            b32 wanna_increase_power = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_E);
+            b32 wanna_decrease_power = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Q);
             
             if (wanna_increase_power || wanna_decrease_power){
                 f32 power_change = wanna_increase_power ? 100 : -100;
@@ -4635,7 +4760,7 @@ void update_editor(){
         
         // door settings
         if (selected->flags & DOOR){
-            b32 wanna_trigger = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_T);
+            b32 wanna_trigger = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_T);
             
             if (wanna_trigger){
                 activate_door(selected, !selected->door.is_open);
@@ -4644,9 +4769,9 @@ void update_editor(){
         
         // move sequence settings
         if (selected->flags & MOVE_SEQUENCE){
-            b32 wanna_clear    = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_C);
-            b32 wanna_add    = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_N);
-            b32 wanna_remove = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_M);
+            b32 wanna_clear    = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C);
+            b32 wanna_add    = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_N);
+            b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_M);
             
             if (wanna_remove){
                 for (int i = 0; i < selected->move_sequence.points.count; i++){
@@ -4739,10 +4864,11 @@ void update_editor(){
     }
     if (IsKeyPressed(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)){
         save_current_level();
+        context.background_flash_time = core.time.app_time;
     }
     
     f32 time_since_autosave = core.time.app_time - editor.last_autosave_time;
-    if (time_since_autosave > 40){
+    if (time_since_autosave > 40 && game_state == EDITOR){
         autosave_level();
         editor.last_autosave_time = core.time.app_time;
     }
@@ -6365,8 +6491,8 @@ void add_fire_light_to_entity(Entity *entity){
     i32 new_light_index = init_entity_light(entity, NULL, true);
     if (new_light_index != -1){
         Light *new_fire_light = context.lights.get_ptr(new_light_index);
-        new_fire_light->make_shadows = true;
-        new_fire_light->make_backshadows = true;
+        new_fire_light->make_shadows = false;
+        new_fire_light->make_backshadows = false;
         new_fire_light->shadows_size_flags = MEDIUM;
         new_fire_light->backshadows_size_flags = MEDIUM;
         new_fire_light->color = ColorBrightness(ORANGE, 0.4f);
@@ -7610,7 +7736,7 @@ void draw_bird_enemy(Entity *entity){
     Entity visual_entity = *entity;
     if (entity->bird_enemy.charging){
         f32 charge_time = core.time.game_time - entity->bird_enemy.charging_start_time;
-        f32 charging_progress = charge_time / entity->bird_enemy.max_charging_time;
+        f32 charging_progress = clamp01(charge_time / entity->bird_enemy.max_charging_time);
         visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, charging_progress * charging_progress);
     }
     
@@ -7877,6 +8003,10 @@ void draw_entity(Entity *e){
     
     b32 should_draw_editor_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
     
+    if (e->flags & CAM_BLOCKER && should_draw_editor_hints){
+        draw_game_triangle_strip(e);
+    }
+    
     if (e->flags & TRIGGER){
         // draw trigger
         if (should_draw_editor_hints){
@@ -7888,13 +8018,13 @@ void draw_entity(Entity *e){
                 Bounds cam_bounds = get_cam_bounds(context.cam, e->trigger.zoom_value);
                 Vector2 position = e->position;
                 if (e->trigger.lock_camera){
-                    position = e->trigger.locked_camera_position;
                 }
+                position = e->trigger.locked_camera_position;
                 draw_game_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (context.cam.cam2D.zoom), Fade(PINK, 0.4f));
             }
             
+            draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
             if (e->trigger.lock_camera){
-                draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
             }
         }
         
@@ -8291,7 +8421,7 @@ void draw_game(){
     BeginMode2D(context.cam.cam2D);
     Context *c = &context;
     
-    ClearBackground(is_explosion_trauma_active() ? WHITE : GRAY);
+    ClearBackground(is_explosion_trauma_active() ? (player_data.dead_man ? RED : WHITE) : GRAY);
     
     draw_entities();
     // ClearBackground(WHITE);
