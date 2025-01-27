@@ -113,7 +113,6 @@ enum Flags : i64{
     EXPLOSIVE         = 1 << 11,
     BLOCKER           = 1 << 12,
     STICKY_TEXTURE    = 1 << 13,
-    CAM_BLOCKER       = 1 << 14,
     PROPELLER         = 1 << 15,
     SHOOT_BLOCKER     = 1 << 16,
     DOOR              = 1 << 17,
@@ -298,6 +297,11 @@ struct Trigger{
     
     b32 shows_entities = true;
     b32 starts_moving_sequence = true;
+    
+    b32 start_cam_rails_horizontal = false;
+    b32 start_cam_rails_vertical = false;
+    b32 stop_cam_rails = false;
+    Dynamic_Array<Vector2> cam_rails_points = Dynamic_Array<Vector2>();
     
     b32 change_zoom = false;
     f32 zoom_value = 0.35f;
@@ -707,6 +711,10 @@ struct Cam{
     f32 trauma_decrease_rate = 1.5f;
     
     b32 locked = false;
+    
+    b32 on_rails_horizontal = false;
+    b32 on_rails_vertical   = false;
+    i32 rails_trigger_id    = -1;
     
     Camera2D cam2D = {};
     f32 target_zoom = 0.35f;

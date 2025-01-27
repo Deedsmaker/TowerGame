@@ -4,6 +4,7 @@ Trigger:
     - Assign New: Ctrl+A
     - Assign tracking enemy: Ctrl+Q
     - Change locked cam position: Ctrl+R
+    - Add/remove/clear cam rails point Ctrl+N ; Ctrl+M ; Ctrl+L
     
 Enemy:
     - Toggle shoot blocker change direction : Ctrl+F ; Ctrl+G
@@ -12,4 +13,4 @@ Enemy:
 Environment:
     - Propeller power change : Ctrl+Q ; Ctrl+E
     - Door trigger : Ctrl+T
-    - Move sequence add/remove/clear : Ctrl+N ; Ctrl+M ; Ctrl+C
+    - Move sequence add/remove/clear : Ctrl+N ; Ctrl+M ; Ctrl+L

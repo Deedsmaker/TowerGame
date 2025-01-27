@@ -75,6 +75,10 @@ void free_entity(Entity *e){
         if (e->trigger.connected.max_count > 0){
             e->trigger.connected.free_arr();
         }
+        
+        if (e->trigger.cam_rails_points.max_count > 0){
+            e->trigger.cam_rails_points.free_arr();
+        }
     }
     
     if (e->flags & BIRD_ENEMY){
@@ -108,6 +112,14 @@ void free_entity(Entity *e){
             }
         }
     }
+    
+    // if (e->flags & MOVE_SEQUENCE){
+    //     e->move_sequence.points.free_arr();
+    // }
+    
+    // if (e->flags & JUMP_SHOOTER){
+    //     e->jump_shooter.move_points.free_arr();
+    // }
     
     // free light
     if (e->flags & LIGHT){
@@ -331,6 +343,13 @@ Entity::Entity(Entity *copy, b32 keep_id){
         for (int i = 0; i < copy->trigger.tracking.count; i++){
             trigger.tracking.add(copy->trigger.tracking.get(i));
         }
+        
+        if (copy->trigger.start_cam_rails_horizontal || copy->trigger.start_cam_rails_vertical){
+            trigger.cam_rails_points = Dynamic_Array<Vector2>();           
+            for (i32 i = 0; i < copy->trigger.cam_rails_points.count; i++){
+                trigger.cam_rails_points.add(copy->trigger.cam_rails_points.get(i));               
+            }
+        }
     }
     
     if (flags & MOVE_SEQUENCE){
@@ -522,6 +541,17 @@ i32 save_level(const char *level_name){
             fprintf(fptr, "trigger_play_sound:%d: ", e->trigger.play_sound);
             if (e->trigger.play_sound){
                 fprintf(fptr, "trigger_sound_name:%s: ", e->trigger.sound_name);
+            }
+            
+            fprintf(fptr, "trigger_start_cam_rails_horizontal:%d: ", e->trigger.start_cam_rails_horizontal);
+            fprintf(fptr, "trigger_start_cam_rails_vertical:%d: ", e->trigger.start_cam_rails_vertical);
+            fprintf(fptr, "trigger_stop_cam_rails:%d: ", e->trigger.stop_cam_rails);
+            if (e->trigger.cam_rails_points.count > 0){
+                fprintf(fptr, "trigger_cam_rails_points [ ");
+                for (int v = 0; v < e->trigger.cam_rails_points.count; v++){
+                    fprintf(fptr, "{:%f:, :%f:} ", e->trigger.cam_rails_points.get(v).x, e->trigger.cam_rails_points.get(v).y); 
+                }
+                fprintf(fptr, "] "); 
             }
         }
         
@@ -936,6 +966,17 @@ int load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "trigger_player_touch")){
                 fill_b32_from_string(&entity_to_fill.trigger.player_touch, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_start_cam_rails_horizontal")){
+                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_horizontal, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_start_cam_rails_vertical")){
+                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_vertical, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_stop_cam_rails")){
+                fill_b32_from_string(&entity_to_fill.trigger.stop_cam_rails, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_cam_rails_points")){
+                fill_vector2_array_from_string(&entity_to_fill.trigger.cam_rails_points, splitted_line, &i);
             } else if (str_equal(splitted_line.get(i).data, "trigger_lock_camera")){
                 fill_b32_from_string(&entity_to_fill.trigger.lock_camera, splitted_line.get(i+1).data);
                 i++;
@@ -1351,16 +1392,6 @@ void init_spawn_objects(){
     copy_entity(&jump_shooter_object.entity, &jump_shooter_entity);
     str_copy(jump_shooter_object.name, jump_shooter_entity.name);
     spawn_objects.add(jump_shooter_object);
-    
-    Entity cam_blocker_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, CAM_BLOCKER);
-    cam_blocker_entity.color = ColorBrightness(WHITE, -0.2f);
-    str_copy(cam_blocker_entity.name, "cam_blocker"); 
-    setup_color_changer(&cam_blocker_entity);
-    
-    Spawn_Object cam_blocker_object;
-    copy_entity(&cam_blocker_object.entity, &cam_blocker_entity);
-    str_copy(cam_blocker_object.name, cam_blocker_entity.name);
-    spawn_objects.add(cam_blocker_object);
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
@@ -1727,6 +1758,13 @@ void init_entity(Entity *entity){
         //     entity->light_index = -1;
         // }
         init_entity_light(entity, NULL, true);
+    }
+    
+    // init trigger 
+    if (entity->flags & TRIGGER){
+        if (entity->trigger.cam_rails_points.max_count > 0 && !entity->trigger.start_cam_rails_horizontal && !entity->trigger.start_cam_rails_vertical){
+            entity->trigger.cam_rails_points.free_arr();            
+        }
     }
     
     // setup_color_changer(entity);
@@ -2266,7 +2304,12 @@ void clean_up_scene(){
     context.last_bird_attack_time = -11111;
     context.last_jump_shooter_attack_time = -11111;
     context.last_collision_cells_clear_time = -2;
+    
     context.cam.locked = false;
+    context.cam.on_rails_horizontal = false;
+    context.cam.on_rails_vertical   = false;
+    context.cam.rails_trigger_id = -1;
+    
     
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
@@ -2473,6 +2516,47 @@ void fixed_game_update(f32 dt){
         
             Vector2 target_position = player_entity->position + Vector2_up * 20 + player_velocity * 0.25f;
             
+            if (context.cam.on_rails_horizontal || context.cam.on_rails_vertical){
+                Entity *rails_trigger_entity = get_entity_by_id(context.cam.rails_trigger_id);
+                Dynamic_Array<Vector2> *rails_points = &rails_trigger_entity->trigger.cam_rails_points;
+                
+                assert(rails_trigger_entity);
+                
+                b32 should_be_on_rails = rails_points->count >= 2;
+                if (should_be_on_rails){
+                    Vector2 point1 = rails_points->get(0);
+                    Vector2 point2 = rails_points->get(1);
+                    #define SECTION_POS(point) (context.cam.on_rails_horizontal ? point.x : point.y)
+                    f32 player_section_pos = context.cam.on_rails_horizontal ? player_entity->position.x : player_entity->position.y;
+                    f32 last_section_pos = context.cam.on_rails_horizontal ? rails_points->last().x : rails_points->last().y;
+                    b32 is_going_right_or_up = SECTION_POS(point2) > SECTION_POS(point1);
+                    
+                    if (0) {
+                    } else if (is_going_right_or_up && player_section_pos < SECTION_POS(point1)
+                     || !is_going_right_or_up && player_section_pos > SECTION_POS(point1)){
+                        target_position = point1;    
+                    } else if(is_going_right_or_up && player_section_pos > last_section_pos
+                     || !is_going_right_or_up && player_section_pos < last_section_pos){
+                        target_position = rails_points->last();
+                    } else{
+                        for (i32 i = 0; i < rails_points->count - 1; i++){                
+                            point1 = rails_points->get(is_going_right_or_up ? i : i+1);
+                            point2 = rails_points->get(is_going_right_or_up ? i+1 : i); 
+                            if (player_section_pos >= SECTION_POS(point1) && player_section_pos <= SECTION_POS(point2)){
+                                break;
+                            }
+                        }
+                        
+                        // f32 section_len = magnitude(point2 - point1);
+                        f32 section_len = (SECTION_POS(point2) - point1.x);
+                        f32 section_t = clamp01((section_len - (SECTION_POS(point2) - player_section_pos)) / section_len);
+                        
+                        target_position = lerp(point1, point2, section_t);
+                        
+                    }
+                }
+            }
+            
             Vector2 vec_to_target = target_position - context.cam.target;
             Vector2 vec_to_player = player_entity->position - context.cam.target;
             
@@ -2487,29 +2571,7 @@ void fixed_game_update(f32 dt){
             
             f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
             
-            Vector2 cam_position_before = context.cam.position;
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * cam_speed));
-                        
-            // Bounds cam_bounds = get_cam_bounds(context.cam, context.cam.cam2D.zoom);
-            // Array<Vector2, MAX_VERTICES> cam_vertices = Array<Vector2, MAX_VERTICES>();
-            // cam_vertices.add(cam_bounds.size * 0.5f);
-            // cam_vertices.add({cam_bounds.size.x * -0.5f, cam_bounds.size.y * 0.5f});
-            // cam_vertices.add({cam_bounds.size.x * 0.5f, cam_bounds.size.y * -0.5f});
-            // cam_vertices.add({cam_bounds.size.x * -0.5f, cam_bounds.size.y * -0.5f});
-            
-            // b32 hit_blocker = false;
-            // fill_collisions(context.cam.position, cam_vertices, cam_bounds, {0.5f, 0.5f}, &collisions_buffer, CAM_BLOCKER);
-            // for (i32 i = 0; i < collisions_buffer.count; i++){
-            //     Collision col = collisions_buffer.get(i);
-            //     Entity *other = col.other_entity;
-                
-            //     context.cam.position += normalized(context.cam.position - other->position) * col.overlap;
-            //     hit_blocker = true;
-            // }
-            
-            // if (hit_blocker){
-            //     context.cam.position = cam_position_before;
-            // }
         } else{
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * 4));
             if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
@@ -3722,7 +3784,7 @@ void update_editor_ui(){
                 
                 make_ui_text(TextFormat("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Ctrl+C clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
+                make_ui_text("Ctrl+L clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
                 type_info_v_pos += type_font_size;
                 make_ui_text("Ctrl+M Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_remove");
                 type_info_v_pos += type_font_size;
@@ -3884,6 +3946,25 @@ void update_editor_ui(){
                     v_pos += height_add;
                 }
                 
+                make_ui_text("Cam rails horiz: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_horizontal");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_cam_rails_horizontal, "trigger_start_cam_rails_horizontal")){
+                    selected->trigger.start_cam_rails_horizontal = !selected->trigger.start_cam_rails_horizontal;                 
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                make_ui_text("Cam rails vertical: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_vertical");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_cam_rails_vertical, "trigger_start_cam_rails_vertical")){
+                    selected->trigger.start_cam_rails_vertical = !selected->trigger.start_cam_rails_vertical;                 
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                make_ui_text("Stop cam rails: ", {inspector_position.x + 5, v_pos}, "trigger_stop_cam_rails");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.stop_cam_rails, "trigger_stop_cam_rails")){
+                    selected->trigger.stop_cam_rails = !selected->trigger.stop_cam_rails;                 
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+                
                 make_ui_text("Lock camera: ", {inspector_position.x + 5, v_pos}, "lock_camera_text");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.lock_camera, "lock_camera")){
                     selected->trigger.lock_camera = !selected->trigger.lock_camera;                 
@@ -3928,6 +4009,14 @@ void update_editor_ui(){
                 }
             }
         
+            if (selected->trigger.start_cam_rails_horizontal || selected->trigger.start_cam_rails_vertical){
+                make_ui_text("Ctrl+L rails clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_clear");
+                type_info_v_pos += type_font_size;
+                make_ui_text("Ctrl+M Rails Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_remove");
+                type_info_v_pos += type_font_size;
+                make_ui_text("Ctrl+N Rails Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_add_point");
+                type_info_v_pos += type_font_size;
+            }
             if (selected->trigger.lock_camera){
                 make_ui_text("Ctrl+R: Locked cam position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
                 type_info_v_pos += type_font_size;
@@ -4422,6 +4511,14 @@ void update_editor(){
                 *point = input.mouse_position;
             }
         }
+        
+        //editor move cam rails points        
+        for (int p = 0; e->flags & TRIGGER && (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger.cam_rails_points.count; p++){
+            Vector2 *point = e->trigger.cam_rails_points.get_ptr(p);
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / context.cam.cam2D.zoom})){
+                *point = input.mouse_position;
+            }
+        }
     }
     
     //assign move vertex
@@ -4687,6 +4784,10 @@ void update_editor(){
             b32 wanna_assign_tracking_enemy = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Q);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_D);
             b32 wanna_change_locked_camera_position = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R);
+            
+            b32 wanna_add_cam_rails_point    = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_N);
+            b32 wanna_remove_cam_rails_point = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_M);
+            b32 wanna_clear_cam_rails_points = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
                 fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY);
@@ -4726,6 +4827,23 @@ void update_editor(){
             //trigger clear
             if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L)){
                 selected->trigger.connected.clear();
+            }
+            
+            if (wanna_remove_cam_rails_point){
+                for (int i = 0; i < selected->trigger.cam_rails_points.count; i++){
+                    Vector2 point = selected->trigger.cam_rails_points.get(i);   
+                    
+                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / context.cam.cam2D.zoom)})){       
+                        selected->trigger.cam_rails_points.remove(i);
+                        break;
+                    }
+                }
+            }
+            if (wanna_add_cam_rails_point){
+                selected->trigger.cam_rails_points.add(input.mouse_position);
+            }
+            if (wanna_clear_cam_rails_points){
+                selected->trigger.cam_rails_points.clear();
             }
         }
         
@@ -6924,6 +7042,22 @@ i32 update_trigger(Entity *e){
             return TRIGGER_LEVEL_LOAD;
         }
         
+        if (e->trigger.start_cam_rails_horizontal){
+            context.cam.on_rails_horizontal = true;
+            context.cam.on_rails_vertical = false;
+            context.cam.rails_trigger_id = e->id;
+        }
+        if (e->trigger.start_cam_rails_vertical){
+            context.cam.on_rails_vertical = true;
+            context.cam.on_rails_horizontal = false;
+            context.cam.rails_trigger_id = e->id;
+        }
+        if (e->trigger.stop_cam_rails){
+            context.cam.on_rails_horizontal = false;
+            context.cam.on_rails_vertical   = false;
+            context.cam.rails_trigger_id = -1;
+        }
+        
         if (e->trigger.play_sound && !e->trigger.triggered){
             play_sound(e->trigger.sound_name);
         }
@@ -8003,10 +8137,6 @@ void draw_entity(Entity *e){
     
     b32 should_draw_editor_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
     
-    if (e->flags & CAM_BLOCKER && should_draw_editor_hints){
-        draw_game_triangle_strip(e);
-    }
-    
     if (e->flags & TRIGGER){
         // draw trigger
         if (should_draw_editor_hints){
@@ -8025,6 +8155,22 @@ void draw_entity(Entity *e){
             
             draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
             if (e->trigger.lock_camera){
+            }
+            
+            if (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical){
+                for (int ii = 0; ii < e->trigger.cam_rails_points.count; ii++){
+                    Vector2 point = e->trigger.cam_rails_points.get(ii);
+                    
+                    Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(GRAY, 0.8f), 0.4f);
+                    
+                    if (IsKeyDown(KEY_LEFT_ALT)){
+                        draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
+                        draw_game_text(point - Vector2_up, TextFormat("%d", ii), 18 / context.cam.cam2D.zoom, RED);
+                    }
+                    if (ii < e->trigger.cam_rails_points.count - 1){
+                        draw_game_line(point, e->trigger.cam_rails_points.get(ii+1), color);
+                    } 
+                }
             }
         }
         

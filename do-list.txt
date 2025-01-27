@@ -103,6 +103,7 @@
 
 <VISUAL>
 /////////////////////////////////////////////////////////
+[ ] Maybe mirrors and something to do with them? Maybe someone that we can see only in mirror. Maybe mirrors play with light.
 [ ] Snow with light blinks
 [ ] On enemy attack we can briefly show line that will fade away
 /////////////////////////////////////////////////////////
