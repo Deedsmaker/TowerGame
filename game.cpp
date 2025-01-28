@@ -5759,7 +5759,7 @@ void update_player(Entity *entity, f32 dt){
     
     b32 moving_object_detected = false;
     // player ground checker
-    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER | PLATFORM | CENTIPEDE_SEGMENT);
+    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER | SHOOT_BLOCKER | PLATFORM | CENTIPEDE_SEGMENT);
     b32 is_huge_collision_speed = false;
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
         Collision col = player_data.collisions.get(i);
@@ -5776,7 +5776,11 @@ void update_player(Entity *entity, f32 dt){
         }
         
         //now we don't want to stand on projectiles
-        if (other->flags & BLOCKER && other->flags & PROJECTILE){
+        if ((other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE){
+            continue;
+        }
+        
+        if ((other->flags & SHOOT_BLOCKER) && (!other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal){
             continue;
         }
         
@@ -5874,14 +5878,18 @@ void update_player(Entity *entity, f32 dt){
     
     
     // player body collision
-    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
+    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | SHOOT_BLOCKER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
     for (int i = 0; i < player_data.collisions.count; i++){
         Collision col = player_data.collisions.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
         
         //now we don't want to stand on projectiles
-        if (other->flags & BLOCKER && other->flags & PROJECTILE){
+        if ((other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE){
+            continue;
+        }
+        
+        if ((other->flags & SHOOT_BLOCKER) && (!other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal){
             continue;
         }
         
