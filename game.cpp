@@ -7,7 +7,9 @@
 #include "../my_libs/perlin.h"
 
 #define ForTable(table, xx) for(int xx = table_next_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+1))
+
 #define ForEntities(entity, flags) Entity *entity = NULL; for (int index = next_entity_avaliable(0, &entity, flags); index < context.entities.max_count && entity; index = next_entity_avaliable(index+1, &entity, flags)) 
+
 //#define For(arr, type, value) for(int ii = 0; ii < arr.count; ii++){ type value = arr.get(ii);
 
 global_variable Input input;
@@ -64,6 +66,8 @@ void free_entity_light(Entity *e){
         // @OPTIMIZATION we actually don't want unload texture every time entity gets freed.
         // I think we should mark it as non existing and when the next entity will search for light - check if this one already
         // has index and size is the same and use it. We will free it when level gets unload.
+        // Update: We will have lights of each size loaded in the init and will use them without more allocating. 
+        // Like we already do with temp lights.
         Light *current_light = context.lights.get_ptr(e->light_index);           
         free_light(current_light);        
         e->light_index = -1;
@@ -441,10 +445,9 @@ i32 save_level(const char *level_name){
     char *name;
     name = get_substring_before_symbol(level_name, '.');
 
-    String level_path = init_string();
-    level_path += TextFormat("levels/%s.level", name);
+    const char *level_path = text_format("levels/%s.level", name);
     FILE *fptr;
-    fptr = fopen(level_path.data, "w");
+    fptr = fopen(text_format(level_path, name), "w");
     
     if (fptr == NULL){
         return 0;
@@ -517,6 +520,7 @@ i32 save_level(const char *level_name){
             }
             
             fprintf(fptr, "trigger_kill_player:%d: ",                    e->trigger.kill_player);
+            fprintf(fptr, "trigger_kill_enemies:%d: ",                    e->trigger.kill_enemies);
             fprintf(fptr, "trigger_open_doors:%d: ",                     e->trigger.open_doors);
             fprintf(fptr, "trigger_start_physics_simulation:%d: ",       e->trigger.start_physics_simulation);
             fprintf(fptr, "trigger_track_enemies:%d: ",                  e->trigger.track_enemies);
@@ -643,32 +647,28 @@ i32 save_level(const char *level_name){
     
     fclose(fptr);
     
-    b32 is_temp_level = str_start_with_const(name, "TEMP_");
-    b32 is_autosave   = str_start_with_const(name, "AUTOSAVE_");
+    b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
+    b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave){
         str_copy(context.current_level_name, name);
         reload_level_files();
-        console.str += TextFormat("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time);
-        printf("level saved: \"%s\"; \n", level_path.data);
+        console.str += text_format("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time);
+        printf("level saved: \"%s\"; \n", level_path);
     }
     
     if (is_temp_level){
         // console.str += "\t>Temp level saved: ";
         // console.str += name;
         // console.str += "\n";
-        printf("Temp level saved: %s\n", level_path.data);
+        printf("Temp level saved: %s\n", level_path);
     }
     
     if (is_autosave){
         // console.str += "\t>Autosaved: ";
         // console.str += name;
         // console.str += "\n";
-        printf("Temp level saved: %s\n", level_path.data);
+        printf("Temp level saved: %s\n", level_path);
     }
-    
-    
-    level_path.free_str();
-
     
     return 1;
 }
@@ -683,30 +683,30 @@ b32 is_digit_or_minus(char ch){
 
 void fill_i32_from_string(int *int_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
-    *int_ptr = atoi(str_data);
+    *int_ptr = to_i32(str_data);
 }    
 
 void fill_i32_from_string(u64 *int_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
-    *int_ptr = atoi(str_data);
+    *int_ptr = to_i32(str_data);
 }    
 
 void fill_b32_from_string(b32 *b32_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
-    *b32_ptr = atoi(str_data);
+    *b32_ptr = to_i32(str_data);
 }    
 
 void fill_f32_from_string(float *float_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
-    *float_ptr = atof(str_data);
+    *float_ptr = to_f32(str_data);
 }    
 
 void fill_vector2_from_string(Vector2 *vec_ptr, char *x_str, char *y_str){
     assert(is_digit_or_minus(*x_str));
     assert(is_digit_or_minus(*y_str));
     
-    vec_ptr->x = atof(x_str);
-    vec_ptr->y = atof(y_str);
+    vec_ptr->x = to_f32(x_str);
+    vec_ptr->y = to_f32(y_str);
 }
 
 void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_str, char *w_str){
@@ -715,10 +715,10 @@ void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_
     assert(is_digit_or_minus(*z_str));
     assert(is_digit_or_minus(*w_str));
     
-    vec_ptr->r = atof(x_str);
-    vec_ptr->g = atof(y_str);
-    vec_ptr->b = atof(z_str);
-    vec_ptr->a = atof(w_str);
+    vec_ptr->r = to_f32(x_str);
+    vec_ptr->g = to_f32(y_str);
+    vec_ptr->b = to_f32(z_str);
+    vec_ptr->a = to_f32(w_str);
 }
 
 void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dynamic_Array<Medium_Str> line_arr, int *index_ptr){
@@ -774,21 +774,15 @@ int load_level(const char *level_name){
     char *name;
     name = get_substring_before_symbol(level_name, '.');
 
-    String level_path = init_string();
-    level_path += "levels/";
-    level_path += name;
-    level_path += ".level";
-    
-    File file = load_file(level_path.data, "r");
+    const char *level_path = text_format("levels/%s.level", name);
+    File file = load_file(level_path, "r");
     
     if (!file.loaded){
         console.str += "Could not load level: ";
         console.str += name;
         console.str += "\n";
-        level_path.free_str();
         return 0;
     }
-    
     
     clean_up_scene();
     clear_context(&context);
@@ -950,6 +944,9 @@ int load_level(const char *level_name){
                 i += 4;
             } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
                 fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_kill_enemies")){
+                fill_b32_from_string(&entity_to_fill.trigger.kill_enemies, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_open_doors")){
                 fill_b32_from_string(&entity_to_fill.trigger.open_doors, splitted_line.get(i+1).data);
@@ -1113,8 +1110,8 @@ int load_level(const char *level_name){
         }
     }
     
-    b32 is_temp_level = str_start_with_const(name, "TEMP_");
-    b32 is_autosave   = str_start_with_const(name, "AUTOSAVE_");
+    b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
+    b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave){
         str_copy(context.current_level_name, name);
         console.str += "\t>Loaded level: ";
@@ -1127,8 +1124,6 @@ int load_level(const char *level_name){
     unload_file(&file);
         
     loop_entities(init_loaded_entity);
-    
-    level_path.free_str();
     
     if (enter_game_state_on_new_level){
         ForEntities(entity, 0){
@@ -1148,6 +1143,20 @@ int load_level(const char *level_name){
 }
 
 global_variable Array<Collision, MAX_COLLISIONS> collisions_buffer        = Array<Collision, MAX_COLLISIONS>();
+inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **other){
+    if (current_index >= collisions_buffer.count){
+        col->collided = false;
+        col->other_entity = NULL;
+        return false;
+    }
+    
+    *col = collisions_buffer.get(current_index);
+    *other = col->other_entity;
+    return true;
+}
+
+#define ForCollisions(entity, flags) fill_collisions(entity, &collisions_buffer, flags); Entity *other = NULL; Collision col = {}; for (i32 col_index = 0; set_next_collision_stuff(col_index, &col, &other); col_index++)
+
 global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dynamic_Array<Collision_Grid_Cell*>(128);
 
 #define MAX_SPAWN_OBJECTS 128
@@ -1422,7 +1431,7 @@ Texture get_texture(const char *name){
     Texture found_texture;
     found_texture = textures_table.get_by_key(hash_str(name));
     if (found_texture.width == 0){
-        print(TextFormat("WARNING: Texture named %s cannot be found", name));
+        print(text_format("WARNING: Texture named %s cannot be found", name));
     }
     
     return found_texture;
@@ -1778,7 +1787,7 @@ inline void autosave_level(){
     i32 max_autosaves = 5;
     i32 autosave_index = -1;    
     for (int i = 0; i < max_autosaves; i++){
-        const char *path = TextFormat("levels/AUTOSAVE_%d_%s.level", i, context.current_level_name);        
+        const char *path = text_format("levels/autosaves/AUTOSAVE_%d_%s.level", i, context.current_level_name);        
         if (!FileExists(path)){
             autosave_index = i;
             break;
@@ -1790,7 +1799,7 @@ inline void autosave_level(){
         i64 oldest_time = -1;
         
         for (int i = 0; i < max_autosaves; i++){
-            const char *path = TextFormat("levels/AUTOSAVE_%d_%s.level", i, context.current_level_name);        
+            const char *path = text_format("levels/autosaves/AUTOSAVE_%d_%s.level", i, context.current_level_name);        
             u64 modification_time = GetFileModTime(path);
             if (oldest_time == -1 || modification_time < oldest_time){
                 oldest_time = modification_time;
@@ -1801,7 +1810,7 @@ inline void autosave_level(){
     
     assert(autosave_index != -1);
     
-    save_level(TextFormat("AUTOSAVE_%d_%s", autosave_index, context.current_level_name));
+    save_level(text_format("autosaves/AUTOSAVE_%d_%s", autosave_index, context.current_level_name));
 }
 
 inline void load_level_by_name(char *name){
@@ -1826,14 +1835,11 @@ void print_current_level(){
 }
 
 void create_level(char *level_name){
-    String path = init_string();
-    path += "levels/";
     char *name;
     name = get_substring_before_symbol(level_name, '.');
-    path += name;
-    path += ".level";
+    const char *path = text_format("levels/%s.level", name);
     
-    FILE *fptr = fopen(path.data, "r");
+    FILE *fptr = fopen(path, "r");
     
     if (fptr != NULL){
          console.str += "this level already exists\n";
@@ -1846,7 +1852,6 @@ void create_level(char *level_name){
         console.str += "Level successfuly created";
     }
     
-    path.free_str();
     if (fptr){
         fclose(fptr);
     }
@@ -1920,32 +1925,32 @@ void debug_print_entities_count(){
     ForTable(context.entities, i){
         count++;
     }
-    console.str += TextFormat("\t>Entities count: %d\n", count);
+    console.str += text_format("\t>Entities count: %d\n", count);
 }
 
 void debug_infinite_ammo(){
     debug.infinite_ammo = !debug.infinite_ammo;
-    console.str += TextFormat("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled");
+    console.str += text_format("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled");
 }
 
 void debug_enemy_ai(){
     debug.enemy_ai = !debug.enemy_ai;
-    console.str += TextFormat("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled");
+    console.str += text_format("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled");
 }
 
 void debug_god_mode(){
     debug.god_mode = !debug.god_mode;
-    console.str += TextFormat("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled");
+    console.str += text_format("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled");
 }
 
 void debug_toggle_full_light(){
     debug.full_light = !debug.full_light;
-    console.str += TextFormat("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled");
+    console.str += text_format("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled");
 }
 
 void debug_toggle_collision_grid(){
     debug.draw_collision_grid = !debug.draw_collision_grid;
-    console.str += TextFormat("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled");
+    console.str += text_format("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled");
 }
 
 void set_default_time_scale(){
@@ -1953,7 +1958,7 @@ void set_default_time_scale(){
 }
 
 void set_time_scale(char *text){
-    core.time.target_time_scale = atof(text);    
+    core.time.target_time_scale = to_f32(text);    
 }
 
 void set_time_scale(f32 scale){
@@ -1961,10 +1966,7 @@ void set_time_scale(f32 scale){
 }
 
 void save_temp_replay(){
-    // String level_path = init_string();    
-    // level_path += TextFormat("replays/%s.replay", TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
-    
-    const char *name = TextFormat("replays/%s.replay", TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
+    const char *name = text_format("replays/%s.replay", text_format("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
     
     FILE *fptr;
     fptr = fopen(name, "wb");
@@ -1972,12 +1974,12 @@ void save_temp_replay(){
     size_t write_result = fwrite(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.count, fptr);
     
     if (write_result != -1){
-        console.str += TextFormat("\t>Temp replay named %s is saved\n", name);
+        console.str += text_format("\t>Temp replay named %s is saved\n", name);
     }
 }
 
 void load_temp_replay(){
-    const char *name = TextFormat("replays/%s.replay", TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
+    const char *name = text_format("replays/%s.replay", text_format("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
     FILE *fptr;
     fptr = fopen(name, "rb");
 
@@ -1989,7 +1991,7 @@ void load_temp_replay(){
         enter_editor_state();
         enter_game_state();
     
-        console.str += TextFormat("\t>Temp replay named %s is loaded\n", name);
+        console.str += text_format("\t>Temp replay named %s is loaded\n", name);
     }
 }
 
@@ -1998,12 +2000,11 @@ void load_replay(char *replay_name){
 }
 
 void save_replay(char *replay_name){
-    String level_path = init_string();    
-    char *name = 0;
-    if (replay_name){
-        name = get_substring_before_symbol(replay_name, '.');
-    }
-    level_path += TextFormat("replays/%s.replay", name ? name : TextFormat("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
+    // char *name = 0;
+    // if (replay_name){
+    //     name = get_substring_before_symbol(replay_name, '.');
+    // }
+    // level_path += text_format("replays/%s.replay", name ? name : text_format("TEMP_%s", get_substring_before_symbol(context.current_level_name, '.')));
 }
 
 // void l
@@ -2016,7 +2017,7 @@ void debug_toggle_play_replay(){
         enter_game_state();
     }
     
-    console.str += TextFormat("\t>Replay mode is %s\n", context.playing_replay ? "enabled" : "disabled");
+    console.str += text_format("\t>Replay mode is %s\n", context.playing_replay ? "enabled" : "disabled");
 }
 
 void init_console(){
@@ -2342,7 +2343,7 @@ void enter_game_state(){
         context.collision_grid.cells[i].entities_ids.clear();
     }
     
-    save_level(TextFormat("TEMP_%s", context.current_level_name));
+    save_level(text_format("temp/TEMP_%s", context.current_level_name));
 
     game_state = GAME;
     
@@ -2437,16 +2438,12 @@ void kill_player(){
 void enter_editor_state(){
     game_state = EDITOR;
     
-    String temp_level_name = init_string();
-    temp_level_name += "TEMP_";
-    temp_level_name += context.current_level_name;
+    const char *temp_level_name = text_format("temp/TEMP_%s", context.current_level_name);
     
-    if (!load_level(temp_level_name.data)){
+    if (!load_level(temp_level_name)){
         print("Could not load level on entering editor state");    
         return;
     }
-    
-    temp_level_name.free_str();
     
     SetMusicVolume(tires_theme, 0);
     SetMusicVolume(wind_theme, 0);
@@ -2519,15 +2516,15 @@ void fixed_game_update(f32 dt){
             if (context.cam.on_rails_horizontal || context.cam.on_rails_vertical){
                 Entity *rails_trigger_entity = get_entity_by_id(context.cam.rails_trigger_id);
                 Dynamic_Array<Vector2> *rails_points = &rails_trigger_entity->trigger.cam_rails_points;
-                
                 assert(rails_trigger_entity);
                 
                 b32 should_be_on_rails = rails_points->count >= 2;
                 if (should_be_on_rails){
+                    Vector2 rails_player_position = player_entity->position + player_velocity * 0.25f;
                     Vector2 point1 = rails_points->get(0);
                     Vector2 point2 = rails_points->get(1);
                     #define SECTION_POS(point) (context.cam.on_rails_horizontal ? point.x : point.y)
-                    f32 player_section_pos = context.cam.on_rails_horizontal ? player_entity->position.x : player_entity->position.y;
+                    f32 player_section_pos = context.cam.on_rails_horizontal ? rails_player_position.x : rails_player_position.y;
                     f32 last_section_pos = context.cam.on_rails_horizontal ? rails_points->last().x : rails_points->last().y;
                     b32 is_going_right_or_up = SECTION_POS(point2) > SECTION_POS(point1);
                     
@@ -2548,7 +2545,7 @@ void fixed_game_update(f32 dt){
                         }
                         
                         // f32 section_len = magnitude(point2 - point1);
-                        f32 section_len = (SECTION_POS(point2) - point1.x);
+                        f32 section_len = (SECTION_POS(point2) - SECTION_POS(point1));
                         f32 section_t = clamp01((section_len - (SECTION_POS(point2) - player_section_pos)) / section_len);
                         
                         target_position = lerp(point1, point2, section_t);
@@ -2640,18 +2637,14 @@ void update_console(){
         if (console.args.count == 2 && (str_equal(console.args.get(0).data, "level") || str_equal(console.args.get(0).data, "load"))){
             for (int i = 0; i < console.level_files.count; i++){
                 if (str_contains(console.level_files.get(i).data, console.args.get(1).data)){
-                    String new_console_content = init_string();
-                    new_console_content += console.args.get(0).data;
-                    new_console_content += " ";
-                    new_console_content += console.level_files.get(i).data;
+                    const char *new_console_content = text_format("%s %s", console.args.get(0).data, console.level_files.get(i).data);
                     
-                    make_ui_text(new_console_content.data, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
+                    make_ui_text(new_console_content, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
                     
                     if (IsKeyPressed(KEY_TAB)){
-                        set_focus_input_field(new_console_content.data);
+                        set_focus_input_field(new_console_content);
                         content_changed = true;
                     }
-                    new_console_content.free_str();
                     break;
                 }
             }
@@ -3567,24 +3560,24 @@ void update_editor_ui(){
         f32 height_add = 30 * UI_SCALING;
         f32 v_pos = inspector_position.y + height_add + 40;
         
-        make_ui_text(TextFormat("ID: %d", selected->id), {inspector_position.x + 100, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
+        make_ui_text(text_format("ID: %d", selected->id), {inspector_position.x + 100, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
         
-        make_ui_text(TextFormat("Name: ", selected->id), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
-        if (make_input_field(TextFormat("%s", selected->name), {inspector_position.x + 65, inspector_position.y + 10}, {200, 25}, "inspector_name") ){
+        make_ui_text(text_format("Name: ", selected->id), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
+        if (make_input_field(text_format("%s", selected->name), {inspector_position.x + 65, inspector_position.y + 10}, {200, 25}, "inspector_name") ){
             str_copy(selected->name, focus_input_field.content);
         }
         
         make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
-        if (make_input_field(TextFormat("%.3f", selected->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
-            || make_input_field(TextFormat("%.3f", selected->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
+        if (make_input_field(text_format("%.3f", selected->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
+            || make_input_field(text_format("%.3f", selected->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
             ){
             Vector2 old_position = selected->position;
             if (str_equal(focus_input_field.tag, "inspector_pos_x")){
-                selected->position.x = atof(focus_input_field.content);
+                selected->position.x = to_f32(focus_input_field.content);
             } else if (str_equal(focus_input_field.tag, "inspector_pos_y")){
-                selected->position.y = atof(focus_input_field.content);
+                selected->position.y = to_f32(focus_input_field.content);
             } else{
                 assert(false);
             }
@@ -3596,17 +3589,17 @@ void update_editor_ui(){
         v_pos += height_add;
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
-        if (make_input_field(TextFormat("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
-            || make_input_field(TextFormat("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
+        if (make_input_field(text_format("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
+            || make_input_field(text_format("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
             ){
             Vector2 old_scale = editor.selected_entity->scale;
             Vector2 new_scale = old_scale;
             undo_remember_vertices_start(editor.selected_entity);
             
             if (str_equal(focus_input_field.tag, "inspector_scale_x")){
-                new_scale.x = atof(focus_input_field.content);
+                new_scale.x = to_f32(focus_input_field.content);
             } else if (str_equal(focus_input_field.tag, "inspector_scale_y")){
-                new_scale.y = atof(focus_input_field.content);
+                new_scale.y = to_f32(focus_input_field.content);
             } else{
                 assert(false);
             }
@@ -3621,7 +3614,7 @@ void update_editor_ui(){
         v_pos += height_add;
         
         make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
-        if (make_input_field(TextFormat("%.2f", editor.selected_entity->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
+        if (make_input_field(text_format("%.2f", editor.selected_entity->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
             ){
             f32 old_rotation = editor.selected_entity->rotation;
             f32 new_rotation = old_rotation;
@@ -3629,7 +3622,7 @@ void update_editor_ui(){
             undo_remember_vertices_start(editor.selected_entity);
             
             if (str_equal(focus_input_field.tag, "inspector_rotation")){
-                new_rotation = atof(focus_input_field.content);
+                new_rotation = to_f32(focus_input_field.content);
             } else{
                 assert(false);
             }
@@ -3644,13 +3637,13 @@ void update_editor_ui(){
         v_pos += height_add;
         
         make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
-        if (make_input_field(TextFormat("%d", editor.selected_entity->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
+        if (make_input_field(text_format("%d", editor.selected_entity->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
             ){
             i32 old_draw_order = editor.selected_entity->draw_order;
             i32 new_draw_order = old_draw_order;
             
             if (str_equal(focus_input_field.tag, "inspector_draw_order")){
-                new_draw_order = atoi(focus_input_field.content);
+                new_draw_order = to_i32(focus_input_field.content);
             } else{
                 assert(false);
             }
@@ -3717,14 +3710,14 @@ void update_editor_ui(){
                 v_pos += height_add;
                 
                 make_ui_text("Gravity multiplier: ", {inspector_position.x + 5, v_pos}, "physics_gravity_multiplier");
-                if (make_input_field(TextFormat("%.1f", selected->physics_object.gravity_multiplier), {inspector_position.x + 250, v_pos}, {100, 25}, "physics_gravity_multiplier")){
-                    selected->physics_object.gravity_multiplier = atof(focus_input_field.content);
+                if (make_input_field(text_format("%.1f", selected->physics_object.gravity_multiplier), {inspector_position.x + 250, v_pos}, {100, 25}, "physics_gravity_multiplier")){
+                    selected->physics_object.gravity_multiplier = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Mass: ", {inspector_position.x + 5, v_pos}, "physics_mass");
-                if (make_input_field(TextFormat("%.1f", selected->physics_object.mass), {inspector_position.x + 250, v_pos}, {100, 25}, "physics_mass")){
-                    selected->physics_object.mass = clamp(atof(focus_input_field.content), 0.01f, 100000.0f);
+                if (make_input_field(text_format("%.1f", selected->physics_object.mass), {inspector_position.x + 250, v_pos}, {100, 25}, "physics_mass")){
+                    selected->physics_object.mass = clamp(to_f32(focus_input_field.content), 0.01f, 100000.0f);
                 }
                 v_pos += height_add;
             }
@@ -3754,8 +3747,8 @@ void update_editor_ui(){
                 v_pos += height_add;
             
                 make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
-                if (make_input_field(TextFormat("%.1f", selected->move_sequence.speed), {inspector_position.x + 100, v_pos}, 100, "move_sequence_speed")){
-                    selected->move_sequence.speed = atof(focus_input_field.content);
+                if (make_input_field(text_format("%.1f", selected->move_sequence.speed), {inspector_position.x + 100, v_pos}, 100, "move_sequence_speed")){
+                    selected->move_sequence.speed = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
@@ -3766,23 +3759,23 @@ void update_editor_ui(){
                 v_pos += height_add;
                 if (selected->move_sequence.speed_related_player_distance){
                     make_ui_text("Min distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_min_distance");
-                    if (make_input_field(TextFormat("%.1f", selected->move_sequence.min_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_min_distance")){
-                        selected->move_sequence.min_distance = atof(focus_input_field.content);
+                    if (make_input_field(text_format("%.1f", selected->move_sequence.min_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_min_distance")){
+                        selected->move_sequence.min_distance = to_f32(focus_input_field.content);
                     }
                     v_pos += height_add;
                     make_ui_text("Max distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_max_distance");
-                    if (make_input_field(TextFormat("%.1f", selected->move_sequence.max_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance")){
-                        selected->move_sequence.max_distance = atof(focus_input_field.content);
+                    if (make_input_field(text_format("%.1f", selected->move_sequence.max_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance")){
+                        selected->move_sequence.max_distance = to_f32(focus_input_field.content);
                     }
                     v_pos += height_add;
                     make_ui_text("Max distance speed: ", {inspector_position.x + 25, v_pos}, "move_sequence_max_distance_speed");
-                    if (make_input_field(TextFormat("%.1f", selected->move_sequence.max_distance_speed), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance_speed")){
-                        selected->move_sequence.max_distance_speed = atof(focus_input_field.content);
+                    if (make_input_field(text_format("%.1f", selected->move_sequence.max_distance_speed), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance_speed")){
+                        selected->move_sequence.max_distance_speed = to_f32(focus_input_field.content);
                     }
                     v_pos += height_add;
                 }
                 
-                make_ui_text(TextFormat("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
+                make_ui_text(text_format("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
                 type_info_v_pos += type_font_size;
                 make_ui_text("Ctrl+L clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
                 type_info_v_pos += type_font_size;
@@ -3822,20 +3815,20 @@ void update_editor_ui(){
                 v_pos += height_add;
                 
                 make_ui_text("Light radius: ", {inspector_position.x + 5, v_pos}, "light_radius");
-                if (make_input_field(TextFormat("%.2f", light->radius), {inspector_position.x + 100, v_pos}, {150, 20}, "light_radius") ){
-                    light->radius = atof(focus_input_field.content);
+                if (make_input_field(text_format("%.2f", light->radius), {inspector_position.x + 100, v_pos}, {150, 20}, "light_radius") ){
+                    light->radius = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Light opacity: ", {inspector_position.x + 5, v_pos}, "light_opacity");
-                if (make_input_field(TextFormat("%.2f", light->opacity), {inspector_position.x + 100, v_pos}, {150, 20}, "light_opacity") ){
-                    light->opacity = atof(focus_input_field.content);
+                if (make_input_field(text_format("%.2f", light->opacity), {inspector_position.x + 100, v_pos}, {150, 20}, "light_opacity") ){
+                    light->opacity = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Light power: ", {inspector_position.x + 5, v_pos}, "light_power");
-                if (make_input_field(TextFormat("%.2f", light->power), {inspector_position.x + 100, v_pos}, {150, 20}, "light_power") ){
-                    light->power = atof(focus_input_field.content);
+                if (make_input_field(text_format("%.2f", light->power), {inspector_position.x + 100, v_pos}, {150, 20}, "light_power") ){
+                    light->power = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
 
@@ -3891,9 +3884,15 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
-                make_ui_text("Kill player: ", {inspector_position.x + 5, v_pos}, "text_kill_player");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.kill_player, "toggle_kill_player")){
+                make_ui_text("Kill player: ", {inspector_position.x + 5, v_pos}, "trigger_kill_player");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.kill_player, "trigger_kill_player")){
                     selected->trigger.kill_player = !selected->trigger.kill_player;
+                }
+                v_pos += height_add;
+                
+                make_ui_text("Kill enemies: ", {inspector_position.x + 5, v_pos}, "trigger_kill_enemies");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.kill_enemies, "trigger_kill_enemies")){
+                    selected->trigger.kill_enemies = !selected->trigger.kill_enemies;
                 }
                 v_pos += height_add;
                 
@@ -3933,39 +3932,40 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
-                make_ui_text("Change zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zoom_text");
+                Color cam_section_color = ColorBrightness(PINK, 0.4f);
+                make_ui_text("Change zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zoom_text", cam_section_color);
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.change_zoom, "toggle_change_zoom")){
                     selected->trigger.change_zoom = !selected->trigger.change_zoom;                 
                 }
                 v_pos += height_add;
                 if (selected->trigger.change_zoom){
-                    make_ui_text("Zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zooom_text");
-                    if (make_input_field(TextFormat("%.2f", selected->trigger.zoom_value), {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_zoom_name") ){
-                        selected->trigger.zoom_value = atof(focus_input_field.content);
+                    make_ui_text("Zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zooom_text", cam_section_color);
+                    if (make_input_field(text_format("%.2f", selected->trigger.zoom_value), {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_zoom_name") ){
+                        selected->trigger.zoom_value = to_f32(focus_input_field.content);
                     }
                     v_pos += height_add;
                 }
                 
-                make_ui_text("Cam rails horiz: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_horizontal");
+                make_ui_text("Cam rails horizontal: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_horizontal", cam_section_color);
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_cam_rails_horizontal, "trigger_start_cam_rails_horizontal")){
                     selected->trigger.start_cam_rails_horizontal = !selected->trigger.start_cam_rails_horizontal;                 
                     init_entity(selected);
                 }
                 v_pos += height_add;
-                make_ui_text("Cam rails vertical: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_vertical");
+                make_ui_text("Cam rails vertical: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_vertical", cam_section_color);
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_cam_rails_vertical, "trigger_start_cam_rails_vertical")){
                     selected->trigger.start_cam_rails_vertical = !selected->trigger.start_cam_rails_vertical;                 
                     init_entity(selected);
                 }
                 v_pos += height_add;
-                make_ui_text("Stop cam rails: ", {inspector_position.x + 5, v_pos}, "trigger_stop_cam_rails");
+                make_ui_text("Stop cam rails: ", {inspector_position.x + 5, v_pos}, "trigger_stop_cam_rails", cam_section_color);
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.stop_cam_rails, "trigger_stop_cam_rails")){
                     selected->trigger.stop_cam_rails = !selected->trigger.stop_cam_rails;                 
                     init_entity(selected);
                 }
                 v_pos += height_add;
                 
-                make_ui_text("Lock camera: ", {inspector_position.x + 5, v_pos}, "lock_camera_text");
+                make_ui_text("Lock camera: ", {inspector_position.x + 5, v_pos}, "lock_camera_text", cam_section_color);
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.lock_camera, "lock_camera")){
                     selected->trigger.lock_camera = !selected->trigger.lock_camera;                 
                     if (selected->trigger.lock_camera && selected->trigger.locked_camera_position == Vector2_zero){
@@ -3974,7 +3974,7 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
-                make_ui_text("Unlock camera: ", {inspector_position.x + 5, v_pos}, "unlock_camera_text");
+                make_ui_text("Unlock camera: ", {inspector_position.x + 5, v_pos}, "unlock_camera_text", cam_section_color);
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.unlock_camera, "unlock_camera")){
                     selected->trigger.unlock_camera = !selected->trigger.unlock_camera;                 
                 }
@@ -4016,6 +4016,9 @@ void update_editor_ui(){
                 type_info_v_pos += type_font_size;
                 make_ui_text("Ctrl+N Rails Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_add_point");
                 type_info_v_pos += type_font_size;
+                make_ui_text(text_format("Rails points count: %d", selected->trigger.cam_rails_points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_rails_points_count");
+            type_info_v_pos += type_font_size;
+
             }
             if (selected->trigger.lock_camera){
                 make_ui_text("Ctrl+R: Locked cam position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
@@ -4029,9 +4032,9 @@ void update_editor_ui(){
             type_info_v_pos += type_font_size;
             make_ui_text("Assign tracking enemy: Ctrl+Q", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_connected_count");
+            make_ui_text(text_format("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_connected_count");
             type_info_v_pos += type_font_size;
-            make_ui_text(TextFormat("Tracking count: %d", selected->trigger.tracking.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_tracking_count");
+            make_ui_text(text_format("Tracking count: %d", selected->trigger.tracking.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_tracking_count");
             type_info_v_pos += type_font_size;
             make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
@@ -4060,8 +4063,8 @@ void update_editor_ui(){
                 
                 if (selected->flags & EXPLOSIVE){
                     make_ui_text("Explosion radius: ", {inspector_position.x + 5, v_pos}, "explosive_radius_multiplier");
-                    if (make_input_field(TextFormat("%.2f", selected->enemy.explosive_radius_multiplier), {inspector_position.x + inspector_size.x * 0.5f, v_pos}, 100, "explosive_radius_multiplier")){
-                        selected->enemy.explosive_radius_multiplier = fmax(atof(focus_input_field.content), 0);
+                    if (make_input_field(text_format("%.2f", selected->enemy.explosive_radius_multiplier), {inspector_position.x + inspector_size.x * 0.5f, v_pos}, 100, "explosive_radius_multiplier")){
+                        selected->enemy.explosive_radius_multiplier = fmax(to_f32(focus_input_field.content), 0);
                         init_entity(selected);
                     }
                     v_pos += height_add;
@@ -4112,12 +4115,12 @@ void update_editor_ui(){
             if (selected->flags & BLOCKER){
             }
             
-            make_ui_text(TextFormat("Ctrl+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
+            make_ui_text(text_format("Ctrl+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
             type_info_v_pos += type_font_size;
             
             if (selected->flags & SHOOT_BLOCKER){
                 if (!selected->enemy.shoot_blocker_immortal){
-                    make_ui_text(TextFormat("Ctrl+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
+                    make_ui_text(text_format("Ctrl+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
                     type_info_v_pos += type_font_size;
                 }
             }
@@ -4127,7 +4130,7 @@ void update_editor_ui(){
         } // enemy inspector end
         
         if (selected->flags & PROPELLER){
-            make_ui_text(TextFormat("Ctrl+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
+            make_ui_text(text_format("Ctrl+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
@@ -4154,8 +4157,8 @@ void update_editor_ui(){
                 v_pos += height_add;
                 
                 make_ui_text("Segments count: ", {inspector_position.x + 25, v_pos}, "segments_count");
-                if (make_input_field(TextFormat("%d", selected->centipede.segments_count), {inspector_position.x + 100, v_pos}, 100, "segments_count")){
-                    selected->centipede.segments_count = fmin(atoi(focus_input_field.content), MAX_CENTIPEDE_SEGMENTS);
+                if (make_input_field(text_format("%d", selected->centipede.segments_count), {inspector_position.x + 100, v_pos}, 100, "segments_count")){
+                    selected->centipede.segments_count = fmin(to_i32(focus_input_field.content), MAX_CENTIPEDE_SEGMENTS);
                 }
                 v_pos += height_add;
             }
@@ -4170,20 +4173,20 @@ void update_editor_ui(){
             
             if (editor.draw_jump_shooter_settings){
                 make_ui_text("Shots count: ", {inspector_position.x + 5, v_pos}, "jump_shooter_shots_count");
-                if (make_input_field(TextFormat("%d", selected->jump_shooter.shots_count), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_shots_count")){
-                    selected->jump_shooter.shots_count = atoi(focus_input_field.content);
+                if (make_input_field(text_format("%d", selected->jump_shooter.shots_count), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_shots_count")){
+                    selected->jump_shooter.shots_count = to_i32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Spread: ", {inspector_position.x + 5, v_pos}, "jump_shooter_spread");
-                if (make_input_field(TextFormat("%.1f", selected->jump_shooter.spread), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_spread")){
-                    selected->jump_shooter.spread = clamp(atof(focus_input_field.content), 0.0f, 180.0f);
+                if (make_input_field(text_format("%.1f", selected->jump_shooter.spread), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_spread")){
+                    selected->jump_shooter.spread = clamp(to_f32(focus_input_field.content), 0.0f, 180.0f);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Explosive count: ", {inspector_position.x + 5, v_pos}, "jump_shooter_explosive_count");
-                if (make_input_field(TextFormat("%d", selected->jump_shooter.explosive_count), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_explosive_count")){
-                    selected->jump_shooter.explosive_count = fmin(fmin(atoi(focus_input_field.content), 64), selected->jump_shooter.shots_count);
+                if (make_input_field(text_format("%d", selected->jump_shooter.explosive_count), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_explosive_count")){
+                    selected->jump_shooter.explosive_count = fmin(fmin(to_i32(focus_input_field.content), 64), selected->jump_shooter.shots_count);
                 }
                 v_pos += height_add;
 
@@ -4225,7 +4228,7 @@ void update_editor_ui(){
                 v_pos += height_add;
             }
         
-            make_ui_text(TextFormat("Ctrl+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
+            make_ui_text(text_format("Ctrl+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Door settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "door_settings");
@@ -4783,7 +4786,7 @@ void update_editor(){
             b32 wanna_assign = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_A);
             b32 wanna_assign_tracking_enemy = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Q);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_D);
-            b32 wanna_change_locked_camera_position = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_R);
+            b32 wanna_change_locked_camera_position = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_R);
             
             b32 wanna_add_cam_rails_point    = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_N);
             b32 wanna_remove_cam_rails_point = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_M);
@@ -6839,6 +6842,12 @@ void calculate_projectile_collisions(Entity *entity){
             }
             
             if (other->flags & PLAYER && !player_data.dead_man && !enemy->dead_man){
+                // It's a good thing that we don't kill player when projectile is blocker or explosive, 
+                // but of course we need to better tell player what exactly will kill him on touch. 
+                // While projectiles are flying - they're leave particle trail and all flying projectiles 
+                // will kill us. So when projectile stopped we should still produce particles for 
+                // base projectiles so player can know what he need to know.
+                // That also works for enemies - they're kill player on touch when they're producing certain particles.
                 b32 can_kill_player = !projectile->dying || !(entity->flags & (BLOCKER | EXPLOSIVE));
                 if (can_kill_player){
                     if (should_kill_player(entity)){
@@ -7009,6 +7018,14 @@ i32 update_trigger(Entity *e){
     if (e->flags & ENEMY && e->enemy.dead_man){
         trigger_now = true;
         e->enemy.dead_man = false;
+    }
+    
+    if (e->trigger.kill_enemies){
+        fill_collisions(e, &collisions_buffer, ENEMY);
+        for (i32 i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
+            kill_enemy(col.other_entity, col.point, col.normal);            
+        }
     }
     
     if (e->trigger.track_enemies && !e->trigger.triggered){
@@ -8165,7 +8182,7 @@ void draw_entity(Entity *e){
                     
                     if (IsKeyDown(KEY_LEFT_ALT)){
                         draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
-                        draw_game_text(point - Vector2_up, TextFormat("%d", ii), 18 / context.cam.cam2D.zoom, RED);
+                        draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / context.cam.cam2D.zoom, RED);
                     }
                     if (ii < e->trigger.cam_rails_points.count - 1){
                         draw_game_line(point, e->trigger.cam_rails_points.get(ii+1), color);
@@ -8220,7 +8237,7 @@ void draw_entity(Entity *e){
             
             if (IsKeyDown(KEY_LEFT_ALT)){
                 draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
-                draw_game_text(point - Vector2_up, TextFormat("%d", ii), 18 / context.cam.cam2D.zoom, RED);
+                draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / context.cam.cam2D.zoom, RED);
                 
                 if (e->flags & JUMP_SHOOTER){
                     Collision nearest_ground = get_nearest_ground_collision(point, 20);
@@ -8391,20 +8408,20 @@ void draw_editor(){
         }
         
         if (debug.draw_position){
-            draw_game_text(e->position + ((Vector2){0, -3}), TextFormat("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
+            draw_game_text(e->position + ((Vector2){0, -3}), text_format("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
         }
         
         if (debug.draw_rotation){
-            draw_game_text(e->position, TextFormat("%d", (i32)e->rotation), 20, RED);
+            draw_game_text(e->position, text_format("%d", (i32)e->rotation), 20, RED);
         }
         
         if (debug.draw_scale){
-            draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("SCALE:   {%.2f, %.2f}", e->scale.x, e->scale.y), 20, RED);
+            draw_game_text(e->position + ((Vector2){0, -6}), text_format("SCALE:   {%.2f, %.2f}", e->scale.x, e->scale.y), 20, RED);
         }
         
         if (debug.draw_directions){
-            draw_game_text(e->position + ((Vector2){0, -6}), TextFormat("UP:    {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
-            draw_game_text(e->position + ((Vector2){0, -9}), TextFormat("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
+            draw_game_text(e->position + ((Vector2){0, -6}), text_format("UP:    {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
+            draw_game_text(e->position + ((Vector2){0, -9}), text_format("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
         }
         
         if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
@@ -8439,8 +8456,8 @@ void draw_editor(){
         Vector2 vec_to_mouse = input.mouse_position - editor.ruler_start_position;
         f32 length = magnitude(vec_to_mouse);
         
-        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), TextFormat("%.2f", length), 24.0f / context.cam.cam2D.zoom, RED);
-        draw_game_text(input.mouse_position + Vector2_up, TextFormat("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26.0f / context.cam.cam2D.zoom, GREEN); 
+        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), text_format("%.2f", length), 24.0f / context.cam.cam2D.zoom, RED);
+        draw_game_text(input.mouse_position + Vector2_up, text_format("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26.0f / context.cam.cam2D.zoom, GREEN); 
         
     }
 }
@@ -8518,7 +8535,7 @@ void draw_ui(const char *tag){
         draw_rect(input_field.position, input_field.size, {0, 0}, 0, background_color);
         
         if (input_field.in_focus){
-            draw_text(TextFormat("%s_", input_field.content), input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);
+            draw_text(text_format("%s_", input_field.content), input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);
         } else{
             draw_text(input_field.content, input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);
         }
@@ -8862,41 +8879,41 @@ void draw_game(){
     f32 v_pos = 10;
     f32 font_size = 18;
     if (debug.info_fps){
-        draw_text(TextFormat("FPS: %d", GetFPS()), 10, v_pos, font_size, RED);
+        draw_text(text_format("FPS: %d", GetFPS()), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
     
     if (game_state == GAME && player_entity){            
         if (debug.info_spin_progress){
-            draw_text(TextFormat("Spin progress: %.2f", player_data.sword_spin_progress), 10, v_pos, font_size, RED);
+            draw_text(text_format("Spin progress: %.2f", player_data.sword_spin_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
         
         if (debug.info_blood_progress){
-            draw_text(TextFormat("Blood progress: %.2f", player_data.blood_progress), 10, v_pos, font_size, RED);
+            draw_text(text_format("Blood progress: %.2f", player_data.blood_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
         }
     }
     
     if (debug.info_particle_count){
-        draw_text(TextFormat("Particles count: %d", enabled_particles_count), 10, v_pos, font_size, RED);
+        draw_text(text_format("Particles count: %d", enabled_particles_count), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
     
     if (debug.info_emitters_count){
-        draw_text(TextFormat("Emitters count: %d", context.emitters.count), 10, v_pos, font_size, RED);
+        draw_text(text_format("Emitters count: %d", context.emitters.count), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
     
     if (debug.info_player_speed){
-        draw_text(TextFormat("Player speed: %.1f", magnitude(player_data.velocity)), 10, v_pos, font_size, RED);
+        draw_text(text_format("Player speed: %.1f", magnitude(player_data.velocity)), 10, v_pos, font_size, RED);
         v_pos += font_size;
-        draw_text(TextFormat("Player Velocity: {%.1f, %.1f}", player_data.velocity.x, player_data.velocity.y), 10, v_pos, font_size, RED);
+        draw_text(text_format("Player Velocity: {%.1f, %.1f}", player_data.velocity.x, player_data.velocity.y), 10, v_pos, font_size, RED);
         v_pos += font_size;
     }
     
     v_pos += font_size;
-    draw_text(TextFormat("Ammo: %d", player_data.ammo_count), 10, v_pos, font_size * 1.5f, VIOLET);
+    draw_text(text_format("Ammo: %d", player_data.ammo_count), 10, v_pos, font_size * 1.5f, VIOLET);
     v_pos += font_size * 1.5f;
 
     
@@ -8907,8 +8924,8 @@ void draw_game(){
         
         draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
         draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color);
-        draw_text(TextFormat("App time: %.2f", core.time.app_time), {screen_width * 0.46f, 5.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
-        draw_text(TextFormat("Game time: %.2f", core.time.game_time), {screen_width * 0.46f, 20.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
+        draw_text(text_format("App time: %.2f", core.time.app_time), {screen_width * 0.46f, 5.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
+        draw_text(text_format("Game time: %.2f", core.time.game_time), {screen_width * 0.46f, 20.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
     } else{
         f32 since_console_closed = core.time.app_time - console.closed_time;
         

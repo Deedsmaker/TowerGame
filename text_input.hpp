@@ -30,7 +30,7 @@ float last_hold_deleted_time = 0;
 
 void copy_input_field(Input_Field *dest, Input_Field *src);
 
-void set_focus_input_field(char *data){
+void set_focus_input_field(const char *data){
     str_copy(focus_input_field.content, data);
     focus_input_field.chars_count = str_len(data);
 }

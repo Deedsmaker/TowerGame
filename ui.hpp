@@ -117,6 +117,11 @@ void make_ui_text(const char *content, Vector2 position, const char *tag, f32 fo
     init_ui_text(&new_ui_element->text, content, font_size, color);
 }
 
+void make_ui_text(const char *content, Vector2 position, const char *tag, Color color, f32 font_size = 16){
+    Ui_Element *new_ui_element = init_ui_element(position, {100, 25}, {0, 0}, color, tag, UI_TEXT);
+    init_ui_text(&new_ui_element->text, content, font_size, color);
+}
+
 b32 make_ui_toggle(Vector2 position, b32 current_value, const char *tag){
     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
     return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);

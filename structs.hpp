@@ -288,12 +288,13 @@ enum Trigger_Action_Type{
 struct Trigger{
     Dynamic_Array<int> connected;
     Dynamic_Array<int> tracking;
-    b32 player_touch = true;
-    b32 kill_player = false;
-    b32 open_doors = true;
+    b32 player_touch             = true;
+    b32 kill_player              = false;
+    b32 kill_enemies             = false;
+    b32 open_doors               = true;
     b32 start_physics_simulation = true;
-    b32 track_enemies = false;
-    b32 agro_enemies = true;
+    b32 track_enemies            = false;
+    b32 agro_enemies             = true;
     
     b32 shows_entities = true;
     b32 starts_moving_sequence = true;
