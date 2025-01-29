@@ -24,6 +24,8 @@ global_variable Debug  debug  = {};
 //global_variable Entity *player_entity;
 global_variable b32 player_on_level;
 
+global_variable const char *first_level_name = "new_basics1";
+
 global_variable Array<Vector2, MAX_VERTICES> global_normals = Array<Vector2, MAX_VERTICES>();
 
 global_variable Entity mouse_entity;
@@ -391,7 +393,7 @@ Entity::Entity(Entity *copy, b32 keep_id){
     calculate_bounds(this);
 }
 
-void parse_line(char *line, char *result, int *index){ 
+void parse_line(const char *line, char *result, int *index){ 
     assert(line[*index] == ':');
     
     int i;
@@ -650,6 +652,9 @@ i32 save_level(const char *level_name){
     b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
     b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave){
+        if (!str_equal(context.current_level_name, name)){
+            str_copy(context.previous_level_name, context.current_level_name);
+        }
         str_copy(context.current_level_name, name);
         reload_level_files();
         console.str += text_format("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time);
@@ -673,7 +678,7 @@ i32 save_level(const char *level_name){
     return 1;
 }
 
-inline void save_level_by_name(char *name){
+inline void save_level_by_name(const char *name){
     save_level(name);
 }
 
@@ -768,7 +773,7 @@ void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_St
     }
 }
 
-int load_level(const char *level_name){
+b32 load_level(const char *level_name){
     game_state = EDITOR;
 
     char *name;
@@ -781,7 +786,7 @@ int load_level(const char *level_name){
         console.str += "Could not load level: ";
         console.str += name;
         console.str += "\n";
-        return 0;
+        return false;
     }
     
     clean_up_scene();
@@ -1113,10 +1118,12 @@ int load_level(const char *level_name){
     b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
     b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave){
+        if (!str_equal(context.current_level_name, name)){
+            str_copy(context.previous_level_name, context.current_level_name);
+        }
         str_copy(context.current_level_name, name);
-        console.str += "\t>Loaded level: ";
-        console.str += name;
-        console.str += "\n";
+        print_to_console(text_format("Loaded level: %s", name));
+        editor.last_autosave_time = core.time.app_time;
     }
     
     //free_string_array(&splitted_line);
@@ -1139,7 +1146,7 @@ int load_level(const char *level_name){
     
     context.cam.position = editor.player_spawn_point;
     context.cam.target = editor.player_spawn_point;
-    return 1;
+    return true;
 }
 
 global_variable Array<Collision, MAX_COLLISIONS> collisions_buffer        = Array<Collision, MAX_COLLISIONS>();
@@ -1489,9 +1496,7 @@ inline void loop_entities(void (func)(Entity*)){
 }
 
 void print_to_console(const char *text){
-    console.str += "\t>";
-    console.str += text;
-    console.str += "\n";
+    console.str += text_format("\t>%s\n", text);
 }
 
 inline void init_loaded_entity(Entity *entity){
@@ -1704,9 +1709,6 @@ void init_entity(Entity *entity){
     if (entity->flags & DOOR){
         entity->flags |= TRIGGER;
         entity->trigger.player_touch = false;
-        entity->door.closed_position = entity->door.is_open ? entity->position - entity->up * entity->scale.y : entity->position;
-        entity->door.open_position   = entity->door.is_open ? entity->position : entity->position + entity->up * entity->scale.y;
-        
         //entity->door.open_sound = sounds_table.get_by_key_ptr(hash_str("OpenDoor"));
         //entity->door.is_open = false;
     }
@@ -1813,14 +1815,47 @@ inline void autosave_level(){
     save_level(text_format("autosaves/AUTOSAVE_%d_%s", autosave_index, context.current_level_name));
 }
 
-inline void load_level_by_name(char *name){
+void load_level_by_name(const char *name){
     editor.last_autosave_time = core.time.app_time;
-    if (load_level(name)){
-    } else{
+    load_level(name);
+}
+
+void try_load_next_level(){
+    b32 found = false;
+    ForEntities(entity, TRIGGER){
+        if (entity->trigger.load_level){
+            found = true;
+            if (load_level(entity->trigger.level_name)){            
+                print_to_console("Next level loaded successfuly");
+            } else{
+                print_to_console("Next level FAILED TO LOAD");
+            }
+            break;
+        }
+    }
+    
+    if (!found){
+        print_to_console("Could not find trigger that will load next level");
     }
 }
 
-Console_Command make_console_command(const char *name, void (func)() = NULL, void (func_arg)(char*) = NULL){
+void try_load_previous_level(){
+    if (context.previous_level_name[0]){
+        if (load_level(context.previous_level_name)){
+            print_to_console("Previous level loaded successfuly");
+        } else{
+            print_to_console("Previous level FAILED TO LOAD");
+        }
+    } else{
+        print_to_console("No previous level saved in buffer");
+    }
+}
+
+void reload_level(){
+    load_level(context.current_level_name);       
+}
+
+Console_Command make_console_command(const char *name, void (func)() = NULL, void (func_arg)(const char*) = NULL){
     Console_Command command;
     str_copy(command.name, name);
     command.func = func;
@@ -1834,7 +1869,7 @@ void print_current_level(){
     console.str += "\n";
 }
 
-void create_level(char *level_name){
+void create_level(const char *level_name){
     char *name;
     name = get_substring_before_symbol(level_name, '.');
     const char *path = text_format("levels/%s.level", name);
@@ -1957,7 +1992,7 @@ void set_default_time_scale(){
     core.time.target_time_scale = 1;    
 }
 
-void set_time_scale(char *text){
+void set_time_scale(const char *text){
     core.time.target_time_scale = to_f32(text);    
 }
 
@@ -1995,11 +2030,11 @@ void load_temp_replay(){
     }
 }
 
-void load_replay(char *replay_name){
+void load_replay(const char *replay_name){
     
 }
 
-void save_replay(char *replay_name){
+void save_replay(const char *replay_name){
     // char *name = 0;
     // if (replay_name){
     //     name = get_substring_before_symbol(replay_name, '.');
@@ -2018,6 +2053,32 @@ void debug_toggle_play_replay(){
     }
     
     console.str += text_format("\t>Replay mode is %s\n", context.playing_replay ? "enabled" : "disabled");
+}
+
+void restart_game(){
+    load_level(first_level_name);
+}
+
+void begin_level_speedrun(){
+    reload_level();
+    if (game_state != GAME){
+        enter_game_state();
+    }
+    
+    context.speedrun_timer.level_timer_active = false;        
+    context.speedrun_timer.game_timer_active  = true;        
+    context.speedrun_timer.time = 0;        
+}
+
+void begin_game_speedrun(){
+    reload_level();
+    if (game_state != GAME){
+        enter_game_state();
+    }
+    
+    context.speedrun_timer.level_timer_active = false;        
+    context.speedrun_timer.game_timer_active  = true;        
+    context.speedrun_timer.time = 0;        
 }
 
 void init_console(){
@@ -2044,6 +2105,13 @@ void init_console(){
     console.commands.add(make_console_command("save",    save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",    NULL, load_level_by_name));
     console.commands.add(make_console_command("level",   print_current_level, load_level_by_name));
+    console.commands.add(make_console_command("next",   try_load_next_level, NULL));
+    console.commands.add(make_console_command("previous",   try_load_previous_level, NULL));
+    console.commands.add(make_console_command("reload",   reload_level, NULL));
+    
+    console.commands.add(make_console_command("restart_game",   restart_game, NULL));
+    console.commands.add(make_console_command("level_speedrun", begin_level_speedrun, NULL));
+    console.commands.add(make_console_command("game_speedrun",  begin_game_speedrun, NULL));
     
     console.commands.add(make_console_command("timescale",   set_default_time_scale, set_time_scale));
     
@@ -2311,6 +2379,10 @@ void clean_up_scene(){
     context.cam.on_rails_vertical   = false;
     context.cam.rails_trigger_id = -1;
     
+    context.speedrun_timer.paused = false;
+    if (!context.speedrun_timer.game_timer_active){
+        context.speedrun_timer.time = 0;        
+    }
     
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
@@ -2437,6 +2509,9 @@ void kill_player(){
 
 void enter_editor_state(){
     game_state = EDITOR;
+    core.time.game_time = 0;
+    core.time.hitstop = 0;
+    core.time.previous_dt = 0;
     
     const char *temp_level_name = text_format("temp/TEMP_%s", context.current_level_name);
     
@@ -2915,6 +2990,25 @@ void update_game(){
         fixed_game_update(core.time.real_dt);
     }
     
+    // update speedrun timer
+    if (game_state == GAME && (context.speedrun_timer.level_timer_active || context.speedrun_timer.game_timer_active)){
+        Color color = WHITE;
+        if (context.we_got_a_winner){
+            context.speedrun_timer.paused = true;
+            color = GREEN;
+        } else if (player_data.dead_man){
+            color = RED;
+            context.speedrun_timer.paused = true;
+        }
+        
+        if (!context.speedrun_timer.paused){
+            context.speedrun_timer.time += core.time.dt;
+        }
+        
+        const char *title_and_time = text_format("%s\n%.4f", context.speedrun_timer.level_timer_active ? context.current_level_name : "Game speedrun", context.speedrun_timer.time);
+        make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
+    }
+    
     // update_entities();
     // update_emitters();
     // update_particles();
@@ -2957,6 +3051,7 @@ void update_game(){
     UpdateMusicStream(tires_theme);
     
     context.just_entered_game_state = false;
+    
     
     // We do this so lights don't bake all at one frame 
     context.baked_shadows_this_frame = false;
@@ -4508,7 +4603,9 @@ void update_editor(){
         }
         
         //editor move sequence points        
-        for (int p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count; p++){
+        // We don't want move points if selected entity already is move sequence or if selected is trigger with cam rails.
+        b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger.cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
+        for (int p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count && !cannot_move_points; p++){
             Vector2 *point = e->move_sequence.points.get_ptr(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / context.cam.cam2D.zoom})){
                 *point = input.mouse_position;
@@ -4516,7 +4613,7 @@ void update_editor(){
         }
         
         //editor move cam rails points        
-        for (int p = 0; e->flags & TRIGGER && (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger.cam_rails_points.count; p++){
+        for (int p = 0; e->flags & TRIGGER && (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger.cam_rails_points.count && !cannot_move_points; p++){
             Vector2 *point = e->trigger.cam_rails_points.get_ptr(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / context.cam.cam2D.zoom})){
                 *point = input.mouse_position;
@@ -5780,7 +5877,7 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        if ((other->flags & SHOOT_BLOCKER) && (!other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal){
+        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal){
             continue;
         }
         
@@ -5889,7 +5986,7 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        if ((other->flags & SHOOT_BLOCKER) && (!other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal){
+        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal){
             continue;
         }
         
@@ -6611,8 +6708,12 @@ void destroy_enemy(Entity *entity){
     entity->destroyed = true;
     
     if (entity->flags & SHOOT_STOPER){
-        context.shoot_stopers_count--;
-        assert(context.shoot_stopers_count >= 0);
+        // assert(context.shoot_stopers_count >= 0);
+        if (context.shoot_stopers_count > 0){
+            context.shoot_stopers_count--;
+        } else{
+            print("WARNING: Shoot stopers count could go below zero. That may be because we skipped trigger and kill it, so no assertion, just warning");            
+        }
     }
 }
 
@@ -6996,6 +7097,11 @@ void update_editor_entity(Entity *e){
             light->position = e->position;
         }
     }
+    
+    if (e->flags & DOOR){
+        e->door.closed_position = e->door.is_open ? e->position - e->up * e->scale.y : e->position;
+        e->door.open_position   = e->door.is_open ? e->position : e->position + e->up * e->scale.y;
+    }
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected){
@@ -7061,10 +7167,15 @@ i32 update_trigger(Entity *e){
     
     if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided){
         if (e->trigger.load_level){
-            enter_game_state_on_new_level = true;
-            last_player_data = player_data;
-            load_level_by_name(e->trigger.level_name);
-            return TRIGGER_LEVEL_LOAD;
+            b32 we_on_last_level = !e->trigger.level_name[0];
+            if (we_on_last_level || context.speedrun_timer.level_timer_active){
+                win_level();
+            } else{
+                enter_game_state_on_new_level = true;
+                last_player_data = player_data;
+                load_level(e->trigger.level_name);
+                return TRIGGER_LEVEL_LOAD;
+            }
         }
         
         if (e->trigger.start_cam_rails_horizontal){
@@ -8021,6 +8132,21 @@ void draw_entity(Entity *e){
         }
     }
     
+    if (e->flags & DOOR){
+        
+        if (editor.selected_entity && editor.selected_entity->id == e->id){
+            Vector2 previous_position = e->position;
+            Vector2 target_position = e->door.is_open ? e->door.closed_position : e->door.open_position;
+            draw_game_line(e->position, target_position, GREEN);
+            
+            e->position = target_position;
+            f32 color_blink = abs(sinf(core.time.app_time * 2) * 0.5f);
+            draw_game_triangle_strip(e, Fade(LIME, color_blink * 0.5f + 0.2f));
+            draw_game_line_strip(e, ColorBrightness(LIME, color_blink));
+            e->position = previous_position;
+        }
+    }
+    
     if (e->flags & PHYSICS_OBJECT){
         // draw physics object
         if (e->physics_object.on_rope && game_state == EDITOR){
@@ -8232,6 +8358,7 @@ void draw_entity(Entity *e){
         }
     }
     
+    // draw move sequence
     if (e->flags & MOVE_SEQUENCE && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
         if (e->move_sequence.speed_related_player_distance && editor.selected_entity && editor.selected_entity->id == e->id){
             draw_game_circle(e->position, e->move_sequence.max_distance, Fade(RED, 0.05f));
@@ -8241,7 +8368,7 @@ void draw_entity(Entity *e){
         for (int ii = 0; ii < e->move_sequence.points.count; ii++){
             Vector2 point = e->move_sequence.points.get(ii);
             
-            Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.8f);
+            Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.3f);
             
             if (IsKeyDown(KEY_LEFT_ALT)){
                 draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);

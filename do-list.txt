@@ -1,4 +1,51 @@
-- Undo for agro area. There's array adding and removing, so i think we will just remember which id's was added and removed and will add and search/remove them. 
+[X] Doors in editor should draw their opened position if they closed and closed position if they opened.
+[ ] Think on way to stop on the wall?
+[ ] Notes on levels.
+[ ] Test level reload.
+[X] Check next/previous level load
+[X] Think about how we should control/block dynamic camera. Blockers seems to complicated, so maybe some rails system will be not only good enough, but also really cool. (We should just change (localvariable) target position in update camera for that to happen)
+[X]! Multiple autosaves
+[X] Try white flash on whole background
+[ ] One-frame arena for stuff like strings. Should also change string lib for that
+[X] Make that explosion won't damage anything if behing obstacle
+[ ] When time comes - Make that wall climbing was on timer and resets when ground touched (or also when enemy killed with sword)
+[X] Weird bug when reloading by pressing T in game after dying. Lights seems not to unload; (That was because dummy entities is hidden and we don't updated their position when reloading. Need to think about should be show light on hidden objects or not). (we should not)
+[X] Color picker for lights
+[X] Color changer changes real color of object when works with light on one entity
+[X] On lightmap drawing - draws all entities and not occludes (not all but not that we care about)
+    [X] Occluding on lightmaps occludes real shadowcast geometry. Related ↑.
+[X] Move sequence option for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
+[X] Fix texture misplacing on screen resizing
+[X] Drag player with mouse (G)
+[X] Birds delay before attack so they go in order.
+[X] Space partitioning for collision detection. Static grid i think. (HUGE optimization)
+[ ] Hotreloading
+[X] Explosion radius visualization (so player could understand what would happen when explosion hits)
+[X] Jump off the wall
+[X] Fixed physics timestamp (240)
+[X] Free cam in game-mode (SHIFT+SPACE)
+[X] Static camera functional
+[X] Make that bullet hit only alive centipede segments
+[X] Centipede option for which side's spikes on (?)
+[X] Centipede customize segment size
+[X]! Custom cursor
+[ ] Timer
+    - One level speedrun and whole game speedrun. Whole level speedrun will put us in game start if we die.
+    - Timer will be on screen up. If it's level speedrun - above timer will be level name. If we die - timer stops and turns red. If we win: then timer stops and turns green.
+    - We need to add command for next level, first and last.
+    - We will tell info about speedrun commands after last level. So we need to know what our last level and first level.
+[X] Try to give player control on sword size
+[X] Fix blockers
+[X] Sword color when can go into rifle
+[X] Change sword acceleartion in air and test it
+[\] Try to improve vertical movement by making throwable sword. 
+[\] Temporal boosters for sword size and infinite ammo (?)
+[X]! Wall climbing
+[X]! Bird rework
+[\] Bomber enemy
+[X] Centipede
+[X] Bullet for every x enemy
+[X]! Scaling fix (Suka ne doljno) (budet)
 
 <LONG TERM>
 ///////////////////////////////////////////////////
@@ -24,24 +71,25 @@
 [X?] Escape level with need to stop spinning ?. + arena (bridge1 level as arena and escape sequence is ok, but we might not want to force player stop sword spinning so early)
 [X] Centipede
 [X] Rope blocks
-[X] Jump shooters introduction + more rope blocks
+[X] Jump shooters introduction + more rope blocks. (There on vertical section we can try to make shoot blockers enemy-blocks with modifier that requires spin for longer than just one hit. This could be general thing for that kinds of blocks)
 
 <Level ideas>
 ///////////////////////////////////////////////////
 [X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
-[ ] Big bomb in the middle and static camera
+[ ] Big bomb in the middle and static camera. There should probably be multiple single-screen arenas or we could think about spawning bombs, but i don't think it's good. Also there should be flying blocks that will protect us.
 [X] Tutorial for gravity increase - spikes above
 [X] Cool physics rope block introduction with static camera where we need to cut it and go down
 [ ] Ascending level (spikes go from below) where in parts we need to climb centipedes (and there's no real blocks). 
 [ ] One-screen survival level
+[ ] Small fast centipedes with full spikes on
+[ ] Big centipedes without spikes that will act like a bridge. That may be escaping sequence, where we'll need to hop on centipedes, rope blocks etc.
+[ ] Escape sequence with constant big explosions and we need to hide below blocks
+[ ] Room with one explosive birdie, but we can't shoot (because of shoot stoper!!)
 ///////////////////////////////////////////////////
 
 <Battle ideas>
 ///////////////////////////////////////////////////
 //WITH EXISTING:
-[ ] Small fast centipedes with full spikes on
-[ ] Big centipedes without spikes that will act like a bridge
-[ ] Room with one explosive birdie, but we can't shoot (because of shoot stoper!!)
 //NEW:
 [ ] Robo-hand that can catch us and throw somewhere
 [ ] Charging stations where we need to spin. Also some enemies could charge of that and we can overcharge them.
@@ -60,46 +108,6 @@
 [ ] Враг/Модификатор . Делает врагу больше хп, но убить можно только если быстро нанести много урона. С мечом нужно крутиться на враге некоторое время (например 1.5 секунды), а с выстрелом настрелять много за короткое время. С мечом круче всего звучит, нужно будет реально подзадержаться на типе и такое можно использовать для боссов. Тяжело будет работать с птичками, но дуабл. Вероятно придется подумать еще над тем чтобы было легче оставаться на месте при сильном вращении, потому что в воздухе точно если будешь крутиться в одну сторону и жать кнопку ходьбы в другую - вращение меча перевесит. Показываться это будет полоской над врагом, которая будет заполняться при нанесении урона и убавляться когда некоторое время не дамажишь.
 [ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
 ///////////////////////////////////////////////////
-
-[ ] Think about how we should control/block dynamic camera. Blockers seems to complicated, so maybe some rails system will be not only good enough, but also really cool. (We should just change (localvariable) target position in update camera for that to happen)
-[X]! Multiple autosaves
-[X] Try white flash on whole background
-[ ] One-frame arena for stuff like strings. Should also change string lib for that
-[X] Make that explosion won't damage anything if behing obstacle
-[ ] When time comes - Make that wall climbing was on timer and resets when ground touched (or also when enemy killed with sword)
-[X] Weird bug when reloading by pressing T in game after dying. Lights seems not to unload; (That was because dummy entities is hidden and we don't updated their position when reloading. Need to think about should be show light on hidden objects or not).
-[X] Color picker for lights
-[X] Color changer changes real color of object when works with light on one entity
-[X] On lightmap drawing - draws all entities and not occludes (not all but not that we care about)
-    [X] Occluding on lightmaps occludes real shadowcast geometry. Related ↑.
-[X] Move sequence option for speeding up / slowin down depending on distance to player (so fast when far and slow when near)
-[X] Fix texture misplacing on screen resizing
-[X] Drag player with mouse (G)
-[X] Birds delay before attack so they go in order.
-[X] Space partitioning for collision detection. Static grid i think. (HUGE optimization)
-[ ] Hotreloading
-[X] Explosion radius visualization (so player could understand what would happen when explosion hits)
-[X] Jump off the wall
-[X] Fixed physics timestamp (240)
-[X] Free cam in game-mode (SHIFT+SPACE)
-[X] Static camera functional
-[X] Make that bullet hit only alive centipede segments
-[X] Centipede option for which side's spikes on (?)
-[X] Centipede customize segment size
-[X]! Custom cursor
-[ ] Timer
-[X] Try to give player control on sword size
-[X] Fix blockers
-[X] Sword color when can go into rifle
-[X] Change sword acceleartion in air and test it
-[\] Try to improve vertical movement by making throwable sword. 
-[\] Temporal boosters for sword size and infinite ammo (?)
-[X]! Wall climbing
-[X]! Bird rework
-[\] Bomber enemy
-[X] Centipede
-[X] Bullet for every x enemy
-[X]! Scaling fix (Suka ne doljno) (budet)
 
 <VISUAL>
 /////////////////////////////////////////////////////////

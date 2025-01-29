@@ -308,10 +308,10 @@ struct Trigger{
     f32 zoom_value = 0.35f;
     
     b32 play_sound = false;
-    char sound_name[128];
+    char sound_name[128] = "\0";
     
     b32 load_level = false;
-    char level_name[128];
+    char level_name[128] = "\0";
     
     b32 triggered = false;
     
@@ -748,6 +748,15 @@ struct Core{
 
 #define MAX_ENTITIES 10000
 
+struct Speedrun_Timer{
+    b32 level_timer_active = true;    
+    b32 game_timer_active = false;
+    
+    b32 paused = false;
+    
+    f32 time = 0;
+};
+
 struct Context{
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
     Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
@@ -775,6 +784,7 @@ struct Context{
     b32 baked_shadows_this_frame = false;
     
     char current_level_name[256];
+    char previous_level_name[256] = "\0";
     
     f32 explosion_trauma = 0;
     f32 background_flash_time = -21;
@@ -785,6 +795,8 @@ struct Context{
     i32 shoot_stopers_count = 0;
     
     Cam cam = {};
+    
+    Speedrun_Timer speedrun_timer = {};
 };
 
 struct Render{
@@ -966,7 +978,7 @@ struct Debug{
 struct Console_Command{
     char name[MEDIUM_STR_LEN];
     void (*func)() = NULL;
-    void (*func_arg)(char*) = NULL;
+    void (*func_arg)(const char*) = NULL;
 };
 
 struct Console{   
