@@ -113,6 +113,7 @@ enum Flags : i64{
     EXPLOSIVE         = 1 << 11,
     BLOCKER           = 1 << 12,
     STICKY_TEXTURE    = 1 << 13,
+    NOTE              = 1 << 14,
     PROPELLER         = 1 << 15,
     SHOOT_BLOCKER     = 1 << 16,
     DOOR              = 1 << 17,
@@ -139,6 +140,7 @@ struct Physics_Object{
     b32 simulating = true;
 
     Vector2 velocity = Vector2_zero;  
+    Vector2 moved_last_frame = Vector2_zero;
     f32 angular_velocity = 0;
     
     f32 mass = 100.0f;
@@ -462,6 +464,12 @@ struct Player{
     f32 gravity_mult = 1;
     f32 max_blood_amount = 100;
     
+    f32 jump_press_time = -12;
+    f32 coyote_time = 0.3f;
+    f32 jump_buffer_time = 0.2f;
+    f32 wall_jump_buffer_time = 0.2f;
+    f32 wall_jump_time = -12;
+    
     f32 heavy_collision_time = 0;
     Vector2 heavy_collision_velocity = Vector2_zero;
     
@@ -749,8 +757,8 @@ struct Core{
 #define MAX_ENTITIES 10000
 
 struct Speedrun_Timer{
-    b32 level_timer_active = true;    
-    b32 game_timer_active = false;
+    b32 level_timer_active = false;    
+    b32 game_timer_active  = false;
     
     b32 paused = false;
     

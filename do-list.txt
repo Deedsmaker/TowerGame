@@ -1,7 +1,9 @@
+[ ] Booster for full invincibility.
+[X] Jump buffer and coyote time
 [X] Doors in editor should draw their opened position if they closed and closed position if they opened.
 [ ] Think on way to stop on the wall?
 [ ] Notes on levels.
-[ ] Test level reload.
+[X] Test level reload.
 [X] Check next/previous level load
 [X] Think about how we should control/block dynamic camera. Blockers seems to complicated, so maybe some rails system will be not only good enough, but also really cool. (We should just change (localvariable) target position in update camera for that to happen)
 [X]! Multiple autosaves
@@ -29,11 +31,11 @@
 [X] Centipede option for which side's spikes on (?)
 [X] Centipede customize segment size
 [X]! Custom cursor
-[ ] Timer
-    - One level speedrun and whole game speedrun. Whole level speedrun will put us in game start if we die.
-    - Timer will be on screen up. If it's level speedrun - above timer will be level name. If we die - timer stops and turns red. If we win: then timer stops and turns green.
-    - We need to add command for next level, first and last.
-    - We will tell info about speedrun commands after last level. So we need to know what our last level and first level.
+[X] Timer
+    [X] One level speedrun and whole game speedrun. Whole level speedrun will put us in game start if we die.
+    [X] Timer will be on screen up. If it's level speedrun - above timer will be level name. If we die - timer stops and turns red. If we win: then timer stops and turns green.
+    [X] We need to add command for next level, first and last. (We don't know yet our last level, but it will be possible when we'll make proper level order)
+    [ ] We will tell info about speedrun commands after last level. So we need to know what our last level and first level.
 [X] Try to give player control on sword size
 [X] Fix blockers
 [X] Sword color when can go into rifle
@@ -85,6 +87,7 @@
 [ ] Big centipedes without spikes that will act like a bridge. That may be escaping sequence, where we'll need to hop on centipedes, rope blocks etc.
 [ ] Escape sequence with constant big explosions and we need to hide below blocks
 [ ] Room with one explosive birdie, but we can't shoot (because of shoot stoper!!)
+[ ] Extreme action sequence with invincibility booster.
 ///////////////////////////////////////////////////
 
 <Battle ideas>

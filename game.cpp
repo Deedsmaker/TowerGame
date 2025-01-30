@@ -774,8 +774,6 @@ void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_St
 }
 
 b32 load_level(const char *level_name){
-    game_state = EDITOR;
-
     char *name;
     name = get_substring_before_symbol(level_name, '.');
 
@@ -789,6 +787,7 @@ b32 load_level(const char *level_name){
         return false;
     }
     
+    game_state = EDITOR;
     clean_up_scene();
     clear_context(&context);
     setup_particles();
@@ -1231,6 +1230,17 @@ void init_spawn_objects(){
     copy_entity(&block_base_object.entity, &block_base_entity);
     str_copy(block_base_object.name, block_base_entity.name);
     spawn_objects.add(block_base_object);
+    
+    Entity note_entity = Entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
+    note_entity.color = WHITE;
+    str_copy(note_entity.name, "note"); 
+    str_copy(note_entity.texture_name, "letter.png");
+    setup_color_changer(&note_entity);
+    
+    Spawn_Object note_object;
+    copy_entity(&note_object.entity, &note_entity);
+    str_copy(note_object.name, note_entity.name);
+    spawn_objects.add(note_object);
     
     Entity dummy_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
     dummy_entity.color  = Fade(GREEN, 0.5f);
@@ -1917,20 +1927,28 @@ void reload_level_files(){
 
 void print_hotkeys_to_console(){
     console.str += "\t>Ctrl+Shift+Space - Toggle Game/Editor\n";
-    console.str += "\t>Ctrl+Shift+J - Save current level\n";
-    console.str += "\t>Alt - See and move vertices\n";
-    console.str += "\t>Ctrl+V - While moving vertex for snap it to closest\n";
+    console.str += "\t>Ctrl+Shift+J - Save current level.\n";
+    console.str += "\t>Alt - See and move vertices with mouse.\n";
+    console.str += "\t>Alt+V - While moving vertex for snap it to closest.\n";
+    console.str += "\t>Alt+1-5 - Fast entities creation.\n";
     console.str += "\t>Space - Create menu\n";
     console.str += "\t>P - Move player spawn point\n";
-    console.str += "\t>Ctrl+Space - Pause in game\n\n";
-    console.str += "\t>Shift+Space - Freecam in game\n\n";
-    console.str += "\t>Right_Ctrl+L - Unlock camera\n\n";
+    console.str += "\t>Ctrl+Space - Pause in game\n";
+    console.str += "\t>Shift+Space - Freecam in game\n";
+    console.str += "\t>Right_Ctrl+L - Unlock camera\n";
+    console.str += "\t>G - Teleport player to mouse in game\n";
+    console.str += "\t>WASD - Scaling selected entity. Hold Alt for big.\n";
+    console.str += "\t>QE - Rotating selected entity. Hold Alt for big.\n";
     
     console.str += "Commands:\n\t>debug - debug commands info\n";
     console.str += "\t>save <level> - save current level or specify level where to save\n";
     console.str += "\t>level <level> - get current level name or load level if provided\n";
     console.str += "\t>load <level> - load level\n";
-    console.str += "\t>create/new_level <level> - create empty level\n";
+    console.str += "\t>create / new_level <level> - create empty level\n";
+    console.str += "\t>next / previous / reload / restart_game\n";
+    console.str += "\t>level_speedrun - Speedrun for levels\n";
+    console.str += "\t>game_speedrun - Whole game speedrun. Death puts in game begining.\n";
+    console.str += "\t>speedrun_disable\n";
 }
 
 void debug_unlock_camera(){
@@ -1945,6 +1963,11 @@ void print_debug_commands_to_console(){
     console.str += "\t>unlock_camera\n";
     console.str += "\t>full_light\n";
     console.str += "\t>collision_grid\n";
+    console.str += "\t>timescale <scale>\n";
+    
+    console.str += "\t>play_replay - Plays current recorded game state replay. (Single level)\n";
+    console.str += "\t>save_replay - Saves current replay to file\n";
+    console.str += "\t>replay_load - Loads replay from file\n";
     
     console.str += "\t\t>Debug Info:\n";
     console.str += "\t>player_speed\n";
@@ -2057,24 +2080,31 @@ void debug_toggle_play_replay(){
 
 void restart_game(){
     load_level(first_level_name);
+    enter_editor_state();
+    enter_game_state();
+    context.speedrun_timer.time = 0;        
 }
 
 void begin_level_speedrun(){
     reload_level();
-    if (game_state != GAME){
-        enter_game_state();
-    }
+    enter_editor_state();
+    enter_game_state();
     
-    context.speedrun_timer.level_timer_active = false;        
-    context.speedrun_timer.game_timer_active  = true;        
+    context.speedrun_timer.level_timer_active = true;        
+    context.speedrun_timer.game_timer_active  = false;        
     context.speedrun_timer.time = 0;        
 }
 
+void disable_speedrun(){
+    context.speedrun_timer.level_timer_active = false;
+    context.speedrun_timer.game_timer_active = false;
+    context.speedrun_timer.time = 0;
+}
+
 void begin_game_speedrun(){
-    reload_level();
-    if (game_state != GAME){
-        enter_game_state();
-    }
+    restart_game();
+    enter_editor_state();
+    enter_game_state();
     
     context.speedrun_timer.level_timer_active = false;        
     context.speedrun_timer.game_timer_active  = true;        
@@ -2112,6 +2142,7 @@ void init_console(){
     console.commands.add(make_console_command("restart_game",   restart_game, NULL));
     console.commands.add(make_console_command("level_speedrun", begin_level_speedrun, NULL));
     console.commands.add(make_console_command("game_speedrun",  begin_game_speedrun, NULL));
+    console.commands.add(make_console_command("speedrun_disable",  disable_speedrun, NULL));
     
     console.commands.add(make_console_command("timescale",   set_default_time_scale, set_time_scale));
     
@@ -2931,10 +2962,20 @@ void update_game(){
         }
     }
     
-    if (player_data.dead_man && game_state == GAME){
+    if (game_state == GAME && !console.is_open){
         if (IsKeyPressed(KEY_T)){
-            enter_editor_state();
-            enter_game_state();
+            if (context.speedrun_timer.game_timer_active && player_data.dead_man){
+                restart_game();
+                context.speedrun_timer.time = 0;
+            } else if (context.speedrun_timer.level_timer_active){
+                enter_editor_state();
+                enter_game_state();
+                context.speedrun_timer.time = 0;
+            } else if (player_data.dead_man){
+                enter_editor_state();
+                enter_game_state();
+                context.speedrun_timer.time = 0;
+            }
         }
     }
     
@@ -5524,6 +5565,12 @@ void update_player(Entity *entity, f32 dt){
         player_data.is_sword_big = !player_data.is_sword_big;
     }
     
+    f32 max_strong_stun_time = 2.0f;
+    f32 max_weak_stun_time = 0.8f;
+    f32 in_strong_stun_time = core.time.game_time - player_data.strong_recoil_stun_start_time;
+    f32 in_weak_stun_time   = core.time.game_time - player_data.weak_recoil_stun_start_time;
+    player_data.in_stun = core.time.game_time > 3 && (in_strong_stun_time <= max_strong_stun_time || in_weak_stun_time <= max_weak_stun_time);
+    
     Vector2 sword_target_size = player_data.sword_start_scale * (player_data.is_sword_big ? 6 : 1);
     
     change_scale(sword, lerp(sword->scale, sword_target_size, dt * 5));
@@ -5548,7 +5595,7 @@ void update_player(Entity *entity, f32 dt){
         player_data.rifle_active = false;
     }
     
-    b32 can_sword_spin = !player_data.rifle_active;
+    b32 can_sword_spin = !player_data.rifle_active && !player_data.in_stun;
     
     f32 sword_max_spin_speed = 5000;
     if (can_sword_spin){
@@ -5683,12 +5730,6 @@ void update_player(Entity *entity, f32 dt){
     
     player_data.since_jump_timer += dt;
     
-    f32 max_strong_stun_time = 2.0f;
-    f32 max_weak_stun_time = 0.8f;
-    f32 in_strong_stun_time = core.time.game_time - player_data.strong_recoil_stun_start_time;
-    f32 in_weak_stun_time   = core.time.game_time - player_data.weak_recoil_stun_start_time;
-    player_data.in_stun = core.time.game_time > 3 && (in_strong_stun_time <= max_strong_stun_time || in_weak_stun_time <= max_weak_stun_time);
-    
     if (!player_data.in_stun){
         player_data.stun_emitter->enabled = false;
     } else{
@@ -5763,7 +5804,17 @@ void update_player(Entity *entity, f32 dt){
         
     }
     
-    if (player_data.grounded && input.press_flags & JUMP){
+    if (input.press_flags & JUMP){
+        player_data.jump_press_time = core.time.game_time;
+    }
+    
+    f32 time_since_jump_press = core.time.game_time - player_data.jump_press_time;
+    
+    b32 need_jump = (input.press_flags & JUMP && player_data.grounded)
+                 || (player_data.grounded && time_since_jump_press <= player_data.jump_buffer_time) 
+                 || (input.press_flags & JUMP && player_data.since_airborn_timer <= player_data.coyote_time);
+    
+    if (need_jump){
         push_player_up(player_data.jump_force);
     }
     
@@ -5780,6 +5831,9 @@ void update_player(Entity *entity, f32 dt){
     
     //player collisions
     
+    f32 time_since_wall_jump = core.time.game_time - player_data.wall_jump_time;
+    f32 player_speed = magnitude(player_data.velocity);
+    
     // player left wall
     fill_collisions(left_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT | PLATFORM);
     for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
@@ -5787,10 +5841,10 @@ void update_player(Entity *entity, f32 dt){
         Entity *other = col.other_entity;
         assert(col.collided);
         
-        if (input.press_flags & JUMP){
+        if (time_since_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
             player_data.velocity += col.normal * player_data.jump_force;
+            player_data.wall_jump_time = core.time.game_time;
         }
-
         
         if (player_data.sword_spin_direction > 0){
             break;
@@ -5800,10 +5854,13 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        Vector2 plane = get_rotated_vector_90(col.normal, -player_data.sword_spin_direction);
+        Vector2 plane = get_rotated_vector(col.normal, -player_data.sword_spin_direction * -95);
         f32 spin_t = player_data.sword_spin_progress;
         
         f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
+        if (player_speed <= 5){
+            acceleration *= 10;
+        }
         
         if (other->flags & PHYSICS_OBJECT){
             other->physics_object.velocity -= (plane * acceleration * dt) / other->physics_object.mass;
@@ -5824,10 +5881,10 @@ void update_player(Entity *entity, f32 dt){
         Entity *other = col.other_entity;
         assert(col.collided);
         
-        if (input.press_flags & JUMP){
+        if (time_since_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
             player_data.velocity += col.normal * player_data.jump_force;
+            player_data.wall_jump_time = core.time.game_time;
         }
-
         
         if (player_data.sword_spin_direction < 0){
             break;
@@ -5837,10 +5894,13 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        Vector2 plane = get_rotated_vector_90(col.normal, -player_data.sword_spin_direction);
+        Vector2 plane = get_rotated_vector(col.normal, -player_data.sword_spin_direction * -95);
         f32 spin_t = player_data.sword_spin_progress;
         
         f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
+        if (player_speed <= 5){
+            acceleration *= 10;
+        }
         
         if (other->flags & PHYSICS_OBJECT){
             other->physics_object.velocity -= (plane * acceleration * dt) / other->physics_object.mass;
@@ -6412,7 +6472,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
         if (charging_time >= bird->max_charging_time){
             f32 time_since_last_bird_attacked = core.time.game_time - context.last_bird_attack_time;
             
-            if (time_since_last_bird_attacked >= 0.2f){
+            if (time_since_last_bird_attacked >= 0.4f){
                 //bird start attack
                 context.last_bird_attack_time = core.time.game_time;
                 change_scale(entity, entity->enemy.original_scale);
@@ -7167,7 +7227,7 @@ i32 update_trigger(Entity *e){
     
     if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided){
         if (e->trigger.load_level){
-            b32 we_on_last_level = !e->trigger.level_name[0];
+            b32 we_on_last_level = str_equal(e->trigger.level_name, "LAST_LEVEL_MARK");
             if (we_on_last_level || context.speedrun_timer.level_timer_active){
                 win_level();
             } else{
@@ -7262,19 +7322,26 @@ void activate_door(Entity *entity, b32 is_open){
 
 Collision get_nearest_ground_collision(Vector2 point, f32 radius){
     Array<Vector2, MAX_VERTICES> vertices;
+    f32 radius_step = 4;
+    f32 current_radius = 0;
+    
     add_rect_vertices(&vertices, {0.5f, 0.5f});    
-    for (int i = 0; i < vertices.count; i++){
-        *vertices.get_ptr(i) *= 2.0f * radius;
-    }
-    
-    Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
-    
-    fill_collisions(point, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
-    
-    for (int i = 0; i < collisions_buffer.count; i++){
-        Collision col = collisions_buffer.get(i);
-        if (col.collided){
-            return col;
+    while (current_radius <= radius){
+        current_radius += radius_step        ;
+        for (int i = 0; i < vertices.count; i++){
+            *vertices.get_ptr(i) = normalized(vertices.get(i)) * current_radius;
+            rotate_around_point(vertices.get_ptr(i), {0, 0}, 33);
+        }
+        
+        Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
+        
+        fill_collisions(point, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
+        
+        for (int i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
+            if (col.collided){
+                return col;
+            }
         }
     }
     
@@ -7556,6 +7623,7 @@ void update_entities(f32 dt){
         
         if (e->flags & PHYSICS_OBJECT && e->physics_object.simulating){
             //update physics object 
+            Vector2 last_position = e->position;
             e->physics_object.velocity.y -= GRAVITY * e->physics_object.gravity_multiplier * dt;
             
             if (e->physics_object.on_rope){
@@ -7569,6 +7637,8 @@ void update_entities(f32 dt){
             }
             
             move_by_velocity_with_collisions(e, e->physics_object.velocity, e->scale.x * 0.5f + e->scale.y * 0.5f, &respond_physics_object_collision, dt);
+            
+            e->physics_object.moved_last_frame = e->position - last_position;
         }
         
         if (e->flags & CENTIPEDE && debug.enemy_ai && !e->enemy.dead_man){
@@ -7630,6 +7700,7 @@ void update_entities(f32 dt){
                 rotate(e, shooter->velocity.x * 30 * dt);
                 shooter->states = {};
                 shooter->states.standing = false;
+                shooter->states.standing_start_time = core.time.game_time;
                 
                 if (is_stunned){
                     enemy->was_in_stun = true;
@@ -7650,7 +7721,7 @@ void update_entities(f32 dt){
                 f32 standing_time = core.time.game_time - shooter->states.standing_start_time;
                 f32 max_standing_time = 3.0f;
                 
-                Collision nearest_ground = get_nearest_ground_collision(e->position, e->scale.x * 0.5f + e->scale.y * 0.5f);
+                Collision nearest_ground = get_nearest_ground_collision(e->position, e->scale.x * 0.7f + e->scale.y * 0.7f);
                 
                 if (nearest_ground.collided){
                     shooter->velocity = Vector2_zero;
@@ -7698,16 +7769,16 @@ void update_entities(f32 dt){
                             point = ray_collision.point;
                             normal = ray_collision.normal;
                         } else{
-                            // point = nearest_ground.point;
-                            // normal = nearest_ground.normal;
+                            point = nearest_ground.point;
+                            normal = nearest_ground.normal;
                         }
                         
                         Vector2 dir = normalized(e->position - point);
-                        e->position = point + dir * e->scale.y * 0.5f;
+                        e->position = move_towards(e->position, point + dir * e->scale.y * 0.5f, 50, dt);
                         change_up(e, move_towards(e->up, normal, 10, dt));
                         
                         if (nearest_ground.other_entity->flags & PHYSICS_OBJECT){
-                            e->position += nearest_ground.other_entity->physics_object.velocity * dt;
+                            e->position += nearest_ground.other_entity->physics_object.moved_last_frame;
                         }
                         
                         if (nearest_ground.other_entity->flags & MOVE_SEQUENCE){
@@ -7766,7 +7837,7 @@ void update_entities(f32 dt){
                     explosive_indexes.clear();
                     
                     for (i32 i = 0; i < shooter->explosive_count; i++){
-                        i32 explosive_index = /*rnd(0, shooter->shots_count)*/ (i32)core.time.game_time % shooter->shots_count;
+                        i32 explosive_index = /*rnd(0, shooter->shots_count)*/ (i32)core.time.game_time * (explosive_indexes.count + 1) % shooter->shots_count;
                         while (explosive_indexes.contains(explosive_index)){
                             explosive_index = (explosive_index+1) % shooter->shots_count;
                         }
@@ -8115,12 +8186,25 @@ void draw_entity(Entity *e){
     
     if (e->flags & TEXTURE){
         // draw texture
-        Vector2 position = e->position;
-        if (e->flags & STICKY_TEXTURE){
-            position = e->sticky_texture.texture_position;
-            e->scale = ((Vector2){3, 3}) / context.cam.cam2D.zoom; 
+        
+        i32 exclude_flags = NOTE;
+        
+        if (!(e->flags & exclude_flags)){
+            Vector2 position = e->position;
+            if (e->flags & STICKY_TEXTURE){
+                position = e->sticky_texture.texture_position;
+                e->scale = ((Vector2){3, 3}) / context.cam.cam2D.zoom; 
+            }
+            draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
         }
-        draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
+    }
+    
+    // draw note
+    if (e->flags & NOTE && game_state == EDITOR || game_state == PAUSE){
+        draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
+        if (editor.selected_entity && editor.selected_entity->id == e->id || IsKeyDown(KEY_LEFT_SHIFT)){
+            // make_input_field(
+        }
     }
     
     if (e->flags & GROUND || e->flags & PLATFORM || e->flags == 0 || e->flags & PROJECTILE){
