@@ -152,7 +152,7 @@ void set_shader_value_tex(Shader shader, int loc, Texture tex){
     SetShaderValueTexture(shader, loc, tex);
 }
     
-void draw_text_boxed(const char *text, Rectangle rec, float fontSize, float spacing, Color tint)
+void draw_text_boxed(const char *text, Rectangle rec, float fontSize, float spacing, Color tint, b32 up_to_down = true)
 {
     int length = str_len(text); 
 
@@ -172,7 +172,9 @@ void draw_text_boxed(const char *text, Rectangle rec, float fontSize, float spac
             textOffsetY += font.baseSize * scaleFactor;
         }
     }
-    textOffsetY -= font.baseSize * scaleFactor;
+    if (!up_to_down){
+        textOffsetY -= font.baseSize * scaleFactor;
+    }
 
     for (int i = 0; i < length; i++)
     {
@@ -213,7 +215,8 @@ void draw_text_boxed(const char *text, Rectangle rec, float fontSize, float spac
             // Draw current character glyph
             if ((codepoint != ' ') && (codepoint != '\t'))
             {
-                DrawTextCodepoint(font, codepoint, (Vector2){ rec.x + textOffsetX, rec.y + rec.height - textOffsetY }, fontSize, tint);
+                f32 y_pos = up_to_down ? rec.y + textOffsetY : rec.y + rec.height - textOffsetY;
+                DrawTextCodepoint(font, codepoint, (Vector2){ rec.x + textOffsetX, y_pos }, fontSize, tint);
             }
         }
 

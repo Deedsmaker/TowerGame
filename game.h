@@ -95,6 +95,8 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
 
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier = 1, Color tint = WHITE);
 
+Texture get_texture(const char *name);
+
 Vector2 world_to_screen(Vector2 pos);
 Vector2 world_to_screen_with_zoom(Vector2 position);
 Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale);
@@ -123,6 +125,8 @@ void load_anim(Dynamic_Array<Texture> *frames, const char *name);
 Entity* add_text(Vector2 pos, f32 size, const char *text);
 
 void copy_entity(Entity *dest, Entity *src);
+
+i32 add_note(const char *content);
 
 void init_light(Light *light);
 i32 init_entity_light(Entity *entity, Light *copy_light = NULL, b32 free_light = false);

@@ -10,6 +10,8 @@
 
 #define ForEntities(entity, flags) Entity *entity = NULL; for (int index = next_entity_avaliable(0, &entity, flags); index < context.entities.max_count && entity; index = next_entity_avaliable(index+1, &entity, flags)) 
 
+#define ArrayOfStructsToDefaultValues(arr) for (i32 arr_index = 0; arr_index < arr.max_count; arr_index++){ (*arr.get_ptr(arr_index)) = {};}
+
 //#define For(arr, type, value) for(int ii = 0; ii < arr.count; ii++){ type value = arr.get(ii);
 
 global_variable Input input;
@@ -321,7 +323,10 @@ Entity::Entity(Entity *copy, b32 keep_id){
     if (flags & TEXTURE){
         texture = copy->texture;
         scaling_multiplier = {texture.width / context.cam.unit_size, texture.height / context.cam.unit_size};
-        scale = {texture.width / 10.0f, texture.height / 10.0f};
+        // This means that copy is just texture. Visual flakes.
+        if (copy->scale == Vector2_one){
+            scale = {texture.width / 10.0f, texture.height / 10.0f};
+        }
         str_copy(texture_name, copy->texture_name);
     }
     color_changer = copy->color_changer;
@@ -356,6 +361,10 @@ Entity::Entity(Entity *copy, b32 keep_id){
                 trigger.cam_rails_points.add(copy->trigger.cam_rails_points.get(i));               
             }
         }
+    }
+    
+    if (flags & NOTE){
+        note_index = add_note(copy->note_index != -1 ? context.notes.get_ptr(copy->note_index)->content : "");
     }
     
     if (flags & MOVE_SEQUENCE){
@@ -406,13 +415,19 @@ void parse_line(const char *line, char *result, int *index){
     *index = i;
 }
 
-// void copy_context(Context *dest, Context *src){
-//     //*dest = *src;
-
-//     copy_array(&dest->entities, &src->entities);
-//     //copy_array(&dest->particles, &src->particles);
-//     copy_array(&dest->emitters, &src->emitters);
-// }
+i32 add_note(const char *content){
+    i32 note_index = -1;
+    for (i32 i = 0; i < context.notes.max_count; i++){
+        if (!context.notes.get_ptr(i)->occupied){
+            context.notes.get_ptr(i)->occupied = true;
+            str_copy(context.notes.get_ptr(i)->content, content);
+            note_index = i;
+            break;
+        }
+    }
+    
+    return note_index;
+}
 
 void clear_context(Context *c){
     ForEntities(entity, 0){
@@ -423,6 +438,8 @@ void clear_context(Context *c){
     c->entities.clear();
     c->particles.clear();
     c->emitters.clear();
+    
+    ArrayOfStructsToDefaultValues(context.notes);
     
     for (int i = 0; i < context.lights.max_count; i++){
         context.lights.get_ptr(i)->exists = false;
@@ -444,10 +461,11 @@ i32 save_level(const char *level_name){
         return -1;
     }
 
-    char *name;
-    name = get_substring_before_symbol(level_name, '.');
+    char name[1024];
+    str_copy(name, get_substring_before_symbol(level_name, '.'));
 
-    const char *level_path = text_format("levels/%s.level", name);
+    char level_path[1024];
+    str_copy(level_path, text_format("levels/%s.level", name));
     FILE *fptr;
     fptr = fopen(text_format(level_path, name), "w");
     
@@ -644,6 +662,11 @@ i32 save_level(const char *level_name){
             fprintf(fptr, "texture_name:%s: ", e->texture_name);
         }
         
+        if (e->flags & NOTE){
+            assert(e->note_index != -1);
+            fprintf(fptr, "note_content:\" %s \": ", context.notes.get_ptr(e->note_index)->content);
+        }
+        
         fprintf(fptr, ";\n"); 
     }
     
@@ -773,9 +796,20 @@ void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_St
     }
 }
 
+void fill_string(char *dest, Dynamic_Array<Medium_Str> line_arr, int *index_ptr){
+    assert(line_arr.get(*index_ptr + 1).data[0] == '\"');
+    
+    *index_ptr += 2;
+    
+    for (; *index_ptr < line_arr.count && line_arr.get(*index_ptr).data[0] != '\"'; *index_ptr += 1){
+        Medium_Str current_str = line_arr.get(*index_ptr);
+        str_copy(dest, text_format("%s %s", dest, current_str.data));
+    }
+}
+
 b32 load_level(const char *level_name){
-    char *name;
-    name = get_substring_before_symbol(level_name, '.');
+    char name[1024];
+    str_copy(name, get_substring_before_symbol(level_name, '.'));
 
     const char *level_path = text_format("levels/%s.level", name);
     File file = load_file(level_path, "r");
@@ -814,6 +848,7 @@ b32 load_level(const char *level_name){
         split_str(line.data, ":{}, ;", &splitted_line);
         
         Entity entity_to_fill = Entity();
+        Note note_to_fill = {};
         
         for (int i = 0; i < splitted_line.count; i++){
             if (parsing_setup_data){
@@ -1091,7 +1126,9 @@ b32 load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "move_sequence_points")){
                 fill_vector2_array_from_string(&entity_to_fill.move_sequence.points, splitted_line, &i);
-                //i++;
+            } else if (str_equal(splitted_line.get(i).data, "note_content")){
+                //str_copy(note_to_fill.content, splitted_line.get(i+1).data);
+                fill_string(note_to_fill.content, splitted_line, &i);
             } else{
                 //assert(false);
                 print("Something unknown during level load");
@@ -1101,12 +1138,21 @@ b32 load_level(const char *level_name){
         if (parsing_entities){
             if (entity_to_fill.flags & TEXTURE){
                 i64 texture_hash = hash_str(entity_to_fill.texture_name);
-                assert(textures_table.has_key(texture_hash));
-                entity_to_fill.texture = textures_table.get_by_key(texture_hash);
+                if (textures_table.has_key(texture_hash)){
+                    entity_to_fill.texture = textures_table.get_by_key(texture_hash);
+                } else{
+                    print(text_format("WARNING: While loading entities could not find texture named %s.", entity_to_fill.texture_name));
+                }
             }
             
             setup_color_changer(&entity_to_fill);
             Entity *added_entity = add_entity(&entity_to_fill, true);
+            
+            if (added_entity->flags & NOTE){
+                assert(added_entity->note_index != -1);
+                str_copy(context.notes.get_ptr(added_entity->note_index)->content, note_to_fill.content);
+            }
+            
             init_entity(added_entity);
             //rotate_to(added_entity, added_entity->rotation);
             
@@ -1231,10 +1277,11 @@ void init_spawn_objects(){
     str_copy(block_base_object.name, block_base_entity.name);
     spawn_objects.add(block_base_object);
     
-    Entity note_entity = Entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
-    note_entity.color = WHITE;
+    Entity note_entity = Entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
+    note_entity.color = Fade(WHITE, 0.7f);
     str_copy(note_entity.name, "note"); 
-    str_copy(note_entity.texture_name, "letter.png");
+    str_copy(note_entity.texture_name, "editor_note.png");
+    note_entity.texture = get_texture(note_entity.texture_name);
     setup_color_changer(&note_entity);
     
     Spawn_Object note_object;
@@ -2359,8 +2406,8 @@ void init_game(){
 
     current_level = {};
     
-    init_spawn_objects();
     load_textures();
+    init_spawn_objects();
     
     jump_shooter_bullet_hint_texture = get_texture("JumpShooterHintBullet.png");
     
@@ -2714,7 +2761,7 @@ void update_console(){
         } else{
             console.is_open = true;
             console.opened_time = core.time.app_time;
-            make_next_input_field_in_focus();
+            make_next_input_field_in_focus("console");
         }
     }
             
@@ -4376,7 +4423,8 @@ void update_editor_ui(){
     }
     
     //create box
-    b32 can_control_create_box = !console.is_open;
+    b32 writing_other_input_field = focus_input_field.in_focus && !editor.create_box_active;
+    b32 can_control_create_box = !console.is_open && !writing_other_input_field;
     b32 need_close_create_box = false;
     
     if (can_control_create_box && IsKeyPressed(KEY_SPACE) && editor.in_editor_time > 0.05f){
@@ -4388,7 +4436,7 @@ void update_editor_ui(){
             editor.create_box_active = true;
             editor.create_box_closing = false;
             editor.create_box_lifetime = 0;
-            make_next_input_field_in_focus();
+            make_next_input_field_in_focus("create_box");
             assign_selected_entity(NULL);
         }
     }
@@ -4605,7 +4653,8 @@ void update_editor(){
             editor_spawn_entity("enemy_bird", input.mouse_position);
         }
         if (IsKeyPressed(KEY_FIVE)){
-            editor_spawn_entity("dummy_entity", input.mouse_position);
+            assign_selected_entity(editor_spawn_entity("note", input.mouse_position));
+            make_next_input_field_in_focus("note");
         }
     }
     
@@ -6699,7 +6748,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 u64 additional_flags = 0;
                 if (other_entity->flags & PLAYER) additional_flags |= CENTIPEDE_SEGMENT | CENTIPEDE;
                 
-                Collision raycast_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other, GROUND | additional_flags, 4, enemy_entity->id);
+                Collision raycast_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other, GROUND | additional_flags, 2, enemy_entity->id);
                 if (raycast_collision.collided){
                     emit_particles(ground_splash_emitter, raycast_collision.point, raycast_collision.normal, 4, 5.5f);
                     continue;
@@ -7241,11 +7290,13 @@ i32 update_trigger(Entity *e){
         if (e->trigger.start_cam_rails_horizontal){
             context.cam.on_rails_horizontal = true;
             context.cam.on_rails_vertical = false;
+            context.cam.locked = false;
             context.cam.rails_trigger_id = e->id;
         }
         if (e->trigger.start_cam_rails_vertical){
             context.cam.on_rails_vertical = true;
             context.cam.on_rails_horizontal = false;
+            context.cam.locked = false;
             context.cam.rails_trigger_id = e->id;
         }
         if (e->trigger.stop_cam_rails){
@@ -7264,8 +7315,12 @@ i32 update_trigger(Entity *e){
         
         if (e->trigger.unlock_camera){
             context.cam.locked = false;
+            context.cam.on_rails_horizontal = false;
+            context.cam.on_rails_vertical = false;
         } else if (e->trigger.lock_camera){
             context.cam.locked = true;
+            context.cam.on_rails_horizontal = false;
+            context.cam.on_rails_vertical = false;
             context.cam.target = e->trigger.locked_camera_position;
         }
     
@@ -8201,9 +8256,20 @@ void draw_entity(Entity *e){
     
     // draw note
     if (e->flags & NOTE && game_state == EDITOR || game_state == PAUSE){
+        assert(e->note_index != -1);
         draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
-        if (editor.selected_entity && editor.selected_entity->id == e->id || IsKeyDown(KEY_LEFT_SHIFT)){
-            // make_input_field(
+        // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
+        if (editor.selected_entity && editor.selected_entity->id == e->id || IsKeyDown(KEY_LEFT_SHIFT) || focus_input_field.in_focus && str_contains(focus_input_field.tag, text_format("%d", e->id))){
+            Note *note = context.notes.get_ptr(e->note_index);
+            Vector2 note_size = {screen_width * 0.2f, screen_height * 0.2f};
+            i32 content_count = str_len(note->content);
+            f32 chars_scaling_treshold = 200 * UI_SCALING;
+            if (content_count > chars_scaling_treshold){
+                note_size *= lerp(1.0f, 2.5f, clamp01(((f32)content_count - chars_scaling_treshold) / (chars_scaling_treshold * 4)));
+            }
+            if (make_input_field(note->content, world_to_screen_with_zoom(e->position + ((Vector2){e->scale.x * 0.5f, e->scale.y * -0.5f})), note_size, text_format("note%d", e->id))){
+                str_copy(note->content, focus_input_field.content);
+            }
         }
     }
     
@@ -8747,16 +8813,18 @@ void draw_ui(const char *tag){
             continue;
         }
         
-        Color background_color = input_field.color;
+        Color background_color = Fade(input_field.color, 0.6f);
         if (input_field.in_focus){
-            background_color = Fade(ColorTint(background_color, ColorBrightness(SKYBLUE, 0.2f)), 1.5f);
+            background_color = Fade(ColorTint(background_color, ColorBrightness(SKYBLUE, 0.2f)), 0.7f);
         }
         draw_rect(input_field.position, input_field.size, {0, 0}, 0, background_color);
         
+        Vector2 field_position = input_field.position + Vector2_right * 3;
+        Rectangle field_rec = {field_position.x, field_position.y, input_field.size.x, input_field.size.y};
         if (input_field.in_focus){
-            draw_text(text_format("%s_", input_field.content), input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);
+            draw_text_boxed(text_format("%s_", input_field.content), field_rec, input_field.font_size, 3, WHITE * 0.9f);
         } else{
-            draw_text(input_field.content, input_field.position + Vector2_right * 3, input_field.font_size, WHITE * 0.9f);
+            draw_text_boxed(input_field.content, field_rec, input_field.font_size, 3, WHITE * 0.9f);
         }
     }
     
@@ -9142,7 +9210,7 @@ void draw_game(){
         f32 y_position = lerp(-screen_height * 0.6f, 0.0f, EaseOutQuint(console.open_progress));
         
         draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
-        draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color);
+        draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color, false);
         draw_text(text_format("App time: %.2f", core.time.app_time), {screen_width * 0.46f, 5.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
         draw_text(text_format("Game time: %.2f", core.time.game_time), {screen_width * 0.46f, 20.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
     } else{

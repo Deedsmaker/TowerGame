@@ -1,7 +1,7 @@
 #pragma once
 
-#define MAX_INPUT_FIELDS 32
-#define INPUT_FIELD_MAX_CHARS 256
+#define MAX_INPUT_FIELDS 64
+#define INPUT_FIELD_MAX_CHARS 1024
 
 struct Input_Field{
     Vector2 position;
@@ -66,15 +66,16 @@ void update_input_field(){
 
         int key = GetCharPressed();
 
+        if (just_focused && IsKeyPressed(KEY_BACKSPACE)){
+            just_focused = false;
+            focus_input_field.chars_count = 0;
+        }
+
         while (key > 0)
         {
             if ((key >= 32) && (key <= 125) && (focus_input_field.chars_count < INPUT_FIELD_MAX_CHARS))
             {
-                if (just_focused){
-                    just_focused = false;
-                    focus_input_field.chars_count = 0;
-                }
-            
+                just_focused = false;
                 int content_len = str_len(focus_input_field.content);
                 char char_key = (char)key;
                 
@@ -138,9 +139,9 @@ void update_input_field(){
 //     focus_input_field = input_fields.last();
 // }
 
-global_variable b32 make_next_in_focus = false;
-void make_next_input_field_in_focus(){
-    make_next_in_focus = true;
+global_variable char next_to_make_focused_tag[512] = "\0";
+void make_next_input_field_in_focus(const char *tag){
+    str_copy(next_to_make_focused_tag, tag);
 }
 
 void copy_input_field(Input_Field *dest, Input_Field *src){
@@ -154,7 +155,9 @@ void copy_input_field(Input_Field *dest, Input_Field *src){
 b32 make_input_field(const char *content, Vector2 position, Vector2 size, const char *tag, Color color = GRAY, bool remove_focus_after_enter = true){
     //means it's the same and we want to keep all contents
     Input_Field input_field = {position, size};
-    input_field.size.y = input_field.font_size;
+    if (size.y < 50){
+        input_field.size.y = input_field.font_size;
+    }
     input_field.color = color;
     input_field.index = input_fields.count;
     
@@ -188,10 +191,10 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         input_field.color = ColorBrightness(input_field.color, 0.2f);
     }
     
-    if (make_next_in_focus || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && hovered_over){
+    if (next_to_make_focused_tag[0] && str_contains(tag, next_to_make_focused_tag) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && hovered_over){
         input_field.in_focus = true;
         //str_copy(input_field.content, "");
-        make_next_in_focus = false;
+        next_to_make_focused_tag[0] = '\0';
         copy_input_field(&focus_input_field, &input_field);
         just_focused = true;
         clicked_ui = true;

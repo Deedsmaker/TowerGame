@@ -1,8 +1,8 @@
 #pragma once
 
-#define MAX_BUTTONS 32
-#define MAX_UI_IMAGES 32
-#define MAX_UI_TEXTS 64
+#define MAX_BUTTONS 128
+#define MAX_UI_IMAGES 128
+#define MAX_UI_TEXTS 128
 #define MAX_UI_ELEMENTS 256
 
 #define UI_FLAGS u32

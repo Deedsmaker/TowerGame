@@ -630,6 +630,7 @@ struct Entity{
     Centipede centipede;
     Physics_Object physics_object;
     Jump_Shooter jump_shooter;
+    i32 note_index = -1;
     
     i32 light_index = -1;
 };
@@ -765,11 +766,18 @@ struct Speedrun_Timer{
     f32 time = 0;
 };
 
+struct Note{
+    b32 occupied = false;
+    char content[2048] = "\0";
+};
+
 struct Context{
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
     Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(20000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
+    
+    Dynamic_Array<Note> notes = Dynamic_Array<Note>(128);
     
     Dynamic_Array<Light> lights = Dynamic_Array<Light>(256);
     i32 temp_lights_count = 64;
