@@ -1,5 +1,5 @@
 [hook "prepush"]
-	cmdline = D:\\Code\\nocheckin_python.py
+	cmdline = D:\\Code\\pre_push_nocheckin_hook.bat
 	wait = true
 	show = true
 [hook "precommit"]
