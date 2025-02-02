@@ -1,8 +1,5 @@
 [hook "prepush"]
-	cmdline = D:\\Code\\pre_push_nocheckin_hook.bat
-	wait = true
-	show = true
 [hook "precommit"]
-	cmdline = D:\\Code\\pre_push_nocheckin_hook.bat
+	cmdline = D:\\Code\\pre_push_no__check__in_hook.bat
 	wait = true
 	show = true
