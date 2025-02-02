@@ -1774,7 +1774,6 @@ void init_entity(Entity *entity){
         // init centipede
         // free_entity(entity);
         
-        // nocheckin
         Centipede *centipede = &entity->centipede;
         centipede->segments_ids.clear();
         // centipede->segments_ids.add(entity->id);
