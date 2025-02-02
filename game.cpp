@@ -1418,7 +1418,7 @@ void init_spawn_objects(){
     str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
     spawn_objects.add(enemy_trigger_object);
     
-    Entity centipede_entity = Entity({0, 0}, {7, 5}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE);
+    Entity centipede_entity = Entity({0, 0}, {7, 5}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
     centipede_entity.move_sequence.moving = true;
     centipede_entity.move_sequence.loop = true;
     centipede_entity.move_sequence.rotate = true;
@@ -1704,6 +1704,7 @@ void init_entity(Entity *entity){
         init_bird_entity(entity);
     }
 
+    // init explosive
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
         entity->flags |= LIGHT;
@@ -1711,9 +1712,11 @@ void init_entity(Entity *entity){
         if (entity->light_index != -1){
             explosive_light = context.lights.get(entity->light_index);
         } 
+        // explosive_light.make_backshadows = false; @WTF screen goes black in game mode with this shit. Should change the way lights stored and way we get access to them so don't bother, but wtf ebat (also render doc don't loading with this shit)
         if (entity->enemy.explosive_radius_multiplier >= 3){
             explosive_light.shadows_size_flags = BIG_LIGHT;
             explosive_light.backshadows_size_flags = BIG_LIGHT;
+            explosive_light.make_backshadows = true;
         } else if (entity->enemy.explosive_radius_multiplier > 1){
             explosive_light.shadows_size_flags = MEDIUM_LIGHT;
             explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
@@ -1795,8 +1798,12 @@ void init_entity(Entity *entity){
             segment->move_sequence = entity->move_sequence;
             
             segment->hidden = entity->hidden;
-            segment->enemy.gives_full_ammo = entity->enemy.gives_full_ammo;
+            
+            segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
+            segment->enemy = entity->enemy;
         }
+        
+        entity->flags ^= ENEMY;
     }
     
     if (entity->flags & JUMP_SHOOTER){
@@ -4986,7 +4993,7 @@ void update_editor(){
             b32 wanna_clear_cam_rails_points = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L);
             //trigger assign or remove
             if (wanna_assign || wanna_remove){
-                fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY);
+                fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY | TEXTURE);
                 
                 for (int i = 0; i < collisions_buffer.count; i++){
                     Collision col = collisions_buffer.get(i);
@@ -5996,7 +6003,7 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other)){
+        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other) && !(other->flags & CENTIPEDE_SEGMENT)){
             try_sword_damage_enemy(other, sword, col.point);
             continue;
         }
@@ -6144,7 +6151,7 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other)){
+        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other) && !(other->flags & CENTIPEDE_SEGMENT)){
             try_sword_damage_enemy(other, sword, col.point);
             continue;
         }
@@ -6381,7 +6388,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         }
         
         b32 exploded = false;
-        if (bird->attacking && bird_entity->flags & EXPLOSIVE && !(bird_entity->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & BIRD_ENEMY){
+        if (bird->attacking && bird_entity->flags & EXPLOSIVE && !(bird_entity->flags & BLOCKER) && !(other->flags & BIRD_ENEMY)){
             kill_enemy(bird_entity, col.point, col.normal);
             exploded = true;
         }
@@ -7203,6 +7210,11 @@ void trigger_verify_connected(Entity *e){
 }
 
 void update_editor_entity(Entity *e){
+    if (e->flags & CENTIPEDE){
+        e->flags |= ENEMY;
+        // e->enemy.dead_man = true;
+    }
+
     if (e->flags & TRIGGER){
         trigger_verify_connected(e);
     }

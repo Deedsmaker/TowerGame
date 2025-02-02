@@ -21,6 +21,17 @@ uniform sampler2D backshadows_texture;
 
 out vec4 finalColor;
 
+vec3 lin_to_srgb(vec4 color)
+{
+   vec3 x = color.rgb * 12.92;
+   vec3 y = 1.055 * pow(clamp(color.rgb, 0.0, 1.0), vec3(0.4166667)) - 0.055;
+   vec3 clr = color.rgb;
+   clr.r = (color.r < 0.0031308) ? x.r : y.r;
+   clr.g = (color.g < 0.0031308) ? x.g : y.g;
+   clr.b = (color.b < 0.0031308) ? x.b : y.b;
+   return clr.rgb;
+}
+
 void main()
 {
     vec2 uv = fragTexCoord;

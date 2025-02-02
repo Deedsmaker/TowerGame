@@ -1,7 +1,8 @@
+[ ] Enemy waves functionality
 [ ] We should strongly slow down time when bird is about to kill player so he can react. This could be on a time-cooldown.
 [ ] Change way we draw all editor stuff to immediate and draw this in separate pass, so it won't be affected by light. Also should draw new clue for player when birdies charging attack - this could be a red line that gets wider.
 [ ] Maybe we should put more effort to teaching how to stop sword and why it's useful. 
-[ ] Don't forget to write string lib modifications before pushing. Should add nocheckin functionality.
+[X] Don't forget to write string lib modifications before pushing. Should add n|o|c|h|e|c|k|i|n functionality.
 [ ] Booster for full invincibility.
 [X] Jump buffer and coyote time
 [X] Doors in editor should draw their opened position if they closed and closed position if they opened.
@@ -119,7 +120,7 @@
 
 <VISUAL>
 /////////////////////////////////////////////////////////
-[ ] For sure should make a wind. Wind could be a important in telling the directions aswell. At least we can make that debris will fly with wind. We could make some semi-physical visual elements that would react to wind. We need spesial line-like wind particles.
+[ ] For sure should make a wind. Wind could be a important in telling the directions aswell. At least we can make that debris will fly with wind. We could make some semi-physical visual elements that would react to wind. We need spesial line-like wind particles. They could use some sort of fluid simulation.
 [ ] Maybe mirrors and something to do with them? Maybe someone that we can see only in mirror. Maybe mirrors play with light.
 [ ] Snow with light blinks
 [ ] On enemy attack we can briefly show line that will fade away
