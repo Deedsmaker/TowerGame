@@ -1215,7 +1215,7 @@ global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dyn
 
 global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
 
-#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT)
+#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER)
 
 Entity *spawn_object_by_name(const char* name, Vector2 position){
     for (int i = 0; i < spawn_objects.count; i++){
@@ -1774,6 +1774,7 @@ void init_entity(Entity *entity){
         // init centipede
         // free_entity(entity);
         
+        // nocheckin
         Centipede *centipede = &entity->centipede;
         centipede->segments_ids.clear();
         // centipede->segments_ids.add(entity->id);
@@ -1793,6 +1794,9 @@ void init_entity(Entity *entity){
 
             segment->position = previous->position - previous->up * previous->scale.y * 1.2f;
             segment->move_sequence = entity->move_sequence;
+            
+            segment->hidden = entity->hidden;
+            segment->enemy.gives_full_ammo = entity->enemy.gives_full_ammo;
         }
     }
     
@@ -4240,6 +4244,9 @@ void update_editor_ui(){
                 make_ui_text("Explosive: ", {inspector_position.x + 5, v_pos}, "text_enemy_explosive");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & EXPLOSIVE, "toggle_enemy_explosive")){
                     selected->flags ^= EXPLOSIVE;
+                    if (!(selected->flags & EXPLOSIVE)){
+                        free_entity_light(selected);
+                    }
                     init_entity(selected);
                 }
                 v_pos += height_add;
@@ -5077,7 +5084,7 @@ void update_editor(){
         
         // move sequence settings
         if (selected->flags & MOVE_SEQUENCE){
-            b32 wanna_clear    = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C);
+            b32 wanna_clear    = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L);
             b32 wanna_add    = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_N);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_M);
             
@@ -5861,7 +5868,7 @@ void update_player(Entity *entity, f32 dt){
     
     b32 need_jump = (input.press_flags & JUMP && player_data.grounded)
                  || (player_data.grounded && time_since_jump_press <= player_data.jump_buffer_time) 
-                 || (input.press_flags & JUMP && player_data.since_airborn_timer <= player_data.coyote_time);
+                 || (input.press_flags & JUMP && player_data.since_airborn_timer <= player_data.coyote_time && player_data.since_jump_timer > player_data.coyote_time);
     
     if (need_jump){
         push_player_up(player_data.jump_force);
@@ -6359,7 +6366,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     b32 is_high_velocity = bird_speed > 100;
     
     b32 should_respond = true;
-    if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
+    if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & BLOCKER || other->flags & SHOOT_BLOCKER){
         resolve_collision(bird_entity, col);
         
         if (other->flags & PHYSICS_OBJECT){
@@ -6368,6 +6375,16 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             if (collision_force <= 0.5f){
                 should_respond = false;
             }
+        }
+        
+        if (bird->attacking && other->flags & BIRD_ENEMY){
+            should_respond = false;            
+        }
+        
+        b32 exploded = false;
+        if (bird->attacking && bird_entity->flags & EXPLOSIVE && !(bird_entity->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & BIRD_ENEMY){
+            kill_enemy(bird_entity, col.point, col.normal);
+            exploded = true;
         }
         
         if (should_respond){
@@ -6421,6 +6438,9 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     if (other->flags & PLAYER && !player_data.dead_man && bird->attacking && !enemy->dead_man){
         if (should_kill_player(bird_entity)){
             kill_player();
+            if (bird_entity->flags & EXPLOSIVE){
+                kill_enemy(bird_entity, col.point, col.normal);
+            }
         } else{
             sword_kill_enemy(bird_entity, &bird_entity->bird_enemy.velocity);
         }
@@ -7112,7 +7132,7 @@ void update_projectile(Entity *entity, f32 dt){
     
     if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
         if (lifetime >= 0.5f && !projectile->dying){
-            Collision ray = raycast(entity->position + entity->up * entity->scale.y * 0.5f, entity->up, 10, GROUND | CENTIPEDE_SEGMENT, 5, entity->id);
+            Collision ray = raycast(entity->position + entity->up * entity->scale.y * 0.5f, entity->up, 10, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 5, entity->id);
             if (ray.collided){
                 projectile->dying = true;
             }
@@ -7215,7 +7235,7 @@ void update_editor_entity(Entity *e){
 
 void trigger_entity(Entity *trigger_entity, Entity *connected){
     connected->hidden = !trigger_entity->trigger.shows_entities;
-
+    
     if (connected->flags & ENEMY && debug.enemy_ai && trigger_entity->trigger.agro_enemies){
         agro_enemy(connected);
     }
@@ -7230,6 +7250,16 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
     
     if (connected->flags & MOVE_SEQUENCE){
         connected->move_sequence.moving = trigger_entity->trigger.starts_moving_sequence;
+    }
+    
+    if (connected->flags & CENTIPEDE){
+        assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
+        for (i32 i = 0; i < connected->centipede.segments_count; i++){
+            Entity *segment = get_entity_by_id(connected->centipede.segments_ids.get(i));
+            assert(segment);
+            segment->hidden = connected->hidden;
+            segment->move_sequence.moving = connected->move_sequence.moving;
+        }
     }
 }
 
@@ -7713,7 +7743,7 @@ void update_entities(f32 dt){
                 e->enemy.dead_man = true;
                 e->enemy.died_time = core.time.game_time;
                 e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT);
-                Vector2 rnd = /*rnd_in_circle()*/ e->move_sequence.moved_last_frame;
+                Vector2 rnd = rnd_in_circle();// e->move_sequence.moved_last_frame;
                 e->bird_enemy.velocity = {e->move_sequence.velocity.x * rnd.x, e->move_sequence.velocity.y * rnd.y};
 
                 e->move_sequence.moving = false;
@@ -8162,7 +8192,7 @@ Bounds get_cam_bounds(Cam cam, f32 zoom){
 }
 
 inline b32 should_draw_entity_anyway(Entity *e){
-    b32 is_should_draw_anyway = e->flags & (TRIGGER | MOVE_SEQUENCE);
+    b32 is_should_draw_anyway = e->flags & TRIGGER || (e->flags & MOVE_SEQUENCE && game_state != GAME);
     return is_should_draw_anyway;
 }
 
@@ -8255,7 +8285,7 @@ void draw_entity(Entity *e){
     }
     
     // draw note
-    if (e->flags & NOTE && game_state == EDITOR || game_state == PAUSE){
+    if (e->flags & NOTE && (game_state == EDITOR || game_state == PAUSE)){
         assert(e->note_index != -1);
         draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
         // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);

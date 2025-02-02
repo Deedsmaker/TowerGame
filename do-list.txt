@@ -1,3 +1,6 @@
+[ ] We should strongly slow down time when bird is about to kill player so he can react. This could be on a time-cooldown.
+[ ] Change way we draw all editor stuff to immediate and draw this in separate pass, so it won't be affected by light. Also should draw new clue for player when birdies charging attack - this could be a red line that gets wider.
+[ ] Maybe we should put more effort to teaching how to stop sword and why it's useful. 
 [ ] Don't forget to write string lib modifications before pushing. Should add nocheckin functionality.
 [ ] Booster for full invincibility.
 [X] Jump buffer and coyote time
@@ -75,7 +78,8 @@
 [X] Centipede
 [X] Rope blocks
 [X] Jump shooters introduction + more rope blocks. (There on vertical section we can try to make shoot blockers enemy-blocks with modifier that requires spin for longer than just one hit. This could be general thing for that kinds of blocks)
-
+[X] Big bombs sections. Teaching that be can hide from explosions.
+[ ] Arena section with explosions involved. Also hiding behind centipedes.
 <Level ideas>
 ///////////////////////////////////////////////////
 [X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
