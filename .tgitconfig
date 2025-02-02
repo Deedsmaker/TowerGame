@@ -2,3 +2,7 @@
 	cmdline = D:\\Code\\pre_push_nocheckin_hook.bat
 	wait = true
 	show = true
+[hook "precommit"]
+	cmdline = D:\\Code\\pre_push_nocheckin_hook.bat
+	wait = true
+	show = true

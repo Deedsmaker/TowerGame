@@ -1776,6 +1776,7 @@ void init_entity(Entity *entity){
         
         // nocheckin
         // nocheckin
+        // nocheckin
         Centipede *centipede = &entity->centipede;
         centipede->segments_ids.clear();
         // centipede->segments_ids.add(entity->id);
