@@ -497,6 +497,8 @@ struct Player{
     i32 sword_entity_id = -1;
     f32 sword_rotation_speed = 5.0f;
     
+    b32 is_sword_will_hit_explosive = false;
+    
     f32 sword_spin_direction = 0;
     f32 sword_angular_velocity = 0;  
     f32 sword_spin_progress = 0;
@@ -771,6 +773,11 @@ struct Note{
     char content[2048] = "\0";
 };
 
+enum Death_Instinct_Reason{
+    ENEMY_ATTACKING = 0,
+    SWORD_WILL_EXPLODE = 1
+};
+
 struct Context{
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
     Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
@@ -804,6 +811,8 @@ struct Context{
     f32 death_instinct_cooldown_start_time = -12;
     f32 death_instinct_cooldown = 12;
     i32 death_instinct_threat_entity_id = -1;
+    b32 death_instinct_played_effects = false;
+    Death_Instinct_Reason last_death_instinct_reason = ENEMY_ATTACKING;
     
     char current_level_name[256];
     char previous_level_name[256] = "\0";

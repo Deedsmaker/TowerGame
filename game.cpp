@@ -2471,6 +2471,7 @@ void clean_up_scene(){
     context.death_instinct_start_time = -12;
     context.death_instinct_cooldown_start_time = -12;
     context.death_instinct_threat_entity_id = -1;
+    context.death_instinct_played_effects = false;
     
     context.speedrun_timer.paused = false;
     if (!context.speedrun_timer.game_timer_active){
@@ -2666,7 +2667,7 @@ void fixed_game_update(f32 dt){
     update_particles(dt);
     
     // update camera
-    if (game_state == GAME && player_entity && !debug.free_cam && (!is_in_death_instinct() || !is_death_instinct_threat_alive())){
+    if (game_state == GAME && player_entity && !debug.free_cam && (!is_in_death_instinct() || !is_death_instinct_threat_active())){
         if (!context.cam.locked){
             Vector2 player_velocity = player_data.velocity;
             f32 target_speed_multiplier = 1;
@@ -2737,7 +2738,7 @@ void fixed_game_update(f32 dt){
             f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
             
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * cam_speed));
-        } else if ((!is_in_death_instinct() || !is_death_instinct_threat_alive()) || debug.free_cam){
+        } else if ((!is_in_death_instinct() || !is_death_instinct_threat_active()) || debug.free_cam){
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * 4));
             if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
                 context.cam.position = context.cam.target;
@@ -3046,30 +3047,29 @@ void update_game(){
     
     // update death instinct
     local_persist b32 was_in_death_instinct = false;
-    if (is_in_death_instinct() && game_state == GAME){
+    if (is_in_death_instinct() && is_death_instinct_threat_active() && game_state == GAME){
         f32 time_since_death_instinct = core.time.app_time - context.death_instinct_start_time;
         
-        if (is_death_instinct_threat_alive()){
-            context.cam.cam2D.zoom      = lerp(context.cam.cam2D.zoom, 0.75f, clamp01(core.time.real_dt * 5));
-            
-            Entity *threat_entity = get_entity_by_id(context.death_instinct_threat_entity_id);
-            Vector2 cam_position = player_entity->position + (threat_entity->position - player_entity->position) * 0.5f;
-            context.cam.position        = lerp(context.cam.position, cam_position, clamp01(core.time.real_dt * 5));
-            core.time.target_time_scale = lerp(core.time.target_time_scale, 0.03f, clamp01(core.time.real_dt * 10));
-            
-            f32 instinct_t = time_since_death_instinct / context.death_instinct_duration;
-            make_line(player_entity->position, threat_entity->position, Fade(RED, instinct_t * instinct_t));
-            f32 radius_multiplier = lerp(80.0f, 10.0f, sqrtf(instinct_t));
-            Color ring_color = Fade(ColorBrightness(RED, abs(sinf(core.time.app_time * lerp(1.0f, 10.0f, instinct_t)) * 0.8f - 0.5f)), instinct_t * 0.4f);
-            make_ring_lines(threat_entity->position, 1.0f * radius_multiplier, 2.0f * radius_multiplier, 14, ring_color);
-        } else{
-            core.time.target_time_scale = lerp(core.time.target_time_scale, 1.0f, clamp01(core.time.real_dt));
-        }
+        context.cam.cam2D.zoom      = lerp(context.cam.cam2D.zoom, 0.75f, clamp01(core.time.real_dt * 5));
         
+        Entity *threat_entity = get_entity_by_id(context.death_instinct_threat_entity_id);
+        Vector2 cam_position = player_entity->position + (threat_entity->position - player_entity->position) * 0.5f;
+        context.cam.position        = lerp(context.cam.position, cam_position, clamp01(core.time.real_dt * 5));
+        core.time.target_time_scale = lerp(core.time.target_time_scale, 0.03f, clamp01(core.time.real_dt * 10));
+        
+        f32 instinct_t = time_since_death_instinct / context.death_instinct_duration;
+        make_line(player_entity->position, threat_entity->position, Fade(RED, instinct_t * instinct_t));
+        f32 radius_multiplier = lerp(80.0f, 10.0f, sqrtf(instinct_t));
+        Color ring_color = Fade(ColorBrightness(RED, abs(sinf(core.time.app_time * lerp(1.0f, 10.0f, instinct_t)) * 0.8f - 0.5f)), instinct_t * 0.4f);
+        make_ring_lines(threat_entity->position, 1.0f * radius_multiplier, 2.0f * radius_multiplier, 14, ring_color);
         was_in_death_instinct = true;
+        
+        if (time_since_death_instinct >= 0.2f && !context.death_instinct_played_effects){
+            play_sound("DeathInstinct", 2);
+            context.death_instinct_played_effects = true;
+        }
     } else if (was_in_death_instinct){
-        context.death_instinct_cooldown_start_time = core.time.app_time;            
-        context.death_instinct_threat_entity_id = -1;
+        stop_death_instinct();
         // core.time.target_time_scale = 1;
         was_in_death_instinct = false;
     } else if (game_state == GAME){
@@ -5833,6 +5833,7 @@ void update_player(Entity *entity, f32 dt){
     // @OPTIMIZATION We actually can skip this shit when death instinct is on cooldown, but if that sword check affects performance in 
     // any way - i want to know about it, so we'll keep it that way. Because it would create a thing that we have more fps 
     // when insinct on cooldown. But we may do that at some point, not a big deal.
+    b32 found_explosive = false;
     if (is_sword_can_damage()){ // sword death instinct
         f32 previous_rotation = sword->rotation;
         Vector2 previous_scale = sword->scale;
@@ -5847,10 +5848,12 @@ void update_player(Entity *entity, f32 dt){
             rotate(sword, instinct_step);
             fill_collisions(sword, &collisions_buffer, EXPLOSIVE);
             if (collisions_buffer.count > 0){
-                if (start_death_instinct(collisions_buffer.get(0).other_entity)){
+                if (start_death_instinct(collisions_buffer.get(0).other_entity, SWORD_WILL_EXPLODE)){
                     core.time.time_scale = 0.2f;
                     player_data.sword_angular_velocity *= 0.5f;
                 }
+                
+                found_explosive = true;
                 break;
             }
         }
@@ -5858,6 +5861,7 @@ void update_player(Entity *entity, f32 dt){
         change_scale(sword, previous_scale);
     }
     
+    player_data.is_sword_will_hit_explosive = found_explosive;
     
     player_data.since_jump_timer += dt;
     
@@ -6722,8 +6726,8 @@ void update_bird_enemy(Entity *entity, f32 dt){
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
         
         
-        if (distance_to_player < get_death_instinct_radius(bird->velocity) && dot(dir_to_player, entity->up) >= 0.9f && should_kill_player(entity) && !raycast(entity->position, dir_to_player, distance_to_player, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 2, entity->id).collided){
-            start_death_instinct(entity);          
+        if (is_enemy_should_trigger_death_instinct(entity, bird->velocity, dir_to_player, distance_to_player)){
+            start_death_instinct(entity, ENEMY_ATTACKING);          
         }
     } else{
         assert(false);
@@ -7026,6 +7030,22 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     hitmark->sticky_texture.max_distance = 1000;
 }
 
+Vector2 get_entity_velocity(Entity *entity){
+    if (entity->flags & PLAYER){
+        return player_data.velocity;
+    }
+    if (entity->flags & BIRD_ENEMY){
+        return entity->bird_enemy.velocity;
+    }
+    if (entity->flags & JUMP_SHOOTER){    
+        return entity->jump_shooter.velocity;
+    }
+    if (entity->flags & PHYSICS_OBJECT){
+        return entity->physics_object.velocity;
+    }
+    return Vector2_zero;
+}
+
 inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EPSILON){
     return abs(first - second) <= allowed_difference;
 }
@@ -7034,9 +7054,26 @@ inline f32 get_death_instinct_radius(Vector2 velocity){
     return fmaxf(fminf((18.0f / context.cam.cam2D.zoom), 60), 40) * fmaxf(magnitude(velocity) / 200.0f, 1.0f);
 }
 
-inline b32 is_death_instinct_threat_alive(){
+inline b32 is_death_instinct_threat_active(){
     Entity *threat_entity = get_entity_by_id(context.death_instinct_threat_entity_id);
-    return threat_entity && !threat_entity->destroyed && !threat_entity->enemy.dead_man;
+    b32 entity_alive = threat_entity && !threat_entity->destroyed && !threat_entity->enemy.dead_man;
+    
+    if (entity_alive){
+        switch (context.last_death_instinct_reason){
+            case ENEMY_ATTACKING:{
+                Vector2 vec_to_player = player_entity->position - threat_entity->position;
+                Vector2 dir_to_player = normalized(vec_to_player);
+                f32 distance_to_player = magnitude(vec_to_player);
+                return is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), dir_to_player, distance_to_player);
+            } break;
+            case SWORD_WILL_EXPLODE:{
+                return player_data.is_sword_will_hit_explosive;     
+            } break;
+            default: return true;
+        }
+    } else{
+        return false;
+    }
 }
 
 inline b32 is_in_death_instinct(){
@@ -7047,14 +7084,29 @@ inline b32 is_death_instinct_in_cooldown(){
     return core.time.app_time - context.death_instinct_cooldown_start_time <= context.death_instinct_cooldown;
 }
 
-b32 start_death_instinct(Entity *threat_entity){
+void stop_death_instinct(){
+    f32 time_since_death_instinct = core.time.app_time - context.death_instinct_start_time;
+
+    if (time_since_death_instinct > 0.5f){
+        context.death_instinct_cooldown_start_time = core.time.app_time;            
+    }
+    context.death_instinct_start_time = -12;
+    context.death_instinct_threat_entity_id = -1;
+    context.death_instinct_played_effects = false;
+}
+
+b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player){
+    return distance_to_player < get_death_instinct_radius(velocity) && dot(dir_to_player, entity->up) >= 0.9f && (should_kill_player(entity) || entity->flags & EXPLOSIVE) && !raycast(entity->position, dir_to_player, distance_to_player, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 2, entity->id).collided;
+}
+
+b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason){
     if (is_in_death_instinct() || is_death_instinct_in_cooldown()){
         return false;
     }
     
     context.death_instinct_start_time = core.time.app_time;
     context.death_instinct_threat_entity_id = threat_entity->id;
-    play_sound("DeathInstinct", 2);
+    context.last_death_instinct_reason = reason;
     return true;
 }
 
@@ -8177,8 +8229,8 @@ void update_entities(f32 dt){
                 
                 change_up(e, lerp(dir, target_point.normal, clamp01(EaseInOutQuad(flying_t) + lerp(0.0f, 1.0f, 1.0f - clamp01(len / 30.0f)))));
                 
-                if (distance_to_player < get_death_instinct_radius(shooter->velocity) && dot(dir_to_player, e->up) >= 0.9f && should_kill_player(e) && !raycast(e->position, dir_to_player, distance_to_player, GROUND, 2, e->id).collided){
-            start_death_instinct(e);          
+                if (is_enemy_should_trigger_death_instinct(e, shooter->velocity, dir_to_player, distance_to_player)){
+                    start_death_instinct(e, ENEMY_ATTACKING);          
                 }
             }
             

@@ -29,10 +29,14 @@ Bounds get_cam_bounds(Cam cam, f32 zoom);
 Entity *get_entity_by_id(i32 id);
 Entity *get_entity_by_index(i32 index);
 
-inline b32 is_death_instinct_threat_alive();
+Vector2 get_entity_velocity(Entity *entity);
+
+b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player);
+inline b32 is_death_instinct_threat_active();
 inline b32 is_in_death_instinct();
 inline b32 is_death_in_cooldown();
-b32 start_death_instinct(Entity *threat_entity);
+void stop_death_instinct();
+b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason);
 inline f32 get_death_instinct_radius(Vector2 velocity = Vector2_zero);
 
 void update_editor_ui();
