@@ -807,7 +807,7 @@ struct Context{
     b32 baked_shadows_this_frame = false;
     
     f32 death_instinct_start_time = -12;
-    f32 death_instinct_duration = 4;
+    f32 death_instinct_duration = 2;
     f32 death_instinct_cooldown_start_time = -12;
     f32 death_instinct_cooldown = 12;
     i32 death_instinct_threat_entity_id = -1;
