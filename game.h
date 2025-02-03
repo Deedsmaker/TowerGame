@@ -29,6 +29,12 @@ Bounds get_cam_bounds(Cam cam, f32 zoom);
 Entity *get_entity_by_id(i32 id);
 Entity *get_entity_by_index(i32 index);
 
+inline b32 is_death_instinct_threat_alive();
+inline b32 is_in_death_instinct();
+inline b32 is_death_in_cooldown();
+b32 start_death_instinct(Entity *threat_entity);
+inline f32 get_death_instinct_radius(Vector2 velocity = Vector2_zero);
+
 void update_editor_ui();
 void update_editor();
 void update_editor_entity(Entity *e);
@@ -62,6 +68,11 @@ void update_color_changer(Entity *entity);
 
 void draw_game();
 
+void make_line(Vector2 start_position, Vector2 target_position, Color color);
+void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color);
+void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color);
+
+void draw_immediate_stuff();
 void draw_ui(const char *tag);
 void draw_entities();
 void draw_entity(Entity *e);

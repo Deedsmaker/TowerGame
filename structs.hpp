@@ -799,6 +799,12 @@ struct Context{
     b32 just_entered_game_state = false;
     b32 baked_shadows_this_frame = false;
     
+    f32 death_instinct_start_time = -12;
+    f32 death_instinct_duration = 4;
+    f32 death_instinct_cooldown_start_time = -12;
+    f32 death_instinct_cooldown = 12;
+    i32 death_instinct_threat_entity_id = -1;
+    
     char current_level_name[256];
     char previous_level_name[256] = "\0";
     
@@ -815,7 +821,25 @@ struct Context{
     Speedrun_Timer speedrun_timer = {};
 };
 
+struct Line{
+    Vector2 start_position  = Vector2_zero;  
+    Vector2 target_position = Vector2_zero;
+    f32 thick = 0;
+    Color color = PINK;
+};
+
+struct Ring_Lines{
+    Vector2 center = Vector2_zero;  
+    f32 inner_radius = 0;  
+    f32 outer_radius = 0;  
+    i32 segments = 12;  
+    Color color = PINK;
+};
+
 struct Render{
+    Dynamic_Array<Line> lines_to_draw = Dynamic_Array<Line>(128);
+    Dynamic_Array<Ring_Lines> ring_lines_to_draw = Dynamic_Array<Ring_Lines>(32);
+
     Shader lights_shader;
     Shader test_shader;
     

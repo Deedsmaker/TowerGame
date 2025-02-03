@@ -1,7 +1,8 @@
 [ ] Enemy waves functionality
-[ ] We should strongly slow down time when bird is about to kill player so he can react. This could be on a time-cooldown.
+[X]! We should strongly slow down time when bird is about to kill player so he can react. This could be on a time-cooldown.
+    [ ] Detect a reason for instinct and disable it if, for example, sword no longer will hit explosive. Also disable if we will kill some thing. And if we spend too little time in instinct - no cooldown.
 [ ] Change way we draw all editor stuff to immediate and draw this in separate pass, so it won't be affected by light. Also should draw new clue for player when birdies charging attack - this could be a red line that gets wider.
-[ ] Maybe we should put more effort to teaching how to stop sword and why it's useful. 
+[\] Maybe we should put more effort to teaching how to stop sword and why it's useful. (After extensive thinking i decided that we put LESS effort to teaching how to stop sword - i just don't push player to know this annoyingly, but we still have this thing in bridge1 level where player need to stop sword while escaping wall of spikes, but this in level begin so don't scary).
 [X] Don't forget to write string lib modifications before pushing. Should add n|o|c|h|e|c|k|i|n functionality.
 [ ] Booster for full invincibility.
 [X] Jump buffer and coyote time
