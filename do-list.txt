@@ -1,3 +1,4 @@
+[ ] Think about that we could emprace a really big amount of bullets and make machinegun mode that will activate on shoot hold.
 [ ] Enemy waves functionality
 [ ] Maybe should draw new clue for player when birdies charging attack - this could be a red line that gets wider.
 [X]! We should strongly slow down time when bird is about to kill player so he can react. This could be on a time-cooldown.
@@ -55,6 +56,10 @@
 [X] Centipede
 [X] Bullet for every x enemy
 [X]! Scaling fix (Suka ne doljno) (budet)
+
+<OPTIMIZATIONS>
+[ ] Make raycast smarter.
+[ ] Check what's up with light drawing, we have way to many draw calls.
 
 <LONG TERM>
 ///////////////////////////////////////////////////

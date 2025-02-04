@@ -49,6 +49,7 @@ void update_entities(f32 dt);
 void activate_door(Entity *entity, b32 is_open);
 
 void add_hitstop(f32 added, b32 can_go_over_limit = false);
+void add_player_ammo(i32 amount, b32 full_ammo);
 
 void resolve_physics_collision(Vector2 *my_velocity, f32 my_mass, Vector2 &their_velocity, f32 their_mass, Vector2 normal = Vector2_zero);
 f32 apply_physics_force(Vector2 velocity, f32 mass, Physics_Object *to_whom, Vector2 normal = Vector2_zero);

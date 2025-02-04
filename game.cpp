@@ -2171,6 +2171,12 @@ void begin_game_speedrun(){
     context.speedrun_timer.time = 0;        
 }
 
+void debug_add_100_ammo(){
+    if (player_entity){
+        add_player_ammo(100, true);
+    }    
+}
+
 void init_console(){
     reload_level_files();    
 
@@ -2188,6 +2194,7 @@ void init_console(){
     console.commands.add(make_console_command("infinite_ammo",  debug_infinite_ammo));
     console.commands.add(make_console_command("enemy_ai",       debug_enemy_ai));
     console.commands.add(make_console_command("god_mode",       debug_god_mode));
+    console.commands.add(make_console_command("add_ammo",       debug_add_100_ammo));
     console.commands.add(make_console_command("unlock_camera",  debug_unlock_camera));
     console.commands.add(make_console_command("full_light",     debug_toggle_full_light));
     console.commands.add(make_console_command("collision_grid", debug_toggle_collision_grid));
@@ -3514,7 +3521,11 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
     b32 found = false;
     Collision result = {};
     while (current_len < len){
-        current_len += step;
+        if (current_len + step > len){
+            current_len = len;
+        } else{
+            current_len += step;
+        }
         Vector2 east_direction = get_rotated_vector_90(direction, -1);
         ray_vertices.clear();
         ray_vertices.add(direction * current_len + east_direction * 0.5f);
@@ -5495,7 +5506,7 @@ void add_player_ammo(i32 amount, b32 full_ammo){
         
     }
     
-    player_data.ammo_count = clamp(player_data.ammo_count, 0, 5000);
+    player_data.ammo_count = clamp(player_data.ammo_count, 0, 3333);
 }
 
 inline b32 is_sword_can_damage(){
@@ -5861,13 +5872,28 @@ void update_player(Entity *entity, f32 dt){
             checked += instinct_step;
             rotate(sword, instinct_step);
             fill_collisions(sword, &collisions_buffer, EXPLOSIVE);
-            if (collisions_buffer.count > 0){
+            for (i32 i = 0; i < collisions_buffer.count; i++){
+                Collision col = collisions_buffer.get(i);
+                Entity *other = col.other_entity;
+                Vector2 vec_to_other = other->position - player_entity->position;
+                Vector2 dir_to_other = normalized(vec_to_other);
+                f32 distance_to_other = magnitude(vec_to_other);
+                Collision ray_collision = raycast(player_entity->position, dir_to_other, distance_to_other - 2, GROUND | CENTIPEDE_SEGMENT | CENTIPEDE);
+                // This means explosion won't kill player so we move on.
+                // Maybe should keep flags that block explosion for player as separate define.
+                if (ray_collision.collided){
+                    continue;
+                }
                 if (start_death_instinct(collisions_buffer.get(0).other_entity, SWORD_WILL_EXPLODE)){
                     core.time.time_scale = 0.2f;
                     player_data.sword_angular_velocity *= 0.5f;
                 }
                 
                 found_explosive = true;
+                break;
+            }
+            
+            if (found_explosive){
                 break;
             }
         }
@@ -7057,6 +7083,9 @@ Vector2 get_entity_velocity(Entity *entity){
     if (entity->flags & PHYSICS_OBJECT){
         return entity->physics_object.velocity;
     }
+    if (entity->flags & PROJECTILE){
+        return entity->projectile.velocity;
+    }
     return Vector2_zero;
 }
 
@@ -7127,12 +7156,16 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
         return false;       
     }
     
-    Collision ray_collision = raycast(entity->position, dir_to_player, distance_to_player, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 4, entity->id);
+    Collision ray_collision = raycast(entity->position, dir_to_player, distance_to_player - 2, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 4, entity->id);
     b32 will_hit_something_before_player = ray_collision.collided;
     // Additional raycast check is because of inprecision of raycast. It makes steps by some amount (2 on writing moment) and if 
     // player will stand too close to wall - it can overshoot and think that we will hit some ground).
     // So this thing checks if ground point that we detecting is farther than player - that could mean that we overshooted.
-    return flying_towards && will_kill_on_hit && (!will_hit_something_before_player || sqr_magnitude(ray_collision.point - entity->position) >= distance_to_player * distance_to_player);
+    // UPDATE: Commented for now because i think i fixed overshooting by changing length calculation on raycast and shrinking 
+    // ray width, but we'll see.
+    // UPDATE2: Half of change (with shrinking) just breaks stuff because we can't properly detect shkibidi. 
+    // So we'll just know about that and for situations like this just take slightly less distance so we don't overshoot.
+    return flying_towards && will_kill_on_hit && (!will_hit_something_before_player/* || sqr_magnitude(ray_collision.point - entity->position) >= distance_to_player * distance_to_player*/);
 }
 
 b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason){
@@ -8049,7 +8082,7 @@ void update_entities(f32 dt){
                         shooter->velocity = shooter->jump_direction * 250;
                         emit_particles(ground_splash_emitter, e->position - e->up * e->scale.y * 0.5f, e->up, 4, 1.5f);
                     } else{
-                        Collision ray_collision = raycast(e->position, normalized(nearest_ground.point - e->position), e->scale.x + e->scale.y, GROUND, 1.0f);
+                        Collision ray_collision = raycast(e->position, normalized(nearest_ground.point - e->position), (e->scale.x + e->scale.y) * 2, GROUND, 1.0f);
                         Vector2 point = Vector2_zero;
                         Vector2 normal = Vector2_up;
                         if (ray_collision.collided){
