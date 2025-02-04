@@ -31,7 +31,7 @@ Entity *get_entity_by_index(i32 index);
 
 Vector2 get_entity_velocity(Entity *entity);
 
-b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player);
+b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards);
 inline b32 is_death_instinct_threat_active();
 inline b32 is_in_death_instinct();
 inline b32 is_death_in_cooldown();
@@ -75,6 +75,8 @@ void draw_game();
 void make_line(Vector2 start_position, Vector2 target_position, Color color);
 void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color);
 void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color);
+void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
+inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
 
 void draw_immediate_stuff();
 void draw_ui(const char *tag);

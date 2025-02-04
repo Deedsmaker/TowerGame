@@ -743,6 +743,7 @@ struct Time{
     f32 target_dt = TARGET_FRAME_TIME;
     f32 previous_dt = 0;
     f32 dt = 0;  
+    f32 not_updated_accumulated_dt = 0;
     f32 fixed_dt = 0;
     f32 unscaled_dt = 0;
     f32 real_dt = 0;
@@ -806,13 +807,21 @@ struct Context{
     b32 just_entered_game_state = false;
     b32 baked_shadows_this_frame = false;
     
-    f32 death_instinct_start_time = -12;
-    f32 death_instinct_duration = 2;
-    f32 death_instinct_cooldown_start_time = -12;
-    f32 death_instinct_cooldown = 12;
-    i32 death_instinct_threat_entity_id = -1;
-    b32 death_instinct_played_effects = false;
-    Death_Instinct_Reason last_death_instinct_reason = ENEMY_ATTACKING;
+    b32 updated_today = false;
+    
+    struct Death_Instinct{
+        f32 duration = 2;
+        f32 cooldown = 12;
+        
+        f32 start_time = -12;
+        f32 cooldown_start_time = -12;
+        f32 stop_time = -12;
+        i32 threat_entity_id = -1;
+        b32 played_effects = false;
+        Death_Instinct_Reason last_reason = ENEMY_ATTACKING;
+    };
+    
+    Death_Instinct death_instinct = {};
     
     char current_level_name[256];
     char previous_level_name[256] = "\0";
@@ -845,9 +854,18 @@ struct Ring_Lines{
     Color color = PINK;
 };
 
+struct Rect_Lines{
+    Vector2 position = Vector2_zero;  
+    Vector2 scale = Vector2_one;
+    Vector2 pivot = {0.5f, 0.5f};
+    f32 thick = 0;
+    Color color = PINK;
+};
+
 struct Render{
     Dynamic_Array<Line> lines_to_draw = Dynamic_Array<Line>(128);
     Dynamic_Array<Ring_Lines> ring_lines_to_draw = Dynamic_Array<Ring_Lines>(32);
+    Dynamic_Array<Rect_Lines> rect_lines_to_draw = Dynamic_Array<Rect_Lines>(32);
 
     Shader lights_shader;
     Shader test_shader;

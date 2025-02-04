@@ -1,0 +1,4 @@
+04.02.2025:
+    - Fixed performance issue with death instinct - seems like enemies was raycasting for really long distance for check if they should trigger instinct. Could look more on that later.
+    - Changed air_tut level to have one group of enemies.
+    - Added gives_ammo property in editor. Also changed inspector and saves for this.
