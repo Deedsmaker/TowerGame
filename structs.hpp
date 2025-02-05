@@ -748,6 +748,7 @@ struct Time{
     f32 unscaled_dt = 0;
     f32 real_dt = 0;
     f32 time_scale = 1;
+    f32 debug_target_time_scale = 1;
     f32 target_time_scale = 1;
     f32 game_time = 0;
     f32 app_time = 0;

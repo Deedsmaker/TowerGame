@@ -1,3 +1,7 @@
+05.02.2025:
+    - Made that changing timescale in console will affect new time scale called "debug_target_time_scale". Also more tested our imaginary "updating" when on low timescale. Good enough for now.
+    - Changed deleting in text input.
+
 04.02.2025:
     - Improved death instinct a bit.
     - Increased centipedes size on bombe level. Should be easier to deal with explosives now.

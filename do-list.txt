@@ -1,4 +1,4 @@
-[ ] Think about that we could emprace a really big amount of bullets and make machinegun mode that will activate on shoot hold.
+[ ] Think about that we could embrace a really big amount of bullets and make machinegun mode that will activate on shoot hold.
 [ ] Enemy waves functionality
 [ ] Maybe should draw new clue for player when birdies charging attack - this could be a red line that gets wider.
 [X]! We should strongly slow down time when bird is about to kill player so he can react. This could be on a time-cooldown.
@@ -58,7 +58,7 @@
 [X]! Scaling fix (Suka ne doljno) (budet)
 
 <OPTIMIZATIONS>
-[ ] Make raycast smarter.
+[ ] Make raycast smarter. Actually whould just make a real ray-polygon intersecion and not that shit that de do now. Also circle-polygon etc. General physics improvements required.
 [ ] Check what's up with light drawing, we have way to many draw calls.
 
 <LONG TERM>
@@ -68,6 +68,7 @@
 [ ] Per-object motion blur
 [ ] Dynamic decals
 [ ] Simulating only visual entities for fps more than fixed. Better later so less friction because simulation for visual guys should not make something catastrophical.
+    - Made basic version of this - we just moving entities by their velocity and rotating some things, but that's not enough for final cut. Good enough for now. 05.02.2025.
 [ ] Profiling tool (?)
 [ ] Player internal-interface (for examplelines that shows how to kill sword-blocker) could be disrupted by some enemy. Funny visual requiered and pretty long gameplay before introduction so player could get used to this information.
 [ ] Zone in late-game that will make sword not spin continuously, but react to sharp mouse movements to make cuts and fast dashes.

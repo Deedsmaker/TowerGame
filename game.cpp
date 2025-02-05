@@ -2020,6 +2020,7 @@ void print_debug_commands_to_console(){
     console.str += "\t>infinite_ammo\n";
     console.str += "\t>enemy_ai\n";
     console.str += "\t>god_mode\n";
+    console.str += "\t>add_ammo\n";
     console.str += "\t>unlock_camera\n";
     console.str += "\t>full_light\n";
     console.str += "\t>collision_grid\n";
@@ -2071,16 +2072,16 @@ void debug_toggle_collision_grid(){
     console.str += text_format("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled");
 }
 
-void set_default_time_scale(){
-    core.time.target_time_scale = 1;    
+void debug_set_default_time_scale(){
+    core.time.debug_target_time_scale = 1;    
 }
 
-void set_time_scale(const char *text){
-    core.time.target_time_scale = to_f32(text);    
+void debug_set_time_scale(const char *text){
+    core.time.debug_target_time_scale = to_f32(text);    
 }
 
-void set_time_scale(f32 scale){
-    core.time.target_time_scale = scale;    
+void debug_set_time_scale(f32 scale){
+    core.time.debug_target_time_scale = scale;    
 }
 
 void save_temp_replay(){
@@ -2212,7 +2213,7 @@ void init_console(){
     console.commands.add(make_console_command("game_speedrun",     begin_game_speedrun, NULL));
     console.commands.add(make_console_command("speedrun_disable",  disable_speedrun, NULL));
     
-    console.commands.add(make_console_command("timescale", set_default_time_scale, set_time_scale));
+    console.commands.add(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale));
     
     console.commands.add(make_console_command("create",    print_create_level_hint, create_level));
     console.commands.add(make_console_command("new_level", print_create_level_hint, create_level));
@@ -2659,7 +2660,7 @@ void fixed_game_update(f32 dt){
             }
         } else{
             if (context.game_frame_count >= level_replay.input_record.count){
-                // set_time_scale(0);
+                // debug_set_time_scale(0);
                 context.playing_replay = false;
             } else{
                 input = level_replay.input_record.get(context.game_frame_count).frame_input;
@@ -3099,6 +3100,10 @@ void update_game(){
         
         if (core.time.hitstop <= 0){
             core.time.time_scale = core.time.target_time_scale;
+        }
+        
+        if (core.time.debug_target_time_scale != 1 && (core.time.debug_target_time_scale < core.time.target_time_scale || core.time.hitstop <= 0)){
+           core.time.time_scale = core.time.debug_target_time_scale; 
         }
         
         core.time.dt = GetFrameTime() * core.time.time_scale;
@@ -7992,7 +7997,7 @@ void update_entities(f32 dt){
                     segment->flags = ENEMY | BIRD_ENEMY;
                     segment->move_sequence.moving = false;
                     segment->collision_flags = GROUND;
-                    Vector2 rnd = /*rnd_in_circle()*/ segment->move_sequence.moved_last_frame;
+                    Vector2 rnd = rnd_in_circle();//*/ segment->move_sequence.moved_last_frame;
                     segment->bird_enemy.velocity = {segment->move_sequence.velocity.x * rnd.x, segment->move_sequence.velocity.y * rnd.y};
                     init_bird_emitters(segment);
                 }
@@ -8943,6 +8948,10 @@ void draw_entities(){
             e->position += get_entity_velocity(e) * core.time.not_updated_accumulated_dt;
             if (e->flags & SWORD){
                 rotate(e, player_data.sword_angular_velocity * core.time.not_updated_accumulated_dt);
+            }
+            
+            if (e->flags & STICKY_TEXTURE){
+                update_sticky_texture(e, core.time.not_updated_accumulated_dt);
             }
         }
         
