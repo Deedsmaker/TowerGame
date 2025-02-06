@@ -64,7 +64,7 @@ b32 should_kill_player(Entity *entity);
 inline Vector2 get_shoot_stoper_cross_position(Entity *entity);
 void agro_enemy(Entity *entity);
 void destroy_enemy(Entity *entity);
-inline b32 is_enemy_can_take_damage(Entity *enemy_entity);
+inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit_time = true);
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier = 1);
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious = false);
 
@@ -97,8 +97,8 @@ inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity
 
 void resolve_collision(Entity *entity, Collision col);
 //Array<Collision> get_collisions(Entity *entity);
-void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags, i32 my_id = -1);
-void fill_collisions(Entity *entity, Array<Collision, MAX_VERTICES> *result);
+void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Dynamic_Array<Collision> *result, FLAGS include_flags, i32 my_id = -1);
+void fill_collisions(Entity *entity, Dynamic_Array<Collision> *result);
 Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 Collision get_nearest_ground_collision(Vector2 point, f32 radius);
 b32 check_col_circles(Circle a, Circle b);

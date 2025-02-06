@@ -1,3 +1,14 @@
+06.02.2025:
+    - Added scroll ability for create box and now we drawing texture preview on those.
+    - Changed explosvie1 a little.
+    - Added machinegun mode for rifle. Now just testing.
+    - Changed collisions for work on dynamic array.
+    - Playtest with kostet.
+    - Now machinegun works after first shoot.
+    - Arrows on shoot blockers.
+    - On air tut1 made arrow pointing down, we'll see how it goes.
+    - Blocker mark size won't shrink above 0.35 zoom.
+    
 05.02.2025:
     - Made that changing timescale in console will affect new time scale called "debug_target_time_scale". Also more tested our imaginary "updating" when on low timescale. Good enough for now.
     - Changed deleting in text input.

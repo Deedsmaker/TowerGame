@@ -1197,7 +1197,7 @@ b32 load_level(const char *level_name){
     return true;
 }
 
-global_variable Array<Collision, MAX_COLLISIONS> collisions_buffer        = Array<Collision, MAX_COLLISIONS>();
+global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Array<Collision>(256);
 inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **other){
     if (current_index >= collisions_buffer.count){
         col->collided = false;
@@ -2950,6 +2950,10 @@ void update_game(){
                 input.hold_flags |= DOWN;
             }
             
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)){
+                input.hold_flags |= SHOOT_DOWN;
+            }
+            
             if (input.direction.x != 0 || input.direction.y != 0){
                 normalize(&input.direction);
             }
@@ -2968,38 +2972,42 @@ void update_game(){
             } else{
                 input.tap_direction.y = 0;
             }
-        }
         
-        if (input.hold_flags & RIGHT){
-            input.sum_direction.x = 1;
-        } else if (input.hold_flags & LEFT){
-            input.sum_direction.x = -1;
-        }
-        
-        if (input.hold_flags & UP){
-            input.sum_direction.y = 1;
-        } else if (input.hold_flags & DOWN){
-            input.sum_direction.y = -1;
-        }
-        
-        if (IsKeyPressed(KEY_SPACE)){
-            input.press_flags |= JUMP;
-        }
-        if (IsKeyPressed(KEY_F)){
-            input.press_flags |= SWORD_BIG;
-        }
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
-            input.press_flags |= SHOOT;
-        }
-        
-        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
-            input.hold_flags |= SPIN_DOWN;
-        }
-        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
-            input.press_flags |= SPIN;
-        }
-        if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
-            input.press_flags |= SPIN_RELEASED;
+            if (input.hold_flags & RIGHT){
+                input.sum_direction.x = 1;
+            } else if (input.hold_flags & LEFT){
+                input.sum_direction.x = -1;
+            }
+            
+            if (input.hold_flags & UP){
+                input.sum_direction.y = 1;
+            } else if (input.hold_flags & DOWN){
+                input.sum_direction.y = -1;
+            }
+            
+            if (IsKeyPressed(KEY_SPACE)){
+                input.press_flags |= JUMP;
+            }
+            if (IsKeyPressed(KEY_F)){
+                input.press_flags |= SWORD_BIG;
+            }
+            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+                input.press_flags |= SHOOT;
+            }
+            
+            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)){
+                input.hold_flags |= SPIN_DOWN;
+            }
+            if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+                input.press_flags |= SPIN;
+            }
+            if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)){
+                input.press_flags |= SPIN_RELEASED;
+            }
+            
+            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+                input.press_flags |= SHOOT_RELEASED;
+            }
         }
     }
     //end update input
@@ -3245,13 +3253,13 @@ b32 check_col_point_rec(Vector2 point, Entity *e){
     return ((point.x >= l_u.x) && (point.x <= r_d.x) && (point.y >= r_d.y) && (point.y <= l_u.y));
 }
 
-b32 check_col_circles(Circle a, Circle b){
+inline b32 check_col_circles(Circle a, Circle b){
     f32 distance = sqr_magnitude(a.position - b.position);
     
     return distance < a.radius * a.radius + b.radius * b.radius;
 }
 
-Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise){
+inline Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise){
     return {-v.y * clockwise, v.x * clockwise};
 }
 
@@ -3273,7 +3281,7 @@ void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2,
     normals->add(normalized(get_rotated_vector_90(edge4, 1)));
 }
 
-b32 check_rectangles_collision(Vector2 pos1, Vector2 scale1, Vector2 pos2, Vector2 scale2){
+inline b32 check_rectangles_collision(Vector2 pos1, Vector2 scale1, Vector2 pos2, Vector2 scale2){
     b32 solution = pos1.x + scale1.x * 0.5f > pos2.x - scale2.x * 0.5f &&
                    pos1.x - scale1.x * 0.5f < pos2.x + scale2.x * 0.5f &&
                    pos1.y + scale1.y * 0.5f > pos2.y - scale2.y * 0.5f &&
@@ -3464,9 +3472,9 @@ void update_entity_collision_cells(Entity *entity){
     }
 }
 
-global_variable Array<i32, MAX_COLLISIONS> added_collision_ids = Array<i32, MAX_COLLISIONS>();
+global_variable Dynamic_Array<i32> added_collision_ids = Dynamic_Array<i32>();
 
-void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags, i32 my_id){
+void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Dynamic_Array<Collision> *result, FLAGS include_flags, i32 my_id){
     result->clear();
     
     fill_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
@@ -3493,7 +3501,7 @@ void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bo
     }
 }
 
-void fill_collisions(Entity *entity, Array<Collision, MAX_COLLISIONS> *result, FLAGS include_flags){
+void fill_collisions(Entity *entity, Dynamic_Array<Collision> *result, FLAGS include_flags){
     if (entity->destroyed || !entity->enabled){
         return;
     }
@@ -4565,6 +4573,7 @@ void update_editor_ui(){
         
         int input_len = str_len(focus_input_field.content);
         int fitting_count = 0;
+        f32 alpha_multiplier = lerp(0.0f, 1.0f, clamp01(create_t * 2));
         
         for (int i = 0; i < spawn_objects.count; i++){
             Spawn_Object obj = spawn_objects.get(i);
@@ -4572,7 +4581,9 @@ void update_editor_ui(){
                 continue;
             }
             
-            Vector2 obj_position = field_position + Vector2_up * field_size.y * (fitting_count + 1) + Vector2_right * field_size.x * 0.2f;
+            local_persist f32 create_box_scrolled = 0;
+            create_box_scrolled += GetMouseWheelMove();
+            Vector2 obj_position = field_position + Vector2_up * field_size.y * (fitting_count + 1) + Vector2_up * create_box_scrolled + Vector2_right * field_size.x * 0.2f;
             Vector2 obj_size = {field_size.x * 0.6f, field_size.y};
             
             b32 this_object_selected = editor.create_box_selected_index == fitting_count;
@@ -4590,6 +4601,11 @@ void update_editor_ui(){
                 undo_action.entity_id = entity->id;
                 undo_action.entity_was_spawned = true;
                 add_undo_action(undo_action);
+            }
+            
+            if (obj.entity.flags & TEXTURE){
+                Vector2 texture_position = obj_position - Vector2_right * field_size.y;
+                make_ui_image(obj.entity.texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
             }
             
             if (this_object_selected){
@@ -4626,14 +4642,8 @@ Entity *get_cursor_entity(){
     
     fill_collisions(&mouse_entity, &collisions_buffer, 0);
     
-    // ForTable(context.entities, i){
-    //     Entity *e = context.entities.get_ptr(i);
-    //     if (!e->enabled/* || e->flags == -1*/){
-    //         continue;
-    //     }
     for (int i = 0; i < collisions_buffer.count; i++){
         Entity *e = collisions_buffer.get(i).other_entity;
-    // if ((check_entities_collision(&mouse_entity, e)).collided){
         if (editor.last_click_position == input.mouse_position){
             //If we long enough on one entity we assume that we want to pick it up and not to cycle
             f32 time_since_last_click = core.time.app_time - editor.last_click_time;
@@ -4661,7 +4671,6 @@ Entity *get_cursor_entity(){
             }
             editor.place_cursor_entities.clear();
         }
-        // }
     }        
     
     return cursor_entity_candidate;
@@ -5579,12 +5588,12 @@ void try_sword_damage_enemy(Entity *enemy_entity, Entity *sword, Vector2 hit_pos
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
-    fill_collisions(sword, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE);
+    fill_collisions(sword, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE);
     
     Player *player = &player_data;
     
-    for (int i = 0; i < player->collisions.count; i++){
-        Collision col = player->collisions.get(i);
+    for (int i = 0; i < collisions_buffer.count; i++){
+        Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         
         if (other->flags & BLOCKER && !player->in_stun){
@@ -5750,43 +5759,89 @@ void update_player(Entity *entity, f32 dt){
     player_data.rifle_trail_emitter->position = sword_tip;
     player_data.rifle_trail_emitter->direction = sword->up;
     
+    // @DO REdo this machinegun shit when we'll know for sure how we think this should work.
+    i32 shoots_queued = 0;
+    local_persist f32 shoot_press_time = -12;
+    local_persist f32 rifle_in_machinegun_mode = false;
+    if (input.press_flags & SHOOT && player_data.rifle_active){
+        shoot_press_time = core.time.game_time;
+        shoots_queued += 1;
+    }
+    
+    if (input.hold_flags & SHOOT_DOWN && shoot_press_time > 0){
+        f32 hold_time = core.time.game_time - shoot_press_time;
+        
+        if (!rifle_in_machinegun_mode && hold_time >= 0.5f){
+            rifle_in_machinegun_mode = true;
+            shoots_queued += 1;
+            shoot_press_time = core.time.game_time;
+            hold_time -= 0.5f;
+        }
+        
+        f32 machinegun_shoots_delay = 0.03f;
+        if (rifle_in_machinegun_mode){
+            while (hold_time >= machinegun_shoots_delay){
+                hold_time -= machinegun_shoots_delay;
+                shoots_queued += 1;
+                shoot_press_time = core.time.game_time;
+            }
+        }
+    }
+    
+    if (input.press_flags & SHOOT_RELEASED){
+        shoot_press_time = -12;
+        rifle_in_machinegun_mode = false;
+    }
+    
     // player shoot
     b32 can_shoot_rifle = player_data.rifle_active && (player_data.ammo_count > 0 || debug.infinite_ammo) && context.shoot_stopers_count == 0;
     
-    if (can_shoot_rifle && input.press_flags & SHOOT){
-        add_rifle_projectile(sword_tip, sword->up * player_data.rifle_strong_speed, STRONG);
-        add_player_ammo(-1, true);
-        
-        add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
-        
-        push_or_set_player_up(20);
-        shake_camera(0.1f);
-        play_sound("RifleShot", sword_tip, 0.3f);
-        player_data.rifle_shake_start_time = core.time.game_time;
-        player_data.rifle_shoot_time = core.time.game_time;
-        
-        enable_emitter(player_data.rifle_trail_emitter);
-    } else if (input.press_flags & SHOOT){
-        player_data.rifle_shake_start_time = core.time.game_time;
-        emit_particles(gunpowder_emitter, sword_tip, sword->up);
-        
-        // shoot blocker blocked
-        if (context.shoot_stopers_count > 0){
-            ForTable(context.entities, i){
-                Entity *e = context.entities.get_ptr(i);
-                if (e->flags & SHOOT_STOPER && e->enemy.in_agro){
-                    Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
-                    sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
-                    sticky_line->sticky_texture.follow_id = e->id;
-                    sticky_line->sticky_texture.need_to_follow = true;
-                    sticky_line->sticky_texture.texture_position = get_shoot_stoper_cross_position(e);
-                    sticky_line->sticky_texture.birth_time = core.time.game_time;
-                    sticky_line->sticky_texture.max_distance = 0;
-                    sticky_line->draw_order = 1;
-                    shake_camera(0.5f);
+    while (shoots_queued > 0){
+        if (can_shoot_rifle){
+            Vector2 shoot_direction = sword->up;
+            
+            if (rifle_in_machinegun_mode){
+                f32 max_spread = 20;
+                f32 spread_angle = rnd(-max_spread * 0.5f, max_spread * 0.5f);
+                
+                shoot_direction = get_rotated_vector(shoot_direction, spread_angle);
+            }
+            
+            add_rifle_projectile(sword_tip, shoot_direction * player_data.rifle_strong_speed, STRONG);
+            add_player_ammo(-1, true);
+            
+            add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
+            
+            push_or_set_player_up(rifle_in_machinegun_mode ? 5 : 20);
+            shake_camera(0.1f);
+            play_sound("RifleShot", sword_tip, 0.3f);
+            player_data.rifle_shake_start_time = core.time.game_time;
+            player_data.rifle_shoot_time = core.time.game_time;
+            
+            enable_emitter(player_data.rifle_trail_emitter);
+        } else if (input.press_flags & SHOOT){
+            player_data.rifle_shake_start_time = core.time.game_time;
+            emit_particles(gunpowder_emitter, sword_tip, sword->up);
+            
+            // shoot blocker blocked
+            if (context.shoot_stopers_count > 0){
+                ForTable(context.entities, i){
+                    Entity *e = context.entities.get_ptr(i);
+                    if (e->flags & SHOOT_STOPER && e->enemy.in_agro){
+                        Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
+                        sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
+                        sticky_line->sticky_texture.follow_id = e->id;
+                        sticky_line->sticky_texture.need_to_follow = true;
+                        sticky_line->sticky_texture.texture_position = get_shoot_stoper_cross_position(e);
+                        sticky_line->sticky_texture.birth_time = core.time.game_time;
+                        sticky_line->sticky_texture.max_distance = 0;
+                        sticky_line->draw_order = 1;
+                        shake_camera(0.5f);
+                    }
                 }
             }
         }
+        shoots_queued -= 1;
     }
     
     if (player_data.rifle_active){
@@ -5829,8 +5884,8 @@ void update_player(Entity *entity, f32 dt){
         f32 spin_t = player_data.sword_spin_progress;
         f32 blood_t = player_data.blood_progress;
     
-        chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; //@VISUAL: change color
-        chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; //@VISUAL: change color
+        chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; 
+        chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; 
         
         chainsaw_emitter->count_multiplier = player_data.is_sword_big ? 0.1f : 1;
         chainsaw_emitter->size_multiplier  = player_data.is_sword_big ? 5 : 1;
@@ -6009,15 +6064,15 @@ void update_player(Entity *entity, f32 dt){
     
     f32 sword_ground_particles_speed = 1;
     
-    //player collisions
+    // player collisions
     
     f32 time_since_wall_jump = core.time.game_time - player_data.wall_jump_time;
     f32 player_speed = magnitude(player_data.velocity);
     
     // player left wall
-    fill_collisions(left_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT | PLATFORM);
-    for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
-        Collision col = player_data.collisions.get(i);
+    fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+    for (int i = 0; i < collisions_buffer.count && !player_data.in_stun; i++){
+        Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
         
@@ -6055,9 +6110,9 @@ void update_player(Entity *entity, f32 dt){
     }
     
     // player right wall
-    fill_collisions(right_wall_checker, &player_data.collisions, GROUND | CENTIPEDE_SEGMENT | PLATFORM);
-    for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
-        Collision col = player_data.collisions.get(i);
+    fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+    for (int i = 0; i < collisions_buffer.count && !player_data.in_stun; i++){
+        Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
         
@@ -6096,10 +6151,10 @@ void update_player(Entity *entity, f32 dt){
     
     b32 moving_object_detected = false;
     // player ground checker
-    fill_collisions(ground_checker, &player_data.collisions, GROUND | BLOCKER | SHOOT_BLOCKER | PLATFORM | CENTIPEDE_SEGMENT);
+    fill_collisions(ground_checker, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | PLATFORM | CENTIPEDE_SEGMENT);
     b32 is_huge_collision_speed = false;
-    for (int i = 0; i < player_data.collisions.count && !player_data.in_stun; i++){
-        Collision col = player_data.collisions.get(i);
+    for (int i = 0; i < collisions_buffer.count && !player_data.in_stun; i++){
+        Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
         
@@ -6215,9 +6270,9 @@ void update_player(Entity *entity, f32 dt){
     
     
     // player body collision
-    fill_collisions(entity, &player_data.collisions, GROUND | BLOCKER | SHOOT_BLOCKER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
-    for (int i = 0; i < player_data.collisions.count; i++){
-        Collision col = player_data.collisions.get(i);
+    fill_collisions(entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
+    for (int i = 0; i < collisions_buffer.count; i++){
+        Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
         
@@ -6232,6 +6287,7 @@ void update_player(Entity *entity, f32 dt){
         
         //triggers
         if (other->flags & PROPELLER){
+            // update propeller
             if (player_data.sword_spin_progress > EPSILON){
                 Vector2 acceleration_dir = other->up;
                 Vector2 deceleration_plane = other->right;
@@ -6939,13 +6995,16 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     }
 }
 
-inline b32 is_enemy_can_take_damage(Entity *enemy_entity){
+inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit_time){
     assert(enemy_entity->flags & ENEMY);
 
     if (enemy_entity->flags & CENTIPEDE_SEGMENT && enemy_entity->enemy.dead_man){
         return false;
     }
     
+    if (!check_for_last_hit_time){
+        return true;
+    }
     b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= 0.2f;
     return !recently_got_hit;
 }
@@ -6999,7 +7058,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         return;
     }
     
-    if (is_enemy_can_take_damage(enemy_entity)){
+    if (1 || is_enemy_can_take_damage(enemy_entity)){
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)){
             enemy_entity->move_sequence.moving = false;
         }
@@ -7197,15 +7256,20 @@ void calculate_projectile_collisions(Entity *entity){
     Projectile *projectile = &entity->projectile;
     
     if (projectile->flags & PLAYER_RIFLE){
-        fill_collisions(entity, &player_data.collisions, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
+        fill_collisions(entity, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
         
         Player *player = &player_data;
         
         b32 damaged_enemy = false;
         
-        for (int i = 0; i < player->collisions.count; i++){
-            Collision col = player->collisions.get(i);
+        for (int i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
             Entity *other = col.other_entity;
+            
+            if (projectile->already_hit_ids.contains(other->id)){
+                continue;
+            }
+            
             
             b32 need_bounce = false;
             
@@ -7214,7 +7278,8 @@ void calculate_projectile_collisions(Entity *entity){
             f32 sparks_count = 1;
             f32 hitstop_add = 0;
             
-            if (other->flags & ENEMY && is_enemy_can_take_damage(other) && (projectile->type != WEAK || !projectile->dying)){
+            if (other->flags & ENEMY && is_enemy_can_take_damage(other, false) && (projectile->type != WEAK || !projectile->dying)){
+                projectile->already_hit_ids.add(other->id);
                 b32 killed = false;
                 b32 can_damage = true;
                 
@@ -8527,9 +8592,10 @@ void draw_entity(Entity *e){
         
         if (!(e->flags & exclude_flags)){
             Vector2 position = e->position;
+            // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE){
                 position = e->sticky_texture.texture_position;
-                e->scale = ((Vector2){3, 3}) / context.cam.cam2D.zoom; 
+                e->scale = ((Vector2){3, 3}) / fminf(context.cam.cam2D.zoom, 0.35f); 
             }
             draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
         }
@@ -8892,13 +8958,23 @@ void draw_entity(Entity *e){
     }
     
     if (e->flags & SHOOT_BLOCKER){
+        // draw shoot blockers
         if (e->enemy.shoot_blocker_immortal){
             draw_game_ring_lines(e->position, 3, 6, 8, WHITE);                
         } else{
             Vector2 direction = get_rotated_vector(e->enemy.shoot_blocker_direction, e->rotation);
-            Vector2 start_position = e->position - direction * e->scale.x * 0.6f;
-            Vector2 end_position   = e->position + direction * e->scale.x * 0.6f;
+            f32 len        = e->scale.x * 0.4f + e->scale.y * 0.4f;
+            
+            Vector2 start_position = e->position - direction * len;
+            Vector2 end_position   = e->position + direction * len;
             make_line(start_position, end_position, 1.5f, VIOLET);
+            
+            Vector2 right  = get_rotated_vector_90(direction, -1);
+            
+            make_line(end_position, end_position - right * len * 0.2f - direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
+            make_line(end_position, end_position + right * len * 0.2f - direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
+            make_line(start_position, start_position - right * len * 0.2f + direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
+            make_line(start_position, start_position + right * len * 0.2f + direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
         }
     }
     
@@ -9072,7 +9148,14 @@ void draw_ui(const char *tag){
         
         if (element.ui_flags & UI_IMAGE){
             Ui_Image ui_image = element.ui_image;
-            draw_rect(element.position, element.size, element.pivot, 0, element.color);
+            
+            if (element.has_texture){
+                element.texture.width = element.size.x;
+                element.texture.height = element.size.y;
+                draw_texture(element.texture, element.position, {1, 1}, element.pivot, 0, element.color);
+            } else{
+                draw_rect(element.position, element.size, element.pivot, 0, element.color);
+            }
         }
     }
     for (int i = 0; i < ui_context.elements.count; i++){
@@ -9246,8 +9329,8 @@ void draw_game(){
     draw_particles();
     
     if (player_entity && debug.draw_player_collisions){
-        for (int i = 0; i < player_data.collisions.count; i++){
-            Collision col = player_data.collisions.get(i);
+        for (int i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
             
             make_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
             draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);

@@ -1,4 +1,11 @@
-[ ] Think about that we could embrace a really big amount of bullets and make machinegun mode that will activate on shoot hold.
+[X] Make shoot blocker draw arrows.
+[X] Make machinegun only after first shoot.
+[X] Make Blocker direction bigger on low zoom.
+[X] Playtest 02.06.25:
+    [X] On first level better things.
+    [X] On second kill player less. Less spikes.
+[ ] Think about how we should teach machinegun thing. 
+[X] Think about that we could embrace a really big amount of bullets and make machinegun mode that will activate on shoot hold.
 [ ] Enemy waves functionality
 [ ] Maybe should draw new clue for player when birdies charging attack - this could be a red line that gets wider.
 [X]! We should strongly slow down time when bird is about to kill player so he can react. This could be on a time-cooldown.

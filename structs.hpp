@@ -5,7 +5,7 @@
 #define TARGET_FRAME_TIME (1.0f / FIXED_FPS)
 
 #define MAX_VERTICES 8
-#define MAX_COLLISIONS 128
+// #define MAX_COLLISIONS 128
 #define MAX_ENTITY_EMITTERS 4
 #define GRAVITY 100
 #define PLAYER_MASS 10
@@ -445,8 +445,7 @@ struct Bounds{
 };
 
 struct Player{
-    Array<Collision, MAX_COLLISIONS> collisions = Array<Collision, MAX_COLLISIONS>();
-    
+    // Array<Collision, MAX_COLLISIONS> collisions = Array<Collision, MAX_COLLISIONS>();
     Particle_Emitter *stun_emitter;
     
     b32 dead_man = false;
@@ -559,6 +558,7 @@ struct Projectile{
     f32 max_lifetime = 5;
     b32 dying = false;
     
+    Array<i32, 16> already_hit_ids = Array<i32, 16>();
     f32 last_light_spawn_time = -112;
 };
 
@@ -876,19 +876,21 @@ struct Render{
 };
 
 enum Hold_Flags{
-    UP        = 1 << 1,
-    DOWN      = 1 << 2,
-    RIGHT     = 1 << 3,
-    LEFT      = 1 << 4,
-    SPIN_DOWN = 1 << 8,
+    UP         = 1 << 1,
+    DOWN       = 1 << 2,
+    RIGHT      = 1 << 3,
+    LEFT       = 1 << 4,
+    SPIN_DOWN  = 1 << 8,
+    SHOOT_DOWN = 1 << 9
 };
 
 enum Press_Flags{
-    JUMP          = 1 << 1,
-    SHOOT         = 1 << 2,
-    SPIN          = 1 << 3,
-    SPIN_RELEASED = 1 << 4,
-    SWORD_BIG     = 1 << 5
+    JUMP           = 1 << 1,
+    SHOOT          = 1 << 2,
+    SPIN           = 1 << 3,
+    SPIN_RELEASED  = 1 << 4,
+    SWORD_BIG      = 1 << 5,
+    SHOOT_RELEASED = 1 << 6  
 };
 
 struct Input{
