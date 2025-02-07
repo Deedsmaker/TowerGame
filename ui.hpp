@@ -26,7 +26,7 @@ struct Ui_Text{
     f32 font_size = 22;
     
     Color text_color = BLACK;
-    char content[128];
+    char content[1024];
 };
 
 struct Ui_Element{

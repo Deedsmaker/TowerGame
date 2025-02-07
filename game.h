@@ -71,6 +71,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
 void setup_color_changer(Entity *entity);
 void update_color_changer(Entity *entity);
 
+void disable_speedrun();
+
 void draw_game();
 
 void make_line(Vector2 start_position, Vector2 target_position, Color color);

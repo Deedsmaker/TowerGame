@@ -449,6 +449,7 @@ struct Player{
     Particle_Emitter *stun_emitter;
     
     b32 dead_man = false;
+    f32 died_time = -12;
     
     f32 max_ground_angle = 60;
     

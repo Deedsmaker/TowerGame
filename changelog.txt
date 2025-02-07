@@ -1,3 +1,9 @@
+07.02.2025
+    - Define for no editor mode.
+    - Message at the end of the game for speedrun commands. Also message at death for restart key.
+    - Sound on failed entering rifle mode and no ammo shoot try.
+    - Level work on bombe level and made better shoot stoppers - now we can't pass through without killing them on all currrent levels.
+    
 06.02.2025:
     - Added scroll ability for create box and now we drawing texture preview on those.
     - Changed explosvie1 a little.
