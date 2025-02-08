@@ -1,4 +1,9 @@
-07.02.2025
+08.02.2025:
+    - Плейтест миша. 
+    - Reduced delay to machinegun. This could make more accidential activations, but that should increase possibility of player to discover it. We may make a setting for increasing this delay.
+    - Maked that after entering rifle mode you should press spin again to enter spin. That should help players understand sword modes.
+
+07.02.2025:
     - Define for no editor mode.
     - Message at the end of the game for speedrun commands. Also message at death for restart key.
     - Sound on failed entering rifle mode and no ammo shoot try.

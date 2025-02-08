@@ -1,3 +1,9 @@
+[\] Плохо понимают в принципе механику вращения. Попробуем поправить это изменением партикла на экране - он будет идти по горизонтали, потому что только это имеет значение. (That should be clear when we'll make sounds for spin).
+[ ] Очень плохо пониается разница между большим и маленьким мечом. Стоит добавить не только разные партиклы на раскрут, но и звуки чтобы было понятней. Также надо будет побыстрее вводить ребят которых можно бить только большим или только маленьким мечом чтобы про разные мечи не забывали. We'll make sounds later, - for now we'll introduce this modifications for big/small sword kill immediately on big sword introduction.
+[ ] Возможно стоит быстрее переходить к экшону и вообще избавиться от этих секций с показом разных модификаторов. Возможно лучше это делать прямо на врагах когда придет время. For sure we should reduce stupid shit without action. Any new mechanic should be tested immediately. On first level we should immediately introduce blockers and make a few small arenas with birds. Well that could be not first level so we can make checkpoints, but point is clear.
+[ ] 
+[ ] Shooting mode should not be disrupted by just holding spin button.
+[ ] First chasing section make better.
 [\] Better introduce centipedes. We should explicitly make player to walk on it probably.
 [ ] People can't notice shoot stoppers and just forget about them even if noticed. We need to do something about it. We should draw icon above player when he can't shoot. 
 [X] Make shoot blocker draw arrows.

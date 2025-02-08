@@ -2002,7 +2002,7 @@ void print_hotkeys_to_console(){
     console.str += "\t>Ctrl+Space - Pause in game\n";
     console.str += "\t>Shift+Space - Freecam in game\n";
     console.str += "\t>Right_Ctrl+L - Unlock camera\n";
-    console.str += "\t>G - Teleport player to mouse in game\n";
+    console.str += "\t>K - Teleport player to mouse in game\n";
     console.str += "\t>WASD - Scaling selected entity. Hold Alt for big.\n";
     console.str += "\t>QE - Rotating selected entity. Hold Alt for big.\n";
     
@@ -5754,6 +5754,10 @@ void update_player(Entity *entity, f32 dt){
     Vector2 dir_to_mouse = normalized(vec_to_mouse);
     
     if (input.press_flags & SPIN){
+        player_data.rifle_active = false;
+    }
+    
+    if (input.press_flags & SPIN){
         chainsaw_emitter->position = input.mouse_position;
         chainsaw_emitter->last_emitted_position = input.mouse_position;
         chainsaw_emitter->enabled = true;
@@ -5763,10 +5767,6 @@ void update_player(Entity *entity, f32 dt){
     }
     
     player_data.sword_angular_velocity *= 1.0f - (dt);
-    
-    if (input.hold_flags & SPIN_DOWN){
-        player_data.rifle_active = false;
-    }
     
     b32 can_sword_spin = !player_data.rifle_active && !player_data.in_stun;
     
@@ -5803,11 +5803,11 @@ void update_player(Entity *entity, f32 dt){
     if (input.hold_flags & SHOOT_DOWN && shoot_press_time > 0){
         f32 hold_time = core.time.game_time - shoot_press_time;
         
-        if (!rifle_in_machinegun_mode && hold_time >= 0.5f){
+        if (!rifle_in_machinegun_mode && hold_time >= 0.2f){
             rifle_in_machinegun_mode = true;
             shoots_queued += 1;
             shoot_press_time = core.time.game_time;
-            hold_time -= 0.5f;
+            hold_time -= 0.2f;
         }
         
         f32 machinegun_shoots_delay = 0.03f;
@@ -7964,7 +7964,7 @@ inline b32 update_entity(Entity *e, f32 dt){
     context.collision_grid.origin = {(f32)((i32)player_entity->position.x - ((i32)player_entity->position.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)player_entity->position.y - ((i32)player_entity->position.y % (i32)context.collision_grid.cell_size.y))};
     
     if (e->flags & PLAYER){
-        if (IsKeyDown(KEY_G) && !console.is_open){
+        if (IsKeyDown(KEY_K) && !console.is_open){
             e->position = input.mouse_position;
         } else{
             update_player(e, dt);
