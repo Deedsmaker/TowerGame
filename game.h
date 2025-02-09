@@ -75,6 +75,7 @@ void disable_speedrun();
 
 void draw_game();
 
+void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void make_line(Vector2 start_position, Vector2 target_position, Color color);
 void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color);
 void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color);

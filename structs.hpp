@@ -99,37 +99,38 @@ struct Sound_Handler{
     f32 pitch_variation = 0.3f;
 };
 
-enum Flags : i64{
-    GROUND            = 1 << 0,
-    DRAW_TEXT         = 1 << 1,
-    PLAYER            = 1 << 2,
-    ENEMY             = 1 << 3,
-    SWORD             = 1 << 4,
-    BIRD_ENEMY        = 1 << 5,
-    TEXTURE           = 1 << 6,
-    PROJECTILE        = 1 << 7,
-    PARTICLE_EMITTER  = 1 << 8,
-    WIN_BLOCK         = 1 << 9,
-    EXPLOSIVE         = 1 << 11,
-    BLOCKER           = 1 << 12,
-    STICKY_TEXTURE    = 1 << 13,
-    NOTE              = 1 << 14,
-    PROPELLER         = 1 << 15,
-    SHOOT_BLOCKER     = 1 << 16,
-    DOOR              = 1 << 17,
-    TRIGGER           = 1 << 18,
-    SPIKES            = 1 << 19,
-    PLATFORM          = 1 << 20,
-    MOVE_SEQUENCE     = 1 << 21,
-    DUMMY             = 1 << 22,
-    CENTIPEDE         = 1 << 23,
-    CENTIPEDE_SEGMENT = 1 << 24,
-    SHOOT_STOPER      = 1 << 25,
-    PHYSICS_OBJECT    = 1 << 26,
-    BLOCK_ROPE        = 1 << 27,
-    ROPE_POINT        = 1 << 28,
-    JUMP_SHOOTER      = 1 << 29,
-    LIGHT             = 1 << 30
+enum Flags : u64{
+    GROUND              = 1 << 0,
+    DRAW_TEXT           = 1 << 1,
+    PLAYER              = 1 << 2,
+    ENEMY               = 1 << 3,
+    SWORD               = 1 << 4,
+    BIRD_ENEMY          = 1 << 5,
+    TEXTURE             = 1 << 6,
+    PROJECTILE          = 1 << 7,
+    PARTICLE_EMITTER    = 1 << 8,
+    WIN_BLOCK           = 1 << 9,
+    SWORD_SIZE_REQUIRED = 1 << 10,
+    EXPLOSIVE           = 1 << 11,
+    BLOCKER             = 1 << 12,
+    STICKY_TEXTURE      = 1 << 13,
+    NOTE                = 1 << 14,
+    PROPELLER           = 1 << 15,
+    SHOOT_BLOCKER       = 1 << 16,
+    DOOR                = 1 << 17,
+    TRIGGER             = 1 << 18,
+    SPIKES              = 1 << 19,
+    PLATFORM            = 1 << 20,
+    MOVE_SEQUENCE       = 1 << 21,
+    DUMMY               = 1 << 22,
+    CENTIPEDE           = 1 << 23,
+    CENTIPEDE_SEGMENT   = 1 << 24,
+    SHOOT_STOPER        = 1 << 25,
+    PHYSICS_OBJECT      = 1 << 26,
+    BLOCK_ROPE          = 1 << 27,
+    ROPE_POINT          = 1 << 28,
+    JUMP_SHOOTER        = 1 << 29,
+    LIGHT               = 1 << 30
 };
 
 struct Ground{
@@ -188,6 +189,10 @@ struct Enemy{
     b32 blocker_clockwise = false;
     b32 blocker_immortal = false;
     i32 blocker_sticky_id = -1;
+    
+    // Only if SWORD_SIZE_REQUIRED flag
+    b32 big_sword_killable = true;
+    i32 sword_required_sticky_id = -1;
     
     b32 gives_ammo = true;
     b32 gives_full_ammo = false;
@@ -405,6 +410,9 @@ struct Sticky_Texture{
     Vector2 texture_position = Vector2_zero;
     f32 max_lifetime = 2.0f;
     Color line_color = SKYBLUE;
+    
+    f32 alpha = 1.0f;
+    Vector2 base_size = {3, 3};
     
     f32 max_distance = 400;
     f32 birth_time = 0;
@@ -864,10 +872,20 @@ struct Rect_Lines{
     Color color = PINK;
 };
 
+struct Immediate_Texture{
+    Texture texture = {};
+    Vector2 position = Vector2_zero;
+    Vector2 scale = Vector2_one;
+    Vector2 pivot = {0.5f, 0.5f};
+    f32 rotation = 0;
+    Color color = WHITE;
+};
+
 struct Render{
     Dynamic_Array<Line> lines_to_draw = Dynamic_Array<Line>(128);
     Dynamic_Array<Ring_Lines> ring_lines_to_draw = Dynamic_Array<Ring_Lines>(32);
     Dynamic_Array<Rect_Lines> rect_lines_to_draw = Dynamic_Array<Rect_Lines>(32);
+    Dynamic_Array<Immediate_Texture> textures_to_draw   = Dynamic_Array<Immediate_Texture>(32);
 
     Shader lights_shader;
     Shader test_shader;

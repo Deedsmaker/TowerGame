@@ -638,6 +638,10 @@ i32 save_level(const char *level_name){
             fprintf(fptr, "blocker_immortal:%d: ", e->enemy.blocker_immortal);
         }
         
+        if (e->flags & SWORD_SIZE_REQUIRED){
+            fprintf(fptr, "enemy_big_or_small_killable:%d: ", e->enemy.big_sword_killable);
+        }
+        
         if (e->flags & ENEMY && e->enemy.sword_kill_speed_modifier != 1){
             fprintf(fptr, "sword_kill_speed_modifier:%.1f: ", e->enemy.sword_kill_speed_modifier);
         }
@@ -932,6 +936,9 @@ b32 load_level(const char *level_name){
                 fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get(i).data, "trigger_tracking")){
                 fill_int_array_from_string(&entity_to_fill.trigger.tracking, splitted_line, &i);
+            } else if (str_equal(splitted_line.get(i).data, "enemy_big_or_small_killable")){
+                fill_b32_from_string(&entity_to_fill.enemy.big_sword_killable, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "blocker_clockwise")){
                 fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get(i+1).data);
                 i++;
@@ -1495,6 +1502,8 @@ Texture spiral_clockwise_texture;
 Texture spiral_counterclockwise_texture;
 Texture hitmark_small_texture;
 Texture jump_shooter_bullet_hint_texture;
+Texture big_sword_killable_texture;
+Texture small_sword_killable_texture;
 
 Texture get_texture(const char *name){
     Texture found_texture;
@@ -1755,6 +1764,36 @@ void init_entity(Entity *entity){
             
             entity->enemy.blocker_sticky_id = sticky_entity->id;
         }
+    }
+    
+    if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME){
+        // init sword size required
+        if (entity->enemy.sword_required_sticky_id != -1 && context.entities.has_key(entity->enemy.sword_required_sticky_id)){
+            context.entities.get_by_key_ptr(entity->enemy.sword_required_sticky_id)->destroyed = true;
+        }
+        
+        Texture texture = entity->enemy.big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
+        Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
+        
+        sticky_entity->sticky_texture.base_size = {4, 8};
+        if (!entity->enemy.big_sword_killable){
+            sticky_entity->sticky_texture.base_size = {6, 12};
+        }
+        
+        sticky_entity->sticky_texture.alpha = 0.3f;
+        init_entity(sticky_entity);
+        str_copy(sticky_entity->name, "sword_size_attack_mark");
+        sticky_entity->need_to_save = false;
+        //sticky_entity->texture = texture;
+        sticky_entity->draw_order = 1;
+        sticky_entity->sticky_texture.texture_position = entity->position;
+        sticky_entity->sticky_texture.max_lifetime = 0;
+        sticky_entity->sticky_texture.line_color = Fade(BLUE, 0.1f);
+        sticky_entity->sticky_texture.need_to_follow = true;
+        sticky_entity->sticky_texture.follow_id = entity->id;
+        sticky_entity->sticky_texture.birth_time = core.time.game_time;
+        
+        entity->enemy.sword_required_sticky_id = sticky_entity->id;
     }
     
     if (entity->flags & PROPELLER){
@@ -2452,6 +2491,8 @@ void init_game(){
     init_spawn_objects();
     
     jump_shooter_bullet_hint_texture = get_texture("JumpShooterHintBullet.png");
+    big_sword_killable_texture        = get_texture("BigSwordSticky.png");
+    small_sword_killable_texture       = get_texture("SmallSwordSticky.png");
     
     load_sounds();
     
@@ -4416,6 +4457,22 @@ void update_editor_ui(){
                     }
                     v_pos += height_add;
                 }
+                
+                make_ui_text("Sword size required: ", {inspector_position.x + 5, v_pos}, "enemy_sword_size_required");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & SWORD_SIZE_REQUIRED, "enemy_sword_size_required")){
+                    selected->flags ^= SWORD_SIZE_REQUIRED;
+                    init_entity(selected);
+                }
+                v_pos += height_add;
+
+                if (selected->flags & SWORD_SIZE_REQUIRED){
+                    make_ui_text("Big (1) or small (0) killable: ", {inspector_position.x + 5, v_pos}, "enemy_big_or_small_killable");
+                    if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->enemy.big_sword_killable, "enemy_big_or_small_killable")){
+                        selected->enemy.big_sword_killable = !selected->enemy.big_sword_killable;
+                        init_entity(selected);
+                    }
+                    v_pos += height_add;
+                }
             }
         
             if (selected->flags & BLOCKER){
@@ -5563,6 +5620,24 @@ inline b32 can_damage_blocker(Entity *blocker_entity){
     return is_sword_can_damage() && !blocker_entity->enemy.blocker_immortal && (blocker_entity->enemy.blocker_clockwise ? player_data.sword_spin_direction > 0 : player_data.sword_spin_direction < 0);
 }
 
+inline b32 can_damage_sword_size_required_enemy(Entity *enemy_entity){
+    return is_sword_can_damage() && player_data.is_sword_big == enemy_entity->enemy.big_sword_killable;
+}
+
+b32 can_sword_damage_enemy(Entity *enemy_entity){
+    b32 sword_can_damage = is_sword_can_damage();
+    b32 is_blocker_damageble = true;
+    if (enemy_entity->flags & BLOCKER){
+        is_blocker_damageble = can_damage_blocker(enemy_entity);
+    }
+    b32 is_sword_size_required_damageble = true;
+    if (enemy_entity->flags & SWORD_SIZE_REQUIRED){
+        is_sword_size_required_damageble = can_damage_sword_size_required_enemy(enemy_entity);
+    }
+    
+    return sword_can_damage && is_blocker_damageble && is_sword_size_required_damageble;
+}
+
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
     Entity *sword = context.entities.get_by_key_ptr(player_data.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
@@ -5628,8 +5703,8 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         
-        if (other->flags & BLOCKER && !player->in_stun){
-            if (is_sword_can_damage() && !can_damage_blocker(other)){
+        if ((other->flags & BLOCKER || other->flags & SWORD_SIZE_REQUIRED) && !player->in_stun){
+            if (is_sword_can_damage() && !can_sword_damage_enemy(other)){
                 player->velocity = player->velocity * -0.5f;
                 emit_particles(rifle_bullet_emitter, col.point, col.normal, 3, 5);
                 set_sword_velocity(-player->sword_angular_velocity * 0.1f);
@@ -7279,13 +7354,8 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason){
     return true;
 }
 
-b32 should_kill_player(Entity *entity){
-    b32 should = !is_sword_can_damage();
-    if (entity->flags & BLOCKER){
-        should = !can_damage_blocker(entity);
-    }
-
-    return should;
+inline b32 should_kill_player(Entity *entity){
+    return !can_sword_damage_enemy(entity);
 }
 
 void calculate_projectile_collisions(Entity *entity){
@@ -8638,16 +8708,18 @@ void draw_entity(Entity *e){
             // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE){
                 position = e->sticky_texture.texture_position;
-                e->scale = ((Vector2){3, 3}) / fminf(context.cam.cam2D.zoom, 0.35f); 
+                e->scale = (e->sticky_texture.base_size) / fminf(context.cam.cam2D.zoom, 0.35f); 
+                make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, e->sticky_texture.alpha));
+            } else{
+                draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, e->sticky_texture.alpha));
             }
-            draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
         }
     }
     
     // draw note
     if (e->flags & NOTE && (game_state == EDITOR || game_state == PAUSE)){
         assert(e->note_index != -1);
-        draw_game_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
+        make_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
         // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
         if (editor.selected_entity && editor.selected_entity->id == e->id || IsKeyDown(KEY_LEFT_SHIFT) || focus_input_field.in_focus && str_contains(focus_input_field.tag, text_format("%d", e->id))){
             Note *note = context.notes.get_ptr(e->note_index);
@@ -9000,6 +9072,13 @@ void draw_entity(Entity *e){
         draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
     }
     
+    if (e->flags & SWORD_SIZE_REQUIRED && (game_state == EDITOR)){
+        Texture texture = e->enemy.big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
+        
+        draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
+    }
+
+    
     if (e->flags & SHOOT_BLOCKER){
         // draw shoot blockers
         if (e->enemy.shoot_blocker_immortal){
@@ -9269,6 +9348,18 @@ void draw_ui(const char *tag){
     }
 }
 
+void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
+    Immediate_Texture im_texture = {};
+    im_texture.texture  = texture;
+    im_texture.position = position;
+    im_texture.scale    = scale;
+    im_texture.pivot    = pivot;
+    im_texture.rotation = rotation;
+    im_texture.color    = color;
+    
+    render.textures_to_draw.add(im_texture);
+}
+
 void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color){
     Line line = {};
     line.start_position = start_position;
@@ -9330,9 +9421,15 @@ void draw_immediate_stuff(){
         }
     }
     
+    for (i32 i = 0; i < render.textures_to_draw.count; i++){
+        Immediate_Texture im_texture = render.textures_to_draw.get(i);
+        draw_game_texture(im_texture.texture, im_texture.position, im_texture.scale, im_texture.pivot, im_texture.rotation, im_texture.color);
+    }
+    
     render.lines_to_draw.clear();
     render.ring_lines_to_draw.clear();
     render.rect_lines_to_draw.clear();
+    render.textures_to_draw.clear();
 }
 
 void apply_shake(){
