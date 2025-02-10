@@ -782,6 +782,9 @@ struct Speedrun_Timer{
 struct Note{
     b32 occupied = false;
     char content[2048] = "\0";
+    
+    b32 draw_in_game = false;
+    Color in_game_color = WHITE;
 };
 
 enum Death_Instinct_Reason{

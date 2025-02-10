@@ -6,7 +6,13 @@ enum Game_State{
     PAUSE
 };
 
+enum Drawing_State{
+    CAMERA_DRAWING,  
+    LIGHTING_DRAWING
+};
+
 global_variable Game_State game_state = EDITOR;
+global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
 void clean_up_scene();
 void enter_game_state();

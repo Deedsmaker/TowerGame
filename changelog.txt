@@ -1,3 +1,14 @@
+10.02.2025:
+    - Fixed temp level loading issue. 
+    - Fixed alpha with immediate stuff when lighting on.
+    - Fixed sword kill sound when enemies kill themselves on player touch.
+    - Maked text rendering in game (it's just notes).
+
+09.02.2025:
+    - Sword size required modifier for enemies.
+    - Translated sticky texture to immediate drawing, so it's no longer affected by lighting.
+    - Spin practice level.
+
 08.02.2025:
     - Плейтест миша. 
     - Reduced delay to machinegun. This could make more accidential activations, but that should increase possibility of player to discover it. We may make a setting for increasing this delay.

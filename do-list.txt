@@ -1,13 +1,13 @@
-[ ] Fix sound when enemies kill themselves on player touch.
+[X] We're loading on temp levels for some reason. (That was because we were entering editor state on every occasion and editor state makes us loading on temp level, but saving temp level from real content happening on entering game state. We should think about how we make that transisioning better.)
+[X] Fix sound when enemies kill themselves on player touch. 
 [ ] Add text on tutorials. We'll make it that firstly and will remove text when we'll understand that base mechanics is understandable at all.
 [\] Плохо понимают в принципе механику вращения. Попробуем поправить это изменением партикла на экране - он будет идти по горизонтали, потому что только это имеет значение. (That should be clear when we'll make sounds for spin).
 [ ] Очень плохо пониается разница между большим и маленьким мечом. Стоит добавить не только разные партиклы на раскрут, но и звуки чтобы было понятней. Также надо будет побыстрее вводить ребят которых можно бить только большим или только маленьким мечом чтобы про разные мечи не забывали. We'll make sounds later, - for now we'll introduce this modifications for big/small sword kill immediately on big sword introduction.
 [ ] Возможно стоит быстрее переходить к экшону и вообще избавиться от этих секций с показом разных модификаторов. Возможно лучше это делать прямо на врагах когда придет время. For sure we should reduce stupid shit without action. Any new mechanic should be tested immediately. On first level we should immediately introduce blockers and make a few small arenas with birds. Well that could be not first level so we can make checkpoints, but point is clear.
-[ ] 
-[ ] Shooting mode should not be disrupted by just holding spin button.
+[X] Shooting mode should not be disrupted by just holding spin button.
 [ ] First chasing section make better.
 [\] Better introduce centipedes. We should explicitly make player to walk on it probably.
-[ ] People can't notice shoot stoppers and just forget about them even if noticed. We need to do something about it. We should draw icon above player when he can't shoot. 
+[\] People can't notice shoot stoppers and just forget about them even if noticed. We need to do something about it. We should draw icon above player when he can't shoot. 
 [X] Make shoot blocker draw arrows.
 [X] Make machinegun only after first shoot.
 [X] Make Blocker direction bigger on low zoom.
