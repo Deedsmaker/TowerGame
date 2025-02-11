@@ -1,3 +1,5 @@
+[ ] Try to make that sticky textures don't go out of screen.
+[X]? Lights bugs sometimes on copy
 [X] We're loading on temp levels for some reason. (That was because we were entering editor state on every occasion and editor state makes us loading on temp level, but saving temp level from real content happening on entering game state. We should think about how we make that transisioning better.)
 [X] Fix sound when enemies kill themselves on player touch. 
 [ ] Add text on tutorials. We'll make it that firstly and will remove text when we'll understand that base mechanics is understandable at all.
@@ -35,7 +37,7 @@
 [X] Try white flash on whole background
 [ ] One-frame arena for stuff like strings. Should also change string lib for that
 [X] Make that explosion won't damage anything if behing obstacle
-[ ] When time comes - Make that wall climbing was on timer and resets when ground touched (or also when enemy killed with sword)
+[ ]? When time comes - Make that wall climbing was on timer and resets when ground touched (or also when enemy killed with sword). UPDATE: Actually we might just make slippery walls, but we'll see.
 [X] Weird bug when reloading by pressing T in game after dying. Lights seems not to unload; (That was because dummy entities is hidden and we don't updated their position when reloading. Need to think about should be show light on hidden objects or not). (we should not)
 [X] Color picker for lights
 [X] Color changer changes real color of object when works with light on one entity
@@ -89,6 +91,7 @@
 [ ] Profiling tool.
 [ ] Player internal-interface (for examplelines that shows how to kill sword-blocker) could be disrupted by some enemy. Funny visual requiered and pretty long gameplay before introduction so player could get used to this information.
 [ ] Zone in late-game that will make sword not spin continuously, but react to sharp mouse movements to make cuts and fast dashes.
+[ ] After tutorials we should make a long room splitted horizontaly where player will go in down part and in upper part will go player clone with recorded inputs to show player how cool he can play. By that we also hint some mechanics like a machinegun. 
 ///////////////////////////////////////////////////
 
 <Levels order>

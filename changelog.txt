@@ -1,3 +1,8 @@
+11.02.2025:
+    - Level work on tutorial practice.
+    - Changed the way how death instinct works. Now timescale depends on distance to threat or to angle till explode in case of sword.
+    - Maybe fixed some lighting entities copy bugs.
+
 10.02.2025:
     - Fixed temp level loading issue. 
     - Fixed alpha with immediate stuff when lighting on.

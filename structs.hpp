@@ -295,6 +295,9 @@ enum Trigger_Action_Type{
 struct Trigger{
     Dynamic_Array<int> connected;
     Dynamic_Array<int> tracking;
+    
+    b32 die_after_trigger = false;
+    
     b32 player_touch             = true;
     b32 kill_player              = false;
     b32 kill_enemies             = false;
@@ -831,6 +834,9 @@ struct Context{
         f32 stop_time = -12;
         i32 threat_entity_id = -1;
         b32 played_effects = false;
+        
+        f32 angle_till_explode = 0;
+        
         Death_Instinct_Reason last_reason = ENEMY_ATTACKING;
     };
     

@@ -55,6 +55,14 @@ global_variable Hash_Table_Int<Sound_Handler> sounds_table = Hash_Table_Int<Soun
 Player last_player_data = {};
 Player death_player_data = {};
 
+inline Color color_fade(Color color, f32 alpha_multiplier){
+    return {color.r, color.g, color.b, (u8)((f32)color.a * clamp01(alpha_multiplier))};
+}
+
+inline Color color_opacity(Color color, f32 alpha){
+    return {color.r, color.g, color.b, (u8)(clamp01(alpha) * 255)};
+}
+
 void free_light(Light *light){
     if (light->exists){
         if (light->make_shadows){
@@ -542,6 +550,7 @@ i32 save_level(const char *level_name){
             }
             
             fprintf(fptr, "trigger_kill_player:%d: ",                    e->trigger.kill_player);
+            fprintf(fptr, "trigger_die_after_trigger:%d: ",                    e->trigger.die_after_trigger);
             fprintf(fptr, "trigger_kill_enemies:%d: ",                    e->trigger.kill_enemies);
             fprintf(fptr, "trigger_open_doors:%d: ",                     e->trigger.open_doors);
             fprintf(fptr, "trigger_start_physics_simulation:%d: ",       e->trigger.start_physics_simulation);
@@ -994,6 +1003,9 @@ b32 load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "light_color")){
                 fill_vector4_from_string(&context.lights.get_ptr(entity_to_fill.light_index)->color, splitted_line.get(i+1).data, splitted_line.get(i+2).data, splitted_line.get(i+3).data, splitted_line.get(i+4).data);
                 i += 4;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_die_after_trigger")){
+                fill_b32_from_string(&entity_to_fill.trigger.die_after_trigger, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")){
                 fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
                 i++;
@@ -1647,10 +1659,14 @@ void init_light(Light *light){
     
     if (light->make_shadows){
         light->shadowmask_rt  = LoadRenderTexture(light->shadows_size, light->shadows_size);
+    } else{
+        light->shadowmask_rt = {};
     }
     
     if (light->make_backshadows){
         light->backshadows_rt = LoadRenderTexture(light->backshadows_size, light->backshadows_size);
+    } else{
+        light->backshadows_rt = {};
     }
             
     if (light->make_shadows || light->make_backshadows){
@@ -3160,7 +3176,18 @@ void update_game(){
         Entity *threat_entity = get_entity_by_id(context.death_instinct.threat_entity_id);
         Vector2 cam_position = player_entity->position + (threat_entity->position - player_entity->position) * 0.5f;
         context.cam.position        = lerp(context.cam.position, cam_position, clamp01(core.time.real_dt * 5));
-        core.time.target_time_scale = lerp(core.time.target_time_scale, 0.03f, clamp01(core.time.real_dt * 10));
+        
+        if (context.death_instinct.last_reason == ENEMY_ATTACKING){
+            f32 distance_t = clamp01(magnitude(threat_entity->position - player_entity->position) / get_death_instinct_radius(get_entity_velocity(threat_entity)));
+            core.time.target_time_scale = lerp(0.01f, 0.6f, distance_t * distance_t * distance_t);
+        } else if (context.death_instinct.last_reason == SWORD_WILL_EXPLODE){
+            f32 distance_t = clamp01(context.death_instinct.angle_till_explode / 150.0f);
+            core.time.target_time_scale = lerp(0.01f, 0.6f, distance_t * distance_t * distance_t);
+
+        } else{
+            core.time.target_time_scale = lerp(core.time.target_time_scale, 0.03f, clamp01(core.time.real_dt * 10));
+            // print("RDFSWERF");
+        }
         
         f32 instinct_t = time_since_death_instinct / context.death_instinct.duration;
         make_line(player_entity->position, threat_entity->position, Fade(RED, instinct_t * instinct_t));
@@ -4245,6 +4272,12 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
+                make_ui_text("Die after trigger: ", {inspector_position.x + 5, v_pos}, "trigger_die_after_trigger");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.die_after_trigger, "trigger_die_after_trigger")){
+                    selected->trigger.die_after_trigger = !selected->trigger.die_after_trigger;
+                }
+                v_pos += height_add;
+                
                 make_ui_text("Kill player: ", {inspector_position.x + 5, v_pos}, "trigger_kill_player");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.kill_player, "trigger_kill_player")){
                     selected->trigger.kill_player = !selected->trigger.kill_player;
@@ -4281,7 +4314,7 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
-                make_ui_text("Shows entities: ", {inspector_position.x + 5, v_pos}, "trigger_shows_entities");
+                make_ui_text("Shows entities: ", {inspector_position.x + 5, v_pos}, "trigger_shows_entities", ColorBrightness(SKYBLUE, 0.5f));
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.shows_entities, "toggle_trigger_show_entity")){
                     selected->trigger.shows_entities = !selected->trigger.shows_entities;                 
                 }
@@ -6057,15 +6090,15 @@ void update_player(Entity *entity, f32 dt){
     if (is_sword_can_damage()){ // sword death instinct
         f32 previous_rotation = sword->rotation;
         Vector2 previous_scale = sword->scale;
-        f32 instinct_check_angle = 300;
-        f32 instinct_step = 20;
+        f32 instinct_check_angle = 150;
+        f32 instinct_step = 10;
         f32 checked = 0;
-        Vector2 instinct_additional_scale = {2.0f, 1.0f};
+        Vector2 instinct_additional_scale = {1.0f, 1.0f};
         Vector2 sword_base_scale = player_data.is_sword_big ? sword_target_size : sword->scale;
-        change_scale(sword, {sword_base_scale.x * instinct_additional_scale.x, sword_base_scale.y * instinct_additional_scale.y});
+        // change_scale(sword, {sword_base_scale.x * instinct_additional_scale.x, sword_base_scale.y * instinct_additional_scale.y});
         while (checked <= instinct_check_angle){
             checked += instinct_step;
-            rotate(sword, instinct_step);
+            rotate(sword, instinct_step * player_data.sword_spin_direction);
             fill_collisions(sword, &collisions_buffer, EXPLOSIVE);
             for (i32 i = 0; i < collisions_buffer.count; i++){
                 Collision col = collisions_buffer.get(i);
@@ -6080,10 +6113,11 @@ void update_player(Entity *entity, f32 dt){
                     continue;
                 }
                 if (start_death_instinct(collisions_buffer.get(0).other_entity, SWORD_WILL_EXPLODE)){
-                    core.time.time_scale = 0.2f;
-                    player_data.sword_angular_velocity *= 0.5f;
+                    // core.time.time_scale = 0.2f;
+                    // player_data.sword_angular_velocity *= 0.5f;
                 }
                 
+                context.death_instinct.angle_till_explode = checked - instinct_step;
                 found_explosive = true;
                 break;
             }
@@ -7720,7 +7754,7 @@ i32 update_trigger(Entity *e){
         }
     }
     
-    if (e->trigger.track_enemies && !e->trigger.triggered){
+    if (/*e->trigger.track_enemies*/ e->trigger.tracking.count > 0 && !e->trigger.triggered){
         b32 found_enemy = false;
         for (i32 i = 0; i < e->trigger.tracking.count; i++){
             i32 id = e->trigger.tracking.get(i);
@@ -7815,6 +7849,10 @@ i32 update_trigger(Entity *e){
         }
         
         e->trigger.triggered = true;
+        
+        if (e->trigger.die_after_trigger){
+            e->enabled = false;
+        }
     }
     
     return TRIGGER_SOME_ACTION;
@@ -8692,6 +8730,10 @@ void fill_entities_draw_queue(){
 Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
 
 void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 width, f32 height){
+    if (drawing_state != CAMERA_DRAWING){
+        return;
+    }
+
     line_strip_points.clear();
     f32 frequency = 2;
     Vector2 start_position = e->position - side_direction * width * 0.5f;
@@ -9145,13 +9187,13 @@ void draw_entity(Entity *e){
             Entity *follow_entity = context.entities.get_by_key_ptr(e->sticky_texture.follow_id);
             Color line_color = e->sticky_texture.line_color;
             if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
-                line_color = follow_entity->enemy.dead_man ? Fade(SKYBLUE, 0.1f) : Fade(RED, 0.1f);
+                line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
             }
 
             Vector2 vec_to_follow = e->sticky_texture.texture_position - player_entity->position;
             f32 len = magnitude(vec_to_follow);
             if (len <= e->sticky_texture.max_distance || e->sticky_texture.max_distance <= 0){
-                make_line(player_entity->position, e->sticky_texture.texture_position, lerp(line_color, Fade(line_color, 0), lifetime_t * lifetime_t));
+                make_line(player_entity->position, e->sticky_texture.texture_position, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
             }
         }
     }
@@ -9919,8 +9961,8 @@ void setup_color_changer(Entity *entity){
 
 void check_avaliable_ids_and_set_if_found(i32 *id){
     i32 try_count = 0;
-    while (context.entities.has_key(*id) && try_count <= 1000){
-        (*id)++;
+    while ((context.entities.has_key(*id) && try_count <= MAX_ENTITIES) || *id <= 10){
+        *id = ((*id) + 1) % MAX_ENTITIES;
         try_count += 1;
     }
     
@@ -9947,9 +9989,10 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
     e.id = context.entities.total_added_count + core.time.app_time * 10000 + 100;
     check_avaliable_ids_and_set_if_found(&e.id);
-    if (flags & PLAYER){
-        e.id = 1;
-    }
+    // assert(e.id != 1);  
+    // if (flags & PLAYER){
+    //     e.id = 1;
+    // }
     context.entities.add(e.id, e);
     return context.entities.last_ptr();
 }
