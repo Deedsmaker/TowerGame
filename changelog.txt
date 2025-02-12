@@ -1,3 +1,8 @@
+12.02.2025:
+    - Some more death instinct improvements.
+    - Big sword practice level work. Should finish this today. Finished.
+    - Shooting practice level markup.
+
 11.02.2025:
     - Level work on tutorial practice.
     - Changed the way how death instinct works. Now timescale depends on distance to threat or to angle till explode in case of sword.

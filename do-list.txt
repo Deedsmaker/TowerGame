@@ -1,11 +1,13 @@
-[ ] Try to make that sticky textures don't go out of screen.
-[X]? Lights bugs sometimes on copy
+[ ] Make spin practice easier.
+[ ] Hotreloading. 
+[X] Try to make that sticky textures don't go out of screen. (Tried. Could go that path later.).
+[\]? Lights bugs sometimes on copy. Still broken, but we'll remake all light storing so not an serious issue for now. Also could be that it breaks levels for some reason. Or maybe levels breaks for other reason and it's break light at the same time. scary day...
 [X] We're loading on temp levels for some reason. (That was because we were entering editor state on every occasion and editor state makes us loading on temp level, but saving temp level from real content happening on entering game state. We should think about how we make that transisioning better.)
 [X] Fix sound when enemies kill themselves on player touch. 
-[ ] Add text on tutorials. We'll make it that firstly and will remove text when we'll understand that base mechanics is understandable at all.
+[X] Add text on tutorials. We'll make it that firstly and will remove text when we'll understand that base mechanics is understandable at all.
 [\] Плохо понимают в принципе механику вращения. Попробуем поправить это изменением партикла на экране - он будет идти по горизонтали, потому что только это имеет значение. (That should be clear when we'll make sounds for spin).
-[ ] Очень плохо пониается разница между большим и маленьким мечом. Стоит добавить не только разные партиклы на раскрут, но и звуки чтобы было понятней. Также надо будет побыстрее вводить ребят которых можно бить только большим или только маленьким мечом чтобы про разные мечи не забывали. We'll make sounds later, - for now we'll introduce this modifications for big/small sword kill immediately on big sword introduction.
-[ ] Возможно стоит быстрее переходить к экшону и вообще избавиться от этих секций с показом разных модификаторов. Возможно лучше это делать прямо на врагах когда придет время. For sure we should reduce stupid shit without action. Any new mechanic should be tested immediately. On first level we should immediately introduce blockers and make a few small arenas with birds. Well that could be not first level so we can make checkpoints, but point is clear.
+[X] Очень плохо пониается разница между большим и маленьким мечом. Стоит добавить не только разные партиклы на раскрут, но и звуки чтобы было понятней. Также надо будет побыстрее вводить ребят которых можно бить только большим или только маленьким мечом чтобы про разные мечи не забывали. We'll make sounds later, - for now we'll introduce this modifications for big/small sword kill immediately on big sword introduction.
+[X] Возможно стоит быстрее переходить к экшону и вообще избавиться от этих секций с показом разных модификаторов. Возможно лучше это делать прямо на врагах когда придет время. For sure we should reduce stupid shit without action. Any new mechanic should be tested immediately. On first level we should immediately introduce blockers and make a few small arenas with birds. Well that could be not first level so we can make checkpoints, but point is clear.
 [X] Shooting mode should not be disrupted by just holding spin button.
 [ ] First chasing section make better.
 [\] Better introduce centipedes. We should explicitly make player to walk on it probably.
@@ -16,7 +18,7 @@
 [X] Playtest 02.06.25:
     [X] On first level better things.
     [X] On second kill player less. Less spikes.
-[ ] Think about how we should teach machinegun thing. We'll see what's up on playtests - if player just notice it by themselves means it'll work when we add some visual and sound clues when it's charging.
+[X] Think about how we should teach machinegun thing. We'll see what's up on playtests - if player just notice it by themselves means it'll work when we add some visual and sound clues when it's charging. (Solution in long term section - we'll make a room after tutorials where show all stuff and player could just understood).
 [X] Think about that we could embrace a really big amount of bullets and make machinegun mode that will activate on shoot hold.
 [ ] Enemy waves functionality
 [ ] Maybe should draw new clue for player when birdies charging attack - this could be a red line that gets wider.
@@ -25,7 +27,7 @@
 [X] Change way we draw all editor stuff to immediate and draw this in separate pass, so it won't be affected by light.
 [\] Maybe we should put more effort to teaching how to stop sword and why it's useful. (After extensive thinking i decided that we put LESS effort to teaching how to stop sword - i just don't push player to know this annoyingly, but we still have this thing in bridge1 level where player need to stop sword while escaping wall of spikes, but this in level begin so don't scary).
 [X] Don't forget to write string lib modifications before pushing. Should add n|o|c|h|e|c|k|i|n functionality.
-[ ] Booster for full invincibility.
+[ ]? Booster for full invincibility.
 [X] Jump buffer and coyote time
 [X] Doors in editor should draw their opened position if they closed and closed position if they opened.
 [\] Think on way to stop on the wall?
@@ -48,7 +50,6 @@
 [X] Drag player with mouse (G)
 [X] Birds delay before attack so they go in order.
 [X] Space partitioning for collision detection. Static grid i think. (HUGE optimization)
-[ ] Hotreloading
 [X] Explosion radius visualization (so player could understand what would happen when explosion hits)
 [X] Jump off the wall
 [X] Fixed physics timestamp (240)
@@ -156,7 +157,7 @@
 
 <RAW>
 /////////////////////////////////////////////////////////
-[ ] Maybe levels with static camera where world will wrap around, like in world turns red or that item in duck game?
+[ ] Maybe levels with static camera where world will wrap around, like in 'world turns red' or that item in duck game?
 /////////////////////////////////////////////////////////
 
 -----------------------------------------------------------------------

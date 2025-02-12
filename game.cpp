@@ -56,7 +56,7 @@ Player last_player_data = {};
 Player death_player_data = {};
 
 inline Color color_fade(Color color, f32 alpha_multiplier){
-    return {color.r, color.g, color.b, (u8)((f32)color.a * clamp01(alpha_multiplier))};
+    return {color.r, color.g, color.b, (u8)(clamp((f32)color.a * alpha_multiplier, 0.0f, 255.0f))};
 }
 
 inline Color color_opacity(Color color, f32 alpha){
@@ -2858,13 +2858,17 @@ void fixed_game_update(f32 dt){
             }
         }
     }
+    
+    
     context.cam.trauma -= dt * context.cam.trauma_decrease_rate;
     context.cam.trauma = clamp01(context.cam.trauma);
     
     context.explosion_trauma = clamp01(context.explosion_trauma - dt * 20);
 
-    f32 zoom_speed = game_state == GAME ? 3 : 10;
-    context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, dt * zoom_speed);
+    if (!is_in_death_instinct() || !is_death_instinct_threat_active()){
+        f32 zoom_speed = game_state == GAME ? 3 : 10;
+        context.cam.cam2D.zoom = lerp(context.cam.cam2D.zoom, context.cam.target_zoom, dt * zoom_speed);
+    }
     
     if (abs(context.cam.cam2D.zoom - context.cam.target_zoom) <= EPSILON){
         context.cam.cam2D.zoom = context.cam.target_zoom;
@@ -3171,22 +3175,26 @@ void update_game(){
     if (is_in_death_instinct() && is_death_instinct_threat_active() && game_state == GAME){
         f32 time_since_death_instinct = core.time.app_time - context.death_instinct.start_time;
         
-        context.cam.cam2D.zoom      = lerp(context.cam.cam2D.zoom, 0.75f, clamp01(core.time.real_dt * 5));
-        
         Entity *threat_entity = get_entity_by_id(context.death_instinct.threat_entity_id);
         Vector2 cam_position = player_entity->position + (threat_entity->position - player_entity->position) * 0.5f;
-        context.cam.position        = lerp(context.cam.position, cam_position, clamp01(core.time.real_dt * 5));
         
         if (context.death_instinct.last_reason == ENEMY_ATTACKING){
-            f32 distance_t = clamp01(magnitude(threat_entity->position - player_entity->position) / get_death_instinct_radius(get_entity_velocity(threat_entity)));
-            core.time.target_time_scale = lerp(0.01f, 0.6f, distance_t * distance_t * distance_t);
+            f32 distance_t = (1.0f - clamp01(magnitude(threat_entity->position - player_entity->position) / get_death_instinct_radius(threat_entity->scale)));
+            
+            f32 t = EaseOutQuint(distance_t);
+            core.time.target_time_scale = lerp(0.6f, 0.02f, t * t);
+            context.cam.position        = lerp(context.cam.position, lerp(context.cam.target, cam_position, t * t), core.time.real_dt * t * 5);
+            context.cam.cam2D.zoom      = lerp(context.cam.cam2D.zoom, lerp(context.cam.target_zoom, 0.55f, t * t), core.time.real_dt * t * 5);;
         } else if (context.death_instinct.last_reason == SWORD_WILL_EXPLODE){
-            f32 distance_t = clamp01(context.death_instinct.angle_till_explode / 150.0f);
-            core.time.target_time_scale = lerp(0.01f, 0.6f, distance_t * distance_t * distance_t);
-
+            f32 distance_t = (1.0f - clamp01(context.death_instinct.angle_till_explode / 150.0f));
+            f32 t = EaseOutQuint(distance_t);
+            core.time.target_time_scale = lerp(0.6f, 0.015f, t);
+            context.cam.position        = lerp(context.cam.position, lerp(context.cam.target, cam_position, t), core.time.real_dt * t * 5);
+            context.cam.cam2D.zoom      = lerp(context.cam.cam2D.zoom, lerp(context.cam.target_zoom, 0.55f, t), core.time.real_dt * t * 5);;
         } else{
+            context.cam.position        = lerp(context.cam.position, cam_position, clamp01(core.time.real_dt * 5));
+            context.cam.cam2D.zoom      = lerp(context.cam.cam2D.zoom, 0.55f, clamp01(core.time.real_dt * 5));
             core.time.target_time_scale = lerp(core.time.target_time_scale, 0.03f, clamp01(core.time.real_dt * 10));
-            // print("RDFSWERF");
         }
         
         f32 instinct_t = time_since_death_instinct / context.death_instinct.duration;
@@ -6068,7 +6076,7 @@ void update_player(Entity *entity, f32 dt){
         add_blood_amount(&player_data, -blood_decease * dt);
     }
     
-    f32 sword_min_rotation_amount = 20;
+    f32 sword_min_rotation_amount = 10;
     f32 need_to_rotate = player_data.sword_angular_velocity * dt;
     
     player_data.sword_spin_direction = normalized(player_data.sword_angular_velocity);
@@ -7331,8 +7339,9 @@ inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EP
     return abs(first - second) <= allowed_difference;
 }
 
-inline f32 get_death_instinct_radius(Vector2 velocity){
-    return fmaxf(fminf((18.0f / context.cam.cam2D.zoom), 60), 40) * fmaxf(magnitude(velocity) / 200.0f, 1.0f);
+inline f32 get_death_instinct_radius(Vector2 threat_scale){
+    // return fmaxf(fminf((18.0f / context.cam.cam2D.zoom), 60), 40) * fmaxf(magnitude(velocity) / 200.0f, 1.0f);
+    return 40 + (threat_scale.x + threat_scale.y) - 8.0f;
 }
 
 inline b32 is_death_instinct_threat_active(){
@@ -7382,7 +7391,7 @@ void stop_death_instinct(){
 b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards){
     b32 flying_towards = true;
     if (check_if_flying_towards){
-        flying_towards = distance_to_player < get_death_instinct_radius(velocity) && dot(dir_to_player, normalized(velocity)) >= 0.9f;
+        flying_towards = distance_to_player < get_death_instinct_radius(entity->scale) && dot(dir_to_player, normalized(velocity)) >= 0.9f;
     }
     
     if (!flying_towards){
@@ -8989,12 +8998,13 @@ void draw_entity(Entity *e){
                 }
                 draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
                 
-                Color cam_border_color = Fade(PINK, debug.full_light ? 0.1f : 0.015f);
+                Color cam_border_color = Fade(PINK, 0.15f);
                 if (editor.selected_entity && editor.selected_entity->id == e->id){
-                    cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.15f);
+                    cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.45f);
                 }
                 position = e->trigger.locked_camera_position;
                 make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (context.cam.cam2D.zoom), cam_border_color);
+                draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, text_format("%.2f", e->trigger.zoom_value), 18.0f / context.cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
             }
             
             if (e->trigger.lock_camera){
@@ -9004,7 +9014,7 @@ void draw_entity(Entity *e){
                 for (i32 ii = 0; ii < e->trigger.cam_rails_points.count; ii++){
                     Vector2 point = e->trigger.cam_rails_points.get(ii);
                     
-                    Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(GRAY, 0.1f), 0.05f);
+                    Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
                     
                     if (IsKeyDown(KEY_LEFT_ALT)){
                         draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
