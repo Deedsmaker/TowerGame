@@ -2,6 +2,9 @@
     - Some more death instinct improvements.
     - Big sword practice level work. Should finish this today. Finished.
     - Shooting practice level markup.
+    - Made player stun depends on app time instead of game time. That should give us more chance to recover on instinct error. We'll se how it goes. 
+    - Added collisions to sword size required modifier.
+    - Made last room in spin practice a bit easier.
 
 11.02.2025:
     - Level work on tutorial practice.

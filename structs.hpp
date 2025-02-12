@@ -534,8 +534,8 @@ struct Player{
     i32 ammo_charges = 0;
     i32 ammo_charges_for_count = 5;
     
-    f32 strong_recoil_stun_start_time = -190321;
-    f32 weak_recoil_stun_start_time = -123123;
+    // f32 strong_recoil_stun_start_time = -190321;
+    f32 weak_recoil_stun_start_time = -12;
     b32 in_stun = false;
     
     f32 current_move_speed = 0;

@@ -1,4 +1,6 @@
-[ ] Make spin practice easier.
+[X] Add collisions to sword size required modifier.
+[X] Try to remove player stun, will see what's happens. (Maked it depends on app time instead of game time, so in death instinct it has a chance to recover. We'll see how it goes).
+[X] Make spin practice easier (last room).
 [ ] Hotreloading. 
 [X] Try to make that sticky textures don't go out of screen. (Tried. Could go that path later.).
 [\]? Lights bugs sometimes on copy. Still broken, but we'll remake all light storing so not an serious issue for now. Also could be that it breaks levels for some reason. Or maybe levels breaks for other reason and it's break light at the same time. scary day...

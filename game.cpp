@@ -5772,8 +5772,8 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             if (is_sword_can_damage() && !can_sword_damage_enemy(other)){
                 player->velocity = player->velocity * -0.5f;
                 emit_particles(rifle_bullet_emitter, col.point, col.normal, 3, 5);
-                set_sword_velocity(-player->sword_angular_velocity * 0.1f);
-                player_data.weak_recoil_stun_start_time = core.time.game_time;
+                set_sword_velocity(normalized(-player->sword_angular_velocity) * 150);
+                player_data.weak_recoil_stun_start_time = core.time.app_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
                 play_sound(player_data.sword_block_sound, col.point);
@@ -5879,10 +5879,11 @@ void update_player(Entity *entity, f32 dt){
     }
     
     f32 max_strong_stun_time = 2.0f;
-    f32 max_weak_stun_time = 0.8f;
-    f32 in_strong_stun_time = core.time.game_time - player_data.strong_recoil_stun_start_time;
-    f32 in_weak_stun_time   = core.time.game_time - player_data.weak_recoil_stun_start_time;
-    player_data.in_stun = core.time.game_time > 3 && (in_strong_stun_time <= max_strong_stun_time || in_weak_stun_time <= max_weak_stun_time);
+    f32 max_weak_stun_time = 0.3f;
+    // f32 in_strong_stun_time = core.time.game_time - player_data.strong_recoil_stun_start_time;
+    f32 in_weak_stun_time   = core.time.app_time - player_data.weak_recoil_stun_start_time;
+    player_data.in_stun = (/*in_strong_stun_time <= max_strong_stun_time || */in_weak_stun_time <= max_weak_stun_time);
+    // player_data.in_stun = false;
     
     Vector2 sword_target_size = player_data.sword_start_scale * (player_data.is_sword_big ? 6 : 1);
     
@@ -6333,7 +6334,7 @@ void update_player(Entity *entity, f32 dt){
     
     b32 moving_object_detected = false;
     // player ground checker
-    fill_collisions(ground_checker, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | PLATFORM | CENTIPEDE_SEGMENT);
+    fill_collisions(ground_checker, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PLATFORM | CENTIPEDE_SEGMENT);
     b32 is_huge_collision_speed = false;
     for (i32 i = 0; i < collisions_buffer.count && !player_data.in_stun; i++){
         Collision col = collisions_buffer.get(i);
@@ -6452,7 +6453,7 @@ void update_player(Entity *entity, f32 dt){
     
     
     // player body collision
-    fill_collisions(entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
+    fill_collisions(entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
     for (i32 i = 0; i < collisions_buffer.count; i++){
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
