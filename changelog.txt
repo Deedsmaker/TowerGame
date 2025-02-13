@@ -1,3 +1,9 @@
+13.02.2025:
+    - Changed jump shooter blocker direction rendering to immediate, so it does not get affected by light.
+    - 'fixed' jump shooter jiggle entering standing state by adding 0.4 sec buffer for air time. That's an issue with collision system and we'll look into that. Task is already in do-list.
+    - Simplified player collisions with enemies when he can damage them.
+    - Shooting practice level work. Last room left where we'll teach to stop spin.
+
 12.02.2025:
     - Some more death instinct improvements.
     - Big sword practice level work. Should finish this today. Finished.

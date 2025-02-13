@@ -1,3 +1,9 @@
+[X] On bomb blocks level last door don't open when bomb is exploded. (That's was because we detected that entity does not exist in trigger drawing aswell (wtf??). There still lyes connected entities removal. Should redo that shit).
+[ ] Cam blockers system. Each blocker should be separate entity with direction (We could draw direction along like platforms). On trigger enter we will set which blockers we look upon. Maybe we want this blockers to be line-defined and we'll set on them block direction - east or west from line. We could make that camera will detect collisions with them by cam view border, but that propably will overcomplicate things as if we just make this similar to how cam rails currently works.
+[ ] Remake tutorial about increasing gravity and write about that in text. 
+[ ] Make text about spin stop on bridge1 level.
+[ ] In shoting practice level we could introduce propellers. Also we could teach about spin stop here in safe environment.
+[X] Jump shooter still doing dump shit while standing. (Made a 0.4 sec buffer before he restarts his grounded timer. Issue is fixed for now, but that could've mean that something wround with our collision system and when i'll want to continuously detect ground using get_nearest_ground_collision again - this will fail me aswell. We already planned task for improvents in collision plane so will look into that later).
 [X] Add collisions to sword size required modifier.
 [X] Try to remove player stun, will see what's happens. (Maked it depends on app time instead of game time, so in death instinct it has a chance to recover. We'll see how it goes).
 [X] Make spin practice easier (last room).
@@ -11,7 +17,7 @@
 [X] Очень плохо пониается разница между большим и маленьким мечом. Стоит добавить не только разные партиклы на раскрут, но и звуки чтобы было понятней. Также надо будет побыстрее вводить ребят которых можно бить только большим или только маленьким мечом чтобы про разные мечи не забывали. We'll make sounds later, - for now we'll introduce this modifications for big/small sword kill immediately on big sword introduction.
 [X] Возможно стоит быстрее переходить к экшону и вообще избавиться от этих секций с показом разных модификаторов. Возможно лучше это делать прямо на врагах когда придет время. For sure we should reduce stupid shit without action. Any new mechanic should be tested immediately. On first level we should immediately introduce blockers and make a few small arenas with birds. Well that could be not first level so we can make checkpoints, but point is clear.
 [X] Shooting mode should not be disrupted by just holding spin button.
-[ ] First chasing section make better.
+[X] First chasing section make better.
 [\] Better introduce centipedes. We should explicitly make player to walk on it probably.
 [\] People can't notice shoot stoppers and just forget about them even if noticed. We need to do something about it. We should draw icon above player when he can't shoot. 
 [X] Make shoot blocker draw arrows.
@@ -81,6 +87,7 @@
 
 <OPTIMIZATIONS>
 [ ] Make raycast smarter. Actually whould just make a real ray-polygon intersecion and not that shit that de do now. Also circle-polygon etc. General physics improvements required.
+    [ ] Also in collisions we want to look at that problem that we had with jump shooter standing state - get_nearest_ground_collision sometimes failed us and we did not get same result on every frame so we can't rely on such continuous checks, but we may want to; Should look into that.
 [ ] Check what's up with light drawing, we have way to many draw calls.
 
 <LONG TERM>

@@ -1781,7 +1781,7 @@ void init_entity(Entity *entity){
             sticky_entity->draw_order = 1;
             sticky_entity->sticky_texture.texture_position = entity->position;
             sticky_entity->sticky_texture.max_lifetime = 0;
-            sticky_entity->sticky_texture.line_color = Fade(ORANGE, 0.1f);
+            sticky_entity->sticky_texture.line_color = Fade(ORANGE, 0.3f);
             sticky_entity->sticky_texture.need_to_follow = true;
             sticky_entity->sticky_texture.follow_id = entity->id;
             sticky_entity->sticky_texture.birth_time = core.time.game_time;
@@ -1814,7 +1814,7 @@ void init_entity(Entity *entity){
         sticky_entity->draw_order = 1;
         sticky_entity->sticky_texture.texture_position = entity->position;
         sticky_entity->sticky_texture.max_lifetime = 0;
-        sticky_entity->sticky_texture.line_color = Fade(BLUE, 0.1f);
+        sticky_entity->sticky_texture.line_color = Fade(BLUE, 0.3f);
         sticky_entity->sticky_texture.need_to_follow = true;
         sticky_entity->sticky_texture.follow_id = entity->id;
         sticky_entity->sticky_texture.birth_time = core.time.game_time;
@@ -6359,7 +6359,7 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other) && !(other->flags & CENTIPEDE_SEGMENT)){
+        if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)){
             try_sword_damage_enemy(other, col.point);
             continue;
         }
@@ -6508,7 +6508,7 @@ void update_player(Entity *entity, f32 dt){
             continue;
         }
         
-        if (other->flags & ENEMY && other->flags & BLOCKER && can_damage_blocker(other) && !(other->flags & CENTIPEDE_SEGMENT)){
+        if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)){
             try_sword_damage_enemy(other, col.point);
             continue;
         }
@@ -7779,7 +7779,7 @@ i32 update_trigger(Entity *e){
             if (!tracking_entity->enemy.dead_man){
                 found_enemy = true;
                 break;
-            }
+            } 
         }
         
         if (!found_enemy){
@@ -8252,6 +8252,7 @@ inline b32 update_entity(Entity *e, f32 dt){
             Collision nearest_ground = get_nearest_ground_collision(e->position, e->scale.x * 0.7f + e->scale.y * 0.7f);
             
             if (nearest_ground.collided){
+                shooter->not_found_ground_timer = 0;
                 shooter->velocity = Vector2_zero;
                 
               //landing animation
@@ -8313,9 +8314,13 @@ inline b32 update_entity(Entity *e, f32 dt){
                         e->position += nearest_ground.other_entity->move_sequence.moved_last_frame;
                     }
                 }
-            } else{
+            } else{ // If not found ground
+                shooter->not_found_ground_timer += dt;
                 shooter->velocity.y -= GRAVITY * dt;
-                shooter->states.standing_start_time = core.time.game_time;
+                
+                if (shooter->not_found_ground_timer >= 0.4f){
+                    shooter->states.standing_start_time = core.time.game_time;
+                }
             }
         }
         
@@ -8969,7 +8974,7 @@ void draw_entity(Entity *e){
                 Vector2 scale = {3, 3};
                 scale /= context.cam.cam2D.zoom;
                 Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-                draw_game_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
+                make_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
             }
         }
     } else if (e->flags & ENEMY){
@@ -9028,6 +9033,11 @@ void draw_entity(Entity *e){
             }
         }
         
+        // @SHIT Wtf, why we do that here. That should be in trigger drawing and should happen only in editor. 
+        // But if we remove connected removal right now - we destroy ourselves because we should track that separetely in 
+        // game trigger update.
+        // Maybe that was made here because i wanted to draw stuff like lines and we did not have immediate drawing at that time, 
+        // but still that too stupid to be true.
         b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == e->id;
         for (i32 ii = 0; ii < e->trigger.connected.count; ii++){
             i32 id = e->trigger.connected.get(ii);
@@ -9046,7 +9056,7 @@ void draw_entity(Entity *e){
                 make_line(e->position, connected_entity->position, RED);
             }
         }
-        for (i32 ii = 0; ii < e->trigger.tracking.count; ii++){
+        for (i32 ii = 0; ii < e->trigger.tracking.count && game_state == EDITOR; ii++){
             i32 id = e->trigger.tracking.get(ii);
             if (!context.entities.has_key(id)){
                 e->trigger.tracking.remove(ii);

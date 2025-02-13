@@ -230,6 +230,8 @@ struct Jump_Shooter{
     
     shooter_states states = {};
     
+    f32 not_found_ground_timer = 0;
+    
     Vector2 velocity = Vector2_zero;
     i32 current_index = 0;
 
