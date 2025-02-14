@@ -1245,7 +1245,7 @@ global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dyn
 
 global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
 
-#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER)
+#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED)
 
 Entity *spawn_object_by_name(const char* name, Vector2 position){
     for (i32 i = 0; i < spawn_objects.count; i++){
@@ -6925,9 +6925,9 @@ void update_bird_enemy(Entity *entity, f32 dt){
     }
     
     if (bird->attacking){
-        f32 attack_time = core.time.game_time - bird->attack_start_time;
+        f32 attacking_time = core.time.game_time - bird->attack_start_time;
         
-        if (attack_time >= bird->max_attack_time){
+        if (attacking_time >= bird->max_attack_time){
             bird->attacking = false;
             bird->roaming = true;
             bird->roam_start_time = core.time.game_time;
@@ -6987,7 +6987,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
         // bird_clear_formation(bird);
         
         f32 charging_time = core.time.game_time - bird->charging_start_time;
-        f32 t = charging_time / bird->max_charging_time;
+        f32 t = clamp01(charging_time / bird->max_charging_time);
         
         change_scale(entity, lerp(entity->enemy.original_scale, {entity->enemy.original_scale.x * 1.2f, entity->enemy.original_scale.y * 2.0f}, t * t));
         
@@ -7001,7 +7001,19 @@ void update_bird_enemy(Entity *entity, f32 dt){
         }
         
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
+        
+        Color attack_line_color = Fade(RED, t * t * 0.3f);
+        f32 attack_line_width = lerp(0.0f, 1.5f, t * t);
+        Vector2 attack_line_target_position = player_entity->position;
+        Collision ray_collision = get_ray_collision_to_player(entity, entity->collision_flags, 2);
+        if (ray_collision.collided){
+            attack_line_target_position = ray_collision.point;
+            attack_line_color = color_fade(attack_line_color, 0.5f);
+        }
+        make_line(entity->position, attack_line_target_position, attack_line_width, attack_line_color);
     } else if (bird->attacking){
+        f32 attacking_time = core.time.game_time - bird->attack_start_time;
+        
         bird_clear_formation(bird);
     
         f32 speed = magnitude(bird->velocity);
@@ -7009,10 +7021,11 @@ void update_bird_enemy(Entity *entity, f32 dt){
         bird->velocity = entity->up * speed;
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
         
-        
         if (is_enemy_should_trigger_death_instinct(entity, bird->velocity, dir_to_player, distance_to_player, true)){
             start_death_instinct(entity, ENEMY_ATTACKING);          
         }
+        
+        f32 attack_line_t = clamp01(attacking_time / 0.5f);
     } else{
         assert(false);
         //what a state
@@ -8667,14 +8680,26 @@ void draw_enemy(Entity *entity){
     draw_game_triangle_strip(entity);
 }
 
-void draw_bird_enemy(Entity *entity){
+inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len){
+    if (!player_entity){
+        print("WARNING: Tried to get ray collision to player, but player is not present");
+        return {};     
+    }
+    
+    Vector2 vec_to_player = player_entity->position - entity->position;
+    Vector2 dir = normalized(vec_to_player);
+    f32 len = magnitude(vec_to_player);
+    return raycast(entity->position, dir, len - reduced_len, collision_flags, 6, entity->id);
+}
+
+inline void draw_bird_enemy(Entity *entity){
     assert(entity->flags & BIRD_ENEMY);
     
     Entity visual_entity = *entity;
     if (entity->bird_enemy.charging){
-        f32 charge_time = core.time.game_time - entity->bird_enemy.charging_start_time;
-        f32 charging_progress = clamp01(charge_time / entity->bird_enemy.max_charging_time);
-        visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, charging_progress * charging_progress);
+        f32 charging_time = core.time.game_time - entity->bird_enemy.charging_start_time;
+        f32 t = clamp01(charging_time / entity->bird_enemy.max_charging_time);
+        visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, t * t);
     }
     
     draw_game_triangle_strip(&visual_entity);
@@ -8715,6 +8740,8 @@ inline b32 should_not_draw_entity(Entity *e, Cam cam){
 void fill_entities_draw_queue(){
     context.entities_draw_queue.clear();
     
+    // That also acts entities loop on draw update call. For example we use it for some immediate stuff that should
+    // work on occluded entities.
     ForTable(context.entities, i){
         Entity *e_ptr = context.entities.get_ptr(i);
         Entity e = context.entities.get(i);
@@ -9616,7 +9643,7 @@ void draw_game(){
         update_entity_collision_cells(&mouse_entity);
         for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
             for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
-                auto cell = get_collision_cell_from_position({column, row});
+                Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
                 
                 draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / context.cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
             }
