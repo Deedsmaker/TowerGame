@@ -414,6 +414,8 @@ struct Sticky_Texture{
     i32 follow_id = -1;  
     Vector2 texture_position = Vector2_zero;
     f32 max_lifetime = 2.0f;
+    
+    b32 draw_line = false;
     Color line_color = SKYBLUE;
     
     f32 alpha = 1.0f;
@@ -897,6 +899,8 @@ struct Render{
     Dynamic_Array<Ring_Lines> ring_lines_to_draw = Dynamic_Array<Ring_Lines>(32);
     Dynamic_Array<Rect_Lines> rect_lines_to_draw = Dynamic_Array<Rect_Lines>(32);
     Dynamic_Array<Immediate_Texture> textures_to_draw   = Dynamic_Array<Immediate_Texture>(32);
+    
+    Dynamic_Array<Light> lights_draw_queue = Dynamic_Array<Light>(128);
 
     Shader lights_shader;
     Shader test_shader;

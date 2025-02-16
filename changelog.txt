@@ -1,3 +1,8 @@
+16.02.2025
+    - Now we draw external lines of entities in separate entities loop that happen when we fill entities draw queue.
+    - Made that enemy modifiers no longer draw lines passively. That's because lines is powerful tool to communicate information to player so we don't want too many of them constantly. We may want to highlight these modifiers more, like with light blobs.
+    - Made some immediate mode for lights. First step to improving lights and also handy tool for highligting some entities. Right now we highlight blockers and sword size required guys.
+
 13.02.2025:
     - Changed jump shooter blocker direction rendering to immediate, so it does not get affected by light.
     - 'fixed' jump shooter jiggle entering standing state by adding 0.4 sec buffer for air time. That's an issue with collision system and we'll look into that. Task is already in do-list.

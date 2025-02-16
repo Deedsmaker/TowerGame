@@ -1780,11 +1780,11 @@ void init_entity(Entity *entity){
             //sticky_entity->texture = texture;
             sticky_entity->draw_order = 1;
             sticky_entity->sticky_texture.texture_position = entity->position;
-            sticky_entity->sticky_texture.max_lifetime = 0;
-            sticky_entity->sticky_texture.line_color = Fade(ORANGE, 0.3f);
+            sticky_entity->sticky_texture.max_lifetime   = 0;
+            // sticky_entity->sticky_texture.line_color  = Fade(ORANGE, 0.3f);
             sticky_entity->sticky_texture.need_to_follow = true;
-            sticky_entity->sticky_texture.follow_id = entity->id;
-            sticky_entity->sticky_texture.birth_time = core.time.game_time;
+            sticky_entity->sticky_texture.follow_id      = entity->id;
+            sticky_entity->sticky_texture.birth_time     = core.time.game_time;
             
             entity->enemy.blocker_sticky_id = sticky_entity->id;
         }
@@ -1813,11 +1813,12 @@ void init_entity(Entity *entity){
         //sticky_entity->texture = texture;
         sticky_entity->draw_order = 1;
         sticky_entity->sticky_texture.texture_position = entity->position;
-        sticky_entity->sticky_texture.max_lifetime = 0;
-        sticky_entity->sticky_texture.line_color = Fade(BLUE, 0.3f);
+        sticky_entity->sticky_texture.max_lifetime   = 0;
+        // sticky_entity->sticky_texture.line_color     = Fade(BLUE, 0.3f);
         sticky_entity->sticky_texture.need_to_follow = true;
-        sticky_entity->sticky_texture.follow_id = entity->id;
-        sticky_entity->sticky_texture.birth_time = core.time.game_time;
+        // sticky_entity->sticky_texture.draw_line      = true;
+        sticky_entity->sticky_texture.follow_id      = entity->id;
+        sticky_entity->sticky_texture.birth_time     = core.time.game_time;
         
         entity->enemy.sword_required_sticky_id = sticky_entity->id;
     }
@@ -7001,16 +7002,6 @@ void update_bird_enemy(Entity *entity, f32 dt){
         }
         
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
-        
-        Color attack_line_color = Fade(RED, t * t * 0.3f);
-        f32 attack_line_width = lerp(0.0f, 1.5f, t * t);
-        Vector2 attack_line_target_position = player_entity->position;
-        Collision ray_collision = get_ray_collision_to_player(entity, entity->collision_flags, 2);
-        if (ray_collision.collided){
-            attack_line_target_position = ray_collision.point;
-            attack_line_color = color_fade(attack_line_color, 0.5f);
-        }
-        make_line(entity->position, attack_line_target_position, attack_line_width, attack_line_color);
     } else if (bird->attacking){
         f32 attacking_time = core.time.game_time - bird->attack_start_time;
         
@@ -7324,10 +7315,11 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     str_copy(hitmark->name, "hitmark_small");
     
     hitmark->sticky_texture.texture_position = entity->position;
-    hitmark->sticky_texture.need_to_follow = need_to_follow;
-    hitmark->sticky_texture.follow_id = entity->id;
-    hitmark->sticky_texture.birth_time = core.time.game_time;
-    hitmark->sticky_texture.max_distance = 1000;
+    hitmark->sticky_texture.need_to_follow   = need_to_follow;
+    hitmark->sticky_texture.draw_line        = true;
+    hitmark->sticky_texture.follow_id        = entity->id;
+    hitmark->sticky_texture.birth_time       = core.time.game_time;
+    hitmark->sticky_texture.max_distance     = 1000;
 }
 
 Vector2 get_entity_velocity(Entity *entity){
@@ -8727,14 +8719,14 @@ Bounds get_cam_bounds(Cam cam, f32 zoom){
     return cam_bounds;
 }
 
-inline b32 should_draw_entity_anyway(Entity *e){
-    b32 is_should_draw_anyway = e->flags & TRIGGER || (e->flags & MOVE_SEQUENCE && game_state != GAME);
-    return is_should_draw_anyway;
-}
+// inline b32 should_draw_entity_anyway(Entity *e){
+//     b32 is_should_draw_anyway = e->flags & TRIGGER || (e->flags & MOVE_SEQUENCE && game_state != GAME);
+//     return is_should_draw_anyway;
+// }
 
 inline b32 should_not_draw_entity(Entity *e, Cam cam){
     Bounds cam_bounds = get_cam_bounds(cam, cam.cam2D.zoom);
-    return !should_draw_entity_anyway(e) && (!check_bounds_collision(cam.view_position, cam_bounds, e) || !e->enabled);
+    return /*!should_draw_entity_anyway(e) && */(!check_bounds_collision(cam.view_position, cam_bounds, e) || !e->enabled);
 }
 
 void fill_entities_draw_queue(){
@@ -8742,26 +8734,174 @@ void fill_entities_draw_queue(){
     
     // That also acts entities loop on draw update call. For example we use it for some immediate stuff that should
     // work on occluded entities.
-    ForTable(context.entities, i){
-        Entity *e_ptr = context.entities.get_ptr(i);
-        Entity e = context.entities.get(i);
-        
-        if (!e_ptr || !e.enabled){
-            continue;
-        }
-        //now we want entities that have external lines
-        if (e.hidden && game_state == GAME && !should_draw_entity_anyway(&e)){
+    ForEntities(entity, 0){
+        if (!entity->enabled){
             continue;
         }
         
-        if (should_not_draw_entity(&e, context.cam)){
-            e_ptr->visible = false;
+        if (entity->hidden && game_state == GAME/* && !should_draw_entity_anyway(&e)*/){
+            continue;
+        }
+        
+        if (entity->flags & BIRD_ENEMY){ 
+            Bird_Enemy *bird = &entity->bird_enemy;
+            if (bird->charging){
+                f32 charging_time = core.time.game_time - entity->bird_enemy.charging_start_time;
+                f32 t = clamp01(charging_time / entity->bird_enemy.max_charging_time);
+                Color attack_line_color = Fade(RED, t * t * 0.3f);
+                f32 attack_line_width = lerp(0.0f, 1.5f, t * t);
+                Vector2 attack_line_target_position = player_entity->position;
+                // @TODO Should make this ray collision check so that line would stop when bird will not fly all the way to player.
+                // Will do that when we'll perform collision optimizations.
+                // Collision ray_collision = get_ray_collision_to_player(entity, entity->collision_flags, 2);
+                // if (ray_collision.collided){
+                //     attack_line_target_position = ray_collision.point;
+                //     attack_line_color = color_fade(attack_line_color, 0.5f);
+                // }
+                make_line(entity->position, attack_line_target_position, attack_line_width, attack_line_color);
+            }
+        }
+        
+        // always draw move sequence
+        if (entity->flags & MOVE_SEQUENCE && should_draw_editor_hints()){
+            if (entity->move_sequence.speed_related_player_distance && editor.selected_entity && editor.selected_entity->id == entity->id){
+                draw_game_circle(entity->position, entity->move_sequence.max_distance, Fade(RED, 0.05f));
+                draw_game_circle(entity->position, entity->move_sequence.min_distance, Fade(BLUE, 0.2f));
+            }
+                
+            for (i32 ii = 0; ii < entity->move_sequence.points.count; ii++){
+                Vector2 point = entity->move_sequence.points.get(ii);
+                
+                Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.2f);
+                
+                if (IsKeyDown(KEY_LEFT_ALT)){
+                    draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
+                    draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / context.cam.cam2D.zoom, RED);
+                    
+                    if (entity->flags & JUMP_SHOOTER){
+                        Collision nearest_ground = get_nearest_ground_collision(point, 20);
+                        if (nearest_ground.collided){
+                            Collision ray_collision = raycast(point, normalized(nearest_ground.point - point), magnitude(nearest_ground.point - point), GROUND, 1);
+                            if (ray_collision.collided){
+                                make_line(ray_collision.point, ray_collision.point + ray_collision.normal * 5, GREEN);
+                            }
+                        } else{
+                            draw_game_circle(point, 1 * (0.4f / context.cam.cam2D.zoom), RED);
+                        }
+                    }
+                }
+                if (ii < entity->move_sequence.points.count - 1){
+                    make_line(point, entity->move_sequence.points.get(ii+1), color);
+                } else if (entity->move_sequence.loop){
+                    make_line(point, entity->move_sequence.points.get(0), color);
+                }
+            }
+        }
+        
+        // always draw explosive
+        if (entity->flags & EXPLOSIVE){
+            if (game_state == EDITOR){
+                draw_game_circle(entity->position, get_explosion_radius(entity), Fade(ORANGE, 0.1f));
+            }
+        }
+        
+        // always draw trigger
+        if (entity->flags & TRIGGER){
+            if (should_draw_editor_hints()){
+                // draw cam zoom trigger draw trigger zoom draw trigger cam
+                if (entity->trigger.change_zoom){
+                    Bounds cam_bounds = get_cam_bounds(context.cam, entity->trigger.zoom_value);
+                    Vector2 position = entity->position;
+                    if (entity->trigger.lock_camera){
+                    }
+                    draw_game_circle(entity->trigger.locked_camera_position, 2, PINK);
+                    
+                    Color cam_border_color = Fade(PINK, 0.15f);
+                    if (editor.selected_entity && editor.selected_entity->id == entity->id){
+                        cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.45f);
+                    }
+                    position = entity->trigger.locked_camera_position;
+                    make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (context.cam.cam2D.zoom), cam_border_color);
+                    draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, text_format("%.2f", entity->trigger.zoom_value), 18.0f / context.cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
+                }
+                
+                if (entity->trigger.lock_camera){
+                }
+                
+                if (entity->trigger.start_cam_rails_horizontal || entity->trigger.start_cam_rails_vertical){
+                    for (i32 ii = 0; ii < entity->trigger.cam_rails_points.count; ii++){
+                        Vector2 point = entity->trigger.cam_rails_points.get(ii);
+                        
+                        Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
+                        
+                        if (IsKeyDown(KEY_LEFT_ALT)){
+                            draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
+                            draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / context.cam.cam2D.zoom, RED);
+                        }
+                        if (ii < entity->trigger.cam_rails_points.count - 1){
+                            make_line(point, entity->trigger.cam_rails_points.get(ii+1), color);
+                        } 
+                    }
+                }
+            }
+            
+            // @SHIT Wtf, why we do that here. That should be in trigger drawing and should happen only in editor. 
+            // But if we remove connected removal right now - we destroy ourselves because we should track that separetely in 
+            // game trigger update.
+            // Maybe that was made here because i wanted to draw stuff like lines and we did not have immediate drawing at that time, 
+            // but still that too stupid to be true.
+            b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id;
+            for (i32 ii = 0; ii < entity->trigger.connected.count; ii++){
+                i32 id = entity->trigger.connected.get(ii);
+                if (!context.entities.has_key(id)){
+                    entity->trigger.connected.remove(ii);
+                    ii--;
+                    continue;
+                }
+                Entity *connected_entity = context.entities.get_by_key_ptr(id);
+                
+                if (connected_entity->flags & DOOR && ((entity->flags ^ TRIGGER) > 0 || game_state != GAME)){
+                    Color color = connected_entity->door.is_open == entity->trigger.open_doors ? SKYBLUE : ORANGE;
+                    f32 width = connected_entity->door.is_open == entity->trigger.open_doors ? 1.0f : 0.2f;
+                    make_line(entity->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.3f));
+                } else if (is_trigger_selected && should_draw_editor_hints()){
+                    make_line(entity->position, connected_entity->position, RED);
+                }
+            }
+            for (i32 ii = 0; ii < entity->trigger.tracking.count && game_state == EDITOR; ii++){
+                i32 id = entity->trigger.tracking.get(ii);
+                if (!context.entities.has_key(id)){
+                    entity->trigger.tracking.remove(ii);
+                    ii--;
+                    continue;
+                }
+                Entity *connected_entity = context.entities.get_by_key_ptr(id);
+                
+                if (is_trigger_selected && should_draw_editor_hints()){
+                    make_line(entity->position, connected_entity->position, GREEN);
+                }
+            }
+        }
+        
+        // always draw blocker
+        if (entity->flags & BLOCKER){
+            make_light(entity->position, 75, 1, 1, WHITE);
+        }
+        
+        // always draw sword size required
+        if (entity->flags & SWORD_SIZE_REQUIRED){
+            make_light(entity->position, 75, 2, 0.5f, entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
+        }
+        
+        // This checks for occlusion.
+        if (should_not_draw_entity(entity, context.cam)){
+            entity->visible = false;
             continue;
         } else{
-            e_ptr->visible = true;
+            entity->visible = true;
         }
         
-        context.entities_draw_queue.add(e);
+        context.entities_draw_queue.add(*entity);
     }
     
     qsort(context.entities_draw_queue.data, context.entities_draw_queue.count, sizeof(Entity), compare_entities_draw_order);
@@ -8800,6 +8940,10 @@ void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 wi
 
 inline Vector2 get_shoot_stoper_cross_position(Entity *entity){
     return entity->position + entity->up * entity->scale.y * 0.85f;
+}
+
+inline b32 should_draw_editor_hints(){
+    return (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
 }
 
 void draw_entity(Entity *e){
@@ -9015,125 +9159,6 @@ void draw_entity(Entity *e){
         draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
     }
     
-    b32 should_draw_editor_hints = (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game);
-    
-    if (e->flags & TRIGGER){
-        // draw trigger
-        if (should_draw_editor_hints){
-            draw_game_line_strip(e, e->color);
-            draw_game_triangle_strip(e, Fade(e->color, 0.1f));
-            
-            // draw cam zoom trigger draw trigger zoom draw trigger cam
-            if (e->trigger.change_zoom){
-                Bounds cam_bounds = get_cam_bounds(context.cam, e->trigger.zoom_value);
-                Vector2 position = e->position;
-                if (e->trigger.lock_camera){
-                }
-                draw_game_circle(e->trigger.locked_camera_position, 2, PINK);
-                
-                Color cam_border_color = Fade(PINK, 0.15f);
-                if (editor.selected_entity && editor.selected_entity->id == e->id){
-                    cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.45f);
-                }
-                position = e->trigger.locked_camera_position;
-                make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (context.cam.cam2D.zoom), cam_border_color);
-                draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, text_format("%.2f", e->trigger.zoom_value), 18.0f / context.cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
-            }
-            
-            if (e->trigger.lock_camera){
-            }
-            
-            if (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical){
-                for (i32 ii = 0; ii < e->trigger.cam_rails_points.count; ii++){
-                    Vector2 point = e->trigger.cam_rails_points.get(ii);
-                    
-                    Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
-                    
-                    if (IsKeyDown(KEY_LEFT_ALT)){
-                        draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
-                        draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / context.cam.cam2D.zoom, RED);
-                    }
-                    if (ii < e->trigger.cam_rails_points.count - 1){
-                        make_line(point, e->trigger.cam_rails_points.get(ii+1), color);
-                    } 
-                }
-            }
-        }
-        
-        // @SHIT Wtf, why we do that here. That should be in trigger drawing and should happen only in editor. 
-        // But if we remove connected removal right now - we destroy ourselves because we should track that separetely in 
-        // game trigger update.
-        // Maybe that was made here because i wanted to draw stuff like lines and we did not have immediate drawing at that time, 
-        // but still that too stupid to be true.
-        b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == e->id;
-        for (i32 ii = 0; ii < e->trigger.connected.count; ii++){
-            i32 id = e->trigger.connected.get(ii);
-            if (!context.entities.has_key(id)){
-                e->trigger.connected.remove(ii);
-                ii--;
-                continue;
-            }
-            Entity *connected_entity = context.entities.get_by_key_ptr(id);
-            
-            if (connected_entity->flags & DOOR && ((e->flags ^ TRIGGER) > 0 || game_state != GAME)){
-                Color color = connected_entity->door.is_open == e->trigger.open_doors ? SKYBLUE : ORANGE;
-                f32 width = connected_entity->door.is_open == e->trigger.open_doors ? 1.0f : 0.2f;
-                make_line(e->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.3f));
-            } else if (is_trigger_selected && should_draw_editor_hints){
-                make_line(e->position, connected_entity->position, RED);
-            }
-        }
-        for (i32 ii = 0; ii < e->trigger.tracking.count && game_state == EDITOR; ii++){
-            i32 id = e->trigger.tracking.get(ii);
-            if (!context.entities.has_key(id)){
-                e->trigger.tracking.remove(ii);
-                ii--;
-                continue;
-            }
-            Entity *connected_entity = context.entities.get_by_key_ptr(id);
-            
-            if (is_trigger_selected && should_draw_editor_hints){
-                make_line(e->position, connected_entity->position, GREEN);
-            }
-        }
-    }
-    
-    // draw move sequence
-    if (e->flags & MOVE_SEQUENCE && (game_state == EDITOR || game_state == PAUSE || debug.draw_areas_in_game)){
-        if (e->move_sequence.speed_related_player_distance && editor.selected_entity && editor.selected_entity->id == e->id){
-            draw_game_circle(e->position, e->move_sequence.max_distance, Fade(RED, 0.05f));
-            draw_game_circle(e->position, e->move_sequence.min_distance, Fade(BLUE, 0.2f));
-        }
-            
-        for (i32 ii = 0; ii < e->move_sequence.points.count; ii++){
-            Vector2 point = e->move_sequence.points.get(ii);
-            
-            Color color = editor.selected_entity && editor.selected_entity->id == e->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.02f);
-            
-            if (IsKeyDown(KEY_LEFT_ALT)){
-                draw_game_circle(point, 1  * (0.4f / context.cam.cam2D.zoom), SKYBLUE);
-                draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / context.cam.cam2D.zoom, RED);
-                
-                if (e->flags & JUMP_SHOOTER){
-                    Collision nearest_ground = get_nearest_ground_collision(point, 20);
-                    if (nearest_ground.collided){
-                        Collision ray_collision = raycast(point, normalized(nearest_ground.point - point), magnitude(nearest_ground.point - point), GROUND, 1);
-                        if (ray_collision.collided){
-                            make_line(ray_collision.point, ray_collision.point + ray_collision.normal * 5, GREEN);
-                        }
-                    } else{
-                        draw_game_circle(point, 1 * (0.4f / context.cam.cam2D.zoom), RED);
-                    }
-                }
-            }
-            if (ii < e->move_sequence.points.count - 1){
-                make_line(point, e->move_sequence.points.get(ii+1), color);
-            } else if (e->move_sequence.loop){
-                make_line(point, e->move_sequence.points.get(0), color);
-            }
-        }
-    }
-    
     if (e->flags & SPIKES && (!e->hidden || game_state != GAME)){
         draw_spikes(e, e->right, e->up, e->scale.x, e->scale.y);
     }
@@ -9170,10 +9195,15 @@ void draw_entity(Entity *e){
         draw_game_line_strip(line_strip_points.data, line_strip_points.count, BROWN);
     }
     
-    if (e->flags & EXPLOSIVE){
-        if (game_state == EDITOR){
-            draw_game_circle(e->position, get_explosion_radius(e), Fade(ORANGE, 0.1f));
+    // draw trigger
+    if (e->flags & TRIGGER){
+        if (should_draw_editor_hints()){
+            draw_game_line_strip(e, e->color);
+            draw_game_triangle_strip(e, Fade(e->color, 0.1f));
         }
+    }
+    
+    if (e->flags & EXPLOSIVE){
         if (e->light_index > -1){
         }
     }
@@ -9231,7 +9261,7 @@ void draw_entity(Entity *e){
             lifetime_t = lifetime / e->sticky_texture.max_lifetime;
         }
     
-        if (e->sticky_texture.need_to_follow && player_entity){
+        if (e->sticky_texture.draw_line && e->sticky_texture.need_to_follow && player_entity){
             Entity *follow_entity = context.entities.get_by_key_ptr(e->sticky_texture.follow_id);
             Color line_color = e->sticky_texture.line_color;
             if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
@@ -9475,6 +9505,23 @@ inline b32 should_add_immediate_stuff(){
     return drawing_state == CAMERA_DRAWING;
 }
 
+void make_light(Vector2 position, f32 radius, f32 power, f32 opacity, Color color){
+    if (!should_add_immediate_stuff()){
+        return;
+    }
+    
+    Light light = {};
+    light.position = position;
+    light.radius = radius;
+    light.power = power;
+    light.opacity = opacity;
+    light.color = color;
+    light.make_shadows = false;
+    light.make_backshadows = false;
+    
+    add_light_to_draw_queue(light);
+}
+
 void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
     if (!should_add_immediate_stuff()){
         return;
@@ -9600,6 +9647,10 @@ inline f32 get_light_zoom(f32 radius){
     return SCREEN_WORLD_SIZE / radius;
 }
 
+inline void add_light_to_draw_queue(Light light){
+    render.lights_draw_queue.add(light);
+}
+
 void draw_game(){
     saved_cam = context.cam;
 
@@ -9663,6 +9714,31 @@ void draw_game(){
         }
     } EndTextureMode();
 
+    BeginTextureMode(light_geometry_rt);{
+        ClearBackground(Fade(BLACK, 0));
+        BeginMode2D(context.cam.cam2D);
+        BeginShaderMode(gaussian_blur_shader);
+            i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+            set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (screen_width), (1.0f) / (screen_height)});
+
+            // ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD){
+            for (i32 i = 0; i < context.entities_draw_queue.count; i++){
+                Entity *entity = context.entities_draw_queue.get_ptr(i);
+                if (entity->hidden || should_not_draw_entity(entity, context.cam)){
+                    continue;
+                }
+                Color prev_color = entity->color;
+                entity->color = WHITE;
+                draw_entity(entity);
+                entity->color = prev_color;
+            }
+            //draw_particles();
+        EndShaderMode();
+        EndMode2D();
+    }EndTextureMode();
+
+    local_persist Texture smooth_circle_texture = white_pixel_texture;
+    
     for (i32 light_index = 0; light_index < context.lights.max_count; light_index++){
         Light *light_ptr = context.lights.get_ptr(light_index);
         
@@ -9693,17 +9769,15 @@ void draw_game(){
         
         Light light = context.lights.get(light_index);
         
-        Vector2 light_position = light.position;
+        // Vector2 light_position = light.position;
         Vector2 lightmap_game_scale = {light.radius, light.radius};
         
         b32 should_calculate_light_anyway = light_ptr->bake_shadows && context.just_entered_game_state;
         
         Bounds lightmap_bounds = {lightmap_game_scale, {0, 0}};
-        if (!should_calculate_light_anyway && (!check_bounds_collision(context.cam.view_position, light_position, get_cam_bounds(context.cam, context.cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME)) || debug.full_light){
+        if (!should_calculate_light_anyway && (!check_bounds_collision(context.cam.view_position, light.position, get_cam_bounds(context.cam, context.cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME)) || debug.full_light){
             continue;
         }
-        
-        local_persist Texture smooth_circle_texture = white_pixel_texture;
         
         Vector2 shadows_texture_size = {(f32)light.shadows_size, (f32)light.shadows_size};
         
@@ -9720,8 +9794,8 @@ void draw_game(){
             BeginTextureMode(light.shadowmask_rt);{
                 ClearBackground(Fade(WHITE, 0));
                 context.cam = get_cam_for_resolution(shadows_texture_size.x, shadows_texture_size.y);
-                context.cam.position = light_position;
-                context.cam.view_position = light_position;
+                context.cam.position = light.position;
+                context.cam.view_position = light.position;
                 context.cam.cam2D.zoom = get_light_zoom(light.radius);
                 BeginMode2D(context.cam.cam2D);
                 ForEntities(entity, GROUND | light.additional_shadows_flags){
@@ -9770,8 +9844,8 @@ void draw_game(){
             BeginTextureMode(light.backshadows_rt);{
                 ClearBackground(Fade(WHITE, 0));
                 context.cam = get_cam_for_resolution(backshadows_texture_size.x, backshadows_texture_size.y);
-                context.cam.position = light_position;
-                context.cam.view_position = light_position;
+                context.cam.position = light.position;
+                context.cam.view_position = light.position;
                 context.cam.cam2D.zoom = get_light_zoom(light.radius);
                 BeginMode2D(context.cam.cam2D);
                 ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER | PLATFORM | SWORD){
@@ -9825,35 +9899,18 @@ void draw_game(){
         //     }EndTextureMode();
         // }
             
-          BeginTextureMode(light_geometry_rt);{
-            ClearBackground(Fade(BLACK, 0));
-            BeginMode2D(context.cam.cam2D);
-            BeginShaderMode(gaussian_blur_shader);
-                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (screen_width), (1.0f) / (screen_height)});
-
-                // ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD){
-                for (i32 i = 0; i < context.entities_draw_queue.count; i++){
-                    Entity *entity = context.entities_draw_queue.get_ptr(i);
-                    if (entity->hidden || should_not_draw_entity(entity, context.cam)){
-                        continue;
-                    }
-                    Color prev_color = entity->color;
-                    entity->color = WHITE;
-                    draw_entity(entity);
-                    entity->color = prev_color;
-                }
-                //draw_particles();
-            EndShaderMode();
-            EndMode2D();
-        }EndTextureMode();
-            
-        BeginTextureMode(global_illumination_rt);{
+        add_light_to_draw_queue(light);
+    }
+    
+    BeginTextureMode(global_illumination_rt);{
+    BeginShaderMode(smooth_edges_shader);{
+    for (i32 i = 0; i <  render.lights_draw_queue.count; i++){
+        Light light = render.lights_draw_queue.get(i);
+        Vector2 lightmap_game_scale = {light.radius, light.radius};
             Texture shadowmask_texture = light.make_shadows ? light.shadowmask_rt.texture : white_transparent_pixel_texture;
         
-            Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(shadowmask_texture, light_position, lightmap_game_scale);
+            Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(shadowmask_texture, light.position, lightmap_game_scale);
             BeginMode2D(context.cam.cam2D);{
-                BeginShaderMode(smooth_edges_shader);{
                     local_persist i32 light_power_loc         = get_shader_location(smooth_edges_shader, "light_power");
                     local_persist i32 light_color_loc         = get_shader_location(smooth_edges_shader, "light_color");
                     local_persist i32 my_pos_loc              = get_shader_location(smooth_edges_shader, "my_pos");
@@ -9874,12 +9931,14 @@ void draw_game(){
                     set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, light.make_backshadows ? light.backshadows_rt.texture : white_transparent_pixel_texture);
                     set_shader_value_tex(smooth_edges_shader, geometry_texture_loc,    light.make_shadows || light.make_backshadows ? light_geometry_rt.texture : black_pixel_texture);
                     
-                    draw_game_texture(shadowmask_texture, light_position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
-                } EndShaderMode();
+                    draw_game_texture(shadowmask_texture, light.position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
             } EndMode2D();
             context.cam = with_shake_cam;
-        } EndTextureMode();
     }
+    } EndShaderMode();
+    } EndTextureMode();
+    
+    render.lights_draw_queue.clear();
     
     //blur pass
     i32 iterations = 1;

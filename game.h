@@ -83,6 +83,9 @@ void disable_speedrun();
 
 void draw_game();
 
+inline void add_light_to_draw_queue(Light light);
+
+void make_light(Vector2 position, f32 radius, f32 power, f32 opacity, Color color);
 void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void make_line(Vector2 start_position, Vector2 target_position, Color color);
 void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color);
@@ -90,6 +93,7 @@ void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 seg
 void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
 inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
 
+inline b32 should_draw_editor_hints();
 void draw_immediate_stuff();
 void draw_ui(const char *tag);
 void draw_entities();
