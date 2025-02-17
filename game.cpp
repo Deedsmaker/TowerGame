@@ -17,7 +17,7 @@
 //#define For(arr, type, value) for(i32 ii = 0; ii < arr.count; ii++){ type value = arr.get(ii);
 
 global_variable Input input;
-global_variable Level current_level;
+// global_variable Level current_level;
 global_variable Context context = {};
 global_variable Level_Replay level_replay = {};
 global_variable Render render = {};
@@ -1779,7 +1779,6 @@ void init_entity(Entity *entity){
             sticky_entity->need_to_save = false;
             //sticky_entity->texture = texture;
             sticky_entity->draw_order = 1;
-            sticky_entity->sticky_texture.texture_position = entity->position;
             sticky_entity->sticky_texture.max_lifetime   = 0;
             // sticky_entity->sticky_texture.line_color  = Fade(ORANGE, 0.3f);
             sticky_entity->sticky_texture.need_to_follow = true;
@@ -1812,7 +1811,6 @@ void init_entity(Entity *entity){
         sticky_entity->need_to_save = false;
         //sticky_entity->texture = texture;
         sticky_entity->draw_order = 1;
-        sticky_entity->sticky_texture.texture_position = entity->position;
         sticky_entity->sticky_texture.max_lifetime   = 0;
         // sticky_entity->sticky_texture.line_color     = Fade(BLUE, 0.3f);
         sticky_entity->sticky_texture.need_to_follow = true;
@@ -2513,9 +2511,7 @@ void init_game(){
 
     input = {};
     init_console();
-
-    current_level = {};
-    
+    // current_level = {};
     load_textures();
     init_spawn_objects();
     
@@ -3056,6 +3052,9 @@ void update_game(){
                 input.hold_flags |= DOWN;
             }
             
+            if (IsKeyDown(KEY_F)){
+                input.hold_flags |= SWORD_BIG_DOWN;
+            }
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)){
                 input.hold_flags |= SHOOT_DOWN;
             }
@@ -5701,7 +5700,7 @@ b32 can_sword_damage_enemy(Entity *enemy_entity){
         is_sword_size_required_damageble = can_damage_sword_size_required_enemy(enemy_entity);
     }
     
-    return sword_can_damage && is_blocker_damageble && is_sword_size_required_damageble;
+    return sword_can_damage && ((is_blocker_damageble && is_sword_size_required_damageble) || enemy_entity->enemy.dead_man);
 }
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
@@ -5721,7 +5720,7 @@ b32 is_type(Entity *entity, FLAGS flags){
 }
 
 void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
-    if (enemy_entity->flags & BLOCKER && !can_damage_blocker(enemy_entity)){
+    if (!can_sword_damage_enemy(enemy_entity)){
         return;
     }
 
@@ -5878,6 +5877,7 @@ void update_player(Entity *entity, f32 dt){
     if (input.press_flags & SWORD_BIG){
         player_data.is_sword_big = !player_data.is_sword_big;
     }
+    // player_data.is_sword_big = input.hold_flags & SWORD_BIG_DOWN;
     
     f32 max_strong_stun_time = 2.0f;
     f32 max_weak_stun_time = 0.3f;
@@ -6003,10 +6003,11 @@ void update_player(Entity *entity, f32 dt){
                     Entity *e = context.entities.get_ptr(i);
                     if (e->flags & SHOOT_STOPER && e->enemy.in_agro){
                         Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
+                        sticky_line->sticky_texture.draw_line = true;
                         sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
                         sticky_line->sticky_texture.follow_id = e->id;
                         sticky_line->sticky_texture.need_to_follow = true;
-                        sticky_line->sticky_texture.texture_position = get_shoot_stoper_cross_position(e);
+                        sticky_line->position = get_shoot_stoper_cross_position(e);
                         sticky_line->sticky_texture.birth_time = core.time.game_time;
                         sticky_line->sticky_texture.max_distance = 0;
                         sticky_line->draw_order = 1;
@@ -6113,6 +6114,11 @@ void update_player(Entity *entity, f32 dt){
             for (i32 i = 0; i < collisions_buffer.count; i++){
                 Collision col = collisions_buffer.get(i);
                 Entity *other = col.other_entity;
+                
+                if (!can_sword_damage_enemy(other)){
+                    continue;
+                }
+                
                 Vector2 vec_to_other = other->position - player_entity->position;
                 Vector2 dir_to_other = normalized(vec_to_other);
                 f32 distance_to_other = magnitude(vec_to_other);
@@ -6150,17 +6156,31 @@ void update_player(Entity *entity, f32 dt){
         enable_emitter(player_data.stun_emitter);
     }
     
+    local_persist b32 climbing_state = false;
+    
+    if (!(input.hold_flags & DOWN)){
+        climbing_state = false;
+    }
+    
+    if (climbing_state){
+        Collision col = get_nearest_ground_collision(entity->position, entity->scale.y * 0.6f);
+        Vector2 plane = get_rotated_vector_90(col.normal, -1);
+        
+        player_data.velocity = plane * player_data.sword_angular_velocity * 0.04f - col.normal;
+    }
+    
     //player movement
-    if (player_data.grounded && !player_data.in_stun){
-        if (1 /*!sword_attacking*/){
-            player_ground_move(entity, dt);
-            
-            player_data.plane_vector = get_rotated_vector_90(player_data.ground_normal, -normalized(player_data.velocity.x));
-            player_data.velocity = player_data.plane_vector * magnitude(player_data.velocity);
-            
-            entity->position.y -= dt;
-            player_data.velocity -= player_data.ground_normal * dt;
+    if (player_data.grounded && !player_data.in_stun && !climbing_state){
+        if (input.hold_flags & DOWN){
+            climbing_state = true;
         }
+        player_ground_move(entity, dt);
+        
+        player_data.plane_vector = get_rotated_vector_90(player_data.ground_normal, -normalized(player_data.velocity.x));
+        player_data.velocity = player_data.plane_vector * magnitude(player_data.velocity);
+        
+        entity->position.y -= dt;
+        player_data.velocity -= player_data.ground_normal * dt;
         
         if (player_data.sword_spin_progress > 0.3f){
             Vector2 plane = get_rotated_vector_90(player_data.ground_normal, -player_data.sword_spin_direction);
@@ -6175,7 +6195,7 @@ void update_player(Entity *entity, f32 dt){
         }
         
         player_data.since_airborn_timer = 0;
-    } else{
+    } else if (!climbing_state){
         if (player_data.velocity.y > 0 && player_data.since_jump_timer <= 0.3f){ //so we make jump gravity
             f32 max_height_jump_time = 0.2f;
             f32 jump_t = clamp01(player_data.since_jump_timer / max_height_jump_time);
@@ -7314,11 +7334,11 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     hitmark->draw_order = 1;
     str_copy(hitmark->name, "hitmark_small");
     
-    hitmark->sticky_texture.texture_position = entity->position;
     hitmark->sticky_texture.need_to_follow   = need_to_follow;
     hitmark->sticky_texture.draw_line        = true;
     hitmark->sticky_texture.follow_id        = entity->id;
     hitmark->sticky_texture.birth_time       = core.time.game_time;
+    hitmark->sticky_texture.should_draw_until_expires = true;
     hitmark->sticky_texture.max_distance     = 1000;
 }
 
@@ -7404,7 +7424,7 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
         return false;
     }
     
-    b32 will_kill_on_hit = (should_kill_player(entity) || entity->flags & EXPLOSIVE);
+    b32 will_kill_on_hit = (should_kill_player(entity) || (entity->flags & EXPLOSIVE));
     if (!will_kill_on_hit){
         return false;       
     }
@@ -7646,32 +7666,36 @@ void update_projectile(Entity *entity, f32 dt){
     change_up(entity, projectile->velocity);
 }
 
-void update_sticky_texture(Entity *real_entity, f32 dt){
-    Sticky_Texture *st = &real_entity->sticky_texture;
+void update_sticky_texture(Entity *entity, f32 dt){
+    Sticky_Texture *st = &entity->sticky_texture;
     
-    b32 need_to_follow = st->need_to_follow && context.entities.has_key(st->follow_id) && context.entities.get_by_key_ptr(st->follow_id)->enabled;
+    Entity *follow_entity = get_entity_by_id(st->follow_id);
+    b32 need_to_follow = st->need_to_follow && follow_entity && follow_entity->enabled;
     f32 lifetime = core.time.game_time - st->birth_time;
     f32 lifetime_t = 0;
     if (st->max_lifetime > EPSILON){
         lifetime_t = lifetime / st->max_lifetime;
         if (lifetime >= st->max_lifetime){
-            real_entity->destroyed = true;
+            entity->destroyed = true;
         } else{
-            real_entity->color = lerp(real_entity->color_changer.start_color, Fade(WHITE, 0), EaseOutExpo(lifetime_t));
+            entity->color = lerp(entity->color_changer.start_color, Fade(WHITE, 0), EaseOutExpo(lifetime_t));
         }
     }
     
     if (need_to_follow){
-        Entity *follow_entity = context.entities.get_by_key_ptr(st->follow_id);
         Vector2 target_position = follow_entity->position;
         if (follow_entity->flags & SHOOT_STOPER){
             target_position = get_shoot_stoper_cross_position(follow_entity);
         }
-        real_entity->sticky_texture.texture_position = lerp(real_entity->sticky_texture.texture_position, target_position, dt * 40);
+        entity->position = lerp(entity->position, target_position, dt * 40);
     } else if (st->max_lifetime <= EPSILON){
-        real_entity->destroyed = true;
+        entity->destroyed = true;
     }
-    real_entity->position = player_entity->position;
+    
+    if (follow_entity && follow_entity->flags & ENEMY && follow_entity->enemy.dead_man && !st->should_draw_until_expires){
+        st->should_draw_texture = false;
+    }
+    
     st->need_to_follow = need_to_follow;
 }
 
@@ -8743,13 +8767,18 @@ void fill_entities_draw_queue(){
             continue;
         }
         
+        // always draw bird
         if (entity->flags & BIRD_ENEMY){ 
             Bird_Enemy *bird = &entity->bird_enemy;
-            if (bird->charging){
+            local_persist Color charging_line_color  = Fade(ORANGE, 0.3f);
+            local_persist Color attacking_line_color = Fade(RED, 0.6f);
+            local_persist f32 charging_line_width = 1.5f;
+            local_persist f32 attacking_line_width = 7.0f;
+            if (bird->charging && !entity->enemy.dead_man){
                 f32 charging_time = core.time.game_time - entity->bird_enemy.charging_start_time;
                 f32 t = clamp01(charging_time / entity->bird_enemy.max_charging_time);
-                Color attack_line_color = Fade(RED, t * t * 0.3f);
-                f32 attack_line_width = lerp(0.0f, 1.5f, t * t);
+                Color attack_line_color = color_fade(charging_line_color, t * t);
+                f32 attack_line_width = lerp(0.0f, charging_line_width, t * t);
                 Vector2 attack_line_target_position = player_entity->position;
                 // @TODO Should make this ray collision check so that line would stop when bird will not fly all the way to player.
                 // Will do that when we'll perform collision optimizations.
@@ -8759,6 +8788,31 @@ void fill_entities_draw_queue(){
                 //     attack_line_color = color_fade(attack_line_color, 0.5f);
                 // }
                 make_line(entity->position, attack_line_target_position, attack_line_width, attack_line_color);
+            }
+            
+            if (bird->attacking && !entity->enemy.dead_man){
+                f32 attacking_time = core.time.game_time - bird->attack_start_time;
+                f32 t = clamp01(attacking_time / bird->max_attack_time);
+                
+                Color attack_line_color = color_fade(attacking_line_color, (1.0f - t) * (1.0f - t));
+                if (t <= 0.1f){
+                    attack_line_color = lerp(charging_line_color, attack_line_color, t * 10);
+                }
+                
+                f32 attack_line_width = 0;
+                if (t <= 0.1f){
+                    attack_line_width = lerp(charging_line_width, attacking_line_width, EaseOutElastic(t * 10.0f));
+                } else{
+                    attack_line_width = lerp(attacking_line_width, 0.5f, EaseOutElastic((t - 0.1f) / 0.9f));
+                }
+                
+                Vector2 target_position = player_entity->position;
+                if (dot(target_position - entity->position, entity->up) <= 0){
+                    target_position = entity->position + entity->up * 200;
+                    attack_line_color = color_fade(attack_line_color, 0.2f);
+                }
+                
+                make_line(entity->position, target_position, attack_line_width, attack_line_color);
             }
         }
         
@@ -8883,14 +8937,39 @@ void fill_entities_draw_queue(){
             }
         }
         
-        // always draw blocker
-        if (entity->flags & BLOCKER){
-            make_light(entity->position, 75, 1, 1, WHITE);
-        }
+        //always draw sticky texture
+        if (entity->flags & STICKY_TEXTURE){
+            Sticky_Texture *st = &entity->sticky_texture;
+            Entity *follow_entity = get_entity_by_id(entity->sticky_texture.follow_id);
+            if (follow_entity){
+                if (follow_entity->flags & BLOCKER && st->should_draw_texture){
+                    make_light(follow_entity->position, 75, 1, 1, WHITE);
+                }
+                
+                if (follow_entity->flags & SWORD_SIZE_REQUIRED && st->should_draw_texture){
+                    make_light(follow_entity->position, 75, 1.5, 1.0f, follow_entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
+                }
+            }
+            
+            f32 lifetime = core.time.game_time - entity->sticky_texture.birth_time;
+            f32 lifetime_t = 0.5f;
+            if (entity->sticky_texture.max_lifetime > EPSILON){
+                lifetime_t = lifetime / entity->sticky_texture.max_lifetime;
+            }
         
-        // always draw sword size required
-        if (entity->flags & SWORD_SIZE_REQUIRED){
-            make_light(entity->position, 75, 2, 0.5f, entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
+            if (entity->sticky_texture.draw_line && entity->sticky_texture.need_to_follow && player_entity){
+                Entity *follow_entity = context.entities.get_by_key_ptr(entity->sticky_texture.follow_id);
+                Color line_color = entity->sticky_texture.line_color;
+                if (follow_entity && follow_entity->flags & ENEMY && entity->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
+                    line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
+                }
+    
+                Vector2 vec_to_follow = entity->position - player_entity->position;
+                f32 len = magnitude(vec_to_follow);
+                if (len <= entity->sticky_texture.max_distance || entity->sticky_texture.max_distance <= 0){
+                    make_line(player_entity->position, entity->position, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
+                }
+            }
         }
         
         // This checks for occlusion.
@@ -8957,16 +9036,16 @@ void draw_entity(Entity *e){
     
     if (e->flags & TEXTURE){
         // draw texture
-        
         i32 exclude_flags = NOTE;
         
         if (!(e->flags & exclude_flags)){
             Vector2 position = e->position;
             // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE){
-                position = e->sticky_texture.texture_position;
-                e->scale = (e->sticky_texture.base_size) / fminf(context.cam.cam2D.zoom, 0.35f); 
-                make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture.alpha));
+                if (e->sticky_texture.should_draw_texture){
+                    e->scale = (e->sticky_texture.base_size) / fminf(context.cam.cam2D.zoom, 0.35f); 
+                    make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture.alpha));
+                }
             } else{
                 draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
             }
@@ -9250,29 +9329,6 @@ void draw_entity(Entity *e){
             make_line(end_position, end_position + right * len * 0.2f - direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
             make_line(start_position, start_position - right * len * 0.2f + direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
             make_line(start_position, start_position + right * len * 0.2f + direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
-        }
-    }
-    
-    if (e->flags & STICKY_TEXTURE){
-        // draw sticky texture
-        f32 lifetime = core.time.game_time - e->sticky_texture.birth_time;
-        f32 lifetime_t = 0.5f;
-        if (e->sticky_texture.max_lifetime > EPSILON){
-            lifetime_t = lifetime / e->sticky_texture.max_lifetime;
-        }
-    
-        if (e->sticky_texture.draw_line && e->sticky_texture.need_to_follow && player_entity){
-            Entity *follow_entity = context.entities.get_by_key_ptr(e->sticky_texture.follow_id);
-            Color line_color = e->sticky_texture.line_color;
-            if (follow_entity && follow_entity->flags & ENEMY && e->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
-                line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
-            }
-
-            Vector2 vec_to_follow = e->sticky_texture.texture_position - player_entity->position;
-            f32 len = magnitude(vec_to_follow);
-            if (len <= e->sticky_texture.max_distance || e->sticky_texture.max_distance <= 0){
-                make_line(player_entity->position, e->sticky_texture.texture_position, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
-            }
         }
     }
     

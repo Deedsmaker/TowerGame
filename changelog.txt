@@ -1,4 +1,9 @@
-16.02.2025
+17.02.2025:
+    - Made that lights that coming from enemy modifiers comes from always draw loop and that sticky texture queues them. Also sticky texture lines now goes there so we don't keep real sticky texture entity on player position.
+    - Removed sticky texture from dead enemies and also we don't go in stun if hit dead enemy wrong way.
+    - Birds attacking line (xaip).
+
+16.02.2025:
     - Now we draw external lines of entities in separate entities loop that happen when we fill entities draw queue.
     - Made that enemy modifiers no longer draw lines passively. That's because lines is powerful tool to communicate information to player so we don't want too many of them constantly. We may want to highlight these modifiers more, like with light blobs.
     - Made some immediate mode for lights. First step to improving lights and also handy tool for highligting some entities. Right now we highlight blockers and sword size required guys.

@@ -412,8 +412,10 @@ struct Centipede{
 struct Sticky_Texture{
     b32 need_to_follow = false;
     i32 follow_id = -1;  
-    Vector2 texture_position = Vector2_zero;
     f32 max_lifetime = 2.0f;
+    
+    b32 should_draw_texture = true;
+    b32 should_draw_until_expires = false;
     
     b32 draw_line = false;
     Color line_color = SKYBLUE;
@@ -915,7 +917,8 @@ enum Hold_Flags{
     RIGHT      = 1 << 3,
     LEFT       = 1 << 4,
     SPIN_DOWN  = 1 << 8,
-    SHOOT_DOWN = 1 << 9
+    SHOOT_DOWN = 1 << 9,
+    SWORD_BIG_DOWN = 1 << 10
 };
 
 enum Press_Flags{
