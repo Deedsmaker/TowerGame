@@ -1,16 +1,15 @@
+[ ] Immediately accelerate to max speed if there was a sharp mouse movement.
 [X] Think about making big sword require hold button instead of toggle. (Don't think that would work - with that we just mobilizing whole finger from movement on big sword, but that could work if we change something in big sword mode that will make it MUCH less effective to wield for a long time).
 [ ] In explosion introduction we probably want to show that explosives have no collisions and that player could safely pass through them. Firstly we'll give him ability to shoot them from safety, but next could be a small room (that will constuct itself from doors) with explosive and he cannot hide. So player should learn about touching bombe.
 [X] Definetely make that we don't go in stun when hitting dead man wrong way. Because if we want player to fact change what he do for blocking threats - we don't want him to go in stun if he (actually) made right thing. Also we could remove sticky texture of modifier when threat dies.
-[ ] In immediate drawing should check bounds with camera (especially on lights). Should make a function to get bounds from radius. 
-[ ] Think about a mechanic that will allow to stick to surface and move only by spin and you stick to all sides of block.
+[\] Think about a mechanic that will allow to stick to surface and move only by spin and you stick to all sides of block. (Tried - didn't like that, but! We'll think about immediately change direction for player, that's the cool stuff here)
 [X] Remove 'should_draw_entitiy_anyway' and just move drawing immediate stuff like drawing lines on triggers in fill_entities_draw_queue funciton where we already have full entities loop on draw call.
-[ ] Think about more camera work towards keeping target between player end enemies so we could see them better. That could reduce cam blocker system for now, but this still be required later for visual purposes.
 [X] Make that line on player attack from $VISUAL$ section.
 [X] On bomb blocks level last door don't open when bomb is exploded. (That's was because we detected that entity does not exist in trigger drawing aswell (wtf??). There still lyes connected entities removal. Should redo that shit).
 [ ] Cam blockers system. Each blocker should be separate entity with direction (We could draw direction along like platforms). On trigger enter we will set which blockers we look upon. Maybe we want this blockers to be line-defined and we'll set on them block direction - east or west from line. We could make that camera will detect collisions with them by cam view border, but that propably will overcomplicate things as if we just make this similar to how cam rails currently works.
 [ ] Remake tutorial about increasing gravity and write about that in text. 
 [ ] Make text about spin stop on bridge1 level.
-[ ] In shoting practice level we could introduce propellers. Also we could teach about spin stop here in safe environment.
+[X] In shoting practice level we could introduce propellers. Also we could teach about spin stop here in safe environment.
 [X] Jump shooter still doing dump shit while standing. (Made a 0.4 sec buffer before he restarts his grounded timer. Issue is fixed for now, but that could've mean that something wround with our collision system and when i'll want to continuously detect ground using get_nearest_ground_collision again - this will fail me aswell. We already planned task for improvents in collision plane so will look into that later).
 [X] Add collisions to sword size required modifier.
 [X] Try to remove player stun, will see what's happens. (Maked it depends on app time instead of game time, so in death instinct it has a chance to recover. We'll see how it goes).
@@ -97,6 +96,7 @@
 [ ] Make raycast smarter. Actually whould just make a real ray-polygon intersecion and not that shit that de do now. Also circle-polygon etc. General physics improvements required.
     [ ] Also in collisions we want to look at that problem that we had with jump shooter standing state - get_nearest_ground_collision sometimes failed us and we did not get same result on every frame so we can't rely on such continuous checks, but we may want to; Should look into that.
 [ ] Check what's up with light drawing, we have way to many draw calls.
+[ ] In immediate drawing should check bounds with camera (especially on lights). Should make a function to get bounds from radius. 
 
 <LONG TERM>
 ///////////////////////////////////////////////////
@@ -110,6 +110,7 @@
 [ ] Player internal-interface (for examplelines that shows how to kill sword-blocker) could be disrupted by some enemy. Funny visual requiered and pretty long gameplay before introduction so player could get used to this information.
 [ ] Zone in late-game that will make sword not spin continuously, but react to sharp mouse movements to make cuts and fast dashes.
 [ ] After tutorials we should make a long room splitted horizontaly where player will go in down part and in upper part will go player clone with recorded inputs to show player how cool he can play. By that we also hint some mechanics like a machinegun. 
+[ ] Think about more camera work towards keeping target between player end enemies so we could see them better. That could reduce cam blocker system for now, but this still be required later for visual purposes.
 ///////////////////////////////////////////////////
 
 <Levels order>

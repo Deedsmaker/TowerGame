@@ -2465,6 +2465,9 @@ void init_game(){
                 size = BIG_LIGHT;
             } else if (i < context.big_temp_lights_count + context.huge_temp_lights_count){
                 size = HUGE_LIGHT;
+            } else{ // So it's usual temp lights
+                light->make_shadows = false;
+                light->make_backshadows = false;
             }
             
             light->shadows_size_flags       = size;
@@ -6156,24 +6159,8 @@ void update_player(Entity *entity, f32 dt){
         enable_emitter(player_data.stun_emitter);
     }
     
-    local_persist b32 climbing_state = false;
-    
-    if (!(input.hold_flags & DOWN)){
-        climbing_state = false;
-    }
-    
-    if (climbing_state){
-        Collision col = get_nearest_ground_collision(entity->position, entity->scale.y * 0.6f);
-        Vector2 plane = get_rotated_vector_90(col.normal, -1);
-        
-        player_data.velocity = plane * player_data.sword_angular_velocity * 0.04f - col.normal;
-    }
-    
     //player movement
-    if (player_data.grounded && !player_data.in_stun && !climbing_state){
-        if (input.hold_flags & DOWN){
-            climbing_state = true;
-        }
+    if (player_data.grounded && !player_data.in_stun){
         player_ground_move(entity, dt);
         
         player_data.plane_vector = get_rotated_vector_90(player_data.ground_normal, -normalized(player_data.velocity.x));
@@ -6195,7 +6182,7 @@ void update_player(Entity *entity, f32 dt){
         }
         
         player_data.since_airborn_timer = 0;
-    } else if (!climbing_state){
+    } else{
         if (player_data.velocity.y > 0 && player_data.since_jump_timer <= 0.3f){ //so we make jump gravity
             f32 max_height_jump_time = 0.2f;
             f32 jump_t = clamp01(player_data.since_jump_timer / max_height_jump_time);
@@ -7374,13 +7361,20 @@ inline b32 is_death_instinct_threat_active(){
     Entity *threat_entity = get_entity_by_id(context.death_instinct.threat_entity_id);
     b32 entity_alive = threat_entity && !threat_entity->destroyed && !threat_entity->enemy.dead_man;
     
+    f32 since_death_instinct = core.time.app_time - context.death_instinct.start_time;
+    b32 is_no_cooldown_on_stop = since_death_instinct <= context.death_instinct.allowed_duration_without_cooldown; 
+    
     if (entity_alive){
         switch (context.death_instinct.last_reason){
             case ENEMY_ATTACKING:{
                 Vector2 vec_to_player = player_entity->position - threat_entity->position;
                 Vector2 dir_to_player = normalized(vec_to_player);
                 f32 distance_to_player = magnitude(vec_to_player);
-                return is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), dir_to_player, distance_to_player, false);
+                
+                // We want instinct to stop if player evaded enemy in the beginning, but if we'll do that with cooldown there
+                // could be confusions.
+                b32 check_for_flying_towards = is_no_cooldown_on_stop; 
+                return is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), dir_to_player, distance_to_player, check_for_flying_towards);
             } break;
             case SWORD_WILL_EXPLODE:{
                 return player_data.is_sword_will_hit_explosive;     
@@ -7403,7 +7397,7 @@ inline b32 is_death_instinct_in_cooldown(){
 void stop_death_instinct(){
     f32 time_since_death_instinct = core.time.app_time - context.death_instinct.start_time;
 
-    if (time_since_death_instinct > 0.5f){
+    if (time_since_death_instinct >= context.death_instinct.allowed_duration_without_cooldown){
         context.death_instinct.cooldown_start_time = core.time.app_time;            
     }
     if (time_since_death_instinct >= 0.2f){
@@ -7416,6 +7410,7 @@ void stop_death_instinct(){
 
 b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards){
     b32 flying_towards = true;
+    // @TODO: We definetely want to better check if enemy is flying towards. For example we can just simulate enemy some steps forward.
     if (check_if_flying_towards){
         flying_towards = distance_to_player < get_death_instinct_radius(entity->scale) && dot(dir_to_player, normalized(velocity)) >= 0.9f;
     }
@@ -9914,7 +9909,7 @@ void draw_game(){
                     entity->color = prev_color;
     
                 }
-                //draw_particles();
+                // draw_particles();
                 EndMode2D();
                 
                 BeginShaderMode(gaussian_blur_shader);

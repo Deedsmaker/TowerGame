@@ -1,3 +1,8 @@
+18.02.2025:
+    - Made that small temp lights don't make shadows and backshadows.
+    - Added buffer for death instinct where it will check if enemy flying towards in first 0.5 sec where we won't start cooldown.
+    - In shooting_practice level added last room with spin stop tutorial.
+
 17.02.2025:
     - Made that lights that coming from enemy modifiers comes from always draw loop and that sticky texture queues them. Also sticky texture lines now goes there so we don't keep real sticky texture entity on player position.
     - Removed sticky texture from dead enemies and also we don't go in stun if hit dead enemy wrong way.

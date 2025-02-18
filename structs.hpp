@@ -831,7 +831,9 @@ struct Context{
     
     b32 updated_today = false;
     
+    // Death instinct timers is in app time. (Because it's manipulating time!!).
     struct Death_Instinct{
+        f32 allowed_duration_without_cooldown = 0.5f;
         f32 duration = 2;
         f32 cooldown = 12;
         
