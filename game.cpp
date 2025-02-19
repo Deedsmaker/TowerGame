@@ -2260,6 +2260,12 @@ void debug_add_100_ammo(){
     }    
 }
 
+void debug_stop_game(){
+    core.time.target_time_scale = 0;
+    core.time.time_scale = 0;
+    debug.drawing_stopped = true;
+}
+
 void init_console(){
     reload_level_files();    
 
@@ -2794,7 +2800,8 @@ void fixed_game_update(f32 dt){
             
             f32 player_speed = magnitude(player_velocity);
         
-            Vector2 target_position = player_entity->position + Vector2_up * 20 + player_velocity * 0.25f;
+            Vector2 target_position_velocity_addition = player_velocity * 0.25f;
+            Vector2 target_position = player_entity->position + Vector2_up * 20 + target_position_velocity_addition;
             
             if (context.cam.on_rails_horizontal || context.cam.on_rails_vertical){
                 Entity *rails_trigger_entity = get_entity_by_id(context.cam.rails_trigger_id);
@@ -2803,7 +2810,7 @@ void fixed_game_update(f32 dt){
                 
                 b32 should_be_on_rails = rails_points->count >= 2;
                 if (should_be_on_rails){
-                    Vector2 rails_player_position = player_entity->position + player_velocity * 0.25f;
+                    Vector2 rails_player_position = player_entity->position + target_position_velocity_addition;
                     Vector2 point1 = rails_points->get(0);
                     Vector2 point2 = rails_points->get(1);
                     #define SECTION_POS(point) (context.cam.on_rails_horizontal ? point.x : point.y)
@@ -2834,7 +2841,70 @@ void fixed_game_update(f32 dt){
                         target_position = lerp(point1, point2, section_t);
                     }
                 }
+            } else{
+                // Camera is unlocked completely
+                // This section tries to keep enemies in sight. 
+                // Currently we count enemies in 4 diagonal directions and each enemy in direction reduces amount of displacement.
+                Vector2 additional_position = Vector2_zero;
+                
+                local_persist i32 direction_enemies_count[4];
+                memset(direction_enemies_count, 0, sizeof(direction_enemies_count));
+                // @OPTIMIZATION: Of course here we want just to through enemies, not through all entities.
+                ForEntities(entity, ENEMY){
+                    if (entity->flags == ENEMY || !entity->enemy.in_agro || entity->enemy.dead_man || entity->flags & PROJECTILE){
+                        continue;
+                    }
+                    
+                    Vector2 vec_to_enemy = entity->position - player_entity->position;
+                    Vector2 dir_to_enemy = normalized(vec_to_enemy);
+                    f32 distance_to_enemy = magnitude(vec_to_enemy);
+                    
+                    if (distance_to_enemy > 1000){
+                        continue;
+                    }
+                    
+                    // {-1, -1}
+                    i32 direction_index = 0;
+                    // {-1, 1}
+                    if (dir_to_enemy.x < 0 && dir_to_enemy.y > 0) direction_index = 1;
+                    // {1, 1}
+                    if (dir_to_enemy.x > 0 && dir_to_enemy.y > 0) direction_index = 2;
+                    // {1, -1}
+                    if (dir_to_enemy.x > 0 && dir_to_enemy.y < 0) direction_index = 3;
+                    
+                    direction_enemies_count[direction_index] += 1;
+                    i32 enemies_count = direction_enemies_count[direction_index];
+                    
+                    if (enemies_count > 20){
+                        continue;
+                    }
+                    
+                    Vector2 addition = dir_to_enemy * (((60.0f * 0.35f) / context.cam.cam2D.zoom) / enemies_count);
+                    // If enemy really close or to far we want to reduce amount of displacement
+                    f32 min_threshold = (SCREEN_WORLD_SIZE / context.cam.cam2D.zoom);
+                    f32 max_threshold = (min_threshold * 2);
+                    if (distance_to_enemy <= min_threshold){ 
+                        addition *= (distance_to_enemy / min_threshold);
+                    } else if (distance_to_enemy >= max_threshold){
+                        f32 t = (max_threshold / distance_to_enemy);
+                        addition *= t * t;
+                    }
+                    
+                    additional_position += addition;
+                    
+                    f32 max_x = (SCREEN_WORLD_SIZE / context.cam.cam2D.zoom) * 0.25f;
+                    f32 max_y = (SCREEN_WORLD_SIZE / aspect_ratio / context.cam.cam2D.zoom) * 0.2f;
+                    clamp(&additional_position.x, -max_x, max_x);
+                    clamp(&additional_position.y, -max_y, max_y);
+                }
+                
+                target_position += additional_position;
+                
+                if (dot(player_data.velocity, additional_position) < 0){
+                    target_position += target_position_velocity_addition * 0.3f;
+                }
             }
+            
             
             Vector2 vec_to_target = target_position - context.cam.target;
             Vector2 vec_to_player = player_entity->position - context.cam.target;
@@ -2851,6 +2921,8 @@ void fixed_game_update(f32 dt){
             f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
             
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * cam_speed * locked_speed_multiplier));
+            
+        // Locked camera
         } else if ((!is_in_death_instinct() || !is_death_instinct_threat_active()) || debug.free_cam){
             context.cam.position = lerp(context.cam.position, context.cam.target, clamp01(dt * 4 * locked_speed_multiplier));
             if (magnitude(context.cam.target - context.cam.position) <= EPSILON){
@@ -2858,7 +2930,6 @@ void fixed_game_update(f32 dt){
             }
         }
     }
-    
     
     context.cam.trauma -= dt * context.cam.trauma_decrease_rate;
     context.cam.trauma = clamp01(context.cam.trauma);
@@ -3126,6 +3197,8 @@ void update_game(){
         context.cam.unit_size = screen_width / SCREEN_WORLD_SIZE; 
         context.cam.cam2D.target = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
+        
+        aspect_ratio = context.cam.width / context.cam.height;
         
         UnloadRenderTexture(render.main_render_texture);
         UnloadRenderTexture(global_illumination_rt);
@@ -6159,8 +6232,65 @@ void update_player(Entity *entity, f32 dt){
         enable_emitter(player_data.stun_emitter);
     }
     
+    /*
+    local_persist f32 last_climb_spin_direction = 0;
+    local_persist b32 in_climbing_state = false;
+    local_persist Vector2 last_climbing_normal = Vector2_one;
+    local_persist f32 climbing_in_one_direction_time = 0;
+    
+    if (in_climbing_state && !(input.hold_flags & DOWN)){
+        in_climbing_state = false;
+    }
+    
+    if (in_climbing_state){
+        f32 max_climbing_speed = 300;
+        
+        Collision ground_collision = get_nearest_ground_collision(entity->position, entity->scale.y * 0.6f);
+        
+        if (!ground_collision.collided){
+            Vector2 dir = normalized(player_data.velocity) * -1.0f - last_climbing_normal;
+            ground_collision = raycast(player_entity->position, dir, entity->scale.y * 4, GROUND, 1.0f, entity->id);
+            if (ground_collision.collided){
+                entity->position += normalized(ground_collision.point - entity->position);
+            }
+        }
+        
+        if (ground_collision.collided){
+            Vector2 move_plane = get_rotated_vector_90(ground_collision.normal, -1) * player_data.sword_spin_direction;
+            
+            if (player_data.sword_spin_direction != last_climb_spin_direction){
+                last_climb_spin_direction = player_data.sword_spin_direction;
+                climbing_in_one_direction_time = fminf(climbing_in_one_direction_time, 0.5f);
+            }
+            climbing_in_one_direction_time += dt;
+            
+            player_data.velocity = lerp(Vector2_zero, move_plane * max_climbing_speed * (player_data.sword_spin_progress * player_data.sword_spin_progress), clamp01(climbing_in_one_direction_time / 1.0f));
+            
+            clamp_magnitude(&player_data.velocity, max_climbing_speed);
+            entity->position += normalized(ground_collision.point - entity->position) * dt;
+            last_climbing_normal = ground_collision.normal;
+            
+        } else{
+            in_climbing_state = false;
+        }
+        
+        if (input.press_flags & JUMP){
+            in_climbing_state = false;
+            player_data.velocity *= 1.2f;
+            player_data.velocity += last_climbing_normal * 20;
+        }                
+    } else{
+        last_climbing_normal = Vector2_one;
+        climbing_in_one_direction_time = 0;
+        last_climb_spin_direction = 0;
+    }
+    */
     //player movement
-    if (player_data.grounded && !player_data.in_stun){
+    if (player_data.grounded && !player_data.in_stun/* && !in_climbing_state*/){
+        // if (input.hold_flags & DOWN){
+        //     in_climbing_state = true;
+        // }
+    
         player_ground_move(entity, dt);
         
         player_data.plane_vector = get_rotated_vector_90(player_data.ground_normal, -normalized(player_data.velocity.x));
@@ -6175,14 +6305,15 @@ void update_player(Entity *entity, f32 dt){
             f32 spin_t = player_data.sword_spin_progress;
             f32 blood_t = player_data.blood_progress;
             
-            f32 max_spin_acceleration = 400;
-            f32 min_spin_acceleration = 400;
-            f32 spin_acceleration = lerp(min_spin_acceleration, max_spin_acceleration, blood_t * blood_t);
+            f32 spin_acceleration = 400;
+            if (IsKeyDown(KEY_LEFT_SHIFT)){
+                spin_acceleration *= 3;
+            }
             player_data.velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
         }
         
         player_data.since_airborn_timer = 0;
-    } else{
+    } else/* if (!in_climbing_state)*/{
         if (player_data.velocity.y > 0 && player_data.since_jump_timer <= 0.3f){ //so we make jump gravity
             f32 max_height_jump_time = 0.2f;
             f32 jump_t = clamp01(player_data.since_jump_timer / max_height_jump_time);
@@ -6574,7 +6705,7 @@ void update_player(Entity *entity, f32 dt){
             shake_camera(0.7f);
             play_sound("HeavyLanding", col.point, 1.5f);
         }
-    }
+    } // end player body collisions
     
     player_data.grounded = found_ground;
     
@@ -9669,10 +9800,12 @@ void draw_immediate_stuff(){
         draw_game_texture(im_texture.texture, im_texture.position, im_texture.scale, im_texture.pivot, im_texture.rotation, im_texture.color);
     }
     
-    render.lines_to_draw.clear();
-    render.ring_lines_to_draw.clear();
-    render.rect_lines_to_draw.clear();
-    render.textures_to_draw.clear();
+    if (!debug.drawing_stopped){
+        render.lines_to_draw.clear();
+        render.ring_lines_to_draw.clear();
+        render.rect_lines_to_draw.clear();
+        render.textures_to_draw.clear();
+    }
 }
 
 void apply_shake(){

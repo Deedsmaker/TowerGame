@@ -1,3 +1,7 @@
+19.02.2025: 
+    - Base version of camera system that tries to keep enemies in sight. Needs a lot of improvements, but that will be happening overtime, like happened with death instinct.
+    - There was a real try on this climbing insane shit, but now it's really too complicated of a mechanic in this game. BUT now we should think about another speedboost for player so he really can hunt down these dogs. Or not...
+
 18.02.2025:
     - Made that small temp lights don't make shadows and backshadows.
     - Added buffer for death instinct where it will check if enemy flying towards in first 0.5 sec where we won't start cooldown.

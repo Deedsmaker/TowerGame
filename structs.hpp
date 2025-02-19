@@ -1072,6 +1072,8 @@ struct Debug{
     b32 draw_areas_in_game = false;
     b32 draw_collision_grid = false;
     
+    b32 drawing_stopped = false;
+    
     b32 info_fps = true;
     b32 info_spin_progress = true;
     b32 info_blood_progress = true;
