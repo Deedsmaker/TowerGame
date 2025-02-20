@@ -19,6 +19,10 @@
 global_variable Input input;
 // global_variable Level current_level;
 global_variable Context context = {};
+global_variable Context checkpoint_context = {};
+global_variable Entity checkpoint_player_entity;
+global_variable Player checkpoint_player_data;
+global_variable i32 checkpoint_trigger_id = -1;
 global_variable Level_Replay level_replay = {};
 global_variable Render render = {};
 // global_variable Context saved_level_context = {};
@@ -439,6 +443,43 @@ i32 add_note(const char *content){
     return note_index;
 }
 
+void copy_context(Context *dest, Context *src){
+    *dest = *src;
+    
+    for (i32 i = 0; i < src->entities.max_count; i++){
+        Table_Data<Entity> data = {};
+        
+        data.key = src->entities.data[i].key;
+        data.value = Entity(src->entities.get(i));
+        dest->entities.data[i] = data;
+    }
+    
+    for (i32 i = 0; i < src->entities_draw_queue.count; i++){
+        dest->entities_draw_queue.data[i] = Entity(src->entities_draw_queue.get(i));
+    }
+    
+    for (i32 i = 0; i < src->particles.count; i++){
+        dest->particles.data[i] = src->particles.get(i);
+    }
+    for (i32 i = 0; i < src->emitters.count; i++){
+        dest->emitters.data[i] = src->emitters.get(i);
+    }
+    for (i32 i = 0; i < src->notes.count; i++){
+        dest->notes.data[i] = src->notes.get(i);
+    }
+    for (i32 i = 0; i < src->lights.count; i++){
+        dest->lights.data[i] = src->lights.get(i);
+    }
+    
+    dest->timers = {};
+}
+
+// void copy_player(Player *dest, Player *src){
+//     *dest = *src;
+//     dest->timers = {};
+//     dest->connected_entities_ids = {};
+// }
+
 void clear_context(Context *c){
     ForEntities(entity, 0){
         free_entity(entity);
@@ -550,11 +591,12 @@ i32 save_level(const char *level_name){
             }
             
             fprintf(fptr, "trigger_kill_player:%d: ",                    e->trigger.kill_player);
-            fprintf(fptr, "trigger_die_after_trigger:%d: ",                    e->trigger.die_after_trigger);
-            fprintf(fptr, "trigger_kill_enemies:%d: ",                    e->trigger.kill_enemies);
+            fprintf(fptr, "trigger_die_after_trigger:%d: ",              e->trigger.die_after_trigger);
+            fprintf(fptr, "trigger_kill_enemies:%d: ",                   e->trigger.kill_enemies);
             fprintf(fptr, "trigger_open_doors:%d: ",                     e->trigger.open_doors);
             fprintf(fptr, "trigger_start_physics_simulation:%d: ",       e->trigger.start_physics_simulation);
             fprintf(fptr, "trigger_track_enemies:%d: ",                  e->trigger.track_enemies);
+            fprintf(fptr, "trigger_draw_lines_to_tracked:%d: ",          e->trigger.draw_lines_to_tracked);
             fprintf(fptr, "trigger_agro_enemies:%d: ",                   e->trigger.agro_enemies);
             fprintf(fptr, "trigger_player_touch:%d: ",                   e->trigger.player_touch);
             fprintf(fptr, "trigger_shows_entities:%d: ",                 e->trigger.shows_entities);
@@ -1020,6 +1062,9 @@ b32 load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_track_enemies")){
                 fill_b32_from_string(&entity_to_fill.trigger.track_enemies, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_draw_lines_to_tracked")){
+                fill_b32_from_string(&entity_to_fill.trigger.draw_lines_to_tracked, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_agro_enemies")){
                 fill_b32_from_string(&entity_to_fill.trigger.agro_enemies, splitted_line.get(i+1).data);
@@ -1699,7 +1744,7 @@ i32 init_entity_light(Entity *entity, Light *copy_light, b32 free_light){
             entity->light_index = i;
             break;
         } else{
-            assert(context.lights.get_ptr(i)->connected_entity_id != entity->id);
+            // assert(context.lights.get_ptr(i)->connected_entity_id != entity->id);
         }
     }
     if (new_light){
@@ -1747,6 +1792,8 @@ void init_entity(Entity *entity){
         entity->color_changer.change_time = 5.0f;
         entity->flags |= LIGHT;
         Light explosive_light = {};
+        explosive_light.make_backshadows = true;
+        explosive_light.make_shadows     = true;
         if (entity->light_index != -1){
             explosive_light = context.lights.get(entity->light_index);
         } 
@@ -1754,10 +1801,12 @@ void init_entity(Entity *entity){
         if (entity->enemy.explosive_radius_multiplier >= 3){
             explosive_light.shadows_size_flags = BIG_LIGHT;
             explosive_light.backshadows_size_flags = BIG_LIGHT;
-            explosive_light.make_backshadows = true;
         } else if (entity->enemy.explosive_radius_multiplier > 1){
             explosive_light.shadows_size_flags = MEDIUM_LIGHT;
             explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
+        } else{
+            explosive_light.make_shadows     = false;
+            explosive_light.make_backshadows = false;
         }
         init_entity_light(entity, &explosive_light, true);
         Light *new_light = context.lights.get_ptr(entity->light_index);
@@ -2548,10 +2597,10 @@ void destroy_player(){
 
     player_entity->destroyed                 = true;
     
-    assert(context.entities.has_key(player_data.ground_checker_id));
-    context.entities.get_by_key_ptr(player_data.ground_checker_id)->destroyed = true;
-    assert(context.entities.has_key(player_data.sword_entity_id));
-    context.entities.get_by_key_ptr(player_data.sword_entity_id)->destroyed = true;
+    assert(context.entities.has_key(player_data.connected_entities_ids.ground_checker_id));
+    context.entities.get_by_key_ptr(player_data.connected_entities_ids.ground_checker_id)->destroyed = true;
+    assert(context.entities.has_key(player_data.connected_entities_ids.sword_entity_id));
+    context.entities.get_by_key_ptr(player_data.connected_entities_ids.sword_entity_id)->destroyed = true;
     
     player_entity = NULL;
 }
@@ -2567,9 +2616,9 @@ void clean_up_scene(){
     }
 
     context.shoot_stopers_count = 0;
-    context.last_bird_attack_time = -11111;
-    context.last_jump_shooter_attack_time = -11111;
-    context.last_collision_cells_clear_time = -2;
+    context.timers.last_bird_attack_time = -11111;
+    context.timers.last_jump_shooter_attack_time = -11111;
+    context.timers.last_collision_cells_clear_time = -2;
     
     context.cam.locked = false;
     context.cam.on_rails_horizontal = false;
@@ -2577,6 +2626,7 @@ void clean_up_scene(){
     context.cam.rails_trigger_id = -1;
     
     context.death_instinct = {};
+    checkpoint_trigger_id = -1;
     
     context.speedrun_timer.paused = false;
     if (!context.speedrun_timer.game_timer_active){
@@ -2613,7 +2663,7 @@ void enter_game_state(){
     Vector2 grid_target_pos = editor.player_spawn_point;
     context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)context.collision_grid.cell_size.y))};
 
-    context.last_collision_cells_clear_time = core.time.app_time;
+    context.timers.last_collision_cells_clear_time = core.time.app_time;
     for (i32 i = 0; i < context.collision_grid_cells_count; i++){        
         context.collision_grid.cells[i].entities_ids.clear();
     }
@@ -2664,12 +2714,13 @@ void enter_game_state(){
     sword_entity->draw_order = 25;
     str_copy(sword_entity->name, "Player_Sword");
     
-    player_data.ground_checker_id = ground_checker->id;
-    player_data.left_wall_checker_id = left_wall_checker->id;
-    player_data.right_wall_checker_id = right_wall_checker->id;
-    player_data.sword_entity_id = sword_entity->id;
+    player_data.connected_entities_ids.ground_checker_id = ground_checker->id;
+    player_data.connected_entities_ids.left_wall_checker_id = left_wall_checker->id;
+    player_data.connected_entities_ids.right_wall_checker_id = right_wall_checker->id;
+    player_data.connected_entities_ids.sword_entity_id = sword_entity->id;
     player_data.dead_man = false;
-    player_data.died_time = -12;
+    
+    player_data.timers = {};
     
     player_data.stun_emitter        = player_entity->emitters.add(air_dust_emitter);
     player_data.rifle_trail_emitter = player_entity->emitters.add(gunpowder_emitter);
@@ -2707,9 +2758,9 @@ void kill_player(){
 
     emit_particles(big_blood_emitter, player_entity->position, player_entity->up, 1, 1);
     player_data.dead_man = true;
-    player_data.died_time = core.time.game_time;
+    player_data.timers.died_time = core.time.game_time;
     play_sound(player_data.player_death_sound, player_entity->position);
-    context.background_flash_time = core.time.app_time;
+    context.timers.background_flash_time = core.time.app_time;
 }
 
 void enter_editor_state(){
@@ -2890,6 +2941,10 @@ void fixed_game_update(f32 dt){
                         addition *= t * t;
                     }
                     
+                    if (entity->flags & CENTIPEDE_SEGMENT){
+                        addition *= 0.1f;
+                    }
+                    
                     additional_position += addition;
                     
                     f32 max_x = (SCREEN_WORLD_SIZE / context.cam.cam2D.zoom) * 0.25f;
@@ -2900,7 +2955,7 @@ void fixed_game_update(f32 dt){
                 
                 target_position += additional_position;
                 
-                if (dot(player_data.velocity, additional_position) < 0){
+                if (additional_position != Vector2_zero && dot(player_data.velocity, additional_position) < 0){
                     target_position += target_position_velocity_addition * 0.3f;
                 }
             }
@@ -3236,9 +3291,26 @@ void update_game(){
                 enter_game_state();
                 context.speedrun_timer.time = 0;
             } else if (player_data.dead_man){
+                b32 is_have_checkpoint = checkpoint_trigger_id != -1;
+            
                 enter_editor_state();
                 enter_game_state();
-                context.speedrun_timer.time = 0;
+                
+                if (is_have_checkpoint){
+                    // ForEntities(entity, 0){
+                    //     free_entity(entity);
+                    //     *entity = {};
+                    // }
+    
+                    copy_context(&context, &checkpoint_context);
+                    player_entity->position = checkpoint_player_entity.position;
+                    checkpoint_player_data.connected_entities_ids = player_data.connected_entities_ids;
+                    player_data = checkpoint_player_data;
+                    player_data.timers = {};
+                    
+                    player_data.velocity = Vector2_zero;
+                    context.speedrun_timer.time = 0;
+                }
             }
         }
     }
@@ -4392,6 +4464,12 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
+                make_ui_text("Lines to tracked: ", {inspector_position.x + 5, v_pos}, "trigger_draw_lines_to_tracked");
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.draw_lines_to_tracked, "trigger_draw_lines_to_tracked")){
+                    selected->trigger.draw_lines_to_tracked = !selected->trigger.draw_lines_to_tracked;                 
+                }
+                v_pos += height_add;
+                
                 make_ui_text("Agro enemies: ", {inspector_position.x + 5, v_pos}, "text_trigger_agro_enemies");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.agro_enemies, "toggle_agro_enemies")){
                     selected->trigger.agro_enemies = !selected->trigger.agro_enemies;                 
@@ -4921,9 +4999,10 @@ Entity *editor_spawn_entity(const char *name, Vector2 position){
 }
 
 void update_editor(){
-    Vector2 grid_target_pos = context.cam.position;
-    context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)context.collision_grid.cell_size.y))};
-
+    if (game_state == EDITOR){
+        Vector2 grid_target_pos = editor.player_spawn_point;
+        context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)context.collision_grid.cell_size.y))};
+    }
     Undo_Action undo_action;
     b32 something_in_undo = false;
     b32 can_control_with_single_button = !focus_input_field.in_focus && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_LEFT_ALT);
@@ -5494,7 +5573,7 @@ void update_editor(){
     }
     if (IsKeyPressed(KEY_S) && IsKeyDown(KEY_LEFT_CONTROL)){
         save_current_level();
-        context.background_flash_time = core.time.app_time;
+        context.timers.background_flash_time = core.time.app_time;
     }
     
     f32 time_since_autosave = core.time.app_time - editor.last_autosave_time;
@@ -5780,7 +5859,7 @@ b32 can_sword_damage_enemy(Entity *enemy_entity){
 }
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
-    Entity *sword = context.entities.get_by_key_ptr(player_data.sword_entity_id);
+    Entity *sword = context.entities.get_by_key_ptr(player_data.connected_entities_ids.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
     enemy_velocity->x = player_data.sword_spin_direction * 50 + enemy_velocity->x;
     
@@ -5884,7 +5963,7 @@ void push_player_up(f32 power){
     }
     
     player_data.velocity.y += power;
-    player_data.since_jump_timer = 0;
+    player_data.timers.since_jump_timer = 0;
     player_data.grounded = false;
 }
 
@@ -5895,7 +5974,7 @@ void push_or_set_player_up(f32 power){
 
     player_data.velocity.y += power;
     
-    player_data.since_jump_timer = 0;
+    player_data.timers.since_jump_timer = 0;
     player_data.grounded = false;
 }
 
@@ -5939,10 +6018,10 @@ void update_player(Entity *entity, f32 dt){
         return;
     }
     
-    Entity *ground_checker = context.entities.get_by_key_ptr(player_data.ground_checker_id);
-    Entity *left_wall_checker = context.entities.get_by_key_ptr(player_data.left_wall_checker_id);
-    Entity *right_wall_checker = context.entities.get_by_key_ptr(player_data.right_wall_checker_id);
-    Entity *sword          = context.entities.get_by_key_ptr(player_data.sword_entity_id);
+    Entity *ground_checker = context.entities.get_by_key_ptr(player_data.connected_entities_ids.ground_checker_id);
+    Entity *left_wall_checker = context.entities.get_by_key_ptr(player_data.connected_entities_ids.left_wall_checker_id);
+    Entity *right_wall_checker = context.entities.get_by_key_ptr(player_data.connected_entities_ids.right_wall_checker_id);
+    Entity *sword          = context.entities.get_by_key_ptr(player_data.connected_entities_ids.sword_entity_id);
     
     ground_checker->position     = entity->position - entity->up * entity->scale.y * 0.5f;
     left_wall_checker->position  = entity->position - entity->right * entity->scale.x * 1.5f;
@@ -6065,12 +6144,12 @@ void update_player(Entity *entity, f32 dt){
             push_or_set_player_up(rifle_in_machinegun_mode ? 5 : 20);
             shake_camera(0.1f);
             play_sound("RifleShot", sword_tip, 0.3f);
-            player_data.rifle_shake_start_time = core.time.game_time;
-            player_data.rifle_shoot_time = core.time.game_time;
+            player_data.timers.rifle_shake_start_time = core.time.game_time;
+            player_data.timers.rifle_shoot_time = core.time.game_time;
             
             enable_emitter(player_data.rifle_trail_emitter);
         } else if (input.press_flags & SHOOT){
-            player_data.rifle_shake_start_time = core.time.game_time;
+            player_data.timers.rifle_shake_start_time = core.time.game_time;
             emit_particles(gunpowder_emitter, sword_tip, sword->up);
             
             // shoot blocker blocked
@@ -6101,7 +6180,7 @@ void update_player(Entity *entity, f32 dt){
         player_data.rifle_perfect_shots_made = 0;
     }
     
-    f32 time_since_shoot = core.time.game_time - player_data.rifle_shoot_time;
+    f32 time_since_shoot = core.time.game_time - player_data.timers.rifle_shoot_time;
     
     if (time_since_shoot >= 0.5f && core.time.game_time > 1){
         player_data.rifle_trail_emitter->enabled = false;
@@ -6117,7 +6196,7 @@ void update_player(Entity *entity, f32 dt){
         add_explosion_light(player_entity->position, 50, 0.02f, 0.06f, ColorBrightness(GREEN, 0.3f));
         
         player_data.sword_angular_velocity = 0;
-        player_data.rifle_activate_time = core.time.game_time;
+        player_data.timers.rifle_activate_time = core.time.game_time;
         
         play_sound(player_data.rifle_switch_sound);
     } else if (!spin_enough_for_shoot && input.press_flags & SHOOT){
@@ -6125,7 +6204,7 @@ void update_player(Entity *entity, f32 dt){
         if (!player_data.rifle_active || (player_data.ammo_count <= 0 && !debug.infinite_ammo)){
             play_sound("FailedRifleActivation", 0.4f);
         }
-        player_data.rifle_shake_start_time = core.time.game_time;
+        player_data.timers.rifle_shake_start_time = core.time.game_time;
         emit_particles(gunpowder_emitter, sword_tip, sword->up);
     }
     
@@ -6224,7 +6303,7 @@ void update_player(Entity *entity, f32 dt){
     
     player_data.is_sword_will_hit_explosive = found_explosive;
     
-    player_data.since_jump_timer += dt;
+    player_data.timers.since_jump_timer += dt;
     
     if (!player_data.in_stun){
         player_data.stun_emitter->enabled = false;
@@ -6312,11 +6391,11 @@ void update_player(Entity *entity, f32 dt){
             player_data.velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
         }
         
-        player_data.since_airborn_timer = 0;
+        player_data.timers.since_airborn_timer = 0;
     } else/* if (!in_climbing_state)*/{
-        if (player_data.velocity.y > 0 && player_data.since_jump_timer <= 0.3f){ //so we make jump gravity
+        if (player_data.velocity.y > 0 && player_data.timers.since_jump_timer <= 0.3f){ //so we make jump gravity
             f32 max_height_jump_time = 0.2f;
-            f32 jump_t = clamp01(player_data.since_jump_timer / max_height_jump_time);
+            f32 jump_t = clamp01(player_data.timers.since_jump_timer / max_height_jump_time);
             player_data.gravity_mult = lerp(3.0f, 1.0f, jump_t * jump_t * jump_t);
         } else{
             if (input.sum_direction.y < 0 && !player_data.in_stun){
@@ -6339,7 +6418,7 @@ void update_player(Entity *entity, f32 dt){
         
         clamp(&player_data.velocity.y, -500, 500);
         
-        player_data.since_airborn_timer += dt;
+        player_data.timers.since_airborn_timer += dt;
         
         if (player_data.sword_spin_progress > 0.3f){
             f32 spin_t = player_data.sword_spin_progress;
@@ -6350,21 +6429,21 @@ void update_player(Entity *entity, f32 dt){
             f32 spin_acceleration = lerp(min_spin_acceleration, max_spin_acceleration, blood_t * blood_t);
         
             f32 airborn_reduce_spin_acceleration_time = 0.5f;
-            f32 t = clamp01(spin_t - clamp01(airborn_reduce_spin_acceleration_time - player_data.since_airborn_timer));
+            f32 t = clamp01(spin_t - clamp01(airborn_reduce_spin_acceleration_time - player_data.timers.since_airborn_timer));
             player_data.velocity.x += lerp(0.0f, spin_acceleration, t * t) * dt * player_data.sword_spin_direction;
         }
         
     }
     
     if (input.press_flags & JUMP){
-        player_data.jump_press_time = core.time.game_time;
+        player_data.timers.jump_press_time = core.time.game_time;
     }
     
-    f32 time_since_jump_press = core.time.game_time - player_data.jump_press_time;
+    f32 time_since_jump_press = core.time.game_time - player_data.timers.jump_press_time;
     
     b32 need_jump = (input.press_flags & JUMP && player_data.grounded)
                  || (player_data.grounded && time_since_jump_press <= player_data.jump_buffer_time) 
-                 || (input.press_flags & JUMP && player_data.since_airborn_timer <= player_data.coyote_time && player_data.since_jump_timer > player_data.coyote_time);
+                 || (input.press_flags & JUMP && player_data.timers.since_airborn_timer <= player_data.coyote_time && player_data.timers.since_jump_timer > player_data.coyote_time);
     
     if (need_jump){
         push_player_up(player_data.jump_force);
@@ -6383,7 +6462,7 @@ void update_player(Entity *entity, f32 dt){
     
     // player collisions
     
-    f32 time_since_wall_jump = core.time.game_time - player_data.wall_jump_time;
+    f32 time_since_wall_jump = core.time.game_time - player_data.timers.wall_jump_time;
     f32 player_speed = magnitude(player_data.velocity);
     
     // Collision ceiling_collision = raycast(entity->position, Vector2_up, 4, GROUND, entity->id);
@@ -6398,7 +6477,7 @@ void update_player(Entity *entity, f32 dt){
             
             if (time_since_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
                 player_data.velocity += col.normal * player_data.jump_force;
-                player_data.wall_jump_time = core.time.game_time;
+                player_data.timers.wall_jump_time = core.time.game_time;
             }
             
             if (player_data.sword_spin_direction > 0){
@@ -6438,7 +6517,7 @@ void update_player(Entity *entity, f32 dt){
             
             if (time_since_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
                 player_data.velocity += col.normal * player_data.jump_force;
-                player_data.wall_jump_time = core.time.game_time;
+                player_data.timers.wall_jump_time = core.time.game_time;
             }
             
             if (player_data.sword_spin_direction < 0){
@@ -7041,11 +7120,11 @@ void update_bird_enemy(Entity *entity, f32 dt){
     if (bird->charging){
         f32 charging_time = core.time.game_time - bird->charging_start_time;
         if (charging_time >= bird->max_charging_time){
-            f32 time_since_last_bird_attacked = core.time.game_time - context.last_bird_attack_time;
+            f32 time_since_last_bird_attacked = core.time.game_time - context.timers.last_bird_attack_time;
             
             if (time_since_last_bird_attacked >= 0.4f){
                 //bird start attack
-                context.last_bird_attack_time = core.time.game_time;
+                context.timers.last_bird_attack_time = core.time.game_time;
                 change_scale(entity, entity->enemy.original_scale);
             
                 change_up(entity, dir_to_player);         
@@ -7175,7 +7254,7 @@ inline f32 get_explosion_radius(Entity *entity, f32 base_radius){
 }
 
 b32 is_explosion_trauma_active(){
-    return core.time.app_time - context.background_flash_time <= 0.1f;
+    return core.time.app_time - context.timers.background_flash_time <= 0.1f;
 }
 
 void add_explosion_trauma(f32 explosion_radius){
@@ -7185,12 +7264,12 @@ void add_explosion_trauma(f32 explosion_radius){
     
     context.explosion_trauma += explosion_radius / 500.0f;
     if (context.explosion_trauma >= 1){
-        context.background_flash_time = core.time.app_time;
+        context.timers.background_flash_time = core.time.app_time;
         context.explosion_trauma = 0;
     }
 }
 
-void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size){
+void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size, i32 entity_id){
     add_explosion_trauma(radius);
     
     Light *light = NULL;
@@ -7224,9 +7303,11 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
         light->position      = position;
         
         light->additional_shadows_flags = ENEMY | PLAYER | SWORD;
+        light->connected_entity_id = entity_id;
     } else{
         print("WARNING: Could not find temp light for explosion");
     }
+    
 }
 
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier){
@@ -7335,11 +7416,13 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
 }
 
 void agro_enemy(Entity *entity){
-    if (entity->enemy.in_agro){
+    if (entity->enemy.in_agro || entity->enemy.dead_man){
         return;
     }
 
     entity->enemy.in_agro = true;
+    
+    add_explosion_light(entity->position, (entity->scale.y + entity->scale.x) * 10, 0.1f, 2.2f, ColorBrightness(RED, 0.5f), SMALL_LIGHT, entity->id);
     
     if (entity->flags & SHOOT_STOPER){
         context.shoot_stopers_count++;
@@ -7825,12 +7908,21 @@ void update_sticky_texture(Entity *entity, f32 dt){
     st->need_to_follow = need_to_follow;
 }
 
-void trigger_verify_connected(Entity *e){
-    for (i32 i = 0; i < e->trigger.connected.count; i++){   
+inline void trigger_editor_verify_connected(Entity *entity){
+    for (i32 i = 0; i < entity->trigger.connected.count; i++){   
         //So if entiity was somehow destoyed, annighilated
-        if (!context.entities.has_key(e->trigger.connected.get(i))){
-            e->trigger.connected.remove(i);
+        if (!context.entities.has_key(entity->trigger.connected.get(i))){
+            entity->trigger.connected.remove(i);
             i--;
+            continue;
+        }
+    }
+    
+    for (i32 ii = 0; ii < entity->trigger.tracking.count; ii++){
+        i32 id = entity->trigger.tracking.get(ii);
+        if (!context.entities.has_key(id)){
+            entity->trigger.tracking.remove(ii);
+            ii--;
             continue;
         }
     }
@@ -7843,7 +7935,7 @@ void update_editor_entity(Entity *e){
     }
 
     if (e->flags & TRIGGER){
-        trigger_verify_connected(e);
+        trigger_editor_verify_connected(e);
     }
     
     if (e->flags & PHYSICS_OBJECT){
@@ -7874,8 +7966,25 @@ void update_editor_entity(Entity *e){
 void trigger_entity(Entity *trigger_entity, Entity *connected){
     connected->hidden = !trigger_entity->trigger.shows_entities;
     
-    if (connected->flags & ENEMY && debug.enemy_ai && trigger_entity->trigger.agro_enemies){
-        agro_enemy(connected);
+    b32 should_agro = trigger_entity->trigger.agro_enemies && debug.enemy_ai;
+    if (should_agro){
+        if (connected->flags & ENEMY){
+            agro_enemy(connected);
+        }
+        
+    }
+    
+    if (connected->flags & CENTIPEDE){
+        assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
+        for (i32 i = 0; i < connected->centipede.segments_count; i++){
+            Entity *segment = get_entity_by_id(connected->centipede.segments_ids.get(i));
+            assert(segment);
+            segment->hidden = connected->hidden;
+            if (should_agro){
+                segment->move_sequence.moving = connected->move_sequence.moving;
+                agro_enemy(segment);
+            }
+        }
     }
     
     if (connected->flags & DOOR && connected->door.is_open != trigger_entity->trigger.open_doors){
@@ -7888,16 +7997,6 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
     
     if (connected->flags & MOVE_SEQUENCE){
         connected->move_sequence.moving = trigger_entity->trigger.starts_moving_sequence;
-    }
-    
-    if (connected->flags & CENTIPEDE){
-        assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
-        for (i32 i = 0; i < connected->centipede.segments_count; i++){
-            Entity *segment = get_entity_by_id(connected->centipede.segments_ids.get(i));
-            assert(segment);
-            segment->hidden = connected->hidden;
-            segment->move_sequence.moving = connected->move_sequence.moving;
-        }
     }
 }
 
@@ -7943,6 +8042,14 @@ i32 update_trigger(Entity *e){
     }
     
     if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided){
+        if (str_contains(e->name, "checkpoint") && checkpoint_trigger_id != e->id){
+            copy_context(&checkpoint_context, &context);
+            checkpoint_player_entity = *player_entity;
+            checkpoint_player_data = player_data;
+            
+            checkpoint_trigger_id = e->id;
+        }
+    
         if (e->trigger.load_level){
             b32 we_on_last_level = str_equal(e->trigger.level_name, "LAST_LEVEL_MARK");
             if (we_on_last_level || context.speedrun_timer.level_timer_active){
@@ -8174,7 +8281,7 @@ void update_move_sequence(Entity *entity, f32 dt){
 }
 
 void update_all_collision_cells(){
-    context.last_collision_cells_clear_time = core.time.app_time;
+    context.timers.last_collision_cells_clear_time = core.time.app_time;
     for (i32 i = 0; i < context.collision_grid_cells_count; i++){        
         context.collision_grid.cells[i].entities_ids.clear();
     }
@@ -8247,19 +8354,10 @@ inline b32 update_entity(Entity *e, f32 dt){
         }
     }
     
-    //update light
+    //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT){
         if (e->light_index == -1){
             print("WARNING: Entity with flag LIGHT don't have corresponding light index");
-        } else{
-            Light *light = context.lights.get_ptr(e->light_index);
-            light->position = e->position;
-            
-            if (light->fire_effect){
-                f32 perlin_rnd = (perlin_noise3(core.time.game_time * 5, e->id, core.time.game_time * 4) + 1) * 0.5f;
-                light->radius = perlin_rnd * 30 + 45;
-                light->power  = perlin_rnd * 1.0f + 0.5f;
-            }
         }
     }
     
@@ -8517,7 +8615,7 @@ inline b32 update_entity(Entity *e, f32 dt){
             change_right(e, move_towards(e->right, dir_to_player.x > 0 ? dir_to_player : dir_to_player * -1, look_speed, dt));
             
             // jump shooter shoot
-            if (charging_time >= shooter->max_charging_time && core.time.game_time - context.last_jump_shooter_attack_time >= 0.3f){                    
+            if (charging_time >= shooter->max_charging_time && core.time.game_time - context.timers.last_jump_shooter_attack_time >= 0.3f){                    
                 f32 angle = -shooter->spread * 0.5f;
                 f32 angle_step = shooter->spread / shooter->shots_count;
                 
@@ -8579,7 +8677,7 @@ inline b32 update_entity(Entity *e, f32 dt){
                 shooter->states.in_recoil = true;
                 shooter->states.recoil_start_time = core.time.game_time;
                 
-                context.last_jump_shooter_attack_time = core.time.game_time;
+                context.timers.last_jump_shooter_attack_time = core.time.game_time;
             }
         }
         
@@ -8697,7 +8795,7 @@ void update_entities(f32 dt){
     Context *c = &context;
     Hash_Table_Int<Entity> *entities = &c->entities;
     
-    if (core.time.app_time - context.last_collision_cells_clear_time >= 0.2f){
+    if (core.time.app_time - context.timers.last_collision_cells_clear_time >= 0.2f){
         update_all_collision_cells();        
     }
     
@@ -8790,10 +8888,10 @@ void draw_sword(Entity *entity){
     
     Entity visual_entity = *entity;
     
-    f32 time_since_shake = core.time.game_time - player_data.rifle_shake_start_time;
+    f32 time_since_shake = core.time.game_time - player_data.timers.rifle_shake_start_time;
     
     if (0 && player_data.rifle_active){
-        f32 activated_time = core.time.game_time - player_data.rifle_activate_time;
+        f32 activated_time = core.time.game_time - player_data.timers.rifle_activate_time;
         f32 activate_t = clamp01(activated_time / player_data.rifle_max_active_time);
         
         Vector2 perlin_rnd = {perlin_noise3(core.time.game_time * 30, 1, 2), perlin_noise3(1, core.time.game_time * 30, 3)};
@@ -9033,12 +9131,11 @@ void fill_entities_draw_queue(){
             b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id;
             for (i32 ii = 0; ii < entity->trigger.connected.count; ii++){
                 i32 id = entity->trigger.connected.get(ii);
-                if (!context.entities.has_key(id)){
-                    entity->trigger.connected.remove(ii);
-                    ii--;
+                Entity *connected_entity = context.entities.get_by_key_ptr(id);
+                
+                if (!connected_entity){
                     continue;
                 }
-                Entity *connected_entity = context.entities.get_by_key_ptr(id);
                 
                 if (connected_entity->flags & DOOR && ((entity->flags ^ TRIGGER) > 0 || game_state != GAME)){
                     Color color = connected_entity->door.is_open == entity->trigger.open_doors ? SKYBLUE : ORANGE;
@@ -9048,17 +9145,19 @@ void fill_entities_draw_queue(){
                     make_line(entity->position, connected_entity->position, RED);
                 }
             }
-            for (i32 ii = 0; ii < entity->trigger.tracking.count && game_state == EDITOR; ii++){
+            for (i32 ii = 0; ii < entity->trigger.tracking.count; ii++){
                 i32 id = entity->trigger.tracking.get(ii);
-                if (!context.entities.has_key(id)){
-                    entity->trigger.tracking.remove(ii);
-                    ii--;
+                Entity *tracked_entity = get_entity_by_id(id);
+                if (!tracked_entity){
                     continue;
                 }
-                Entity *connected_entity = context.entities.get_by_key_ptr(id);
-                
+                                
                 if (is_trigger_selected && should_draw_editor_hints()){
-                    make_line(entity->position, connected_entity->position, GREEN);
+                    make_line(entity->position, tracked_entity->position, GREEN);
+                } else if (entity->trigger.draw_lines_to_tracked && game_state != EDITOR){
+                    if ((tracked_entity->flags & ENEMY | CENTIPEDE) && !tracked_entity->enemy.dead_man){
+                        make_line(entity->position, tracked_entity->position, 1.0f, Fade(PINK, 0.3f));
+                    }
                 }
             }
         }
@@ -9951,6 +10050,17 @@ void draw_game(){
             }
         }
         
+        //update light
+        if (connected_entity){
+            light_ptr->position = connected_entity->position;
+        }
+            
+        if (light_ptr->fire_effect){
+            f32 perlin_rnd = (perlin_noise3(core.time.game_time * 5, light_index, core.time.game_time * 4) + 1) * 0.5f;
+            light_ptr->radius = perlin_rnd * 30 + 45;
+            light_ptr->power  = perlin_rnd * 1.0f + 0.5f;
+        }
+        
         Light light = context.lights.get(light_index);
         
         // Vector2 light_position = light.position;
@@ -10155,7 +10265,7 @@ void draw_game(){
     }
     
     if (game_state == GAME && player_data.dead_man && !context.we_got_a_winner){
-        f32 since_died = core.time.game_time - player_data.died_time;
+        f32 since_died = core.time.game_time - player_data.timers.died_time;
         
         f32 t = clamp01((since_died - 3.0f) / 2.0f);
         make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "restart_text");

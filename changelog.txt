@@ -1,3 +1,9 @@
+20.02.2025:
+    - Bombe level work.
+    - Lights improvements.
+    - Added setting for trigger to draw lines to tracked enemies. Used that in latest level with spiky centipedes.
+    - Checkpoint functionality. For checkpoints add 'checkpoint' to trigger name.
+
 19.02.2025: 
     - Base version of camera system that tries to keep enemies in sight. Needs a lot of improvements, but that will be happening overtime, like happened with death instinct.
     - There was a real try on this climbing insane shit, but now it's really too complicated of a mechanic in this game. BUT now we should think about another speedboost for player so he really can hunt down these dogs. Or not...

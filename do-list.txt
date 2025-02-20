@@ -1,5 +1,6 @@
+[X] We should try that door (trigger) could draw ingame who he's tracking.
 [X] Think about more camera work towards keeping target between player end enemies so we could see them better. That could reduce cam blocker system for now, but this still be required later for visual purposes.
-[ ] Immediately accelerate to max speed if there was a sharp mouse movement.
+[\] Immediately accelerate to max speed if there was a sharp mouse movement.
 [X] Think about making big sword require hold button instead of toggle. (Don't think that would work - with that we just mobilizing whole finger from movement on big sword, but that could work if we change something in big sword mode that will make it MUCH less effective to wield for a long time).
 [ ] In explosion introduction we probably want to show that explosives have no collisions and that player could safely pass through them. Firstly we'll give him ability to shoot them from safety, but next could be a small room (that will constuct itself from doors) with explosive and he cannot hide. So player should learn about touching bombe.
 [X] Definetely make that we don't go in stun when hitting dead man wrong way. Because if we want player to fact change what he do for blocking threats - we don't want him to go in stun if he (actually) made right thing. Also we could remove sticky texture of modifier when threat dies.
@@ -111,6 +112,7 @@
 [ ] Player internal-interface (for examplelines that shows how to kill sword-blocker) could be disrupted by some enemy. Funny visual requiered and pretty long gameplay before introduction so player could get used to this information.
 [ ] Zone in late-game that will make sword not spin continuously, but react to sharp mouse movements to make cuts and fast dashes.
 [ ] After tutorials we should make a long room splitted horizontaly where player will go in down part and in upper part will go player clone with recorded inputs to show player how cool he can play. By that we also hint some mechanics like a machinegun. 
+[ ] We could try that thing - if you hold down on ground and spin you accumulate velocity so you could make that sick shit.
 ///////////////////////////////////////////////////
 
 <Levels order>

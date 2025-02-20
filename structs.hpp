@@ -306,6 +306,7 @@ struct Trigger{
     b32 open_doors               = true;
     b32 start_physics_simulation = true;
     b32 track_enemies            = false;
+    b32 draw_lines_to_tracked    = false;
     b32 agro_enemies             = true;
     
     b32 shows_entities = true;
@@ -465,8 +466,21 @@ struct Player{
     // Array<Collision, MAX_COLLISIONS> collisions = Array<Collision, MAX_COLLISIONS>();
     Particle_Emitter *stun_emitter;
     
+    struct Timers{
+        f32 died_time = -12;
+        f32 jump_press_time = -12;
+        f32 wall_jump_time = -12;
+        f32 since_jump_timer = 0;
+        f32 since_airborn_timer = 0;
+        f32 rifle_shake_start_time = 0;
+        f32 rifle_activate_time = 0;
+        f32 rifle_shoot_time = 0;
+        
+    };
+    
+    Timers timers = {};
+    
     b32 dead_man = false;
-    f32 died_time = -12;
     
     f32 max_ground_angle = 60;
     
@@ -481,11 +495,9 @@ struct Player{
     f32 gravity_mult = 1;
     f32 max_blood_amount = 100;
     
-    f32 jump_press_time = -12;
     f32 coyote_time = 0.3f;
     f32 jump_buffer_time = 0.2f;
     f32 wall_jump_buffer_time = 0.2f;
-    f32 wall_jump_time = -12;
     
     f32 heavy_collision_time = 0;
     Vector2 heavy_collision_velocity = Vector2_zero;
@@ -502,16 +514,17 @@ struct Player{
     b32 on_moving_object = false;
     Vector2 moving_object_velocity = Vector2_zero;
     
-    i32 ground_checker_id = -1;
-    i32 left_wall_checker_id = -1;
-    i32 right_wall_checker_id = -1;
+    struct Connected_Entities_Ids{
+        i32 ground_checker_id = -1;
+        i32 left_wall_checker_id = -1;
+        i32 right_wall_checker_id = -1;
+        i32 sword_entity_id = -1;
+    };
+    Connected_Entities_Ids connected_entities_ids = {};
     
     Vector2 velocity = {0, 0};
     
-    f32 since_jump_timer = 0;
-    f32 since_airborn_timer = 0;
     //Sword
-    i32 sword_entity_id = -1;
     f32 sword_rotation_speed = 5.0f;
     
     b32 is_sword_will_hit_explosive = false;
@@ -527,14 +540,10 @@ struct Player{
     b32 rifle_perfect_shot_avaliable = false;
     f32 rifle_weak_speed = 800;
     f32 rifle_strong_speed = 1400;
-    f32 rifle_shake_start_time = 0;
-    f32 rifle_activate_time = 0;
     f32 rifle_max_active_time = 3.0f;
-    f32 rifle_shoot_time = 0;
     
     i32 rifle_perfect_shots_made = 0;
     i32 rifle_max_perfect_shots = 3;
-    
     
     i32 ammo_count = 0;
     i32 ammo_charges = 0;
@@ -719,8 +728,8 @@ struct Collision_Grid_Cell{
 
 struct Collision_Grid{  
     Vector2 origin = Vector2_zero;
-    Vector2 size = {4000, 2000};
-    Vector2 cell_size = {40, 40};
+    Vector2 size = {10000, 6000};
+    Vector2 cell_size = {80, 80};
     Collision_Grid_Cell *cells = NULL;
 };
 
@@ -818,9 +827,15 @@ struct Context{
     i32 entity_lights_start_index = -1;
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
-    f32 last_bird_attack_time = -11110;
-    f32 last_jump_shooter_attack_time = -11110;
-    f32 last_collision_cells_clear_time = -2;
+    
+    struct Timers{
+        f32 last_bird_attack_time = -11110;
+        f32 last_jump_shooter_attack_time = -11110;
+        f32 last_collision_cells_clear_time = -2;
+        f32 background_flash_time = -21;
+    };
+    
+    Timers timers = {};
     
     i32 game_frame_count = 0;
     b32 playing_replay = false;
@@ -854,7 +869,6 @@ struct Context{
     char previous_level_name[256] = "\0";
     
     f32 explosion_trauma = 0;
-    f32 background_flash_time = -21;
     
     Collision_Grid collision_grid;
     i32 collision_grid_cells_count = 0;
