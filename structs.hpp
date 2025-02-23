@@ -10,6 +10,8 @@
 #define GRAVITY 100
 #define PLAYER_MASS 10
 
+struct Level_Context;
+
 enum Particle_Shape{
     SQUARE
 };
@@ -598,12 +600,14 @@ struct Entity{
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture texture, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices);
-    Entity(Entity *copy, b32 keep_id);
+    Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context = NULL);
 
     i32 id = -1;
     b32 need_to_save = true;
     b32 visible = true;
     b32 hidden = false;
+    
+    Level_Context *level_context;
     
     char name[128] = "unknown_name";
 
@@ -694,8 +698,8 @@ struct Light{
     f32 opacity = 1.0f;
     f32 power = 1.0f;
     f32 radius           = 150.0f;
-    b32 make_shadows     = true;
-    b32 make_backshadows = true;
+    b32 make_shadows     = false;
+    b32 make_backshadows = false;
     
     b32 bake_shadows = false;
     b32 baked = false;
@@ -744,22 +748,11 @@ struct Cam{
     
     i32 width = 1600;
     i32 height = 900;
-    
-    //Shake
-    f32 trauma = 0;
-    f32 trauma_decrease_rate = 1.5f;
-    
-    b32 locked = false;
-    
-    b32 on_rails_horizontal = false;
-    b32 on_rails_vertical   = false;
-    i32 rails_trigger_id    = -1;
-    
-    Camera2D cam2D = {};
-    f32 target_zoom = 0.35f;
     f32 unit_size;
     
-    Velocity_Move move_settings = {};
+    //Shake
+    Camera2D cam2D = {};
+    f32 target_zoom = 0.35f;
 };
 
 //definition in particles.hpp
@@ -810,43 +803,31 @@ enum Death_Instinct_Reason{
     SWORD_WILL_EXPLODE = 1
 };
 
-struct Context{
+struct Level_Context{
+    b32 inited = false;
+    char name[64] = "\0";
+
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
-    Dynamic_Array<Entity>           entities_draw_queue = Dynamic_Array<Entity>(10000);
+      
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(20000);
     Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
     
     Dynamic_Array<Note> notes = Dynamic_Array<Note>(128);
     
-    Dynamic_Array<Light> lights = Dynamic_Array<Light>(256);
-    i32 temp_lights_count = 64;
-    //big lights are also in temp lights, it's first N 
-    i32 big_temp_lights_count = 8;
-    i32 huge_temp_lights_count = 4;
-    // We should set it in beginning 
-    i32 entity_lights_start_index = -1;
-    
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
+    Dynamic_Array<Light> lights = Dynamic_Array<Light>(512);
+};
+
+struct State_Context{
     struct Timers{
         f32 last_bird_attack_time = -11110;
         f32 last_jump_shooter_attack_time = -11110;
-        f32 last_collision_cells_clear_time = -2;
         f32 background_flash_time = -21;
+        f32 last_collision_cells_clear_time = -2;
     };
-    
     Timers timers = {};
     
-    i32 game_frame_count = 0;
-    b32 playing_replay = false;
-    
-    b32 we_got_a_winner = false;
-    b32 just_entered_game_state = false;
-    b32 baked_shadows_this_frame = false;
-    
-    b32 updated_today = false;
-    
-    // Death instinct timers is in app time. (Because it's manipulating time!!).
     struct Death_Instinct{
         f32 allowed_duration_without_cooldown = 0.5f;
         f32 duration = 2;
@@ -858,22 +839,58 @@ struct Context{
         i32 threat_entity_id = -1;
         b32 played_effects = false;
         
+        b32 was_in_cooldown = false;
+        
         f32 angle_till_explode = 0;
         
         Death_Instinct_Reason last_reason = ENEMY_ATTACKING;
     };
-    
     Death_Instinct death_instinct = {};
     
-    char current_level_name[256];
-    char previous_level_name[256] = "\0";
+    struct Cam_State{
+        f32 trauma = 0;
+        f32 trauma_decrease_rate = 1.5f;
+        b32 locked = false;
+        b32 on_rails_horizontal = false;
+        b32 on_rails_vertical   = false;
+        i32 rails_trigger_id    = -1;
+    };
+    Cam_State cam_state = {};
+      
+    b32 we_got_a_winner = false;
     
     f32 explosion_trauma = 0;
+    i32 shoot_stopers_count = 0;
+};
+
+struct Session_Context{
+    Dynamic_Array<Entity> entities_draw_queue = Dynamic_Array<Entity>(10000);
+    
+    // Dynamic_Array<Light> temp_lights = Dynamic_Array<Light>(512);
+    
+    i32 temp_lights_count = 128;
+    //big lights are also in temp lights, it's first N 
+    i32 big_temp_lights_count = 8;
+    i32 huge_temp_lights_count = 4;
+    // We should set it in beginning 
+    i32 entity_lights_start_index = -1;
+    
+    i32 game_frame_count = 0;
+    b32 playing_replay = false;
+    
+    b32 just_entered_game_state = false;
+    b32 baked_shadows_this_frame = false;
+    
+    b32 updated_today = false;
+    
+    // Death instinct timers is in app time. (Because it's manipulating time!!).
+    
+    char current_level_name[256] = "\0";
+    char previous_level_name[256] = "\0";
     
     Collision_Grid collision_grid;
     i32 collision_grid_cells_count = 0;
     
-    i32 shoot_stopers_count = 0;
     
     Cam cam = {};
     
@@ -973,9 +990,9 @@ struct Level_Replay{
     Dynamic_Array<Replay_Frame_Data> input_record = Dynamic_Array<Replay_Frame_Data>(MAX_INPUT_RECORDS);
 };
 
-struct Level{
-    Context context;  
-};
+// struct Level{
+//     Context context;  
+// };
 
 struct Circle{
     Vector2 position;  

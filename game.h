@@ -122,7 +122,7 @@ void print_to_console(const char *text);
 void print_hotkeys_to_console();
 
 inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index, FLAGS flags = 0);
-inline int next_entity_avaliable(int index, Entity **entity, FLAGS flags);
+inline int next_entity_avaliable(Level_Context *level_context, int index, Entity **entity, FLAGS flags);
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
 
@@ -158,6 +158,7 @@ void load_anim(Dynamic_Array<Texture> *frames, const char *name);
 Entity* add_text(Vector2 pos, f32 size, const char *text);
 
 void copy_entity(Entity *dest, Entity *src);
+void copy_light(Light *dest, Light *src);
 
 i32 add_note(const char *content);
 

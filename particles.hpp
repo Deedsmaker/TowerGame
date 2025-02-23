@@ -41,13 +41,13 @@ void shoot_particle(Particle_Emitter emitter, Vector2 position, Vector2 directio
     
     particle.enabled = true;
     
-    last_added_index = (last_added_index + 1) % context.particles.max_count;
+    last_added_index = (last_added_index + 1) % current_level_context->particles.max_count;
     
-    if (!context.particles.get(last_added_index).enabled){
+    if (!current_level_context->particles.get(last_added_index).enabled){
         enabled_particles_count++;
     }
     
-    *context.particles.get_ptr(last_added_index) = particle;
+    *current_level_context->particles.get_ptr(last_added_index) = particle;
 }
 
 void emit_particles(Particle_Emitter emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1){
@@ -126,8 +126,8 @@ void update_emitter(Particle_Emitter *emitter, f32 dt){
 }
 
 void update_emitters(f32 dt){
-    for (int i = 0; i < context.emitters.count; i++){
-        Particle_Emitter *emitter = context.emitters.get_ptr(i);
+    for (int i = 0; i < current_level_context->emitters.count; i++){
+        Particle_Emitter *emitter = current_level_context->emitters.get_ptr(i);
         
         if (emitter->destroyed){
         }
@@ -142,12 +142,12 @@ void update_emitters(f32 dt){
 
 
 void update_particles(f32 dt){
-    for (int i = 0; i < context.particles.max_count; i++){
-        if (!context.particles.get(i).enabled){
+    for (int i = 0; i < current_level_context->particles.max_count; i++){
+        if (!current_level_context->particles.get(i).enabled){
             continue;
         }
     
-        Particle *particle = context.particles.get_ptr(i);
+        Particle *particle = current_level_context->particles.get_ptr(i);
         dt = game_state == EDITOR ? core.time.real_dt : dt;
         
         if (particle->lifetime <= 0.2f && game_state == GAME){
@@ -157,7 +157,7 @@ void update_particles(f32 dt){
         particle->lifetime += dt;
         
         if (particle->lifetime >= particle->max_lifetime){
-            //context.particles.remove(i);
+            //current_level_context->particles.remove(i);
             particle->enabled = false;
             enabled_particles_count--;
             continue;
