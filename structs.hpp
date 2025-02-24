@@ -696,6 +696,7 @@ struct Light{
     b32 fire_effect = false;
     
     f32 opacity = 1.0f;
+    f32 start_opacity = 1.0f;
     f32 power = 1.0f;
     f32 radius           = 150.0f;
     b32 make_shadows     = false;

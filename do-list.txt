@@ -1,6 +1,11 @@
+[ ] Checkpoint issues:
+    [ ] Player parts left in world.
+    [ ] Sometimes blockes disappear.
+    [ ] Lights duplicates.
+[ ] Fix centipedes.
 [ ] Fix notes.
 [ ] Fix particles.
-[ ] Remake context and levels system so we could easily load multiple levels. At once and switch between them.
+[X] Remake context and levels system so we could easily load multiple levels. At once and switch between them.
 [X] We should try that door (trigger) could draw ingame who he's tracking.
 [X] Think about more camera work towards keeping target between player end enemies so we could see them better. That could reduce cam blocker system for now, but this still be required later for visual purposes.
 [\] Immediately accelerate to max speed if there was a sharp mouse movement.

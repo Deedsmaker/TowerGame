@@ -40,6 +40,8 @@ void clear_focus_input_field(){
     focus_input_field.chars_count = 0;
 }
 
+b32 clicked_on_input_field = false;
+
 void update_input_field(){
     focus_input_field.changed = false;
 
@@ -61,7 +63,6 @@ void update_input_field(){
     }
     
     if (focus_input_field.in_focus){
-    
         //SetMouseCursor(MOUSE_CURSOR_IBEAM);
 
         int key = GetCharPressed();
@@ -90,6 +91,24 @@ void update_input_field(){
             }
 
             key = GetCharPressed();
+        }
+        
+        local_persist f32 hold_time = 0;
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && clicked_on_input_field){
+            hold_time += core.time.real_dt;
+            b32 is_content_number = focus_input_field.chars_count >= 1 && is_digit_or_minus(focus_input_field.content[0]);
+            if (focus_input_field.chars_count >= 2) is_content_number = is_content_number && (is_digit_or_minus(focus_input_field.content[1]) || focus_input_field.content[1] == '.');
+            
+            if (is_content_number && hold_time > 0.2f){
+                f32 num = to_f32(focus_input_field.content);
+                                
+                num += (GetMouseDelta().x) * 0.01f;
+                str_copy(focus_input_field.content, text_format("%f", num));
+                focus_input_field.changed = true;
+            }
+        } else{
+            hold_time = 0;            
+            clicked_on_input_field = false;
         }
         
         if (IsKeyPressed(KEY_BACKSPACE))
@@ -161,6 +180,12 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
     input_field.color = color;
     input_field.index = input_fields.count;
     
+    Rectangle field_rect = {input_field.position.x, input_field.position.y, input_field.size.x, input_field.size.y};
+    b32 hovered_over = CheckCollisionPointRec(input.screen_mouse_position, field_rect);
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && hovered_over){
+        clicked_on_input_field = true;
+    }
+    
     if (focus_input_field.in_focus && str_equal(focus_input_field.tag, tag)){
         input_field.in_focus = true;
         input_field.index = input_fields.count;
@@ -183,13 +208,11 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         str_copy(input_field.tag, tag);
     }
     
-    Rectangle field_rect = {input_field.position.x, input_field.position.y, input_field.size.x, input_field.size.y};
-    
-    b32 hovered_over = CheckCollisionPointRec(input.screen_mouse_position, field_rect);
     
     if (hovered_over){
         input_field.color = ColorBrightness(input_field.color, 0.2f);
     }
+    
     
     if (next_to_make_focused_tag[0] && str_contains(tag, next_to_make_focused_tag) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && hovered_over){
         input_field.in_focus = true;

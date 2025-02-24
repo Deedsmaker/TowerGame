@@ -238,3 +238,95 @@ void zero_array(char *arr, int count){
     }
 }
     
+b32 is_digit_or_minus(char ch){
+    return ch == '-' || is_digit(ch);
+}
+
+void fill_i32_from_string(i32 *int_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *int_ptr = to_i32(str_data);
+}    
+
+void fill_i32_from_string(u64 *int_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *int_ptr = to_i32(str_data);
+}    
+
+void fill_b32_from_string(b32 *b32_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *b32_ptr = to_i32(str_data);
+}    
+
+void fill_f32_from_string(f32 *f32_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *f32_ptr = to_f32(str_data);
+}    
+
+void fill_vector2_from_string(Vector2 *vec_ptr, char *x_str, char *y_str){
+    assert(is_digit_or_minus(*x_str));
+    assert(is_digit_or_minus(*y_str));
+    
+    vec_ptr->x = to_f32(x_str);
+    vec_ptr->y = to_f32(y_str);
+}
+
+void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_str, char *w_str){
+    assert(is_digit_or_minus(*x_str));
+    assert(is_digit_or_minus(*y_str));
+    assert(is_digit_or_minus(*z_str));
+    assert(is_digit_or_minus(*w_str));
+    
+    vec_ptr->r = to_f32(x_str);
+    vec_ptr->g = to_f32(y_str);
+    vec_ptr->b = to_f32(z_str);
+    vec_ptr->a = to_f32(w_str);
+}
+
+void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
+    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
+    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+    
+    *index_ptr += 2;
+    
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
+        Medium_Str current = line_arr.get((*index_ptr));
+        Medium_Str next    = line_arr.get((*index_ptr) + 1);
+        
+        fill_vector2_from_string(vertices->get_ptr(vertices->count), current.data, next.data);
+        vertices->count++;
+    }
+}
+
+void fill_vector2_array_from_string(Dynamic_Array<Vector2> *points, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
+    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
+    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+    
+    *index_ptr += 2;
+    
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
+        Medium_Str current = line_arr.get((*index_ptr));
+        Medium_Str next    = line_arr.get((*index_ptr) + 1);
+        
+        points->add({});
+        fill_vector2_from_string(points->last_ptr(), current.data, next.data);
+    }
+}
+
+void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
+    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
+    //assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+    
+    *index_ptr += 2;
+    
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 1){
+        Medium_Str current = line_arr.get((*index_ptr));
+        //Medium_Str next    = line_arr.get((*index_ptr) + 1);
+        i32 value = -1;
+        fill_i32_from_string(&value, current.data);  
+        arr->add(value);
+        //fill_vector2_from_string(arr->get_ptr(arr->count), current.data, next.data);
+        //arr->count++;
+    }
+}
+
+

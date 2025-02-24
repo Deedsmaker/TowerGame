@@ -1,3 +1,10 @@
+24.02.2025:
+    - Cleanup fixes after context refactor.
+    - Further improvements of death instinct cooldown reason.
+    - Improved light. Next shit need to be when we will go on fully enchancement of light.
+    - Added ability to change numerical values of input fields by moving mouse.
+    - Worked on checkpoints fix but they're still break things.
+
 23.02.2025:
     - Improved the way death instinct cooldown starts - now he's checking for threat status to make cooldown more fair. For example we don't start cooldown if instinct reason was enemy flying towards if enemy is still alive - because that means player just evaded anyway (with that slow time-flow there's not really much time to change player character direction so that should mean player already was evading).
     - HUGE REFACTOR: Changed the way contextx work - now we can have separate level context that will help us load multtiple levels at once and do other cool shit like simulating game-state in editor to see how entities will look like some time in gameplay.

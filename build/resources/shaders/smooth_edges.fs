@@ -47,7 +47,7 @@ void main()
     vec4 backshadows_color = texture(backshadows_texture, uv) * light_texture_color + geometry_color;
 
     float distance_to_center = distance(uv, vec2(0.5)) * 2;
-    float t = 1.0 - (sqrt(distance_to_center));
+    float t = clamp(1.0 - (sqrt(distance_to_center)), 0, 1);
     // current_color.a *= t;
     
     // current_color = vec4(1.0 - distance_to_center * 2 * distance_to_center * 2);

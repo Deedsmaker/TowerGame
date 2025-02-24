@@ -327,9 +327,8 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     setup_color_changer(this);
 }
 
-Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context){
-    Level_Context *level_context = copy_entity_level_context;
-    if (!level_context) level_context = current_level_context;
+Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context){
+    if (!copy_level_context) copy_level_context = current_level_context;
 
     *this = *copy;
     id = copy->id;
@@ -398,7 +397,10 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_conte
     }
     
     if (flags & NOTE){
-        note_index = add_note(copy->note_index != -1 ? level_context->notes.get_ptr(copy->note_index)->content : "");
+        note_index = add_note("");
+        if (note_index != -1 && copy->note_index != -1){
+            (*current_level_context->notes.get_ptr(note_index)) = *copy_level_context->notes.get_ptr(copy->note_index);
+        }
     }
     
     if (flags & MOVE_SEQUENCE){
@@ -420,7 +422,7 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_conte
     if (flags & LIGHT){
         // if (!keep_id){
         light_index = -1;
-        init_entity_light(this, level_context->lights.get_ptr(copy->light_index));        
+        init_entity_light(this, copy_level_context->lights.get_ptr(copy->light_index));        
         // }
     }
     
@@ -462,6 +464,10 @@ i32 add_note(const char *content){
         }
     }
     
+    if (note_index == -1){
+        print("WARNING: Could not found note index to add");
+    }
+    
     return note_index;
 }
 
@@ -474,6 +480,9 @@ void copy_level_context(Level_Context *dest, Level_Context *src){
         
         data.key = src->entities.data[i].key;
         if (data.key != -1){
+            if (src->entities.get(i).flags & PLAYER){
+                continue;
+            }
             data.value = Entity(&src->entities.data[i].value, true, src);
         } else{
             data.value = {};
@@ -498,11 +507,11 @@ void copy_level_context(Level_Context *dest, Level_Context *src){
     dest->emitters.count = src->emitters.count;
     dest->emitters.max_count = src->emitters.max_count;
 
-    for (i32 i = 0; i < src->notes.count; i++){
-        dest->notes.data[i] = src->notes.get(i);
-    }
-    dest->notes.count = src->notes.count;
-    dest->notes.max_count = src->notes.max_count;
+    // for (i32 i = 0; i < src->notes.count; i++){
+    //     dest->notes.data[i] = src->notes.data[i];
+    // }
+    // dest->notes.count = src->notes.count;
+    // dest->notes.max_count = src->notes.max_count;
 
     // for (i32 i = 0; i < src->lights.max_count; i++){
     //     copy_light(dest->lights.get_ptr(i), src->lights.get_ptr(i));
@@ -536,7 +545,7 @@ void clear_level_context(Level_Context *level_context){
 
     level_context->entities.clear();
     level_context->particles.clear();
-    level_context->emitters.clear();
+    // level_context->emitters.clear();
     
     ArrayOfStructsToDefaultValues(level_context->notes);
     
@@ -814,97 +823,6 @@ i32 save_level(const char *level_name){
 
 inline void save_level_by_name(const char *name){
     save_level(name);
-}
-
-b32 is_digit_or_minus(char ch){
-    return ch == '-' || is_digit(ch);
-}
-
-void fill_i32_from_string(i32 *int_ptr, char *str_data){
-    assert(is_digit_or_minus(*str_data));
-    *int_ptr = to_i32(str_data);
-}    
-
-void fill_i32_from_string(u64 *int_ptr, char *str_data){
-    assert(is_digit_or_minus(*str_data));
-    *int_ptr = to_i32(str_data);
-}    
-
-void fill_b32_from_string(b32 *b32_ptr, char *str_data){
-    assert(is_digit_or_minus(*str_data));
-    *b32_ptr = to_i32(str_data);
-}    
-
-void fill_f32_from_string(f32 *f32_ptr, char *str_data){
-    assert(is_digit_or_minus(*str_data));
-    *f32_ptr = to_f32(str_data);
-}    
-
-void fill_vector2_from_string(Vector2 *vec_ptr, char *x_str, char *y_str){
-    assert(is_digit_or_minus(*x_str));
-    assert(is_digit_or_minus(*y_str));
-    
-    vec_ptr->x = to_f32(x_str);
-    vec_ptr->y = to_f32(y_str);
-}
-
-void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_str, char *w_str){
-    assert(is_digit_or_minus(*x_str));
-    assert(is_digit_or_minus(*y_str));
-    assert(is_digit_or_minus(*z_str));
-    assert(is_digit_or_minus(*w_str));
-    
-    vec_ptr->r = to_f32(x_str);
-    vec_ptr->g = to_f32(y_str);
-    vec_ptr->b = to_f32(z_str);
-    vec_ptr->a = to_f32(w_str);
-}
-
-void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
-    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
-    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
-    
-    *index_ptr += 2;
-    
-    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
-        Medium_Str current = line_arr.get((*index_ptr));
-        Medium_Str next    = line_arr.get((*index_ptr) + 1);
-        
-        fill_vector2_from_string(vertices->get_ptr(vertices->count), current.data, next.data);
-        vertices->count++;
-    }
-}
-
-void fill_vector2_array_from_string(Dynamic_Array<Vector2> *points, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
-    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
-    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
-    
-    *index_ptr += 2;
-    
-    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
-        Medium_Str current = line_arr.get((*index_ptr));
-        Medium_Str next    = line_arr.get((*index_ptr) + 1);
-        
-        points->add({});
-        fill_vector2_from_string(points->last_ptr(), current.data, next.data);
-    }
-}
-
-void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
-    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
-    //assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
-    
-    *index_ptr += 2;
-    
-    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 1){
-        Medium_Str current = line_arr.get((*index_ptr));
-        //Medium_Str next    = line_arr.get((*index_ptr) + 1);
-        i32 value = -1;
-        fill_i32_from_string(&value, current.data);  
-        arr->add(value);
-        //fill_vector2_from_string(arr->get_ptr(arr->count), current.data, next.data);
-        //arr->count++;
-    }
 }
 
 void fill_string(char *dest, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
@@ -1311,12 +1229,12 @@ b32 load_level(const char *level_name){
     // current_level_context = &editor_level_context;
     // game_state = EDITOR;
     
-    if (enter_game_state_on_new_level){
-        enter_game_state();
+    if (enter_game_state_on_new_level || game_state == GAME){
+        enter_game_state(&loaded_level_context);
         
-        ForEntities(entity, 0){
-            update_editor_entity(entity);
-        }
+        // ForEntities(entity, 0){
+        //     update_editor_entity(entity);
+        // }
 
         enter_game_state_on_new_level = false;
         player_data.blood_amount = last_player_data.blood_amount;
@@ -2306,7 +2224,7 @@ void load_temp_replay(){
     if (read_result != -1){
         session_context.playing_replay = true;
         enter_editor_state();
-        enter_game_state();
+        enter_game_state(current_level_context);
     
         console.str += text_format("\t>Temp replay named %s is loaded\n", name);
     }
@@ -2331,7 +2249,7 @@ void debug_toggle_play_replay(){
         
     if (session_context.playing_replay){
         enter_editor_state();
-        enter_game_state();
+        enter_game_state(current_level_context);
     }
     
     console.str += text_format("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled");
@@ -2340,7 +2258,7 @@ void debug_toggle_play_replay(){
 void restart_game(){
     load_level(first_level_name);
     enter_editor_state();
-    enter_game_state();
+    enter_game_state(current_level_context);
     session_context.speedrun_timer.time = 0;        
 }
 
@@ -2348,7 +2266,7 @@ void begin_level_speedrun(){
     if (!session_context.speedrun_timer.level_timer_active){
         reload_level();
         enter_editor_state();
-        enter_game_state();
+        enter_game_state(current_level_context);
         
         session_context.speedrun_timer.level_timer_active = true;        
         session_context.speedrun_timer.game_timer_active  = false;        
@@ -2368,7 +2286,7 @@ void begin_game_speedrun(){
     if (!session_context.speedrun_timer.game_timer_active){
         restart_game();
         enter_editor_state();
-        enter_game_state();
+        enter_game_state(current_level_context);
         
         session_context.speedrun_timer.level_timer_active = false;        
         session_context.speedrun_timer.game_timer_active  = true;        
@@ -2688,7 +2606,8 @@ void init_game(){
 void destroy_player(){
     assert(player_entity);
 
-    player_entity->destroyed                 = true;
+    player_entity->destroyed = true;
+    player_entity->enabled   = false;
     
     assert(current_level_context->entities.has_key(player_data.connected_entities_ids.ground_checker_id));
     current_level_context->entities.get_by_key_ptr(player_data.connected_entities_ids.ground_checker_id)->destroyed = true;
@@ -2738,13 +2657,13 @@ void clean_up_scene(){
     }
 }
 
-void enter_game_state(){
+void enter_game_state(Level_Context *level_context){
     // if (game_state == GAME){
     //     return;
     // }
     
-    clear_level_context(&game_level_context);
     clean_up_scene();
+    clear_level_context(&game_level_context);
     
     state_context = {};
     session_context.just_entered_game_state = true;
@@ -2758,9 +2677,8 @@ void enter_game_state(){
     DisableCursor();
     
     // clear_level_context(&game_level_context);
-    copy_level_context(&game_level_context, current_level_context);
-    
     current_level_context = &game_level_context;
+    copy_level_context(&game_level_context, level_context);
     
     Vector2 grid_target_pos = editor.player_spawn_point;
     session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
@@ -3379,7 +3297,7 @@ void update_game(){
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)){
         if (game_state == EDITOR){
-            enter_game_state();
+            enter_game_state(&editor_level_context);
         } else if (game_state == GAME || game_state == PAUSE){
             enter_editor_state();
         }
@@ -3401,22 +3319,19 @@ void update_game(){
                 session_context.speedrun_timer.time = 0;
             } else if (session_context.speedrun_timer.level_timer_active){
                 enter_editor_state();
-                enter_game_state();
+                enter_game_state(&editor_level_context);
                 session_context.speedrun_timer.time = 0;
             } else if (player_data.dead_man){
                 b32 is_have_checkpoint = checkpoint_trigger_id != -1;
             
-                enter_editor_state();
-                enter_game_state();
-                
+                // enter_editor_state();
                 if (is_have_checkpoint){
                     // ForEntities(entity, 0){
                     //     free_entity(entity);
                     //     *entity = {};
                     // }
     
-                    copy_level_context(&game_level_context, &checkpoint_level_context);
-                    current_level_context = &game_level_context;
+                    enter_game_state(&checkpoint_level_context);
                     player_entity->position = checkpoint_player_entity.position;
                     checkpoint_player_data.connected_entities_ids = player_data.connected_entities_ids;
                     player_data = checkpoint_player_data;
@@ -3424,6 +3339,8 @@ void update_game(){
                     
                     player_data.velocity = Vector2_zero;
                     session_context.speedrun_timer.time = 0;
+                } else{
+                    enter_game_state(&editor_level_context);
                 }
             }
         }
@@ -4152,45 +4069,46 @@ void make_color_picker(Vector2 inspector_position, Vector2 inspector_size, f32 v
 }
 
 void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, f32 v_pos, f32 height_add, i32 *size_flags, Entity *selected){
+    assert(selected->light_index != -1);
     f32 h_pos_mult = 0.05f;
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & ULTRA_SMALL_LIGHT, "ultra_small_size_flag")){
         *size_flags = ULTRA_SMALL_LIGHT;
-        init_entity(selected);
+        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
     }
     make_ui_text("(64): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "ultra_small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & SMALL_LIGHT, "small_size_flag")){
         *size_flags = SMALL_LIGHT;
-        init_entity(selected);
+        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
     }
     make_ui_text("(128): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & MEDIUM_LIGHT, "medium_light_flag")){
         *size_flags = MEDIUM_LIGHT;
-        init_entity(selected);
+        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
     }
     make_ui_text("(256): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "medium_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & BIG_LIGHT, "big_light_flag")){
         *size_flags = BIG_LIGHT;
-        init_entity(selected);
+        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
     }
     make_ui_text("(512): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "big_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & HUGE_LIGHT, "huge_light_flag")){
         *size_flags = HUGE_LIGHT;
-        init_entity(selected);
+        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
     }
     make_ui_text("(1024): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "huge_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & GIANT_LIGHT, "giant_light_flag")){
         *size_flags = GIANT_LIGHT;
-        init_entity(selected);
+        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
     }
     make_ui_text("(2048): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "giant_light_flag");
     h_pos_mult += 0.15f;
@@ -4494,14 +4412,14 @@ void update_editor_ui(){
                 make_ui_text("Bake shadows: ", {inspector_position.x + 5, v_pos}, "light_bake_shadows", 17, ColorBrightness(light->bake_shadows ? GREEN : RED, 0.5f));
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->bake_shadows, "light_bake_shadows")){
                     light->bake_shadows = !light->bake_shadows;
-                    init_entity(selected);
+                    init_entity_light(selected, light, true);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Make shadows (expensive): ", {inspector_position.x + 5, v_pos}, "light_make_shadows");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->make_shadows, "light_make_shadows")){
                     light->make_shadows = !light->make_shadows;
-                    init_entity(selected);
+                    init_entity_light(selected, light, true);
                 }
                 v_pos += height_add;
 
@@ -4515,7 +4433,7 @@ void update_editor_ui(){
                 make_ui_text("Make backshadows: ", {inspector_position.x + 5, v_pos}, "light_make_backshadows");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->make_backshadows, "light_make_backshadows")){
                     light->make_backshadows = !light->make_backshadows;
-                    init_entity(selected);
+                    init_entity_light(selected, light, true);
                 }
                 v_pos += height_add;
 
@@ -7411,7 +7329,8 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
         light->grow_time     = grow_time;
         light->shrink_time   = shrink_time;
         light->color         = color;
-        light->opacity       = 1;
+        light->opacity       = (f32)color.a / 255.0f;
+        light->start_opacity = light->opacity;
         light->exists        = true;
         light->position      = position;
         
@@ -7534,7 +7453,7 @@ void agro_enemy(Entity *entity){
 
     entity->enemy.in_agro = true;
     
-    add_explosion_light(entity->position, (entity->scale.y + entity->scale.x) * 10, 0.1f, 2.2f, ColorBrightness(RED, 0.5f), SMALL_LIGHT, entity->id);
+    add_explosion_light(entity->position, (entity->scale.y + entity->scale.x) * 10, 0.1f, 2.2f, Fade(ColorBrightness(RED, 0.5f), 0.5f), SMALL_LIGHT, entity->id);
     
     if (entity->flags & SHOOT_STOPER){
         state_context.shoot_stopers_count++;
@@ -7729,7 +7648,7 @@ void stop_death_instinct(){
     if (state_context.death_instinct.last_reason == ENEMY_ATTACKING){
         // We start cooldown if there was flying guy if he's not here anymore so player really used that instinct and don't just
         // evaded enemy.
-        is_threat_status_gives_cooldown = (!threat_entity || threat_entity->enemy.dead_man);
+        is_threat_status_gives_cooldown = (!threat_entity || threat_entity->enemy.dead_man || is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), normalized(player_entity->position - threat_entity->position), magnitude(player_entity->position - threat_entity->position), true));
     } else if (state_context.death_instinct.last_reason == SWORD_WILL_EXPLODE){
         // If there was explosive we want start cooldown if threat is still alive so player evaded explosion. 
         // That's because if player killed it - he taked risk and succeeded.
@@ -9299,11 +9218,11 @@ void fill_entities_draw_queue(){
             Entity *follow_entity = get_entity_by_id(entity->sticky_texture.follow_id);
             if (follow_entity){
                 if (follow_entity->flags & BLOCKER && st->should_draw_texture){
-                    make_light(follow_entity->position, 75, 1, 1, WHITE);
+                    make_light(follow_entity->position, 75, 1, 1.0f, WHITE);
                 }
                 
                 if (follow_entity->flags & SWORD_SIZE_REQUIRED && st->should_draw_texture){
-                    make_light(follow_entity->position, 75, 1.5, 1.0f, follow_entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
+                    make_light(follow_entity->position, 75, 1.5, 0.7f, follow_entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
                 }
             }
             
@@ -10123,7 +10042,7 @@ void draw_game(){
     //Light render pass
     BeginTextureMode(global_illumination_rt);{
         if (!debug.full_light){
-            ClearBackground(Fade(ColorBrightness(SKYBLUE, -0.4f), 1));
+            ClearBackground(Fade(ColorBrightness(SKYBLUE, -0.4f), 0));
         } else{
             ClearBackground(WHITE);
         }
@@ -10173,7 +10092,7 @@ void draw_game(){
             } else{ //shrinking
                 f32 shrink_t       = clamp01((lifetime - light_ptr->grow_time) / light_ptr->shrink_time);
                 light_ptr->radius  = lerp(light_ptr->target_radius, light_ptr->target_radius * 0.5f, shrink_t * shrink_t);
-                light_ptr->opacity = lerp(1.0f, 0.0f, shrink_t * shrink_t * shrink_t);
+                light_ptr->opacity = lerp(light_ptr->start_opacity, 0.0f, shrink_t * shrink_t);
                 light_ptr->power   = lerp(2.0f, 1.0f, shrink_t * shrink_t);
             }
             

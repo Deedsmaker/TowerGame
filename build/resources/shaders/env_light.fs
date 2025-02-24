@@ -21,6 +21,17 @@ void get_surface(vec2 uv, out float emissive, out vec4 colour)
     colour = emissive_data;
 }
 
+vec3 lin_to_srgb(vec4 color)
+{
+   vec3 x = color.rgb * 12.92;
+   vec3 y = 1.055 * pow(clamp(color.rgb, 0.0, 1.0), vec3(0.4166667)) - 0.055;
+   vec3 clr = color.rgb;
+   clr.r = (color.r < 0.0031308) ? x.r : y.r;
+   clr.g = (color.g < 0.0031308) ? x.g : y.g;
+   clr.b = (color.b < 0.0031308) ? x.b : y.b;
+   return clr.rgb;
+}
+
 void main()
 {
     vec4 current_color = texture(texture0, fragTexCoord);
@@ -36,5 +47,6 @@ void main()
     // finalColor += color;
     // finalColor = mix(current_color, current_color * color, color.a);
     finalColor = current_color * color;
-    finalColor.a = fragColor.a;
+    finalColor = mix(finalColor, finalColor * 2, color.a);
+    finalColor.a = current_color.a;
 }

@@ -15,7 +15,7 @@ global_variable Game_State game_state = EDITOR;
 global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
 void clean_up_scene();
-void enter_game_state();
+void enter_game_state(Level_Context *level_context);
 void enter_editor_state();
 
 void bird_clear_formation(Bird_Enemy *bird);
