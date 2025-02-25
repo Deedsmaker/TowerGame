@@ -1,3 +1,9 @@
+25.02.2025:
+    - Made sword spin collisions more precise by decreasing min rotation amount allowed.
+    - Centipede shit fixed. This was because we inited it multiple times and it spawned multiple times. That could never happen if we don't spawn anything only in game state, but i don't know if it's actuall ya good approach. It may be. Now we spawn on init only things for centipede and it causes many confusions. Maybe we should go off that.
+    - Checkpoints fully fixed and works better than ever (Maybe there's still blocks disappear, but did not noticed that after other fixes).
+    - Tested game in full game speedrun a couple of times. Works fine.
+
 24.02.2025:
     - Cleanup fixes after context refactor.
     - Further improvements of death instinct cooldown reason.

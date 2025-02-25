@@ -1,9 +1,11 @@
-[ ] Checkpoint issues:
-    [ ] Player parts left in world.
-    [ ] Sometimes blockes disappear.
-    [ ] Lights duplicates.
-[ ] Fix centipedes.
-[ ] Fix notes.
+[ ] Particles rework.
+[X] Ammo saves on full game restart (checked while game speedrunning).
+[X] Checkpoint issues:
+    [X] Player parts left in world.
+    [X]? Sometimes blockes disappear. (Did not noticed after other fixes).
+    [X] Lights duplicates.
+[X] Fix centipedes.
+[X] Fix notes.
 [ ] Fix particles.
 [X] Remake context and levels system so we could easily load multiple levels. At once and switch between them.
 [X] We should try that door (trigger) could draw ingame who he's tracking.

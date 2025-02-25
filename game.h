@@ -15,7 +15,7 @@ global_variable Game_State game_state = EDITOR;
 global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
 void clean_up_scene();
-void enter_game_state(Level_Context *level_context);
+void enter_game_state(Level_Context *level_context, b32 should_init_entities);
 void enter_editor_state();
 
 void bird_clear_formation(Bird_Enemy *bird);
@@ -38,6 +38,8 @@ Entity *get_entity_by_index(i32 index);
 Vector2 get_entity_velocity(Entity *entity);
 
 inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len = 0);
+
+void kill_player();
 
 b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards);
 inline b32 is_death_instinct_threat_active();

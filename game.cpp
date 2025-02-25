@@ -27,9 +27,13 @@ global_variable Level_Context loaded_level_context = {};
 global_variable Level_Context *current_level_context = NULL;
 global_variable State_Context state_context = {};
 global_variable Session_Context session_context = {};
-global_variable Entity checkpoint_player_entity;
+
+global_variable Entity *checkpoint_player_entity;
 global_variable Player checkpoint_player_data;
+global_variable Time checkpoint_time;
+global_variable State_Context checkpoint_state_context;
 global_variable i32 checkpoint_trigger_id = -1;
+
 global_variable Level_Replay level_replay = {};
 global_variable Render render = {};
 // global_variable Context saved_level_context = {};
@@ -327,7 +331,7 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     setup_color_changer(this);
 }
 
-Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context){
+Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32 should_init_entity){
     if (!copy_level_context) copy_level_context = current_level_context;
 
     *this = *copy;
@@ -432,12 +436,13 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context){
     //     }
     // }
     
-    rotate_to(this, rotation);
     
-    setup_color_changer(this);
-    
-    init_entity(this);
-    calculate_bounds(this);
+    if (should_init_entity){
+        rotate_to(this, rotation);
+        setup_color_changer(this);
+        init_entity(this);
+        calculate_bounds(this);
+    }
 }
 
 void parse_line(const char *line, char *result, i32 *index){ 
@@ -471,19 +476,24 @@ i32 add_note(const char *content){
     return note_index;
 }
 
-void copy_level_context(Level_Context *dest, Level_Context *src){
+void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init_entities){
     // *dest = *src;
     Level_Context *original_level_context = current_level_context;
     current_level_context = dest;
+    
+    Game_State original_game_state = game_state;
+    game_state = EDITOR;
+    
     for (i32 i = 0; i < src->entities.max_count; i++){
         Table_Data<Entity> data = {};
         
         data.key = src->entities.data[i].key;
         if (data.key != -1){
-            if (src->entities.get(i).flags & PLAYER){
-                continue;
-            }
-            data.value = Entity(&src->entities.data[i].value, true, src);
+            // if (src->entities.get(i).flags & PLAYER){
+            //     continue;
+            // }
+            data.value = Entity(&src->entities.data[i].value, true, src, should_init_entities);
+            data.value.level_context = current_level_context;
         } else{
             data.value = {};
         }
@@ -527,6 +537,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src){
     // }
     
     current_level_context = original_level_context;
+    game_state = original_game_state;
 }
 
 // void copy_player(Player *dest, Player *src){
@@ -837,6 +848,9 @@ void fill_string(char *dest, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr)
 }
 
 b32 load_level(const char *level_name){
+    Game_State original_game_state = game_state;
+    game_state = EDITOR;
+    
     char name[1024];
     str_copy(name, get_substring_before_symbol(level_name, '.'));
 
@@ -1204,6 +1218,8 @@ b32 load_level(const char *level_name){
         }
     }
     
+    game_state = original_game_state;
+    
     b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
     b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave){
@@ -1225,21 +1241,24 @@ b32 load_level(const char *level_name){
     // current_level_context = editor_level-conte
     clear_level_context(&editor_level_context);
     clear_level_context(&game_level_context);
-    copy_level_context(&editor_level_context, &loaded_level_context);
+    copy_level_context(&editor_level_context, &loaded_level_context, true);
     // current_level_context = &editor_level_context;
     // game_state = EDITOR;
     
     if (enter_game_state_on_new_level || game_state == GAME){
-        enter_game_state(&loaded_level_context);
+        enter_game_state(&loaded_level_context, true);
         
         // ForEntities(entity, 0){
         //     update_editor_entity(entity);
         // }
 
+        if (enter_game_state_on_new_level){
+            player_data.blood_amount = last_player_data.blood_amount;
+            player_data.blood_progress = last_player_data.blood_progress;
+            player_data.ammo_count = last_player_data.ammo_count;
+        }
+        
         enter_game_state_on_new_level = false;
-        player_data.blood_amount = last_player_data.blood_amount;
-        player_data.blood_progress = last_player_data.blood_progress;
-        player_data.ammo_count = last_player_data.ammo_count;
     }
     
     
@@ -1957,7 +1976,7 @@ void init_entity(Entity *entity){
         }
     }
     
-    // setup_color_changer(entity);
+    setup_color_changer(entity);
 }
 
 inline void save_current_level(){
@@ -2063,8 +2082,9 @@ void create_level(const char *level_name){
          console.str += "this level already exists\n";
     } else{
         clean_up_scene();
-        current_level_context = &loaded_level_context;
-        clear_level_context(&loaded_level_context);
+        // current_level_context = &loaded_level_context;
+        // clear_level_context(&loaded_level_context);
+        clear_level_context(&editor_level_context);
         
         save_level(level_name);
         enter_editor_state();
@@ -2134,6 +2154,7 @@ void debug_unlock_camera(){
 void print_debug_commands_to_console(){
     console.str += "\t\t>Debug Functions:\n";
     console.str += "\t>infinite_ammo\n";
+    console.str += "\t>die\n";
     console.str += "\t>enemy_ai\n";
     console.str += "\t>god_mode\n";
     console.str += "\t>add_ammo\n";
@@ -2224,7 +2245,7 @@ void load_temp_replay(){
     if (read_result != -1){
         session_context.playing_replay = true;
         enter_editor_state();
-        enter_game_state(current_level_context);
+        enter_game_state(current_level_context, true);
     
         console.str += text_format("\t>Temp replay named %s is loaded\n", name);
     }
@@ -2249,7 +2270,7 @@ void debug_toggle_play_replay(){
         
     if (session_context.playing_replay){
         enter_editor_state();
-        enter_game_state(current_level_context);
+        enter_game_state(current_level_context, true);
     }
     
     console.str += text_format("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled");
@@ -2257,8 +2278,14 @@ void debug_toggle_play_replay(){
 
 void restart_game(){
     load_level(first_level_name);
-    enter_editor_state();
-    enter_game_state(current_level_context);
+    // enter_editor_state();
+    
+    // We could already enter game state if we was in it while loading.
+    if (game_state != GAME){
+        enter_game_state(current_level_context, true);
+    }
+    
+    player_data.ammo_count = 0;
     session_context.speedrun_timer.time = 0;        
 }
 
@@ -2266,7 +2293,7 @@ void begin_level_speedrun(){
     if (!session_context.speedrun_timer.level_timer_active){
         reload_level();
         enter_editor_state();
-        enter_game_state(current_level_context);
+        enter_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = true;        
         session_context.speedrun_timer.game_timer_active  = false;        
@@ -2286,7 +2313,7 @@ void begin_game_speedrun(){
     if (!session_context.speedrun_timer.game_timer_active){
         restart_game();
         enter_editor_state();
-        enter_game_state(current_level_context);
+        enter_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = false;        
         session_context.speedrun_timer.game_timer_active  = true;        
@@ -2323,6 +2350,7 @@ void init_console(){
     console.commands.add(make_console_command("player_speed",   debug_toggle_player_speed));
     console.commands.add(make_console_command("entities_count", debug_print_entities_count));
     console.commands.add(make_console_command("infinite_ammo",  debug_infinite_ammo));
+    console.commands.add(make_console_command("die",  kill_player));
     console.commands.add(make_console_command("enemy_ai",       debug_enemy_ai));
     console.commands.add(make_console_command("god_mode",       debug_god_mode));
     console.commands.add(make_console_command("add_ammo",       debug_add_100_ammo));
@@ -2620,7 +2648,7 @@ void destroy_player(){
 void clean_up_scene(){
     if (current_level_context){
         ForEntities(entity, 0){
-            entity->color = entity->color_changer.start_color;
+            // entity->color = entity->color_changer.start_color;
         }
         
         for (i32 i = 0; i < MAX_BIRD_POSITIONS; i++){
@@ -2642,6 +2670,8 @@ void clean_up_scene(){
     // state_context.death_instinct = {};
     checkpoint_trigger_id = -1;
     
+    player_data = {};
+    
     session_context.speedrun_timer.paused = false;
     if (!session_context.speedrun_timer.game_timer_active){
         session_context.speedrun_timer.time = 0;        
@@ -2651,13 +2681,13 @@ void clean_up_scene(){
     editor.in_editor_time = 0;
     close_create_box();
     
-    if (player_entity){
-        destroy_player();
-        player_data.dead_man = false;
-    }
+    // if (player_entity){
+    //     destroy_player();
+    //     player_data.dead_man = false;
+    // }
 }
 
-void enter_game_state(Level_Context *level_context){
+void enter_game_state(Level_Context *level_context, b32 should_init_entities){
     // if (game_state == GAME){
     //     return;
     // }
@@ -2678,7 +2708,7 @@ void enter_game_state(Level_Context *level_context){
     
     // clear_level_context(&game_level_context);
     current_level_context = &game_level_context;
-    copy_level_context(&game_level_context, level_context);
+    copy_level_context(&game_level_context, level_context, should_init_entities);
     
     Vector2 grid_target_pos = editor.player_spawn_point;
     session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
@@ -2701,70 +2731,72 @@ void enter_game_state(Level_Context *level_context){
         level_replay.input_record.clear();
     }
     
-    player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
-    player_entity->collision_flags = GROUND | ENEMY;
-    player_entity->draw_order = 30;
-    
-    Entity *ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
-    ground_checker->collision_flags = GROUND;
-    ground_checker->color = Fade(PURPLE, 0.8f);
-    ground_checker->draw_order = 31;
-    
-    Entity *left_wall_checker = add_entity(player_entity->position - player_entity->right * player_entity->scale.x * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 0.9f}, {0.5f, 0.5f}, 0, 0); 
-    left_wall_checker->collision_flags = GROUND;
-    left_wall_checker->color = Fade(PURPLE, 0.8f);
-    left_wall_checker->draw_order = 31;
-    
-    Entity *right_wall_checker = add_entity(player_entity->position + player_entity->right * player_entity->scale.x * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 0.9f}, {0.5f, 0.5f}, 0, 0); 
-    right_wall_checker->collision_flags = GROUND;
-    right_wall_checker->color = Fade(PURPLE, 0.8f);
-    right_wall_checker->draw_order = 31;
-    
-    Entity *sword_entity = add_entity(editor.player_spawn_point, player_data.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
-    sword_entity->collision_flags = ENEMY;
-    sword_entity->color   = GRAY + RED * 0.1f;
-    sword_entity->color.a = 255;
-    sword_entity->color_changer.start_color = sword_entity->color;
-    sword_entity->color_changer.target_color = RED * 0.99f;
-    sword_entity->color_changer.interpolating = true;
-    sword_entity->draw_order = 25;
-    str_copy(sword_entity->name, "Player_Sword");
-    
-    player_data.connected_entities_ids.ground_checker_id = ground_checker->id;
-    player_data.connected_entities_ids.left_wall_checker_id = left_wall_checker->id;
-    player_data.connected_entities_ids.right_wall_checker_id = right_wall_checker->id;
-    player_data.connected_entities_ids.sword_entity_id = sword_entity->id;
-    player_data.dead_man = false;
-    
-    player_data.timers = {};
-    
-    player_data.stun_emitter        = player_entity->emitters.add(air_dust_emitter);
-    player_data.rifle_trail_emitter = player_entity->emitters.add(gunpowder_emitter);
-    player_data.rifle_trail_emitter->follow_entity = false;
-    
-    
-    player_data.rifle_hit_sound = sounds_table.get_by_key_ptr(hash_str("RifleHit"));
-    player_data.rifle_hit_sound->base_volume = 0.4f;
-    player_data.player_death_sound = sounds_table.get_by_key_ptr(hash_str("PlayerTakeDamage"));
-    player_data.sword_kill_sound = sounds_table.get_by_key_ptr(hash_str("SwordKill"));
-    player_data.sword_kill_sound->base_volume = 0.4f;
-    player_data.sword_kill_sound->base_pitch = 1.5f;
-    player_data.sword_block_sound = sounds_table.get_by_key_ptr(hash_str("SwordBlock"));
-    player_data.sword_block_sound->base_volume = 0.4f;
-    player_data.sword_block_sound->base_pitch = 0.5f;
-    player_data.sword_block_sound->pitch_variation = 0.1f;
-    
-    player_data.rifle_switch_sound = sounds_table.get_by_key_ptr(hash_str("RifleSwitch"));
-    player_data.rifle_switch_sound->base_volume = 0.4f;
-    player_data.rifle_switch_sound->base_pitch = 0.7f;
-    player_data.rifle_switch_sound->pitch_variation = 0.1f;
-    
-    player_data.ammo_count = last_player_data.ammo_count;
-    
-    ForEntities(entity, 0){
-        update_editor_entity(entity);
-        init_entity(entity);
-        update_entity_collision_cells(entity);
+    if (should_init_entities){
+        player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
+        player_entity->collision_flags = GROUND | ENEMY;
+        player_entity->draw_order = 30;
+        
+        Entity *ground_checker = add_entity(player_entity->position - player_entity->up * player_entity->scale.y * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
+        ground_checker->collision_flags = GROUND;
+        ground_checker->color = Fade(PURPLE, 0.8f);
+        ground_checker->draw_order = 31;
+        
+        Entity *left_wall_checker = add_entity(player_entity->position - player_entity->right * player_entity->scale.x * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 0.9f}, {0.5f, 0.5f}, 0, 0); 
+        left_wall_checker->collision_flags = GROUND;
+        left_wall_checker->color = Fade(PURPLE, 0.8f);
+        left_wall_checker->draw_order = 31;
+        
+        Entity *right_wall_checker = add_entity(player_entity->position + player_entity->right * player_entity->scale.x * 0.5f, {player_entity->scale.x * 0.9f, player_entity->scale.y * 0.9f}, {0.5f, 0.5f}, 0, 0); 
+        right_wall_checker->collision_flags = GROUND;
+        right_wall_checker->color = Fade(PURPLE, 0.8f);
+        right_wall_checker->draw_order = 31;
+        
+        Entity *sword_entity = add_entity(editor.player_spawn_point, player_data.sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
+        sword_entity->collision_flags = ENEMY;
+        sword_entity->color   = GRAY + RED * 0.1f;
+        // sword_entity->color.a = 255;
+        // sword_entity->color_changer.start_color = sword_entity->color;
+        // sword_entity->color_changer.target_color = RED * 0.99f;
+        // sword_entity->color_changer.interpolating = true;
+        sword_entity->draw_order = 25;
+        str_copy(sword_entity->name, "Player_Sword");
+        
+        player_data.connected_entities_ids.ground_checker_id = ground_checker->id;
+        player_data.connected_entities_ids.left_wall_checker_id = left_wall_checker->id;
+        player_data.connected_entities_ids.right_wall_checker_id = right_wall_checker->id;
+        player_data.connected_entities_ids.sword_entity_id = sword_entity->id;
+        player_data.dead_man = false;
+        
+        player_data.timers = {};
+        
+        player_data.stun_emitter        = player_entity->emitters.add(air_dust_emitter);
+        player_data.rifle_trail_emitter = player_entity->emitters.add(gunpowder_emitter);
+        player_data.rifle_trail_emitter->follow_entity = false;
+        
+        
+        player_data.rifle_hit_sound = sounds_table.get_by_key_ptr(hash_str("RifleHit"));
+        player_data.rifle_hit_sound->base_volume = 0.4f;
+        player_data.player_death_sound = sounds_table.get_by_key_ptr(hash_str("PlayerTakeDamage"));
+        player_data.sword_kill_sound = sounds_table.get_by_key_ptr(hash_str("SwordKill"));
+        player_data.sword_kill_sound->base_volume = 0.4f;
+        player_data.sword_kill_sound->base_pitch = 1.5f;
+        player_data.sword_block_sound = sounds_table.get_by_key_ptr(hash_str("SwordBlock"));
+        player_data.sword_block_sound->base_volume = 0.4f;
+        player_data.sword_block_sound->base_pitch = 0.5f;
+        player_data.sword_block_sound->pitch_variation = 0.1f;
+        
+        player_data.rifle_switch_sound = sounds_table.get_by_key_ptr(hash_str("RifleSwitch"));
+        player_data.rifle_switch_sound->base_volume = 0.4f;
+        player_data.rifle_switch_sound->base_pitch = 0.7f;
+        player_data.rifle_switch_sound->pitch_variation = 0.1f;
+        
+        player_data.ammo_count = last_player_data.ammo_count;
+        
+        ForEntities(entity, 0){
+            update_editor_entity(entity);
+            init_entity(entity);
+            update_entity_collision_cells(entity);
+        }
     }
 }
 
@@ -2834,6 +2866,9 @@ inline Vector2 game_mouse_pos(){
 }
 
 void fixed_game_update(f32 dt){
+    frame_rnd = perlin_noise3(core.time.game_time, core.time.app_time, 5) * 2 - 1.0f;
+    frame_on_circle_rnd = get_perlin_in_circle(1.0f);
+
     if (game_state == GAME){
         if (!session_context.playing_replay){
             //record input
@@ -3297,7 +3332,7 @@ void update_game(){
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)){
         if (game_state == EDITOR){
-            enter_game_state(&editor_level_context);
+            enter_game_state(&editor_level_context, true);
         } else if (game_state == GAME || game_state == PAUSE){
             enter_editor_state();
         }
@@ -3318,8 +3353,8 @@ void update_game(){
                 restart_game();
                 session_context.speedrun_timer.time = 0;
             } else if (session_context.speedrun_timer.level_timer_active){
-                enter_editor_state();
-                enter_game_state(&editor_level_context);
+                // enter_editor_state();
+                enter_game_state(&editor_level_context, true);
                 session_context.speedrun_timer.time = 0;
             } else if (player_data.dead_man){
                 b32 is_have_checkpoint = checkpoint_trigger_id != -1;
@@ -3331,16 +3366,20 @@ void update_game(){
                     //     *entity = {};
                     // }
     
-                    enter_game_state(&checkpoint_level_context);
-                    player_entity->position = checkpoint_player_entity.position;
-                    checkpoint_player_data.connected_entities_ids = player_data.connected_entities_ids;
+                    enter_game_state(&checkpoint_level_context, false);
+                    // clear_level_context(&game_level_context);
+                    // copy_level_context(&game_level_context, &checkpoint_level_context);
+                    player_entity = checkpoint_player_entity;
+                    // player_entity->position = checkpoint_player_entity.position;
+                    // checkpoint_player_data.connected_entities_ids = player_data.connected_entities_ids;
                     player_data = checkpoint_player_data;
-                    player_data.timers = {};
+                    core.time = checkpoint_time;
+                    state_context = checkpoint_state_context;
                     
                     player_data.velocity = Vector2_zero;
                     session_context.speedrun_timer.time = 0;
                 } else{
-                    enter_game_state(&editor_level_context);
+                    enter_game_state(&editor_level_context, true);
                 }
             }
         }
@@ -6239,7 +6278,8 @@ void update_player(Entity *entity, f32 dt){
         emit_particles(gunpowder_emitter, sword_tip, sword->up);
     }
     
-    sword->color_changer.progress = can_activate_rifle ? 1 : 0;
+    // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
+    sword->color = player_data.is_sword_big ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f);
     
     sword_tip_emitter->position = sword_tip;
     sword_tip_ground_emitter->position = sword_tip;
@@ -6265,12 +6305,14 @@ void update_player(Entity *entity, f32 dt){
         add_blood_amount(&player_data, -blood_decease * dt);
     }
     
-    f32 sword_min_rotation_amount = 10;
+    f32 sword_min_rotation_amount = 5;
     f32 need_to_rotate = player_data.sword_angular_velocity * dt;
     
     player_data.sword_spin_direction = normalized(player_data.sword_angular_velocity);
     
     if (abs(player_data.sword_angular_velocity) > 10){ 
+        // Someone could enter sword on previous frame after this update so we'll check for that.
+        calculate_sword_collisions(sword, entity);
         while(need_to_rotate > sword_min_rotation_amount){
             rotate(sword, sword_min_rotation_amount);
             calculate_sword_collisions(sword, entity);
@@ -7974,7 +8016,7 @@ inline void trigger_editor_verify_connected(Entity *entity){
 }
 
 void update_editor_entity(Entity *e){
-    if (e->flags & CENTIPEDE){
+    if (e->flags & CENTIPEDE && game_state == EDITOR){
         e->flags |= ENEMY;
         // e->enemy.dead_man = true;
     }
@@ -8088,9 +8130,11 @@ i32 update_trigger(Entity *e){
     
     if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided){
         if (str_contains(e->name, "checkpoint") && checkpoint_trigger_id != e->id){
-            copy_level_context(&checkpoint_level_context, current_level_context);
-            checkpoint_player_entity = *player_entity;
+            copy_level_context(&checkpoint_level_context, current_level_context, false);
+            checkpoint_player_entity = player_entity;
             checkpoint_player_data = player_data;
+            checkpoint_time = core.time;
+            checkpoint_state_context = state_context;
             
             checkpoint_trigger_id = e->id;
         }
