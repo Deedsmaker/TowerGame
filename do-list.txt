@@ -1,4 +1,9 @@
-[ ] Particles rework.
+[ ] Particles rework and sounds improvements before showcase.
+    [ ] General particles rework.
+    [ ] Debris on different enemies kill. Simple shoot kill should do as id does now, but if we put many bullets in - you know.
+    [ ] Different sounds on different enemies kill. 
+    [ ] Try to give weight to sword kill.
+    [ ] Sounds on big/small sword switching.
 [X] Ammo saves on full game restart (checked while game speedrunning).
 [X] Checkpoint issues:
     [X] Player parts left in world.
