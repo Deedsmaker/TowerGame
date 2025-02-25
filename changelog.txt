@@ -3,6 +3,9 @@
     - Centipede shit fixed. This was because we inited it multiple times and it spawned multiple times. That could never happen if we don't spawn anything only in game state, but i don't know if it's actuall ya good approach. It may be. Now we spawn on init only things for centipede and it causes many confusions. Maybe we should go off that.
     - Checkpoints fully fixed and works better than ever (Maybe there's still blocks disappear, but did not noticed that after other fixes).
     - Tested game in full game speedrun a couple of times. Works fine.
+    - Stability fixes.
+    - Removed pause game state and instead we just have flag in state_context. That's add things to do when we think about what should happen and don't happen in pause, but we don't care SO much about PAUSE state and it can break things. I hope it did, because that would mean that this horrible bug when we changes in editor don't saved on entering game state, but i hope that's in the past.
+    - Changed keys for pause and free cam.
 
 24.02.2025:
     - Cleanup fixes after context refactor.

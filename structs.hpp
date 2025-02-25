@@ -860,6 +860,9 @@ struct State_Context{
       
     b32 we_got_a_winner = false;
     
+    b32 in_pause_editor = false;
+    b32 free_cam = false;
+    
     f32 explosion_trauma = 0;
     i32 shoot_stopers_count = 0;
 };
@@ -1088,7 +1091,6 @@ struct Editor{
 };
 
 struct Debug{
-    b32 free_cam = false;
     f32 last_zoom = 0.35f;
 
     b32 full_light = false;

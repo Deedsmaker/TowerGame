@@ -2,8 +2,7 @@
 
 enum Game_State{
     EDITOR,
-    GAME,
-    PAUSE
+    GAME
 };
 
 enum Drawing_State{
