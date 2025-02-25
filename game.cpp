@@ -3319,15 +3319,16 @@ void update_game(){
         session_context.cam.cam2D.target = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         session_context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
         
-        aspect_ratio = session_context.cam.width / session_context.cam.height;
-        
-        UnloadRenderTexture(render.main_render_texture);
-        UnloadRenderTexture(global_illumination_rt);
-        UnloadRenderTexture(light_geometry_rt);
-        
-        render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
-        global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
-        light_geometry_rt = LoadRenderTexture(screen_width, screen_height);
+        if (session_context.cam.width != 0 && session_context.cam.height != 0 && !window_minimized){
+            aspect_ratio = session_context.cam.width / session_context.cam.height;
+            UnloadRenderTexture(render.main_render_texture);
+            UnloadRenderTexture(global_illumination_rt);
+            UnloadRenderTexture(light_geometry_rt);
+            
+            render.main_render_texture = LoadRenderTexture(screen_width, screen_height);
+            global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
+            light_geometry_rt = LoadRenderTexture(screen_width, screen_height);
+        }
     }
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)){

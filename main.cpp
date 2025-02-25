@@ -37,6 +37,8 @@ f32 aspect_ratio = 1;
 b32 screen_size_changed = 0;
 b32 bordless_fullscreen = false;
 
+b32 window_minimized = false;
+
 #include "game.cpp"
 int main(){
     InitWindow(screen_width, screen_height, "Pure Action");
@@ -60,6 +62,11 @@ int main(){
         
         if (!IsWindowFocused() && !IsWindowMinimized() && bordless_fullscreen){
             MinimizeWindow();
+            window_minimized = true;
+        }
+        
+        if (!IsWindowMinimized() && IsWindowFocused()){
+            window_minimized = false;
         }
         
         if (IsWindowResized()){
