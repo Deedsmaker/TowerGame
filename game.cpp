@@ -4164,14 +4164,14 @@ void update_editor_ui(){
         f32 height_add = 30 * UI_SCALING;
         f32 v_pos = inspector_position.y + height_add + 40;
         
-        make_ui_text(text_format("ID: %d", selected->id), {inspector_position.x + 100, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
+        make_ui_text(text_format("ID: %d", selected->id), {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
         
         make_ui_text(text_format("Name: ", selected->id), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
         if (make_input_field(text_format("%s", selected->name), {inspector_position.x + 65, inspector_position.y + 10}, {200, 25}, "inspector_name") ){
             str_copy(selected->name, focus_input_field.content);
         }
         
-        make_ui_text("POSITION", {inspector_position.x + 100, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
+        make_ui_text("POSITION", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
         if (make_input_field(text_format("%.3f", selected->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
@@ -4189,7 +4189,7 @@ void update_editor_ui(){
         }
         v_pos += height_add;
         
-        make_ui_text("SCALE", {inspector_position.x + 100, inspector_position.y + 20 + v_pos - height_add}, 24, WHITE * 0.9f, "inspector_scale");
+        make_ui_text("SCALE", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + 20 + v_pos - height_add}, 24, WHITE * 0.9f, "inspector_scale");
         v_pos += height_add;
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
@@ -4351,7 +4351,7 @@ void update_editor_ui(){
                 v_pos += height_add;
             
                 make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
-                if (make_input_field(text_format("%.1f", selected->move_sequence.speed), {inspector_position.x + 100, v_pos}, 100, "move_sequence_speed")){
+                if (make_input_field(text_format("%.1f", selected->move_sequence.speed), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "move_sequence_speed")){
                     selected->move_sequence.speed = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
@@ -4431,19 +4431,19 @@ void update_editor_ui(){
                 v_pos += height_add;
                 
                 make_ui_text("Light radius: ", {inspector_position.x + 5, v_pos}, "light_radius");
-                if (make_input_field(text_format("%.2f", light->radius), {inspector_position.x + 100, v_pos}, {150, 20}, "light_radius") ){
+                if (make_input_field(text_format("%.2f", light->radius), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "light_radius") ){
                     light->radius = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Light opacity: ", {inspector_position.x + 5, v_pos}, "light_opacity");
-                if (make_input_field(text_format("%.2f", light->opacity), {inspector_position.x + 100, v_pos}, {150, 20}, "light_opacity") ){
+                if (make_input_field(text_format("%.2f", light->opacity), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "light_opacity") ){
                     light->opacity = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Light power: ", {inspector_position.x + 5, v_pos}, "light_power");
-                if (make_input_field(text_format("%.2f", light->power), {inspector_position.x + 100, v_pos}, {150, 20}, "light_power") ){
+                if (make_input_field(text_format("%.2f", light->power), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "light_power") ){
                     light->power = to_f32(focus_input_field.content);
                 }
                 v_pos += height_add;
@@ -4568,7 +4568,7 @@ void update_editor_ui(){
                 v_pos += height_add;
                 if (selected->trigger.change_zoom){
                     make_ui_text("Zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zooom_text", cam_section_color);
-                    if (make_input_field(text_format("%.2f", selected->trigger.zoom_value), {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_zoom_name") ){
+                    if (make_input_field(text_format("%.2f", selected->trigger.zoom_value), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_zoom_name") ){
                         selected->trigger.zoom_value = to_f32(focus_input_field.content);
                     }
                     v_pos += height_add;
@@ -4615,7 +4615,7 @@ void update_editor_ui(){
                 v_pos += height_add;
                 if (selected->trigger.play_sound){
                     make_ui_text("Sound name: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound_name_text");
-                    if (make_input_field(selected->trigger.sound_name, {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_sound_name") ){
+                    if (make_input_field(selected->trigger.sound_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_sound_name") ){
                         str_copy(selected->trigger.sound_name, focus_input_field.content);
                     }
                     v_pos += height_add;
@@ -4630,7 +4630,7 @@ void update_editor_ui(){
                 
                 if (selected->trigger.load_level){
                     make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
-                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + 100, v_pos}, {150, 20}, "trigger_load_level_name") ){
+                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_load_level_name") ){
                         str_copy(selected->trigger.level_name, focus_input_field.content);
                     }
                     v_pos += height_add;
@@ -4811,7 +4811,7 @@ void update_editor_ui(){
                 v_pos += height_add;
                 
                 make_ui_text("Segments count: ", {inspector_position.x + 25, v_pos}, "segments_count");
-                if (make_input_field(text_format("%d", selected->centipede.segments_count), {inspector_position.x + 100, v_pos}, 100, "segments_count")){
+                if (make_input_field(text_format("%d", selected->centipede.segments_count), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "segments_count")){
                     selected->centipede.segments_count = fmin(to_i32(focus_input_field.content), MAX_CENTIPEDE_SEGMENTS);
                 }
                 v_pos += height_add;
@@ -4827,19 +4827,19 @@ void update_editor_ui(){
             
             if (editor.draw_jump_shooter_settings){
                 make_ui_text("Shots count: ", {inspector_position.x + 5, v_pos}, "jump_shooter_shots_count");
-                if (make_input_field(text_format("%d", selected->jump_shooter.shots_count), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_shots_count")){
+                if (make_input_field(text_format("%d", selected->jump_shooter.shots_count), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "jump_shooter_shots_count")){
                     selected->jump_shooter.shots_count = to_i32(focus_input_field.content);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Spread: ", {inspector_position.x + 5, v_pos}, "jump_shooter_spread");
-                if (make_input_field(text_format("%.1f", selected->jump_shooter.spread), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_spread")){
+                if (make_input_field(text_format("%.1f", selected->jump_shooter.spread), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "jump_shooter_spread")){
                     selected->jump_shooter.spread = clamp(to_f32(focus_input_field.content), 0.0f, 180.0f);
                 }
                 v_pos += height_add;
                 
                 make_ui_text("Explosive count: ", {inspector_position.x + 5, v_pos}, "jump_shooter_explosive_count");
-                if (make_input_field(text_format("%d", selected->jump_shooter.explosive_count), {inspector_position.x + 100, v_pos}, 100, "jump_shooter_explosive_count")){
+                if (make_input_field(text_format("%d", selected->jump_shooter.explosive_count), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "jump_shooter_explosive_count")){
                     selected->jump_shooter.explosive_count = fmin(fmin(to_i32(focus_input_field.content), 64), selected->jump_shooter.shots_count);
                 }
                 v_pos += height_add;
