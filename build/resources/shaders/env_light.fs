@@ -48,5 +48,5 @@ void main()
     // finalColor = mix(current_color, current_color * color, color.a);
     finalColor = current_color * color;
     finalColor = mix(finalColor, finalColor * 2, color.a);
-    finalColor.a = current_color.a;
+    finalColor.a = 1;
 }

@@ -35,8 +35,59 @@ enum Particle_Spawn_Area{
     BOX = 1
 };
 
+#define MAX_SMALL_COUNT_PARTICLE_EMITTERS 64
+#define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 32
+#define MAX_BIG_COUNT_PARTICLE_EMITTERS 8
+
+#define MAX_SMALL_COUNT_PARTICLES 32
+#define MAX_MEDIUM_COUNT_PARTICLES 128
+#define MAX_BIG_COUNT_PARTICLES 512
+
+#define SMALL_COUNT_PARTICLES_START_INDEX 0
+#define MEDIUM_COUNT_PARTICLES_START_INDEX MAX_SMALL_COUNT_PARTICLES * MAX_SMALL_COUNT_PARTICLE_EMITTERS
+#define BIG_COUNT_PARTICLES_START_INDEX    MEDIUM_COUNT_PARTICLES_START_INDEX + MAX_MEDIUM_COUNT_PARTICLES * MAX_MEDIUM_COUNT_PARTICLE_EMITTERS
+
+#define MAX_PARTICLES BIG_COUNT_PARTICLES_START_INDEX + MAX_BIG_COUNT_PARTICLES * MAX_BIG_COUNT_PARTICLE_EMITTERS
+
+// try constexpr when compiles
+
+// @OPTIMIZATION:
+// Right now particles in emitters are stored as simple static array so Particle_Emmiter occupies many memory, which
+// goes heavily on cache. When we'll come to memory arenas we can allocate memory for all particles and in emitter
+// just keep pointer to start, so he can access that without storing all in himself.
+// That generally makes it harder for single emmiter to get his particles, but in the broad sceme - emitter most likely
+// will not be active, so reduced memory capacity will be good.
+//
+//!!!!!!!!!!!!
+// Tried that. There's huge problem. During gameplay we *will* be creating and destroying many emitters and that approach
+// allows us only clear full array of emitters by zero-ing watermark. 
+// Solution would be to initialize in beginning all dynamic emitters that we will create and destroy. 
+// That's obviously adds a lot of friction and things to remember.
+// Actually... All we 'really' have to do is after initializing particle call a function that will add some amount of it
+// to emitters array (and up watermark in level context). Next we only need to know how to find them on add 
+//
+// Right now we'll go with static arrays per emitter. We'll see if i can figure out something simple so we don't keep 
+// everything in emitter. If that will happen - that will be after i'll work with arenas.
+//
+// Actually... We'll go with one particles array and three groups (big_count, medium_count, small_count). 
+// That will be the equivalent of three static arrays, but in one block in memory with just marks.
+// Also we will have small emitters to go through.
+//
+
+enum Particle_Emitter_Count{
+    SMALL_PARTICLE_COUNT,  
+    MEDIUM_PARTICLE_COUNT,
+    BIG_PARTICLE_COUNT
+};
+
 struct Particle_Emitter{
+    b32 occupied = false;
     Particle_Shape shape = SQUARE;
+    Particle_Emitter_Count count_type = SMALL_PARTICLE_COUNT;
+    
+    i32 particles_start_index  = -1;
+    i32 particles_max_index    = -1;
+    i32 last_added_index = -1;
     
     b32 just_born = true;
     b32 enabled = true;
@@ -86,6 +137,16 @@ struct Particle_Emitter{
     
     Color color = YELLOW;
 };
+
+// struct Big_Count_Particle_Emitter : Particle_Emitter{
+//     Array<Particle, MAX_BIG_COUNT_PARTICLES> particles    = Array<Particle, MAX_BIG_COUNT_PARTICLES>();
+// };
+// struct Medium_Count_Particle_Emitter : Particle_Emitter{
+//     Array<Particle, MAX_MEDIUM_COUNT_PARTICLES> particles = Array<Particle, MAX_MEDIUM_COUNT_PARTICLES>();
+// };
+// struct Small_Count_Particle_Emitter : Particle_Emitter{
+//     Array<Particle, MAX_SMALL_COUNT_PARTICLES> particles  = Array<Particle, MAX_SMALL_COUNT_PARTICLES>();
+// };
 
 #define MAX_SINGLE_SOUND 16
 
@@ -253,8 +314,8 @@ struct Jump_Shooter{
     
     Dynamic_Array<Move_Point> move_points;
     
-    Particle_Emitter *trail_emitter;
-    Particle_Emitter *flying_emitter;
+    i32 trail_emitter_index = -1;
+    i32 flying_emitter_index = -1;
 };
 
 struct Move_Sequence{
@@ -349,7 +410,7 @@ struct Velocity_Move{
 struct Propeller{
     f32 power = 1000;  
     
-    Particle_Emitter *air_emitter = NULL;
+    i32 air_emitter_index = -1;
 };
 
 struct Win_Block{
@@ -391,9 +452,9 @@ struct Bird_Enemy{
     Vector2 target_position;  
     Vector2 velocity = Vector2_zero;
     
-    Particle_Emitter *attack_emitter;
-    Particle_Emitter *trail_emitter;
-    Particle_Emitter *fire_emitter;
+    i32 attack_emitter_index = -1;
+    i32 trail_emitter_index = -1;
+    i32 fire_emitter_index = -1;
     
     Sound_Handler *attack_sound = NULL;
 };
@@ -466,18 +527,18 @@ struct Bounds{
 
 struct Player{
     // Array<Collision, MAX_COLLISIONS> collisions = Array<Collision, MAX_COLLISIONS>();
-    Particle_Emitter *stun_emitter;
+    i32 stun_emitter_index = -1;
     
     struct Timers{
         f32 died_time = -12;
         f32 jump_press_time = -12;
+        f32 air_jump_press_time = -12;
         f32 wall_jump_time = -12;
         f32 since_jump_timer = 0;
         f32 since_airborn_timer = 0;
         f32 rifle_shake_start_time = 0;
         f32 rifle_activate_time = 0;
         f32 rifle_shoot_time = 0;
-        
     };
     
     Timers timers = {};
@@ -557,7 +618,7 @@ struct Player{
     
     f32 current_move_speed = 0;
     
-    Particle_Emitter *rifle_trail_emitter = NULL;
+    i32 rifle_trail_emitter_index = -1;
     
     Sound_Handler *rifle_hit_sound    = NULL;
     Sound_Handler *player_death_sound = NULL;
@@ -653,7 +714,8 @@ struct Entity{
     Enemy enemy;
     Bird_Enemy bird_enemy;
     Projectile projectile;
-    Array<Particle_Emitter, MAX_ENTITY_EMITTERS> emitters = Array<Particle_Emitter, MAX_ENTITY_EMITTERS>();
+    // Array<Particle_Emitter, MAX_ENTITY_EMITTERS> emitters = Array<Particle_Emitter, MAX_ENTITY_EMITTERS>();
+    Array<i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = Array<i32, MAX_ENTITY_EMITTERS>();
     Win_Block win_block;
     Sticky_Texture sticky_texture;
     Propeller propeller;
@@ -810,8 +872,12 @@ struct Level_Context{
 
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
       
-    Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(20000);
-    Dynamic_Array<Particle_Emitter> emitters  = Dynamic_Array<Particle_Emitter>(1000);
+    Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(MAX_PARTICLES);
+    Dynamic_Array<Particle_Emitter> particle_emitters  = Dynamic_Array<Particle_Emitter>(MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS);
+    // Dynamic_Array<Big_Count_Particle_Emitter> big_count_particle_emitters  = Dynamic_Array<Big_Count_Particle_Emitter>(MAX_BIG_COUNT_PARTICLE_EMITTERS);
+    // Dynamic_Array<Medium_Count_Particle_Emitter> medium_count_particle_emitters  = Dynamic_Array<Medium_Count_Particle_Emitter>(MAX_MEDIUM_COUNT_PARTICLE_EMITTERS);
+    // Dynamic_Array<Small_Count_Particle_Emitter> small_count_particle_emitters  = Dynamic_Array<Small_Count_Particle_Emitter>(MAX_SMALL_COUNT_PARTICLE_EMITTERS);
+    // i32 particles_top_index = 0;
     
     Dynamic_Array<Note> notes = Dynamic_Array<Note>(128);
     

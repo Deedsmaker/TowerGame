@@ -161,6 +161,15 @@ Entity* add_text(Vector2 pos, f32 size, const char *text);
 void copy_entity(Entity *dest, Entity *src);
 void copy_light(Light *dest, Light *src);
 
+inline void set_particle_emitter_start_and_max_indexes(Particle_Emitter_Count count_type, i32 *start_index, i32 *max_index);
+inline i32 get_particles_count_for_count_type(Particle_Emitter_Count count_type);
+i32 add_particle_emitter(Particle_Emitter *copy);
+Particle_Emitter *get_particle_emitter(i32 index);
+
+inline void free_particle_emitter(i32 index);
+inline void free_particle_emitters(i32 *start_ptr, i32 count);
+inline void free_entity_particle_emitters(Entity *entity);
+
 i32 add_note(const char *content);
 
 void init_light(Light *light);
@@ -185,8 +194,8 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Array<Vector2, MAX_VERTICES> vertices);
 
-Particle_Emitter* add_emitter();
-Particle_Emitter* add_emitter(Particle_Emitter *copy);
+// Particle_Emitter* add_emitter();
+// Particle_Emitter* add_emitter(Particle_Emitter *copy);
 
 f32 zoom_unit_size();
 

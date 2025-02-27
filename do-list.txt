@@ -1,9 +1,11 @@
+[ ] Reduce size of inspector ui and (probably) loading by macros.
 [ ] Particles rework and sounds improvements before showcase.
     [ ] General particles rework.
     [ ] Debris on different enemies kill. Simple shoot kill should do as id does now, but if we put many bullets in - you know.
     [ ] Different sounds on different enemies kill and sword spin. 
     [ ] Try to give weight to sword kill and spin.
     [ ] Sounds on big/small sword switching.
+    [ ] When bullet kills multiple centipede cegments we could increase pitch of sound or do even cooler shit.
 [X] Ammo saves on full game restart (checked while game speedrunning).
 [X] Checkpoint issues:
     [X] Player parts left in world.
@@ -11,7 +13,7 @@
     [X] Lights duplicates.
 [X] Fix centipedes.
 [X] Fix notes.
-[ ] Fix particles.
+[\] Fix particles. Gotta rework them so no fixing for existing.
 [X] Remake context and levels system so we could easily load multiple levels. At once and switch between them.
 [X] We should try that door (trigger) could draw ingame who he's tracking.
 [X] Think about more camera work towards keeping target between player end enemies so we could see them better. That could reduce cam blocker system for now, but this still be required later for visual purposes.
