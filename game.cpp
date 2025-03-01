@@ -6470,12 +6470,8 @@ void update_player(Entity *entity, f32 dt){
     
     if (abs(player_data.sword_angular_velocity) > 10){ 
         // Someone could enter sword on previous frame after this update so we'll check for that.
-        // rotate(sword, -sword_min_rotation_amount);
-        // calculate_sword_collisions(sword, entity);
-        // rotate(sword, sword_min_rotation_amount);
         calculate_sword_collisions(sword, entity);
         while(need_to_rotate > sword_min_rotation_amount){
-            //there was no sword_spin_direction, need to check that thing
             rotate(sword, sword_min_rotation_amount * player_data.sword_spin_direction);
             calculate_sword_collisions(sword, entity);
             need_to_rotate -= sword_min_rotation_amount;
