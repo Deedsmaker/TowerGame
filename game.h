@@ -163,7 +163,7 @@ void copy_light(Light *dest, Light *src);
 
 inline void set_particle_emitter_start_and_max_indexes(Particle_Emitter_Count count_type, i32 *start_index, i32 *max_index);
 inline i32 get_particles_count_for_count_type(Particle_Emitter_Count count_type);
-i32 add_particle_emitter(Particle_Emitter *copy);
+i32 add_particle_emitter(Particle_Emitter *copy, i32 entity_id = -1);
 Particle_Emitter *get_particle_emitter(i32 index);
 
 inline void free_particle_emitter(i32 index);

@@ -35,12 +35,12 @@ enum Particle_Spawn_Area{
     BOX = 1
 };
 
-#define MAX_SMALL_COUNT_PARTICLE_EMITTERS 64
-#define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 32
+#define MAX_SMALL_COUNT_PARTICLE_EMITTERS 256
+#define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 64
 #define MAX_BIG_COUNT_PARTICLE_EMITTERS 8
 
-#define MAX_SMALL_COUNT_PARTICLES 32
-#define MAX_MEDIUM_COUNT_PARTICLES 128
+#define MAX_SMALL_COUNT_PARTICLES 128
+#define MAX_MEDIUM_COUNT_PARTICLES 256
 #define MAX_BIG_COUNT_PARTICLES 512
 
 #define SMALL_COUNT_PARTICLES_START_INDEX 0
@@ -81,9 +81,18 @@ enum Particle_Emitter_Count{
 };
 
 struct Particle_Emitter{
+    char tag_16[16] = "Untagged";    
+
+    i32 connected_entity_id = -1;
+    i32 index = -1;
+
     b32 occupied = false;
     Particle_Shape shape = SQUARE;
     Particle_Emitter_Count count_type = SMALL_PARTICLE_COUNT;
+    
+    b32 should_extinct = false;
+    
+    i32 alive_particles_count = 0;
     
     i32 particles_start_index  = -1;
     i32 particles_max_index    = -1;
@@ -134,6 +143,7 @@ struct Particle_Emitter{
     f32 lifetime_multiplier = 1;
     
     f32 emitter_lifetime = 0;
+    // f32 emitter_max_lifetime = 0;
     
     Color color = YELLOW;
 };

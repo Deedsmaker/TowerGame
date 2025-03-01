@@ -1,3 +1,4 @@
+[ ] Remove emitters spawning every frame (At least tires emitters, bird collision etc).
 [ ] Reduce size of inspector ui and (probably) loading by macros.
 [ ] Particles rework and sounds improvements before showcase.
     [ ] General particles rework.
@@ -190,6 +191,7 @@
 [ ] Maybe mirrors and something to do with them? Maybe someone that we can see only in mirror. Maybe mirrors play with light.
 [ ] Snow with light blinks
 [X] On enemy attack we can briefly show line that will fade away
+[ ] With wind technology we could make cool explosion effect with particles when they will fly away. It will just work.
 /////////////////////////////////////////////////////////
 
 <RAW>

@@ -1,3 +1,6 @@
+01.03.2025:
+    - Particles rework almost completed. It finally works. 
+
 26.02.2025:
     - Improved jump buffer. Now jump buffer detects presses only in air. That caused us problems with platforms on high speeds.
 

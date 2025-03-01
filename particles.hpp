@@ -3,7 +3,7 @@
 global_variable i32 enabled_particles_count = 0;
 // i32 last_added_index = -1;
 
-void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
+inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
     Particle particle = {};
     particle.position = position + emitter->spawn_offset;
     
@@ -56,6 +56,20 @@ void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 directi
 }
 
 void emit_particles(Particle_Emitter *emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1){
+    // There we could receive emitter that actually already connected to some entity and we just want emit it. 
+    // Also we can receive just setuped emitter and in that case we want to create new emitter that will be updated.
+    if (!emitter->occupied){ // Means that's just arbitrary emitter.
+        i32 new_emitter_index = add_particle_emitter(emitter);
+        if (new_emitter_index < 0){
+            print("WARNING: Could not find emitter on emit_particles");
+            return;
+        }
+        emitter = get_particle_emitter(new_emitter_index);
+        emitter->should_extinct = true;
+        // emitter->emitter_max_lifetime = 4.0f;
+        emitter->enabled = true;
+    }
+
     normalize(&direction);
     i32 count = rnd((int)emitter->count_min, (int)emitter->count_max);
     count = (i32)((f32)count * count_multiplier); 
@@ -65,6 +79,15 @@ void emit_particles(Particle_Emitter *emitter, Vector2 position, Vector2 directi
     for (i32 i = 0; i < count; i++){
         shoot_particle(emitter, position, direction, speed_multiplier);
     }
+}
+
+inline void emit_particles(i32 emitter_index, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1){
+    if (emitter_index == -1){
+        print("WARNING: Trying to emit particles with emitter index -1");
+        return;
+    }
+
+    emit_particles(get_particle_emitter(emitter_index), position, direction, count_multiplier, speed_multiplier, area_multiplier);
 }
 
 void update_overtime_emitter(Particle_Emitter *emitter, f32 dt){
@@ -114,16 +137,17 @@ void enable_emitter(Particle_Emitter *emitter){
 }
 
 internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt){
+    emitter->alive_particles_count = 0;
     for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
         if (!current_level_context->particles.get(i).enabled){
             continue;
         }
     
         Particle *particle = current_level_context->particles.get_ptr(i);
-        dt = game_state == EDITOR ? core.time.real_dt : dt;
+        // dt = game_state == EDITOR ? core.time.real_dt : dt;
         
         if (particle->lifetime <= 0.2f && game_state == GAME){
-            dt = core.time.real_dt;
+            // dt = core.time.real_dt;
         }
         
         particle->lifetime += dt;
@@ -134,6 +158,8 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
             enabled_particles_count--;
             continue;
         }
+        
+        emitter->alive_particles_count += 1;
         
         f32 t_lifetime = particle->lifetime / particle->max_lifetime;
         particle->scale = lerp(particle->original_scale, Vector2_zero, t_lifetime * t_lifetime);
@@ -150,41 +176,43 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
 }
 
 inline void update_emitter(Particle_Emitter *emitter, f32 dt){
-    if (!emitter->enabled){
-        emitter->emitter_lifetime = 0;
-        return;
-    }
-
     emitter->emitter_lifetime += dt;
     
-    if (emitter->over_time > 0){
-        update_overtime_emitter(emitter, dt);
-    }
-    
-    if (emitter->over_distance > 0){
-        update_overdistance_emitter(emitter);
+    // We don't want to spawn new particles when emitter is preparing to die.
+    if (emitter->enabled && !emitter->should_extinct){
+        if (emitter->over_time > 0){
+            update_overtime_emitter(emitter, dt);
+        }
+        
+        if (emitter->over_distance > 0){
+            update_overdistance_emitter(emitter);
+        }
+    } else if (!emitter->enabled){
+        emitter->emitter_lifetime = 0;
     }
     
     update_emitter_particles(emitter, dt);
+    
+    if (emitter->should_extinct && emitter->alive_particles_count == 0){
+        free_particle_emitter(emitter->index);
+    }
 }
 
 void update_particle_emitters(f32 dt){
+    i32 emitters_count = 0;
     for (int i = 0; i < current_level_context->particle_emitters.max_count; i++){
         Particle_Emitter *emitter = current_level_context->particle_emitters.get_ptr(i);
         if (!emitter->occupied){
-            return;              
+            continue;              
         }
-        
+        emitters_count++;
         if (emitter->destroyed){
-        }
-        
-        if (!emitter->enabled){
-            emitter->emitter_lifetime = 0;
-            continue;
         }
         
         update_emitter(emitter, dt);        
     }
+    
+    print(emitters_count);
 }
 
 
@@ -224,11 +252,17 @@ void DEPRECATED_update_particles(f32 dt){
     }
 }
 
-global_variable Particle_Emitter *chainsaw_emitter;
-global_variable Particle_Emitter *sword_tip_emitter;
-global_variable Particle_Emitter *sword_tip_ground_emitter;
-global_variable Particle_Emitter *blood_emitter;
-global_variable Particle_Emitter big_blood_emitter = {};
+global_variable Particle_Emitter chainsaw_emitter_copy  = {};
+global_variable Particle_Emitter sword_tip_emitter_copy = {};
+global_variable Particle_Emitter sword_tip_ground_emitter_copy = {};
+global_variable Particle_Emitter blood_emitter_copy = {};
+
+global_variable i32 chainsaw_emitter_index = -1;
+global_variable i32 sword_tip_emitter_index = -1;
+global_variable i32 sword_tip_ground_emitter_index = -1;
+global_variable i32 blood_emitter_index = -1;
+
+global_variable Particle_Emitter big_blood_emitter_copy = {};
 global_variable Particle_Emitter rifle_bullet_emitter = {};
 global_variable Particle_Emitter air_dust_emitter = {};
 global_variable Particle_Emitter explosion_emitter = {};
@@ -239,6 +273,7 @@ global_variable Particle_Emitter big_sparks_emitter = {};
 global_variable Particle_Emitter gunpowder_emitter = {};
 global_variable Particle_Emitter air_emitter = {};
 global_variable Particle_Emitter ground_splash_emitter = {};
+
 
 void free_emitter(Particle_Emitter *emitter){
     emitter = NULL;
@@ -253,90 +288,93 @@ void copy_emitter(Particle_Emitter *dest, Particle_Emitter *src, Vector2 start_p
 void setup_particles(){
     // free_emitter(chainsaw_emitter);
     // chainsaw_emitter = add_emitter();
-    // chainsaw_emitter->spawn_radius = 0.2f;
-    // chainsaw_emitter->over_distance = 3;
-    // chainsaw_emitter->over_time     = 0;
-    // chainsaw_emitter->speed_min     = 5;
-    // chainsaw_emitter->speed_max     = 20;
-    // chainsaw_emitter->scale_min     = 0.1f;
-    // chainsaw_emitter->scale_max     = 0.6f;
-    // chainsaw_emitter->lifetime_min  = 0.05f;
-    // chainsaw_emitter->lifetime_max  = 0.3f;
-    // chainsaw_emitter->spread        = 1;
-    // chainsaw_emitter->enabled       = false;
-    chainsaw_emitter = current_level_context->particle_emitters.get_ptr(0);
-
-    // free_emitter(sword_tip_emitter);
-    // sword_tip_emitter = add_emitter();
-    // sword_tip_emitter->spawn_radius = 1.0f;
-    // sword_tip_emitter->over_distance     = 2;
-    // sword_tip_emitter->direction_to_move = true;
-    // sword_tip_emitter->over_time         = 0;
-    // sword_tip_emitter->speed_min         = 1;
-    // sword_tip_emitter->speed_max         = 5;
-    // sword_tip_emitter->scale_min         = 0.1f;
-    // sword_tip_emitter->scale_max         = 0.6f;
-    // sword_tip_emitter->lifetime_min      = 0.2f;
-    // sword_tip_emitter->lifetime_max      = 1.5f;
-    // sword_tip_emitter->spread            = 0.4f;
-    // sword_tip_emitter->gravity_multiplier = 0.1f;
-    // sword_tip_emitter->color             = Fade(RED, 0.5f);
-    // sword_tip_emitter->enabled           = true;
-    sword_tip_emitter = current_level_context->particle_emitters.get_ptr(0);
+    chainsaw_emitter_copy.spawn_radius = 0.2f;
+    chainsaw_emitter_copy.over_distance = 3;
+    chainsaw_emitter_copy.over_time     = 0;
+    chainsaw_emitter_copy.speed_min     = 5;
+    chainsaw_emitter_copy.speed_max     = 20;
+    chainsaw_emitter_copy.scale_min     = 0.1f;
+    chainsaw_emitter_copy.scale_max     = 0.6f;
+    chainsaw_emitter_copy.lifetime_min  = 0.05f;
+    chainsaw_emitter_copy.lifetime_max  = 0.3f;
+    chainsaw_emitter_copy.spread        = 1;
+    chainsaw_emitter_copy.enabled       = false;
+    str_copy(chainsaw_emitter_copy.tag_16, "chainsaw1");
     
-    // free_emitter(sword_tip_emitter);
-    // sword_tip_ground_emitter = add_emitter();
-    // sword_tip_ground_emitter->spawn_radius = 0.3f;
-    // sword_tip_ground_emitter->over_distance     = 1;
-    // sword_tip_ground_emitter->direction_to_move = true;
-    // sword_tip_ground_emitter->over_time         = 0;
-    // sword_tip_ground_emitter->speed_min         = 20;
-    // sword_tip_ground_emitter->speed_max         = 40;
-    // sword_tip_ground_emitter->scale_min         = 0.1f;
-    // sword_tip_ground_emitter->scale_max         = 0.6f;
-    // sword_tip_ground_emitter->lifetime_min      = 0.2f;
-    // sword_tip_ground_emitter->lifetime_max      = 0.8f;
-    // sword_tip_ground_emitter->spread            = 0.1f;
-    // sword_tip_ground_emitter->gravity_multiplier = 0.5f;
-    // sword_tip_ground_emitter->color             = Fade(ColorBrightness(YELLOW, 0.3f), 0.8f);
-    // sword_tip_ground_emitter->enabled           = false;
-    sword_tip_ground_emitter = current_level_context->particle_emitters.get_ptr(0);
-
-    // free_emitter(blood_emitter);
-    // blood_emitter = add_emitter();
-    // blood_emitter->spawn_radius      = 2;
-    // blood_emitter->over_distance     = 0;
-    // blood_emitter->direction_to_move = 0;
-    // blood_emitter->over_time         = 0;
-    // blood_emitter->speed_min         = 5;
-    // blood_emitter->speed_max         = 10;
-    // blood_emitter->count_min         = 50;
-    // blood_emitter->count_max         = 150;
-    // blood_emitter->scale_min         = 0.2f;
-    // blood_emitter->scale_max         = 0.8f;
-    // blood_emitter->lifetime_min      = 0.4f;
-    // blood_emitter->lifetime_max      = 2.5f;
-    // blood_emitter->spread            = 0.1f;
-    // blood_emitter->gravity_multiplier = 0.1f;
-    // blood_emitter->color             = Fade(RED, 0.7f);
-    // blood_emitter->enabled           = true;
-    blood_emitter = current_level_context->particle_emitters.get_ptr(0);
+    chainsaw_emitter_index = add_particle_emitter(&chainsaw_emitter_copy);
     
-    big_blood_emitter.spawn_radius      = 3;
-    big_blood_emitter.over_distance     = 0;
-    big_blood_emitter.direction_to_move = 0;
-    big_blood_emitter.over_time         = 0;
-    big_blood_emitter.speed_min         = 10;
-    big_blood_emitter.speed_max         = 80;
-    big_blood_emitter.count_min         = 40;
-    big_blood_emitter.count_max         = 100;
-    big_blood_emitter.scale_min         = 1.0f;
-    big_blood_emitter.scale_max         = 2.0f;
-    big_blood_emitter.lifetime_min      = 0.4f;
-    big_blood_emitter.lifetime_max      = 1.5f;
-    big_blood_emitter.spread            = 0.5f;
-    big_blood_emitter.color             = RED * 0.8f;
-    big_blood_emitter.enabled           = true;
+    sword_tip_emitter_copy.spawn_radius = 1.0f;
+    sword_tip_emitter_copy.over_distance     = 2;
+    sword_tip_emitter_copy.direction_to_move = true;
+    sword_tip_emitter_copy.over_time         = 0;
+    sword_tip_emitter_copy.speed_min         = 1;
+    sword_tip_emitter_copy.speed_max         = 5;
+    sword_tip_emitter_copy.scale_min         = 0.1f;
+    sword_tip_emitter_copy.scale_max         = 0.6f;
+    sword_tip_emitter_copy.lifetime_min      = 0.2f;
+    sword_tip_emitter_copy.lifetime_max      = 1.5f;
+    sword_tip_emitter_copy.spread            = 0.4f;
+    sword_tip_emitter_copy.gravity_multiplier = 0.1f;
+    sword_tip_emitter_copy.color             = Fade(RED, 0.5f);
+    sword_tip_emitter_copy.enabled           = true;
+    str_copy(sword_tip_emitter_copy.tag_16, "sword_tip");
+    
+    sword_tip_emitter_index = add_particle_emitter(&sword_tip_emitter_copy);
+    
+    sword_tip_ground_emitter_copy.spawn_radius = 0.3f;
+    sword_tip_ground_emitter_copy.over_distance     = 1;
+    sword_tip_ground_emitter_copy.direction_to_move = true;
+    sword_tip_ground_emitter_copy.over_time         = 0;
+    sword_tip_ground_emitter_copy.speed_min         = 20;
+    sword_tip_ground_emitter_copy.speed_max         = 40;
+    sword_tip_ground_emitter_copy.scale_min         = 0.1f;
+    sword_tip_ground_emitter_copy.scale_max         = 0.6f;
+    sword_tip_ground_emitter_copy.lifetime_min      = 0.2f;
+    sword_tip_ground_emitter_copy.lifetime_max      = 0.8f;
+    sword_tip_ground_emitter_copy.spread            = 0.1f;
+    sword_tip_ground_emitter_copy.gravity_multiplier = 0.5f;
+    sword_tip_ground_emitter_copy.color             = Fade(ColorBrightness(YELLOW, 0.3f), 0.8f);
+    sword_tip_ground_emitter_copy.enabled           = false;
+    str_copy(sword_tip_ground_emitter_copy.tag_16, "sword_ground_t");
+    
+    sword_tip_ground_emitter_index = add_particle_emitter(&sword_tip_ground_emitter_copy);
+
+    blood_emitter_copy.spawn_radius      = 2;
+    blood_emitter_copy.over_distance     = 0;
+    blood_emitter_copy.direction_to_move = 0;
+    blood_emitter_copy.over_time         = 0;
+    blood_emitter_copy.speed_min         = 5;
+    blood_emitter_copy.speed_max         = 10;
+    blood_emitter_copy.count_min         = 50;
+    blood_emitter_copy.count_max         = 150;
+    blood_emitter_copy.scale_min         = 0.2f;
+    blood_emitter_copy.scale_max         = 0.8f;
+    blood_emitter_copy.lifetime_min      = 0.4f;
+    blood_emitter_copy.lifetime_max      = 2.5f;
+    blood_emitter_copy.spread            = 0.1f;
+    blood_emitter_copy.gravity_multiplier = 0.1f;
+    blood_emitter_copy.color             = Fade(RED, 0.7f);
+    blood_emitter_copy.enabled           = true;
+    str_copy(blood_emitter_copy.tag_16, "blood");
+    
+    blood_emitter_index = add_particle_emitter(&blood_emitter_copy);
+    
+    big_blood_emitter_copy.spawn_radius      = 3;
+    big_blood_emitter_copy.over_distance     = 0;
+    big_blood_emitter_copy.direction_to_move = 0;
+    big_blood_emitter_copy.over_time         = 0;
+    big_blood_emitter_copy.speed_min         = 10;
+    big_blood_emitter_copy.speed_max         = 80;
+    big_blood_emitter_copy.count_min         = 40;
+    big_blood_emitter_copy.count_max         = 100;
+    big_blood_emitter_copy.scale_min         = 1.0f;
+    big_blood_emitter_copy.scale_max         = 2.0f;
+    big_blood_emitter_copy.lifetime_min      = 0.4f;
+    big_blood_emitter_copy.lifetime_max      = 1.5f;
+    big_blood_emitter_copy.spread            = 0.5f;
+    big_blood_emitter_copy.color             = RED * 0.8f;
+    big_blood_emitter_copy.enabled           = true;
+    str_copy(big_blood_emitter_copy.tag_16, "big_blood");
 
     //free_emitter(rifle_bullet_emitter);
     //rifle_bullet_emitter = add_emitter();
@@ -356,6 +394,7 @@ void setup_particles(){
     rifle_bullet_emitter.gravity_multiplier = 0;
     rifle_bullet_emitter.color             = WHITE * 0.9f;
     rifle_bullet_emitter.enabled           = false;
+    str_copy(rifle_bullet_emitter.tag_16, "rifle_bullet");
     
     air_dust_emitter.spawn_radius      = 0.5f;
     air_dust_emitter.over_distance     = 1;
@@ -373,6 +412,7 @@ void setup_particles(){
     air_dust_emitter.gravity_multiplier = 0;
     air_dust_emitter.color             = Fade(WHITE, 0.2f);
     air_dust_emitter.enabled           = false;
+    str_copy(air_dust_emitter.tag_16, "air_dust");
     
     explosion_emitter.spawn_radius      = 5;
     explosion_emitter.over_distance     = 1;
@@ -390,6 +430,7 @@ void setup_particles(){
     explosion_emitter.gravity_multiplier = 1;
     explosion_emitter.color             = Fade(ORANGE, 0.7f);
     explosion_emitter.enabled           = false;
+    str_copy(explosion_emitter.tag_16, "explosion");
     
     fire_emitter.spawn_radius       = 1.5f;
     fire_emitter.over_distance      = 1;
@@ -407,6 +448,7 @@ void setup_particles(){
     fire_emitter.gravity_multiplier = -1;
     fire_emitter.color              = Fade(ORANGE, 0.7f);
     fire_emitter.enabled            = false;
+    str_copy(fire_emitter.tag_16, "fire");
     
     little_fire_emitter.spawn_radius       = 0.5f;
     little_fire_emitter.over_distance      = 1;
@@ -424,6 +466,7 @@ void setup_particles(){
     little_fire_emitter.gravity_multiplier = -1;
     little_fire_emitter.color              = Fade(ORANGE, 0.4f);
     little_fire_emitter.enabled            = false;
+    str_copy(little_fire_emitter.tag_16, "little_fire");
     
     sparks_emitter.spawn_radius       = 1.5f;
     sparks_emitter.over_distance      = 1;
@@ -441,6 +484,7 @@ void setup_particles(){
     sparks_emitter.gravity_multiplier = 0.1f;
     sparks_emitter.color              = Fade(YELLOW, 0.9f);
     sparks_emitter.enabled            = false;
+    str_copy(sparks_emitter.tag_16, "sparks");
     
     big_sparks_emitter.spawn_radius       = 3.5f;
     big_sparks_emitter.over_distance      = 0;
@@ -458,7 +502,8 @@ void setup_particles(){
     big_sparks_emitter.gravity_multiplier = 0.5f;
     big_sparks_emitter.color              = Fade(ColorBrightness(YELLOW, 0.2f), 0.9f);
     big_sparks_emitter.enabled            = false;
-    
+    str_copy(big_sparks_emitter.tag_16, "big_sparks");
+
     gunpowder_emitter.spawn_radius       = 1.0f;
     gunpowder_emitter.over_distance      = 1;
     gunpowder_emitter.direction_to_move  = 0;
@@ -475,6 +520,7 @@ void setup_particles(){
     gunpowder_emitter.gravity_multiplier = 0.1f;
     gunpowder_emitter.color              = Fade(BLACK, 0.4f);
     gunpowder_emitter.enabled            = false;
+    str_copy(gunpowder_emitter.tag_16, "gunpowder");
     
     air_emitter.spawn_type = BOX;
     air_emitter.spawn_area         = Vector2_one * 10;
@@ -493,6 +539,7 @@ void setup_particles(){
     air_emitter.gravity_multiplier = -0.01f;
     air_emitter.color              = Fade(WHITE, 0.4f);
     air_emitter.enabled            = false;
+    str_copy(air_emitter.tag_16, "air");
     
     ground_splash_emitter.spawn_radius             = 4;
     ground_splash_emitter.over_distance      = 0;
@@ -510,4 +557,5 @@ void setup_particles(){
     ground_splash_emitter.gravity_multiplier = 0.1f;
     ground_splash_emitter.color              = Fade(WHITE, 0.3f);
     ground_splash_emitter.enabled            = false;
+    str_copy(ground_splash_emitter.tag_16, "ground_splash");
 }
