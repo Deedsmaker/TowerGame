@@ -77,6 +77,8 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier = 1);
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious = false);
 
+inline Color color_fade(Color color, f32 alpha_multiplier);
+
 void setup_color_changer(Entity *entity);
 void update_color_changer(Entity *entity);
 

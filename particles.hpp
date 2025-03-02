@@ -34,10 +34,12 @@ inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 
     f32 lifetime = rnd(emitter->lifetime_min, emitter->lifetime_max) * emitter->lifetime_multiplier;
     particle.max_lifetime = lifetime;
     
-    
-    particle.color = emitter->color;
+    particle.color = color_fade(emitter->color, rnd(0.5f, 1.0f));
+    particle.start_color = particle.color;
     
     particle.velocity = multiply(randomized_direction, randomized_speed);
+    
+    particle.rotation = rnd(-180.0f, 180.0f);
     
     particle.enabled = true;
     
@@ -129,11 +131,15 @@ void update_overdistance_emitter(Particle_Emitter *emitter){
     emitter->position = current_emitter_position;
 }
 
-void enable_emitter(Particle_Emitter *emitter){
+inline void enable_emitter(Particle_Emitter *emitter){
     if (!emitter->enabled){
         emitter->last_emitted_position = emitter->position;
     }
     emitter->enabled = true;
+}
+
+inline void disable_emitter(Particle_Emitter *emitter){
+    emitter->enabled = false;
 }
 
 internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt){
@@ -162,12 +168,19 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         emitter->alive_particles_count += 1;
         
         f32 t_lifetime = particle->lifetime / particle->max_lifetime;
-        particle->scale = lerp(particle->original_scale, Vector2_zero, t_lifetime * t_lifetime);
+        
+        if (emitter->shape == PARTICLE_TEXTURE){
+            particle->color = lerp(particle->start_color, Fade(particle->start_color, 0), t_lifetime * t_lifetime);            
+        } else{
+            particle->scale = lerp(particle->original_scale, Vector2_zero, t_lifetime * t_lifetime);
+        }
         
         f32 gravity = -50 * particle->gravity_multiplier;
         particle->velocity.y += gravity * dt;
         
         particle->velocity += frame_on_circle_rnd * 100 * dt;
+        
+        particle->rotation += emitter->rotation_multiplier * particle->velocity.x * dt;
         
         Vector2 next_position = add(particle->position, multiply(particle->velocity, dt));
         
@@ -211,8 +224,6 @@ void update_particle_emitters(f32 dt){
         
         update_emitter(emitter, dt);        
     }
-    
-    print(emitters_count);
 }
 
 
@@ -265,6 +276,7 @@ global_variable i32 blood_emitter_index = -1;
 global_variable Particle_Emitter big_blood_emitter_copy = {};
 global_variable Particle_Emitter rifle_bullet_emitter = {};
 global_variable Particle_Emitter air_dust_emitter = {};
+global_variable Particle_Emitter tires_emitter_copy = {};
 global_variable Particle_Emitter explosion_emitter = {};
 global_variable Particle_Emitter fire_emitter = {};
 global_variable Particle_Emitter little_fire_emitter = {};
@@ -396,16 +408,19 @@ void setup_particles(){
     rifle_bullet_emitter.enabled           = false;
     str_copy(rifle_bullet_emitter.tag_16, "rifle_bullet");
     
+    air_dust_emitter.shape = PARTICLE_TEXTURE;
+    air_dust_emitter.count_type = MEDIUM_PARTICLE_COUNT;
+    air_dust_emitter.texture = get_texture("SmokeParticle1.png");
     air_dust_emitter.spawn_radius      = 0.5f;
-    air_dust_emitter.over_distance     = 1;
+    air_dust_emitter.over_distance     = 0.5f;
     air_dust_emitter.direction_to_move = 0;
     air_dust_emitter.over_time         = 0;
     air_dust_emitter.speed_min         = 1;
     air_dust_emitter.speed_max         = 10;
     air_dust_emitter.count_min         = 10;
     air_dust_emitter.count_max         = 40;
-    air_dust_emitter.scale_min         = 0.3f;
-    air_dust_emitter.scale_max         = 1.3f;
+    air_dust_emitter.scale_min         = 6.0f;
+    air_dust_emitter.scale_max         = 12.0f;
     air_dust_emitter.lifetime_min      = 0.6f;
     air_dust_emitter.lifetime_max      = 1.5f;
     air_dust_emitter.spread            = 0.1f;
@@ -413,6 +428,13 @@ void setup_particles(){
     air_dust_emitter.color             = Fade(WHITE, 0.2f);
     air_dust_emitter.enabled           = false;
     str_copy(air_dust_emitter.tag_16, "air_dust");
+    
+    tires_emitter_copy = air_dust_emitter;
+    tires_emitter_copy.over_distance = 5.0f;
+    tires_emitter_copy.scale_min         = 5.0f;
+    tires_emitter_copy.scale_max         = 10.0f;
+    tires_emitter_copy.color         = Fade(tires_emitter_copy.color, 0.5f);
+    str_copy(tires_emitter_copy.tag_16, "tires");
     
     explosion_emitter.spawn_radius      = 5;
     explosion_emitter.over_distance     = 1;
@@ -468,6 +490,9 @@ void setup_particles(){
     little_fire_emitter.enabled            = false;
     str_copy(little_fire_emitter.tag_16, "little_fire");
     
+    sparks_emitter.shape = PARTICLE_LINE;
+    sparks_emitter.line_length_multiplier = 1.0f;
+    sparks_emitter.line_width = 0.5f;
     sparks_emitter.spawn_radius       = 1.5f;
     sparks_emitter.over_distance      = 1;
     sparks_emitter.direction_to_move  = 0;

@@ -1,3 +1,8 @@
+02.03.2025:
+    - Further particles work. Added possibility for particles to fade color instead of scale.
+    - Texture rendering for particles.
+    - Line rendering for particles.
+
 01.03.2025:
     - Particles rework almost completed. It finally works. 
     - Mistake in continuous sword collision detection with wrong direction fixed.

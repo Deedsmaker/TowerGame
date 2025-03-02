@@ -509,7 +509,16 @@ i32 add_particle_emitter(Particle_Emitter *copy, i32 entity_id){
             *emitter = *copy;
             emitter->occupied = true;
             emitter->index = i;
-            emitter->particles_start_index = (start_index + occupied_count) * particles_count;
+            
+            // So small particles starts at 0, medium count starts at MEDIUM_COUNT_PARTICLES_START_INDEX and big at ...
+            i32 particles_count_type_start_index = 0;
+            if (emitter->count_type == MEDIUM_PARTICLE_COUNT){
+                particles_count_type_start_index = MEDIUM_COUNT_PARTICLES_START_INDEX;
+            } else if (emitter->count_type == BIG_PARTICLE_COUNT){
+                particles_count_type_start_index = BIG_COUNT_PARTICLES_START_INDEX;
+            }
+            
+            emitter->particles_start_index = particles_count_type_start_index + (occupied_count * particles_count);
             emitter->particles_max_index   = emitter->particles_start_index + particles_count;
             emitter->last_added_index      = emitter->particles_start_index;
             emitter_index = i;
@@ -1354,8 +1363,9 @@ b32 load_level(const char *level_name){
         }
         
         enter_game_state_on_new_level = false;
+    } else{
+        enter_editor_state();
     }
-    
     
     session_context.cam.position = editor.player_spawn_point;
     session_context.cam.target = editor.player_spawn_point;
@@ -1440,6 +1450,7 @@ void init_bird_emitters(Entity *entity){
     enable_emitter(get_particle_emitter(entity->bird_enemy.trail_emitter_index));
     entity->bird_enemy.attack_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
     entity->bird_enemy.fire_emitter_index = add_entity_particle_emitter(entity, &fire_emitter);
+    entity->bird_enemy.collision_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
 }
 
 void init_bird_entity(Entity *entity){
@@ -2752,7 +2763,7 @@ void init_game(){
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
     load_level(session_context.current_level_name);
-    enter_editor_state();
+    // enter_editor_state();
     
     session_context.cam.position = Vector2_zero;
     session_context.cam.cam2D.target = world_to_screen({0, 0});
@@ -2901,8 +2912,11 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
         
         player_data.timers = {};
         
+        free_entity_particle_emitters(player_entity);
         player_data.stun_emitter_index        = add_entity_particle_emitter(player_entity, &air_dust_emitter);
         player_data.rifle_trail_emitter_index = add_entity_particle_emitter(player_entity, &gunpowder_emitter);
+        player_data.tires_emitter_index       = add_entity_particle_emitter(player_entity, &tires_emitter_copy);
+        get_particle_emitter(player_data.tires_emitter_index)->follow_entity = false;
         get_particle_emitter(player_data.rifle_trail_emitter_index)->follow_entity = false;
         
         player_data.rifle_hit_sound = sounds_table.get_by_key_ptr(hash_str("RifleHit"));
@@ -6839,12 +6853,19 @@ void update_player(Entity *entity, f32 dt){
         Vector2 velocity_direction = normalized(player_data.velocity);
         f32 before_speed = magnitude(player_data.velocity);
         
+        Particle_Emitter *tires_emitter = get_particle_emitter(player_data.tires_emitter_index);
         if (before_speed > 200){
-            emit_particles(&air_dust_emitter, col.point, col.normal, 0.2f, 1);
+            tires_emitter->position = col.point;
+            tires_emitter->direction = col.normal;
+            tires_emitter->count_multiplier = 0.2f;
+            enable_emitter(tires_emitter);
+            // emit_particles(&get_particle_emitter(player_data.tires_emitter_index), col.point, col.normal, 0.2f, 1);
             
             tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 2.0f);
             SetMusicVolume(tires_theme, tires_volume);
             is_huge_collision_speed = true;
+        } else{
+            disable_emitter(tires_emitter);
         }
     
         f32 collision_force_multiplier = 1;
@@ -7226,7 +7247,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             }
         }
         
-        emit_particles(&rifle_bullet_emitter, col.point, normalized(bird->velocity), lerp(0.5f, 2.0f, bird_speed_t * bird_speed_t), lerp(5, 20, bird_speed_t * bird_speed_t));
+        emit_particles(bird->collision_emitter_index, col.point, normalized(bird->velocity), lerp(0.5f, 2.0f, bird_speed_t * bird_speed_t), lerp(5, 20, bird_speed_t * bird_speed_t));
         
         if (is_high_velocity){
             play_sound("BirdToGround", col.point, 0.5f);
@@ -8977,7 +8998,7 @@ inline b32 update_entity(Entity *e, f32 dt){
             get_particle_emitter(shooter->trail_emitter_index)->direction = e->up * -1;
             get_particle_emitter(shooter->trail_emitter_index)->count_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
             get_particle_emitter(shooter->trail_emitter_index)->speed_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
-            get_particle_emitter(shooter->trail_emitter_index)->over_time = 50;
+            get_particle_emitter(shooter->trail_emitter_index)->over_time = 3.0f;
             
             // jump shooter fly to next
             if (picking_point_time >= shooter->max_picking_point_time){
@@ -8991,7 +9012,7 @@ inline b32 update_entity(Entity *e, f32 dt){
                 
                 get_particle_emitter(shooter->trail_emitter_index)->count_multiplier = 1;
                 get_particle_emitter(shooter->trail_emitter_index)->speed_multiplier = 1;
-                get_particle_emitter(shooter->trail_emitter_index)->over_time = 10;
+                get_particle_emitter(shooter->trail_emitter_index)->over_time = 2.0f;
             }
         }
         
@@ -9948,13 +9969,34 @@ void draw_editor(){
 }
 
 void draw_particles(){
-    for (i32 i = 0; i < current_level_context->particles.max_count; i++){
-        Particle particle = current_level_context->particles.get(i);
-        if (!particle.enabled){
-            continue;   
+    //@TODO: When we'll start considering particles draw order we'll want this to work with entity drawing.
+    for (int emitter_index = 0; emitter_index < current_level_context->particle_emitters.max_count; emitter_index++){
+        Particle_Emitter *emitter = current_level_context->particle_emitters.get_ptr(emitter_index);
+        //@OPTIMIZATION: Make emitter occlusion culling.
+        if (!emitter->occupied/* || !emitter.visible*/){
+            continue;              
         }
         
-        draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, 0, particle.color);
+        for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
+            Particle particle = current_level_context->particles.get(i);
+            if (!particle.enabled){
+                continue;   
+            }
+            
+            switch (particle.shape){
+                case PARTICLE_TEXTURE:{
+                    draw_game_texture(emitter->texture, particle.position, particle.scale, {0.5f, 0.5f}, particle.rotation, particle.color, false);                
+                } break;
+                case PARTICLE_LINE:{
+                    Vector2 target_position = particle.position + particle.velocity * 0.1f * emitter->line_length_multiplier * particle.scale.y;
+                    draw_game_line(particle.position, target_position, emitter->line_width * particle.scale.y, particle.color);
+                } break;
+                case SQUARE:{
+                    draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, 0, particle.color);
+                } break;
+                default: draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, 0, particle.color);
+            }
+        }
     }
 }
 

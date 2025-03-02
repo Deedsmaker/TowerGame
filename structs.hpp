@@ -6,14 +6,16 @@
 
 #define MAX_VERTICES 8
 // #define MAX_COLLISIONS 128
-#define MAX_ENTITY_EMITTERS 4
+#define MAX_ENTITY_EMITTERS 8
 #define GRAVITY 100
 #define PLAYER_MASS 10
 
 struct Level_Context;
 
 enum Particle_Shape{
-    SQUARE
+    SQUARE,
+    PARTICLE_TEXTURE,
+    PARTICLE_LINE
 };
 
 struct Particle{
@@ -27,6 +29,9 @@ struct Particle{
     f32 max_lifetime;
     f32 gravity_multiplier = 1;
     
+    f32 rotation = 0;
+    
+    Color start_color = PINK;
     Color color = YELLOW;
 };
 
@@ -44,10 +49,10 @@ enum Particle_Spawn_Area{
 #define MAX_BIG_COUNT_PARTICLES 512
 
 #define SMALL_COUNT_PARTICLES_START_INDEX 0
-constexpr f32 MEDIUM_COUNT_PARTICLES_START_INDEX = MAX_SMALL_COUNT_PARTICLES * MAX_SMALL_COUNT_PARTICLE_EMITTERS;
-constexpr f32 BIG_COUNT_PARTICLES_START_INDEX    = MEDIUM_COUNT_PARTICLES_START_INDEX + MAX_MEDIUM_COUNT_PARTICLES * MAX_MEDIUM_COUNT_PARTICLE_EMITTERS;
+constexpr i32 MEDIUM_COUNT_PARTICLES_START_INDEX = MAX_SMALL_COUNT_PARTICLES * MAX_SMALL_COUNT_PARTICLE_EMITTERS;
+constexpr i32 BIG_COUNT_PARTICLES_START_INDEX    = MEDIUM_COUNT_PARTICLES_START_INDEX + MAX_MEDIUM_COUNT_PARTICLES * MAX_MEDIUM_COUNT_PARTICLE_EMITTERS;
 
-#define MAX_PARTICLES BIG_COUNT_PARTICLES_START_INDEX + MAX_BIG_COUNT_PARTICLES * MAX_BIG_COUNT_PARTICLE_EMITTERS
+constexpr i32 MAX_PARTICLES = BIG_COUNT_PARTICLES_START_INDEX + MAX_BIG_COUNT_PARTICLES * MAX_BIG_COUNT_PARTICLE_EMITTERS;
 
 // try constexpr when compiles
 
@@ -92,6 +97,10 @@ struct Particle_Emitter{
     
     b32 should_extinct = false;
     
+    Texture texture = {};
+    f32 line_length_multiplier = 1.0f;
+    f32 line_width = 1.0f;
+    
     i32 alive_particles_count = 0;
     
     i32 particles_start_index  = -1;
@@ -123,6 +132,8 @@ struct Particle_Emitter{
     f32 over_time;
     f32 over_distance;
     b32 direction_to_move = false;
+    
+    f32 rotation_multiplier = 1.0f;
     
     u32 count_min = 10;
     u32 count_max = 50;
@@ -423,10 +434,6 @@ struct Propeller{
     i32 air_emitter_index = -1;
 };
 
-struct Win_Block{
-    Vector2 kill_direction = Vector2_up;
-};
-
 //highest - 80. sides - 100
 #define MAX_BIRD_POSITIONS 8
 Vector2 bird_formation_positions[MAX_BIRD_POSITIONS] = {
@@ -465,6 +472,7 @@ struct Bird_Enemy{
     i32 attack_emitter_index = -1;
     i32 trail_emitter_index = -1;
     i32 fire_emitter_index = -1;
+    i32 collision_emitter_index = -1;
     
     Sound_Handler *attack_sound = NULL;
 };
@@ -629,6 +637,7 @@ struct Player{
     f32 current_move_speed = 0;
     
     i32 rifle_trail_emitter_index = -1;
+    i32 tires_emitter_index = -1;
     
     Sound_Handler *rifle_hit_sound    = NULL;
     Sound_Handler *player_death_sound = NULL;
@@ -724,9 +733,7 @@ struct Entity{
     Enemy enemy;
     Bird_Enemy bird_enemy;
     Projectile projectile;
-    // Array<Particle_Emitter, MAX_ENTITY_EMITTERS> emitters = Array<Particle_Emitter, MAX_ENTITY_EMITTERS>();
     Array<i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = Array<i32, MAX_ENTITY_EMITTERS>();
-    Win_Block win_block;
     Sticky_Texture sticky_texture;
     Propeller propeller;
     Door door;
