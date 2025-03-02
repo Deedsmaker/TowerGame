@@ -171,8 +171,16 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         
         if (emitter->shape == PARTICLE_TEXTURE){
             particle->color = lerp(particle->start_color, Fade(particle->start_color, 0), t_lifetime * t_lifetime);            
-        } else{
-            particle->scale = lerp(particle->original_scale, Vector2_zero, t_lifetime * t_lifetime);
+        }
+        
+        if (emitter->grow_after_birth && t_lifetime <= 0.2f){
+            f32 t = clamp01(t_lifetime / 0.2f);
+            particle->scale = lerp(Vector2_zero, particle->original_scale, t);
+        }
+        
+        if (emitter->shrink_before_death && t_lifetime >= 0.3f){
+            f32 t = clamp01((t_lifetime - 0.3f) / 0.7f);
+            particle->scale = lerp(particle->original_scale, Vector2_zero, t * t);
         }
         
         f32 gravity = -50 * particle->gravity_multiplier;
@@ -410,6 +418,8 @@ void setup_particles(){
     
     air_dust_emitter.shape = PARTICLE_TEXTURE;
     air_dust_emitter.count_type = MEDIUM_PARTICLE_COUNT;
+    air_dust_emitter.grow_after_birth = true;
+    air_dust_emitter.shrink_before_death = false;
     air_dust_emitter.texture = get_texture("SmokeParticle1.png");
     air_dust_emitter.spawn_radius      = 0.5f;
     air_dust_emitter.over_distance     = 0.5f;

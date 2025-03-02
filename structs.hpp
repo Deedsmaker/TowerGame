@@ -101,6 +101,9 @@ struct Particle_Emitter{
     f32 line_length_multiplier = 1.0f;
     f32 line_width = 1.0f;
     
+    b32 grow_after_birth    = false;
+    b32 shrink_before_death = true;
+    
     i32 alive_particles_count = 0;
     
     i32 particles_start_index  = -1;
@@ -596,6 +599,7 @@ struct Player{
     
     Vector2 plane_vector = {0, 1};
     Vector2 ground_normal = {0, 1};
+    Vector2 ground_point = {0, 0};
     b32 grounded = false;
     
     b32 on_moving_object = false;

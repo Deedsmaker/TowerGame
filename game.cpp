@@ -59,8 +59,8 @@ global_variable b32 clicked_ui = false;
 
 global_variable b32 enter_game_state_on_new_level = false;
 
-global_variable Dynamic_Array<Texture_Data> textures_table = Dynamic_Array<Texture_Data>(512);
-global_variable Dynamic_Array<Sound_Handler> sounds_table = Dynamic_Array<Sound_Handler>(128);
+global_variable Dynamic_Array<Texture_Data> textures_array = Dynamic_Array<Texture_Data>(512);
+global_variable Dynamic_Array<Sound_Handler> sounds_array = Dynamic_Array<Sound_Handler>(128);
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
@@ -1300,9 +1300,9 @@ b32 load_level(const char *level_name){
                 i64 texture_hash = hash_str(get_substring_before_symbol(entity_to_fill.texture_name, '.'));
                 char *trimped_name = get_substring_before_symbol(entity_to_fill.texture_name, '.');
                 b32 found = false;
-                for (i32 i = 0; i < textures_table.count; i++){
-                    if (str_equal(textures_table.get(i).name, trimped_name)){
-                        entity_to_fill.texture = textures_table.get(i).texture;
+                for (i32 i = 0; i < textures_array.count; i++){
+                    if (str_equal(textures_array.get(i).name, trimped_name)){
+                        entity_to_fill.texture = textures_array.get(i).texture;
                         found = true;
                         break;
                     }
@@ -1713,9 +1713,9 @@ Texture get_texture(const char *name){
     char *trimped_name = get_substring_before_symbol(name, '.');
     
     b32 found = false;
-    for (i32 i = 0; i < textures_table.count; i++){
-        if (str_equal(textures_table.get(i).name, trimped_name)){
-            found_texture = textures_table.get(i).texture;
+    for (i32 i = 0; i < textures_array.count; i++){
+        if (str_equal(textures_array.get(i).name, trimped_name)){
+            found_texture = textures_array.get(i).texture;
             found = true;
         }
     }
@@ -1746,7 +1746,7 @@ void load_textures(){
         str_copy(data.name, name);
         data.texture = texture;
         
-        textures_table.add(data);
+        textures_array.add(data);
         
         add_spawn_object_from_texture(texture, name);
     }
@@ -2039,7 +2039,7 @@ void init_entity(Entity *entity){
     if (entity->flags & DOOR){
         entity->flags |= TRIGGER;
         entity->trigger.player_touch = false;
-        //entity->door.open_sound = sounds_table.get_by_key_ptr(hash_str("OpenDoor"));
+        //entity->door.open_sound = sounds_array.get_by_key_ptr(hash_str("OpenDoor"));
         //entity->door.is_open = false;
     }
     
@@ -2566,10 +2566,10 @@ void load_sounds(){
         // i64 hash = hash_str(name);
         //UnloadSound(sound);
         
-        sounds_table.add(handler);
+        sounds_array.add(handler);
         
         if (str_contains(name, "MissingSound")){
-            missing_sound = sounds_table.last_ptr();
+            missing_sound = sounds_array.last_ptr();
         }
     }
     
@@ -2619,9 +2619,9 @@ void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1, f
     char *trimped_name = get_substring_before_symbol(name, '.');    
     Sound_Handler *found_handler = NULL;
     
-    for (i32 i = 0; i < sounds_table.count; i++){
-        if (str_equal(sounds_table.get_ptr(i)->name, trimped_name)){
-            found_handler = sounds_table.get_ptr(i);
+    for (i32 i = 0; i < sounds_array.count; i++){
+        if (str_equal(sounds_array.get_ptr(i)->name, trimped_name)){
+            found_handler = sounds_array.get_ptr(i);
         }
     }
     if (!found_handler){
@@ -6850,20 +6850,9 @@ void update_player(Entity *entity, f32 dt){
         Vector2 velocity_direction = normalized(player_data.velocity);
         f32 before_speed = magnitude(player_data.velocity);
         
-        Particle_Emitter *tires_emitter = get_particle_emitter(player_data.tires_emitter_index);
         if (before_speed > 200){
-            tires_emitter->position = col.point;
-            tires_emitter->direction = col.normal;
-            tires_emitter->count_multiplier = 0.2f;
-            enable_emitter(tires_emitter);
-            // emit_particles(&get_particle_emitter(player_data.tires_emitter_index), col.point, col.normal, 0.2f, 1);
-            
-            tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 2.0f);
-            SetMusicVolume(tires_theme, tires_volume);
             is_huge_collision_speed = true;
-        } else{
-            disable_emitter(tires_emitter);
-        }
+        } 
     
         f32 collision_force_multiplier = 1;
         
@@ -6890,6 +6879,7 @@ void update_player(Entity *entity, f32 dt){
         if (angle <= player_data.max_ground_angle){
             found_ground = true;
             player_data.ground_normal = col.normal;
+            player_data.ground_point = col.point;
             
             if (!player_data.grounded && !just_grounded){
                 player_data.plane_vector = get_rotated_vector_90(player_data.ground_normal, -normalized(player_data.velocity.x));
@@ -6917,7 +6907,18 @@ void update_player(Entity *entity, f32 dt){
         player_data.on_moving_object = false;
     }
     
-    if (!is_huge_collision_speed){
+    Particle_Emitter *tires_emitter = get_particle_emitter(player_data.tires_emitter_index);
+    if (is_huge_collision_speed){
+        tires_emitter->position = player_data.ground_point;
+        tires_emitter->direction = player_data.ground_normal;
+        tires_emitter->count_multiplier = 0.2f;
+        enable_emitter(tires_emitter);
+        // emit_particles(&get_particle_emitter(player_data.tires_emitter_index), col.point, col.normal, 0.2f, 1);
+        
+        tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 2.0f);
+        SetMusicVolume(tires_theme, tires_volume);
+    } else{
+        disable_emitter(tires_emitter);
         tires_volume = lerp(tires_volume, 0.0f, core.time.real_dt * 5.0f);
         SetMusicVolume(tires_theme, tires_volume);
     }
