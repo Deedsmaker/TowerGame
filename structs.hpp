@@ -169,9 +169,15 @@ struct Particle_Emitter{
 //     Array<Particle, MAX_SMALL_COUNT_PARTICLES> particles  = Array<Particle, MAX_SMALL_COUNT_PARTICLES>();
 // };
 
+struct Texture_Data{
+    char name[64] = "\0";  
+    Texture texture = {};
+};
+
 #define MAX_SINGLE_SOUND 16
 
 struct Sound_Handler{
+    char name[64] = "\0";
     Array<Sound, MAX_SINGLE_SOUND> buffer = Array<Sound, MAX_SINGLE_SOUND>();
     
     i32 current_index = 0;
@@ -286,8 +292,8 @@ struct Enemy{
     b32 shoot_blocker_immortal = false;
     Vector2 shoot_blocker_direction = Vector2_up;
     
-    Sound_Handler *explosion_sound = NULL;
-    Sound_Handler *big_explosion_sound = NULL;
+    // Sound_Handler *explosion_sound = NULL;
+    // Sound_Handler *big_explosion_sound = NULL;
 };
 
 struct Jump_Shooter{
@@ -370,7 +376,7 @@ struct Door{
     f32 time_to_open = 3.0f;
     f32 time_to_close = 1.5f;
     
-    Sound_Handler *open_sound = NULL;
+    // Sound_Handler *open_sound = NULL;
 };
 
 enum Trigger_Action_Type{
@@ -474,7 +480,7 @@ struct Bird_Enemy{
     i32 fire_emitter_index = -1;
     i32 collision_emitter_index = -1;
     
-    Sound_Handler *attack_sound = NULL;
+    // Sound_Handler *attack_sound = NULL;
 };
 
 #define MAX_CENTIPEDE_SEGMENTS 64
@@ -639,12 +645,12 @@ struct Player{
     i32 rifle_trail_emitter_index = -1;
     i32 tires_emitter_index = -1;
     
-    Sound_Handler *rifle_hit_sound    = NULL;
-    Sound_Handler *player_death_sound = NULL;
-    Sound_Handler *sword_kill_sound   = NULL;
-    Sound_Handler *sword_block_sound  = NULL;
-    Sound_Handler *bullet_block_sound = NULL;
-    Sound_Handler *rifle_switch_sound = NULL;
+    // Sound_Handler *rifle_hit_sound    = NULL;
+    // Sound_Handler *player_death_sound = NULL;
+    // Sound_Handler *sword_kill_sound   = NULL;
+    // Sound_Handler *sword_block_sound  = NULL;
+    // Sound_Handler *bullet_block_sound = NULL;
+    // Sound_Handler *rifle_switch_sound = NULL;
 };
 
 enum Projectile_Flags{
@@ -692,8 +698,6 @@ struct Entity{
     char name[128] = "unknown_name";
 
     b32 enabled = 1;
-    
-    f32 volume_multiplier = 1;
     
     Texture texture;
     char texture_name[64];

@@ -1,4 +1,5 @@
-[ ] Remove emitters spawning every frame (At least tires emitters, bird collision etc).
+[ ] Right now we have problem with overdistance particles and it seems like they snap only when some particles alive.
+[X] Remove emitters spawning every frame (At least tires emitters, bird collision etc).
 [ ] Reduce size of inspector ui and (probably) loading by macros.
 [ ] Particles rework and sounds improvements before showcase.
     [ ] General particles rework.

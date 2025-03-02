@@ -2,6 +2,7 @@
     - Further particles work. Added possibility for particles to fade color instead of scale.
     - Texture rendering for particles.
     - Line rendering for particles.
+    - Removed hash table usage outside entities. (Because that's not a real hash table so collisions don't handled at all). Now for textures and sound we use just a linear search. Also added missing texture and missing sound.
 
 01.03.2025:
     - Particles rework almost completed. It finally works. 

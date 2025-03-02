@@ -59,8 +59,8 @@ global_variable b32 clicked_ui = false;
 
 global_variable b32 enter_game_state_on_new_level = false;
 
-global_variable Hash_Table_Int<Texture> textures_table = Hash_Table_Int<Texture>(512);
-global_variable Hash_Table_Int<Sound_Handler> sounds_table = Hash_Table_Int<Sound_Handler>(128);
+global_variable Dynamic_Array<Texture_Data> textures_table = Dynamic_Array<Texture_Data>(512);
+global_variable Dynamic_Array<Sound_Handler> sounds_table = Dynamic_Array<Sound_Handler>(128);
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
@@ -1297,11 +1297,18 @@ b32 load_level(const char *level_name){
         
         if (parsing_entities){
             if (entity_to_fill.flags & TEXTURE){
-                i64 texture_hash = hash_str(entity_to_fill.texture_name);
-                if (textures_table.has_key(texture_hash)){
-                    entity_to_fill.texture = textures_table.get_by_key(texture_hash);
-                } else{
-                    print(text_format("WARNING: While loading entities could not find texture named %s.", entity_to_fill.texture_name));
+                i64 texture_hash = hash_str(get_substring_before_symbol(entity_to_fill.texture_name, '.'));
+                char *trimped_name = get_substring_before_symbol(entity_to_fill.texture_name, '.');
+                b32 found = false;
+                for (i32 i = 0; i < textures_table.count; i++){
+                    if (str_equal(textures_table.get(i).name, trimped_name)){
+                        entity_to_fill.texture = textures_table.get(i).texture;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found){
+                    print(text_format("WARNING: While loading entities could not find texture named %s.", trimped_name));
                 }
             }
             
@@ -1468,11 +1475,6 @@ void init_bird_entity(Entity *entity){
     //entity->emitter = entity->emitters.last_ptr();
     str_copy(entity->name, "enemy_bird"); 
     setup_color_changer(entity);
-    
-    entity->bird_enemy.attack_sound = sounds_table.get_by_key_ptr(hash_str("BirdAttack"));
-    
-    // if (entity->flags & EXPLOSIVE){
-    // }        
 }
 
 void init_spawn_objects(){
@@ -1701,12 +1703,25 @@ Texture hitmark_small_texture;
 Texture jump_shooter_bullet_hint_texture;
 Texture big_sword_killable_texture;
 Texture small_sword_killable_texture;
+Texture missing_texture;
+
+Sound_Handler *missing_sound = NULL;
 
 Texture get_texture(const char *name){
     Texture found_texture;
-    found_texture = textures_table.get_by_key(hash_str(name));
-    if (found_texture.width == 0){
-        print(text_format("WARNING: Texture named %s cannot be found", name));
+    
+    char *trimped_name = get_substring_before_symbol(name, '.');
+    
+    b32 found = false;
+    for (i32 i = 0; i < textures_table.count; i++){
+        if (str_equal(textures_table.get(i).name, trimped_name)){
+            found_texture = textures_table.get(i).texture;
+            found = true;
+        }
+    }
+    if (!found){
+        print(text_format("WARNING: Texture named %s cannot be found", trimped_name));
+        found_texture = missing_texture;
     }
     
     return found_texture;
@@ -1717,35 +1732,30 @@ void load_textures(){
     for (i32 i = 0; i < textures.count; i++){
         char *name = textures.paths[i];
         
-        if (!str_end_with(name, ".png")){
-            continue;
-        }
+        // if (!str_end_with(name, ".png")){
+        //     continue;
+        // }
         
         Texture texture = LoadTexture(name);
         
         substring_after_line(name, "resources\\textures\\");
-        // name = get_substring_before_symbol(name, '.');
+        name = get_substring_before_symbol(name, '.');
         
-        i64 hash = hash_str(name);
-        //assert(!textures_table.has_key(hash));
-        if (!textures_table.add(hash, texture)){
-            printf("COULD NOT FIND HASH FOR TEXTURE: %s\n", name);
-            continue;
-        }
+        // i64 hash = hash_str(name);
+        Texture_Data data = {};
+        str_copy(data.name, name);
+        data.texture = texture;
         
-        if (str_contains(name, "_clockwise")){
-            spiral_clockwise_texture = texture;
-        }
-        if (str_contains(name, "_counterclockwise")){
-            spiral_counterclockwise_texture = texture;
-        }
-        if (str_contains(name, "hitmark_small")){
-            hitmark_small_texture = texture;
-        }
+        textures_table.add(data);
         
         add_spawn_object_from_texture(texture, name);
     }
     UnloadDirectoryFiles(textures);
+    
+    missing_texture = get_texture("MissingTexture");
+    spiral_clockwise_texture = get_texture("_clockwise");
+    spiral_counterclockwise_texture = get_texture("_counterclockwise");
+    hitmark_small_texture = get_texture("hitmark_small");
 }
 
 inline void loop_entities(void (func)(Entity*)){
@@ -1920,11 +1930,6 @@ i32 init_entity_light(Entity *entity, Light *light_copy, b32 free_light){
 void init_entity(Entity *entity){
     if (entity->flags & ENEMY){
         entity->enemy.original_scale = entity->scale;
-        
-        entity->enemy.explosion_sound = sounds_table.get_by_key_ptr(hash_str("Explosion"));
-        entity->enemy.explosion_sound->base_volume = 0.3f;
-        entity->enemy.big_explosion_sound = sounds_table.get_by_key_ptr(hash_str("BigExplosion"));
-        entity->enemy.big_explosion_sound->base_volume = 0.5f;
     }
     
     if (entity->flags & BIRD_ENEMY){
@@ -2551,21 +2556,22 @@ void load_sounds(){
         substring_after_line(name, "resources\\audio\\");
         name = get_substring_before_symbol(name, '.');
         
-        Sound_Handler handler;
+        Sound_Handler handler = {};
+        str_copy(handler.name, name);
         
         for (i32 s = 0; s < handler.buffer.max_count; s++){
             handler.buffer.add(LoadSoundAlias(sound));
         }
         
-        i64 hash = hash_str(name);
+        // i64 hash = hash_str(name);
         //UnloadSound(sound);
         
-        if (!sounds_table.add(hash, handler)){
-            printf("ERROR: COULD NOT FIND HASH FOR SOUND: %s\n", name);
-            continue;
+        sounds_table.add(handler);
+        
+        if (str_contains(name, "MissingSound")){
+            missing_sound = sounds_table.last_ptr();
         }
     }
-    
     
     UnloadDirectoryFiles(sounds);
 }
@@ -2582,7 +2588,7 @@ void play_sound(Sound_Handler *handler){
     PlaySound(sound);
 }
 
-void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier = 1){
+void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f){
     assert(handler->buffer.count > 0);
     
     Sound sound = handler->buffer.get(handler->current_index);
@@ -2595,33 +2601,40 @@ void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier 
     f32 distance_t = clamp01(len / max_len);
     
     f32 volume = lerp(handler->base_volume, 0.2f, distance_t * distance_t * distance_t);
-    f32 pitch  = lerp(handler->base_pitch, 0.6f, distance_t * distance_t * distance_t);
+    f32 pitch  = lerp(base_pitch, 0.6f, distance_t * distance_t * distance_t);
     
     f32 on_right = normalized(to_position.x);
     f32 side_t = clamp01((to_position.x * on_right) / max_len);
     f32 pan_add = lerp(0.0f, 0.4f * on_right * -1, side_t * side_t);
     
     SetSoundVolume(sound, rnd(volume - handler->volume_variation, volume + handler->volume_variation) * volume_multiplier);
-    SetSoundPitch (sound, rnd(pitch - handler->pitch_variation, pitch + handler->pitch_variation));
+    SetSoundPitch (sound, rnd(pitch - pitch_variation, pitch + pitch_variation));
     SetSoundPan   (sound, 0.5f + pan_add);
     //pan    
     
     PlaySound(sound);
 }
 
-void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1){
-    i64 hash = hash_str(name);    
+void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f){
+    char *trimped_name = get_substring_before_symbol(name, '.');    
+    Sound_Handler *found_handler = NULL;
     
-    if (!sounds_table.has_key(hash)){
+    for (i32 i = 0; i < sounds_table.count; i++){
+        if (str_equal(sounds_table.get_ptr(i)->name, trimped_name)){
+            found_handler = sounds_table.get_ptr(i);
+        }
+    }
+    if (!found_handler){
         printf("NO SOUND found %s\n", name);
-        return;
+        found_handler = missing_sound;
+        // return;
     }
     
-    play_sound(sounds_table.get_by_key_ptr(hash), position, volume_multiplier);
+    play_sound(found_handler, position, volume_multiplier, base_pitch, pitch_variation);
 }
 
-void play_sound(const char* name, f32 volume_multiplier = 1){
-    play_sound(name, session_context.cam.position, volume_multiplier);
+inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f){
+    play_sound(name, session_context.cam.position, volume_multiplier, base_pitch, pitch_variation);
 }
 
 RenderTexture emitters_occluders_rt;
@@ -2919,22 +2932,6 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
         get_particle_emitter(player_data.tires_emitter_index)->follow_entity = false;
         get_particle_emitter(player_data.rifle_trail_emitter_index)->follow_entity = false;
         
-        player_data.rifle_hit_sound = sounds_table.get_by_key_ptr(hash_str("RifleHit"));
-        player_data.rifle_hit_sound->base_volume = 0.4f;
-        player_data.player_death_sound = sounds_table.get_by_key_ptr(hash_str("PlayerTakeDamage"));
-        player_data.sword_kill_sound = sounds_table.get_by_key_ptr(hash_str("SwordKill"));
-        player_data.sword_kill_sound->base_volume = 0.4f;
-        player_data.sword_kill_sound->base_pitch = 1.5f;
-        player_data.sword_block_sound = sounds_table.get_by_key_ptr(hash_str("SwordBlock"));
-        player_data.sword_block_sound->base_volume = 0.4f;
-        player_data.sword_block_sound->base_pitch = 0.5f;
-        player_data.sword_block_sound->pitch_variation = 0.1f;
-        
-        player_data.rifle_switch_sound = sounds_table.get_by_key_ptr(hash_str("RifleSwitch"));
-        player_data.rifle_switch_sound->base_volume = 0.4f;
-        player_data.rifle_switch_sound->base_pitch = 0.7f;
-        player_data.rifle_switch_sound->pitch_variation = 0.1f;
-        
         player_data.ammo_count = last_player_data.ammo_count;
         
         ForEntities(entity, 0){
@@ -2955,7 +2952,7 @@ void kill_player(){
     emit_particles(&big_blood_emitter_copy, player_entity->position, player_entity->up, 1, 1);
     player_data.dead_man = true;
     player_data.timers.died_time = core.time.game_time;
-    play_sound(player_data.player_death_sound, player_entity->position);
+    play_sound("PlayerTakeDamage", player_entity->position);
     state_context.timers.background_flash_time = core.time.app_time;
 }
 
@@ -6148,7 +6145,7 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             shake_camera(0.1f);
         }
         
-        play_sound("SwordKill", hit_position);
+        play_sound("SwordKill", hit_position, 0.5f);
     }
 }
 
@@ -6169,7 +6166,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
                 player_data.weak_recoil_stun_start_time = core.time.app_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
-                play_sound(player_data.sword_block_sound, col.point);
+                play_sound("SwordBlock", col.point, 0.4f, 0.5f, 0.1f);
                 continue;
             }
         }
@@ -6437,7 +6434,7 @@ void update_player(Entity *entity, f32 dt){
         player_data.sword_angular_velocity = 0;
         player_data.timers.rifle_activate_time = core.time.game_time;
         
-        play_sound(player_data.rifle_switch_sound);
+        play_sound("RifleSwitch", 0.4f, 0.7f, 0.1f);
     } else if (!spin_enough_for_shoot && input.press_flags & SHOOT){
         // Failed to activate rifle.
         if (!player_data.rifle_active || (player_data.ammo_count <= 0 && !debug.infinite_ammo)){
@@ -7115,7 +7112,7 @@ void respond_physics_object_collision(Entity *entity, Collision col){
         f32 force = dot(((physics_object->velocity - other->bird_enemy.velocity)* physics_object->mass) / 5, col.normal * -1);   
         if (physics_object->mass >= 5 && force > 1000){
             kill_enemy(other, col.point, direction, force / 200);
-            play_sound("SwordKill", col.point);
+            play_sound("SwordKill", col.point, 0.5f);
         } else{
             resolve_collision(entity, col);
             // other->bird_enemy.velocity += direction * force / 100;
@@ -7125,7 +7122,7 @@ void respond_physics_object_collision(Entity *entity, Collision col){
         f32 force = dot(((physics_object->velocity) * physics_object->mass) / 5, col.normal * -1);   
         if (physics_object->mass >= 5 && force > 1000){
             kill_enemy(other, col.point, direction, force / 200);
-            play_sound("SwordKill", col.point);
+            play_sound("SwordKill", col.point, 0.5f);
         } 
         Vector2 fictional_velocity = Vector2_zero;
         resolve_physics_collision(&physics_object->velocity, physics_object->mass, &fictional_velocity, 0.1f, col.normal);
@@ -7162,7 +7159,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col){
         
         if (enemy->dead_man){
             emit_particles(&fire_emitter, shooter_entity->position, col.normal, 4, 3);
-            play_sound("Explosion", shooter_entity->position, shooter_entity->volume_multiplier);
+            play_sound("Explosion", shooter_entity->position, 0.3f);
             add_explosion_light(shooter_entity->position, rnd(100.0f, 250.0f), 0.15f, 0.4f, ColorBrightness(RED, 0.5f));
             shooter_entity->destroyed = true;
             shooter_entity->enabled = false;
@@ -7227,7 +7224,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         if (should_respond){
             if (enemy->dead_man){
                 emit_particles(&fire_emitter, bird_entity->position, col.normal, 2, 3);
-                play_sound("Explosion", bird_entity->position, bird_entity->volume_multiplier);
+                play_sound("Explosion", bird_entity->position, 0.3f);
                 
                 add_explosion_light(bird_entity->position, rnd(75.0f, 200.0f), 0.1f, 0.3f, ColorBrightness(ORANGE, 0.5f));
                 
@@ -7393,7 +7390,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
                 
                 emit_particles(&sparks_emitter, entity->position, entity->up, 2, 3);
                 enable_emitter(get_particle_emitter(bird->attack_emitter_index));
-                play_sound(bird->attack_sound, entity->position);
+                play_sound("BirdAttack", entity->position);
             }
         } 
     }
@@ -7596,7 +7593,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
             f32 explosion_radius = get_explosion_radius(enemy_entity);
             emit_particles(&explosion_emitter, enemy_entity->position, Vector2_up, explosion_radius / 40.0f);
-            play_sound(enemy_entity->enemy.big_explosion_sound, enemy_entity->position);
+            play_sound("BigExplosion", enemy_entity->position, 0.5f);
             
             i32 light_size_flag = SMALL_LIGHT;
             if (enemy_entity->light_index != -1) light_size_flag = current_level_context->lights.get(enemy_entity->light_index).shadows_size_flags;
@@ -8011,7 +8008,7 @@ void calculate_projectile_collisions(Entity *entity){
                 add_hitstop(0.03f + hitstop_add);
                 shake_camera(0.1f);
                 if (can_damage){
-                    play_sound(player_data.rifle_hit_sound, col.point);
+                    play_sound("RifleHit", col.point, 0.4f);
                 }
             
                 damaged_enemy = can_damage;
@@ -8721,7 +8718,6 @@ inline b32 update_entity(Entity *e, f32 dt){
             for (i32 i = 0; i < centipede->segments_count; i++){
                 Entity *segment = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get(i));
                 
-                segment->volume_multiplier = 0.3f;
                 segment->flags = ENEMY | BIRD_ENEMY;
                 segment->move_sequence.moving = false;
                 segment->collision_flags = GROUND;
