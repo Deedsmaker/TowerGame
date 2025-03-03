@@ -182,6 +182,13 @@ void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
 }
 
+void add_triangle_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+    vertices->clear();
+    vertices->add({pivot.x, pivot.y});
+    vertices->add({-pivot.x, pivot.y});
+    vertices->add({pivot.x, pivot.y - 1.0f});
+}
+
 void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->clear();
     vertices->add({pivot.x * 0.3f, pivot.y});
@@ -198,14 +205,14 @@ void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 piv
     vertices->add({-pivot.x * 0.3f, -pivot.y});
 }
 
-void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture texture, Vector2 pivot){
-    vertices->clear();
-    Vector2 scaled_size = {texture.width / session_context.cam.unit_size, texture.height / session_context.cam.unit_size};
-    vertices->add({pivot.x * scaled_size.x, pivot.y * scaled_size.y});
-    vertices->add({-pivot.x * scaled_size.x, pivot.y * scaled_size.y});
-    vertices->add({pivot.x * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
-    vertices->add({(pivot.x - 1.0f) * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
-}
+// void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture texture, Vector2 pivot){
+//     vertices->clear();
+//     Vector2 scaled_size = {texture.width / session_context.cam.unit_size, texture.height / session_context.cam.unit_size};
+//     vertices->add({pivot.x * scaled_size.x, pivot.y * scaled_size.y});
+//     vertices->add({-pivot.x * scaled_size.x, pivot.y * scaled_size.y});
+//     vertices->add({pivot.x * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
+//     vertices->add({(pivot.x - 1.0f) * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
+// }
 
 void pick_vertices(Entity *entity){
     // if (entity->flags & TEXTURE){
@@ -1445,7 +1452,10 @@ inline void free_entity_particle_emitters(Entity *entity){
     Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     // free_particle_emitters(emitters_indexes->data, emitters_indexes->count);
     for (i32 i = 0; i < emitters_indexes->count; i++){    
-        get_particle_emitter(emitters_indexes->get(i))->should_extinct = true;
+        Particle_Emitter *emitter = get_particle_emitter(emitters_indexes->get(i));
+        if (emitter){
+            emitter->should_extinct = true;
+        }
     }
     emitters_indexes->clear();
 }
@@ -3654,8 +3664,10 @@ void update_game(){
     }
     
     // update_entities();
-    // update_particle_emitters();
-    // update_particles();
+    // if (!session_context.updated_today && game_state == GAME){
+    //     update_particle_emitters(core.time.dt);
+    // }
+    // // update_particles();
     
     if (IsKeyPressed(KEY_H) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
         state_context.free_cam = !state_context.free_cam;
@@ -3743,22 +3755,36 @@ inline Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise){
     return {-v.y * clockwise, v.x * clockwise};
 }
 
-void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2, MAX_VERTICES> vertices){
-    //@INCOMPLETE now only for rects, need to find proper algorithm for calculating edge normals from vertices because 
+inline void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2, MAX_VERTICES> vertices){
+    //@INCOMPLETE now only for rects and triangles, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
+    // Update 03.03.2025: Graham scan algorithm should do the job if we will really need it.
     
-    //up
-    Vector2 edge1 = vertices.get(0) - vertices.get(1);
-    normals->add(normalized(get_rotated_vector_90(edge1, 1)));
-    //left
-    Vector2 edge2 = vertices.get(1) - vertices.get(3);
-    normals->add(normalized(get_rotated_vector_90(edge2, 1)));
-    //bottom
-    Vector2 edge3 = vertices.get(3) - vertices.get(2);
-    normals->add(normalized(get_rotated_vector_90(edge3, 1)));
-    //right
-    Vector2 edge4 = vertices.get(2) - vertices.get(0);
-    normals->add(normalized(get_rotated_vector_90(edge4, 1)));
+    if (vertices.count == 4){
+        //up
+        Vector2 edge1 = vertices.get(0) - vertices.get(1);
+        normals->add(normalized(get_rotated_vector_90(edge1, 1)));
+        //left
+        Vector2 edge2 = vertices.get(1) - vertices.get(3);
+        normals->add(normalized(get_rotated_vector_90(edge2, 1)));
+        //bottom
+        Vector2 edge3 = vertices.get(3) - vertices.get(2);
+        normals->add(normalized(get_rotated_vector_90(edge3, 1)));
+        //right
+        Vector2 edge4 = vertices.get(2) - vertices.get(0);
+        normals->add(normalized(get_rotated_vector_90(edge4, 1)));
+    } else if (vertices.count == 3){
+        Vector2 edge1 = vertices.get(0) - vertices.get(1);
+        normals->add(normalized(get_rotated_vector_90(edge1, 1)));
+        
+        Vector2 edge2 = vertices.get(1) - vertices.get(2);
+        normals->add(normalized(get_rotated_vector_90(edge2, 1)));
+        
+        Vector2 edge3 = vertices.get(2) - vertices.get(0);
+        normals->add(normalized(get_rotated_vector_90(edge3, 1)));
+    } else{
+        assert(false);
+    }
 }
 
 inline b32 check_rectangles_collision(Vector2 pos1, Vector2 scale1, Vector2 pos2, Vector2 scale2){
@@ -6094,7 +6120,7 @@ b32 can_sword_damage_enemy(Entity *enemy_entity){
 }
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
-    Entity *sword = current_level_context->entities.get_by_key_ptr(player_data.connected_entities_ids.sword_entity_id);
+    Entity *sword = get_entity_by_id(player_data.connected_entities_ids.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
     enemy_velocity->x = player_data.sword_spin_direction * 50 + enemy_velocity->x;
     
@@ -6102,7 +6128,7 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
         add_hitstop(0.1f);
     }
     
-    stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, get_particle_emitter(sword_tip_emitter_index)->direction, true);
+    stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, get_particle_emitter(sword_tip_ground_emitter_index)->direction, true);
 }
 
 b32 is_type(Entity *entity, FLAGS flags){
@@ -6128,7 +6154,7 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         } else if (enemy_entity->flags & JUMP_SHOOTER){
             sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
         } else{
-            kill_enemy(enemy_entity, hit_position, get_particle_emitter(sword_tip_emitter_index)->direction, lerp(1.0f, 4.0f, sqrtf(player_data.sword_spin_progress)));
+            kill_enemy(enemy_entity, hit_position, get_particle_emitter(sword_tip_ground_emitter_index)->direction, lerp(1.0f, 4.0f, sqrtf(player_data.sword_spin_progress)));
         }
         
         f32 max_speed_boost = 6 * player_data.sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
@@ -6172,7 +6198,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         }
         
         if (other->flags & ENEMY){
-            try_sword_damage_enemy(other, col.point);
+            try_sword_damage_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y);
         }
         
         if (other->flags & WIN_BLOCK && !player->in_stun){
@@ -6447,7 +6473,7 @@ void update_player(Entity *entity, f32 dt){
     // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
     sword->color = player_data.is_sword_big ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f);
     
-    Particle_Emitter *sword_tip_emitter       = get_particle_emitter(sword_tip_emitter_index);
+    Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
     Particle_Emitter *sword_tip_ground_emitter = get_particle_emitter(sword_tip_ground_emitter_index);
     
     sword_tip_emitter->position = sword_tip;
@@ -6465,17 +6491,25 @@ void update_player(Entity *entity, f32 dt){
         chainsaw_emitter->size_multiplier  = player_data.is_sword_big ? 5 : 1;
         chainsaw_emitter->color            = player_data.is_sword_big ? ColorBrightness(ORANGE, 0.2f) : YELLOW;
         
-        sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
+        // sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
         sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 5.0f;
         sword_tip_emitter->count_multiplier    = blood_t * blood_t * 2.0f;
               
-        f32 blood_decease = 5;
+        f32 blood_decease = 25;
               
         add_blood_amount(&player_data, -blood_decease * dt);
     }
     
     f32 sword_min_rotation_amount = 5;
     f32 need_to_rotate = player_data.sword_angular_velocity * dt;
+    
+    if (sword->rotation + need_to_rotate >= 360 || sword->rotation + need_to_rotate < 0){
+        // emit_particles(sword_tip_emitter, entity->position, sword->up);
+        //@SOUND sound on swing could be nice, but we should not depend on actual spin and instead find a proper looping sound.
+        // local_persist f32 volume = 0.1f;
+        // volume = lerp(volume, 0.1f + player_data.sword_spin_progress * 0.1f + player_data.is_sword_big ? 0.4f : 0.0f, dt * 10);
+        // play_sound("SwordSwing", volume, lerp(0.4f, player_data.is_sword_big ? 1.0f : 1.5f, player_data.sword_spin_progress), 0.1f);
+    }
     
     player_data.sword_spin_direction = normalized(player_data.sword_angular_velocity);
     
@@ -6796,10 +6830,13 @@ void update_player(Entity *entity, f32 dt){
         
     }
     
+    Vector2 last_collision_point = Vector2_zero;
+    Vector2 last_collision_normal = Vector2_one;
+    
     b32 moving_object_detected = false;
     // player ground checker
     fill_collisions(ground_checker, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PLATFORM | CENTIPEDE_SEGMENT);
-    b32 is_huge_collision_speed = false;
+    b32 is_ground_huge_collision_speed = false;
     for (i32 i = 0; i < collisions_buffer.count && !player_data.in_stun; i++){
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
@@ -6845,13 +6882,16 @@ void update_player(Entity *entity, f32 dt){
             }
         }
         
+        last_collision_point = col.point;
+        last_collision_normal = col.normal;
+        
         entity->position.y += col.overlap;
         
         Vector2 velocity_direction = normalized(player_data.velocity);
         f32 before_speed = magnitude(player_data.velocity);
         
         if (before_speed > 200){
-            is_huge_collision_speed = true;
+            is_ground_huge_collision_speed = true;
         } 
     
         f32 collision_force_multiplier = 1;
@@ -6908,24 +6948,19 @@ void update_player(Entity *entity, f32 dt){
     }
     
     Particle_Emitter *tires_emitter = get_particle_emitter(player_data.tires_emitter_index);
-    if (is_huge_collision_speed){
-        tires_emitter->position = player_data.ground_point;
-        tires_emitter->direction = player_data.ground_normal;
-        tires_emitter->count_multiplier = 0.2f;
-        enable_emitter(tires_emitter);
-        // emit_particles(&get_particle_emitter(player_data.tires_emitter_index), col.point, col.normal, 0.2f, 1);
-        
+    if (is_ground_huge_collision_speed){
         tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 2.0f);
         SetMusicVolume(tires_theme, tires_volume);
     } else{
-        disable_emitter(tires_emitter);
         tires_volume = lerp(tires_volume, 0.0f, core.time.real_dt * 5.0f);
         SetMusicVolume(tires_theme, tires_volume);
     }
     
-    
     // player body collision
     fill_collisions(entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
+    
+    b32 is_body_huge_collision_speed = false;
+    
     for (i32 i = 0; i < collisions_buffer.count; i++){
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
@@ -7009,8 +7044,11 @@ void update_player(Entity *entity, f32 dt){
         f32 before_speed = magnitude(player_data.velocity);
         
         if (before_speed > 200){
-            emit_particles(&air_dust_emitter, col.point, col.normal, 0.5f, 1.0f);
+            is_body_huge_collision_speed = true;
         }
+        
+        last_collision_point = col.point;
+        last_collision_normal = col.normal;
         
         if (player_data.in_stun){
             player_data.velocity = reflected_vector(player_data.velocity * 0.5f, col.normal);
@@ -7040,6 +7078,15 @@ void update_player(Entity *entity, f32 dt){
         }
     } // end player body collisions
     
+    if (is_body_huge_collision_speed || is_ground_huge_collision_speed){
+        tires_emitter->position = last_collision_point;
+        tires_emitter->direction = last_collision_normal;
+        tires_emitter->count_multiplier = 0.2f;
+        enable_emitter(tires_emitter);
+    } else{
+        disable_emitter(tires_emitter);
+    }
+    
     player_data.grounded = found_ground;
     
     if (player_data.sword_hit_ground){
@@ -7051,7 +7098,6 @@ void update_player(Entity *entity, f32 dt){
     }
     
     player_data.sword_hit_ground = false;
-
     
     f32 wind_t = clamp01(magnitude(player_data.velocity) / 300.0f);
     SetMusicVolume(wind_theme, lerp(0.0f, 1.0f, wind_t * wind_t));
@@ -7389,7 +7435,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
                 f32 bird_attack_speed = 300;
                 bird->velocity = dir_to_player * bird_attack_speed;
                 
-                emit_particles(&sparks_emitter, entity->position, entity->up, 2, 3);
+                emit_particles(&attack_sparks_emitter, entity->position, entity->up, 2, 3);
                 enable_emitter(get_particle_emitter(bird->attack_emitter_index));
                 play_sound("BirdAttack", entity->position);
             }
@@ -7576,7 +7622,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         enemy_entity->enemy.last_hit_time   = core.time.game_time;
         f32 count = player_data.is_sword_big ? 3 : 1;
         f32 area = player_data.is_sword_big ? 3 : 1;
-        emit_particles(&blood_emitter_copy, kill_position, kill_direction, count, particles_speed_modifier, area);
+        emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, count, particles_speed_modifier, area);
     
         enemy_entity->enemy.dead_man = true;
         enemy_entity->enemy.died_time = core.time.game_time;
@@ -7593,7 +7639,13 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             hitmark_scale += 4;
             hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
             f32 explosion_radius = get_explosion_radius(enemy_entity);
-            emit_particles(&explosion_emitter, enemy_entity->position, Vector2_up, explosion_radius / 40.0f);
+            
+            Particle_Emitter *explosion_emitter = &explosion_emitter_copy;
+            if (enemy_entity->enemy.explosive_radius_multiplier > 1){
+                explosion_emitter = &big_explosion_emitter_copy;
+            }
+            
+            emit_particles(explosion_emitter, enemy_entity->position, Vector2_up, explosion_radius / 40.0f);
             play_sound("BigExplosion", enemy_entity->position, 0.5f);
             
             i32 light_size_flag = SMALL_LIGHT;
@@ -7710,6 +7762,15 @@ void add_fire_light_to_entity(Entity *entity){
     }
 }
 
+inline Particle_Emitter *get_sword_kill_particle_emitter(Entity *enemy_entity){
+    Particle_Emitter *emitter = &blood_pop_emitter_copy;
+    if (enemy_entity->flags & BIRD_ENEMY || enemy_entity->flags & JUMP_SHOOTER){
+        emitter = &sword_kill_medium_emitter_copy;
+    }
+    
+    return emitter;
+}
+
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious){
     assert(enemy_entity->flags & ENEMY);
     
@@ -7735,7 +7796,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             f32 area_multiplier = serious ? 3 : 1;
             f32 count = serious ? 3 : 1;
             f32 speed = serious ? 3 : 1;
-            emit_particles(&blood_emitter_copy, kill_position, kill_direction, count, speed, area_multiplier);
+            
+            emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, count, speed, area_multiplier);
         
             enemy->dead_man = true;
             enemy->died_time = core.time.game_time;
@@ -8009,7 +8071,16 @@ void calculate_projectile_collisions(Entity *entity){
                 add_hitstop(0.03f + hitstop_add);
                 shake_camera(0.1f);
                 if (can_damage){
-                    play_sound("RifleHit", col.point, 0.4f);
+                    f32 time_since_last_hit = core.time.game_time - state_context.timers.last_projectile_hit_time;
+                    if (time_since_last_hit <= 0.05f){
+                        state_context.contiguous_projectile_hits_count += 1;
+                    } else{
+                        state_context.contiguous_projectile_hits_count = 0;
+                    }
+                
+                    f32 base_pitch = 1.0f + state_context.contiguous_projectile_hits_count * 0.025f;
+                    state_context.timers.last_projectile_hit_time = core.time.game_time;
+                    play_sound("RifleHit", col.point, 0.4f + state_context.contiguous_projectile_hits_count * 0.01f, base_pitch);
                 }
             
                 damaged_enemy = can_damage;
@@ -8650,8 +8721,9 @@ inline b32 update_entity(Entity *e, f32 dt){
     }
     
     for (i32 em = 0; em < e->particle_emitters_indexes.count; em++){
-        if (get_particle_emitter(e->particle_emitters_indexes.get(em))->follow_entity){
-            get_particle_emitter(e->particle_emitters_indexes.get(em))->position = e->position;
+        Particle_Emitter *emitter = get_particle_emitter(e->particle_emitters_indexes.get(em));
+        if (emitter && emitter->follow_entity){
+            emitter->position = e->position;
         }
         // update_emitter(e->emitters.get_ptr(em), dt);
     }

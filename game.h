@@ -109,7 +109,7 @@ Vector2 local (Entity *e, Vector2 global_pos);
 Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
 
 Array<Vector2, MAX_VERTICES> get_normals(Array<Vector2, MAX_VERTICES> vertices);
-void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2, MAX_VERTICES> vertices);
+inline void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2, MAX_VERTICES> vertices);
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity);
 
@@ -162,6 +162,8 @@ Entity* add_text(Vector2 pos, f32 size, const char *text);
 
 void copy_entity(Entity *dest, Entity *src);
 void copy_light(Light *dest, Light *src);
+
+inline Particle_Emitter *get_sword_kill_particle_emitter(Entity *enemy_entity);
 
 inline void set_particle_emitter_start_and_max_indexes(Particle_Emitter_Count count_type, i32 *start_index, i32 *max_index);
 inline i32 get_particles_count_for_count_type(Particle_Emitter_Count count_type);

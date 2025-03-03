@@ -1,3 +1,10 @@
+03.03.2025:
+    - Fixed tires for walls aswell.
+    - Ability for particles to have 'children' emitters that it will emit at one time. Made that for blood emitter.
+    - Fixed crash when we couldn't get particle emitter. There was just that we don't handle null on emitter follow entity, but that is something we need to think about - if we could not get emitter because all slots are occupied means some entity could have invalid emitter index till the end of his life. I think we just eventually tweak emitters count so that just will not happen with normal gameplay. But crashes should not pass in any case. 
+    - More particles work. Enemies hit, trails etc.
+    - Pitch increasing on centipede contiguous projectile hit.
+
 02.03.2025:
     - Further particles work. Added possibility for particles to fade color instead of scale.
     - Texture rendering for particles.

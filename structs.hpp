@@ -25,9 +25,8 @@ struct Particle{
     Vector2 scale = {1, 1};
     Vector2 velocity;
     Vector2 original_scale;
-    f32 lifetime;
-    f32 max_lifetime;
-    f32 gravity_multiplier = 1;
+    f32 lifetime = 0;
+    f32 max_lifetime = 0;
     
     f32 rotation = 0;
     
@@ -41,12 +40,12 @@ enum Particle_Spawn_Area{
 };
 
 #define MAX_SMALL_COUNT_PARTICLE_EMITTERS 256
-#define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 64
+#define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 128
 #define MAX_BIG_COUNT_PARTICLE_EMITTERS 8
 
 #define MAX_SMALL_COUNT_PARTICLES 128
 #define MAX_MEDIUM_COUNT_PARTICLES 256
-#define MAX_BIG_COUNT_PARTICLES 512
+#define MAX_BIG_COUNT_PARTICLES 2048
 
 #define SMALL_COUNT_PARTICLES_START_INDEX 0
 constexpr i32 MEDIUM_COUNT_PARTICLES_START_INDEX = MAX_SMALL_COUNT_PARTICLES * MAX_SMALL_COUNT_PARTICLE_EMITTERS;
@@ -88,6 +87,8 @@ enum Particle_Emitter_Count{
 struct Particle_Emitter{
     char tag_16[16] = "Untagged";    
 
+    Array<Particle_Emitter*, 4> additional_emitters = Array<Particle_Emitter*, 4>();
+
     i32 connected_entity_id = -1;
     i32 index = -1;
 
@@ -101,6 +102,8 @@ struct Particle_Emitter{
     f32 line_length_multiplier = 1.0f;
     f32 line_width = 1.0f;
     
+    b32 random_movement = true;
+    b32 grow_till_death = false;
     b32 grow_after_birth    = false;
     b32 shrink_before_death = true;
     
@@ -132,8 +135,8 @@ struct Particle_Emitter{
     
     b32 emitting;
     f32 emitting_timer;
-    f32 over_time;
-    f32 over_distance;
+    f32 over_time = 0;
+    f32 over_distance = 0;
     b32 direction_to_move = false;
     
     f32 rotation_multiplier = 1.0f;
@@ -161,16 +164,6 @@ struct Particle_Emitter{
     
     Color color = YELLOW;
 };
-
-// struct Big_Count_Particle_Emitter : Particle_Emitter{
-//     Array<Particle, MAX_BIG_COUNT_PARTICLES> particles    = Array<Particle, MAX_BIG_COUNT_PARTICLES>();
-// };
-// struct Medium_Count_Particle_Emitter : Particle_Emitter{
-//     Array<Particle, MAX_MEDIUM_COUNT_PARTICLES> particles = Array<Particle, MAX_MEDIUM_COUNT_PARTICLES>();
-// };
-// struct Small_Count_Particle_Emitter : Particle_Emitter{
-//     Array<Particle, MAX_SMALL_COUNT_PARTICLES> particles  = Array<Particle, MAX_SMALL_COUNT_PARTICLES>();
-// };
 
 struct Texture_Data{
     char name[64] = "\0";  
@@ -224,10 +217,6 @@ enum Flags : u64{
     ROPE_POINT          = 1 << 28,
     JUMP_SHOOTER        = 1 << 29,
     LIGHT               = 1 << 30
-};
-
-struct Ground{
-      
 };
 
 struct Physics_Object{
@@ -736,7 +725,6 @@ struct Entity{
     
     Entity *centipede_head;
     
-    Ground ground;
     Text_Drawer text_drawer;
     Enemy enemy;
     Bird_Enemy bird_enemy;
@@ -917,6 +905,7 @@ struct State_Context{
         f32 last_jump_shooter_attack_time = -11110;
         f32 background_flash_time = -21;
         f32 last_collision_cells_clear_time = -2;
+        f32 last_projectile_hit_time = -12;
     };
     Timers timers = {};
     
@@ -956,6 +945,8 @@ struct State_Context{
     
     f32 explosion_trauma = 0;
     i32 shoot_stopers_count = 0;
+    
+    i32 contiguous_projectile_hits_count = 0;
 };
 
 struct Session_Context{

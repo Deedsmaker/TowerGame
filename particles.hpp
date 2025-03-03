@@ -24,8 +24,6 @@ inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 
     particle.scale = {scale, scale};
     particle.original_scale = {scale, scale};
     
-    particle.gravity_multiplier = emitter->gravity_multiplier;
-    
     f32 spread_angle = rnd(-emitter->spread, emitter->spread) * 180.0f;
     Vector2 randomized_direction = get_rotated_vector(direction, spread_angle);
                                     
@@ -80,6 +78,10 @@ void emit_particles(Particle_Emitter *emitter, Vector2 position, Vector2 directi
     
     for (i32 i = 0; i < count; i++){
         shoot_particle(emitter, position, direction, speed_multiplier);
+    }
+    
+    for (i32 i = 0; i < emitter->additional_emitters.count; i++){
+        emit_particles(emitter->additional_emitters.get(i), position, direction, count_multiplier, speed_multiplier, area_multiplier);
     }
 }
 
@@ -170,23 +172,34 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         f32 t_lifetime = particle->lifetime / particle->max_lifetime;
         
         if (emitter->shape == PARTICLE_TEXTURE){
-            particle->color = lerp(particle->start_color, Fade(particle->start_color, 0), t_lifetime * t_lifetime);            
+            if (emitter->grow_till_death){
+                particle->color = lerp(particle->start_color, Fade(particle->start_color, 0), sqrtf(t_lifetime));            
+            } else{
+                particle->color = lerp(particle->start_color, Fade(particle->start_color, 0), t_lifetime * t_lifetime);            
+            }
         }
         
-        if (emitter->grow_after_birth && t_lifetime <= 0.2f){
-            f32 t = clamp01(t_lifetime / 0.2f);
-            particle->scale = lerp(Vector2_zero, particle->original_scale, t);
+        if (emitter->grow_till_death){
+            particle->scale = lerp(Vector2_zero, particle->original_scale, sqrtf(t_lifetime));
+        } else{
+            if (emitter->grow_after_birth && t_lifetime <= 0.2f){
+                f32 t = clamp01(t_lifetime / 0.2f);
+                particle->scale = lerp(Vector2_zero, particle->original_scale, t);
+            }
+            
+            if (emitter->shrink_before_death && t_lifetime >= 0.3f){
+                f32 t = clamp01((t_lifetime - 0.3f) / 0.7f);
+                particle->scale = lerp(particle->original_scale, Vector2_zero, t * t);
+            }
         }
         
-        if (emitter->shrink_before_death && t_lifetime >= 0.3f){
-            f32 t = clamp01((t_lifetime - 0.3f) / 0.7f);
-            particle->scale = lerp(particle->original_scale, Vector2_zero, t * t);
-        }
         
-        f32 gravity = -50 * particle->gravity_multiplier;
+        f32 gravity = -50 * emitter->gravity_multiplier;
         particle->velocity.y += gravity * dt;
         
-        particle->velocity += frame_on_circle_rnd * 100 * dt;
+        if (emitter->random_movement){
+            particle->velocity += frame_on_circle_rnd * 100 * dt;
+        }
         
         particle->rotation += emitter->rotation_multiplier * particle->velocity.x * dt;
         
@@ -234,66 +247,36 @@ void update_particle_emitters(f32 dt){
     }
 }
 
-
-void DEPRECATED_update_particles(f32 dt){
-    for (int i = 0; i < current_level_context->particles.max_count; i++){
-        if (!current_level_context->particles.get(i).enabled){
-            continue;
-        }
-    
-        Particle *particle = current_level_context->particles.get_ptr(i);
-        dt = game_state == EDITOR ? core.time.real_dt : dt;
-        
-        if (particle->lifetime <= 0.2f && game_state == GAME){
-            dt = core.time.real_dt;
-        }
-        
-        particle->lifetime += dt;
-        
-        if (particle->lifetime >= particle->max_lifetime){
-            //current_level_context->particles.remove(i);
-            particle->enabled = false;
-            enabled_particles_count--;
-            continue;
-        }
-        
-        f32 t_lifetime = particle->lifetime / particle->max_lifetime;
-        particle->scale = lerp(particle->original_scale, Vector2_zero, t_lifetime * t_lifetime);
-        
-        f32 gravity = -50 * particle->gravity_multiplier;
-        particle->velocity.y += gravity * dt;
-        
-        particle->velocity += frame_on_circle_rnd * 100 * dt;
-        
-        Vector2 next_position = add(particle->position, multiply(particle->velocity, dt));
-        
-        particle->position = next_position;
-    }
-}
-
 global_variable Particle_Emitter chainsaw_emitter_copy  = {};
 global_variable Particle_Emitter sword_tip_emitter_copy = {};
 global_variable Particle_Emitter sword_tip_ground_emitter_copy = {};
-global_variable Particle_Emitter blood_emitter_copy = {};
+global_variable Particle_Emitter blood_pop_emitter_copy = {};
+global_variable Particle_Emitter sword_kill_medium_emitter_copy = {};
+global_variable Particle_Emitter blood_trail_emitter_copy = {};
 
 global_variable i32 chainsaw_emitter_index = -1;
 global_variable i32 sword_tip_emitter_index = -1;
 global_variable i32 sword_tip_ground_emitter_index = -1;
-global_variable i32 blood_emitter_index = -1;
+global_variable i32 blood_trail_emitter_index = -1;
 
 global_variable Particle_Emitter big_blood_emitter_copy = {};
 global_variable Particle_Emitter rifle_bullet_emitter = {};
 global_variable Particle_Emitter air_dust_emitter = {};
 global_variable Particle_Emitter tires_emitter_copy = {};
-global_variable Particle_Emitter explosion_emitter = {};
+global_variable Particle_Emitter explosion_emitter_copy = {};
+global_variable Particle_Emitter big_explosion_emitter_copy = {};
+global_variable Particle_Emitter shockwave_emitter_copy = {};
+global_variable Particle_Emitter big_shockwave_emitter_copy = {};
+global_variable Particle_Emitter small_shockwave_emitter_copy = {};
 global_variable Particle_Emitter fire_emitter = {};
 global_variable Particle_Emitter little_fire_emitter = {};
-global_variable Particle_Emitter sparks_emitter = {};
+global_variable Particle_Emitter attack_sparks_emitter = {};
+global_variable Particle_Emitter sparks_emitter_copy = {};
+global_variable Particle_Emitter sword_sparks_emitter_copy = {};
 global_variable Particle_Emitter big_sparks_emitter = {};
 global_variable Particle_Emitter gunpowder_emitter = {};
 global_variable Particle_Emitter air_emitter = {};
 global_variable Particle_Emitter ground_splash_emitter = {};
-
 
 void free_emitter(Particle_Emitter *emitter){
     emitter = NULL;
@@ -350,7 +333,7 @@ void setup_particles(){
     sword_tip_ground_emitter_copy.scale_min         = 0.1f;
     sword_tip_ground_emitter_copy.scale_max         = 0.6f;
     sword_tip_ground_emitter_copy.lifetime_min      = 0.2f;
-    sword_tip_ground_emitter_copy.lifetime_max      = 0.8f;
+    sword_tip_ground_emitter_copy.lifetime_max      = 4.8f;
     sword_tip_ground_emitter_copy.spread            = 0.1f;
     sword_tip_ground_emitter_copy.gravity_multiplier = 0.5f;
     sword_tip_ground_emitter_copy.color             = Fade(ColorBrightness(YELLOW, 0.3f), 0.8f);
@@ -359,25 +342,54 @@ void setup_particles(){
     
     sword_tip_ground_emitter_index = add_particle_emitter(&sword_tip_ground_emitter_copy);
 
-    blood_emitter_copy.spawn_radius      = 2;
-    blood_emitter_copy.over_distance     = 0;
-    blood_emitter_copy.direction_to_move = 0;
-    blood_emitter_copy.over_time         = 0;
-    blood_emitter_copy.speed_min         = 5;
-    blood_emitter_copy.speed_max         = 10;
-    blood_emitter_copy.count_min         = 50;
-    blood_emitter_copy.count_max         = 150;
-    blood_emitter_copy.scale_min         = 0.2f;
-    blood_emitter_copy.scale_max         = 0.8f;
-    blood_emitter_copy.lifetime_min      = 0.4f;
-    blood_emitter_copy.lifetime_max      = 2.5f;
-    blood_emitter_copy.spread            = 0.1f;
-    blood_emitter_copy.gravity_multiplier = 0.1f;
-    blood_emitter_copy.color             = Fade(RED, 0.7f);
-    blood_emitter_copy.enabled           = true;
-    str_copy(blood_emitter_copy.tag_16, "blood");
+    blood_pop_emitter_copy.shape = PARTICLE_TEXTURE;
+    blood_pop_emitter_copy.grow_after_birth = true;
+    blood_pop_emitter_copy.shrink_before_death = false;
+    blood_pop_emitter_copy.texture = get_texture("SmokeParticle1");
+    blood_pop_emitter_copy.spawn_radius      = 2;
+    blood_pop_emitter_copy.over_distance     = 0;
+    blood_pop_emitter_copy.direction_to_move = 0;
+    blood_pop_emitter_copy.over_time         = 0;
+    blood_pop_emitter_copy.speed_min         = 5;
+    blood_pop_emitter_copy.speed_max         = 10;
+    blood_pop_emitter_copy.count_min         = 5;
+    blood_pop_emitter_copy.count_max         = 20;
+    blood_pop_emitter_copy.scale_min         = 4.0f;
+    blood_pop_emitter_copy.scale_max         = 12.0f;
+    blood_pop_emitter_copy.lifetime_min      = 0.4f;
+    blood_pop_emitter_copy.lifetime_max      = 1.5f;
+    blood_pop_emitter_copy.spread            = 0.1f;
+    blood_pop_emitter_copy.gravity_multiplier = 0.1f;
+    blood_pop_emitter_copy.color             = Fade(RED, 0.2f);
+    blood_pop_emitter_copy.enabled           = true;
+    blood_pop_emitter_copy.additional_emitters.add(&sword_sparks_emitter_copy);
+    str_copy(blood_pop_emitter_copy.tag_16, "blood");
     
-    blood_emitter_index = add_particle_emitter(&blood_emitter_copy);
+    sword_kill_medium_emitter_copy = blood_pop_emitter_copy;
+    sword_kill_medium_emitter_copy.additional_emitters.clear();
+    sword_kill_medium_emitter_copy.additional_emitters.add(&sparks_emitter_copy);
+    sword_kill_medium_emitter_copy.additional_emitters.add(&small_shockwave_emitter_copy);
+    sword_kill_medium_emitter_copy.color             = Fade(ColorBrightness(RED, 0.3f), 0.4f);
+    sword_kill_medium_emitter_copy.count_min         = 5;
+    sword_kill_medium_emitter_copy.count_max         = 30;
+    sword_kill_medium_emitter_copy.scale_min         = 6.0f;
+    sword_kill_medium_emitter_copy.scale_max         = 16.0f;
+    sword_kill_medium_emitter_copy.lifetime_min      = 0.6f;
+    sword_kill_medium_emitter_copy.lifetime_max      = 1.5f;
+    str_copy(sword_kill_medium_emitter_copy.tag_16, "sw_kill_medium");
+    
+    blood_trail_emitter_copy = blood_pop_emitter_copy;
+    blood_trail_emitter_copy.count_type = BIG_PARTICLE_COUNT;    
+    blood_trail_emitter_copy.over_distance = 0.5f;    
+    blood_trail_emitter_copy.scale_min = 2.0f;    
+    blood_trail_emitter_copy.scale_max = 4.0f;    
+    blood_trail_emitter_copy.speed_min = 0.0f;    
+    blood_trail_emitter_copy.speed_max = 1.0f;    
+    blood_trail_emitter_copy.lifetime_min = 0.2f;    
+    blood_trail_emitter_copy.lifetime_max = 0.8f;    
+    blood_trail_emitter_copy.color     = Fade(ColorBrightness(RED, 0.4f), 0.4f);
+    
+    blood_trail_emitter_index = add_particle_emitter(&blood_trail_emitter_copy);
     
     big_blood_emitter_copy.spawn_radius      = 3;
     big_blood_emitter_copy.over_distance     = 0;
@@ -420,7 +432,7 @@ void setup_particles(){
     air_dust_emitter.count_type = MEDIUM_PARTICLE_COUNT;
     air_dust_emitter.grow_after_birth = true;
     air_dust_emitter.shrink_before_death = false;
-    air_dust_emitter.texture = get_texture("SmokeParticle1.png");
+    air_dust_emitter.texture = get_texture("SmokeParticle1");
     air_dust_emitter.spawn_radius      = 0.5f;
     air_dust_emitter.over_distance     = 0.5f;
     air_dust_emitter.direction_to_move = 0;
@@ -446,23 +458,59 @@ void setup_particles(){
     tires_emitter_copy.color         = Fade(tires_emitter_copy.color, 0.5f);
     str_copy(tires_emitter_copy.tag_16, "tires");
     
-    explosion_emitter.spawn_radius      = 5;
-    explosion_emitter.over_distance     = 1;
-    explosion_emitter.direction_to_move = 0;
-    explosion_emitter.over_time         = 0;
-    explosion_emitter.speed_min         = 1;
-    explosion_emitter.speed_max         = 100;
-    explosion_emitter.count_min         = 20;
-    explosion_emitter.count_max         = 30;
-    explosion_emitter.scale_min         = 1;
-    explosion_emitter.scale_max         = 12;
-    explosion_emitter.lifetime_min      = 0.6f;
-    explosion_emitter.lifetime_max      = 3.5f;
-    explosion_emitter.spread            = 1.0f;
-    explosion_emitter.gravity_multiplier = 1;
-    explosion_emitter.color             = Fade(ORANGE, 0.7f);
-    explosion_emitter.enabled           = false;
-    str_copy(explosion_emitter.tag_16, "explosion");
+    explosion_emitter_copy.spawn_radius      = 5;
+    explosion_emitter_copy.over_distance     = 1;
+    explosion_emitter_copy.direction_to_move = 0;
+    explosion_emitter_copy.over_time         = 0;
+    explosion_emitter_copy.speed_min         = 1;
+    explosion_emitter_copy.speed_max         = 100;
+    explosion_emitter_copy.count_min         = 20;
+    explosion_emitter_copy.count_max         = 30;
+    explosion_emitter_copy.scale_min         = 1;
+    explosion_emitter_copy.scale_max         = 12;
+    explosion_emitter_copy.lifetime_min      = 0.6f;
+    explosion_emitter_copy.lifetime_max      = 3.5f;
+    explosion_emitter_copy.spread            = 1.0f;
+    explosion_emitter_copy.gravity_multiplier = 1;
+    explosion_emitter_copy.color             = Fade(ORANGE, 0.7f);
+    explosion_emitter_copy.enabled           = false;
+    explosion_emitter_copy.additional_emitters.add(&shockwave_emitter_copy);
+    str_copy(explosion_emitter_copy.tag_16, "explosion");
+    
+    shockwave_emitter_copy.shape = PARTICLE_TEXTURE;
+    shockwave_emitter_copy.texture = get_texture("Shockwave1");
+    shockwave_emitter_copy.grow_till_death = true;
+    shockwave_emitter_copy.random_movement = false;
+    shockwave_emitter_copy.gravity_multiplier = 0;
+    shockwave_emitter_copy.speed_min         = 0;
+    shockwave_emitter_copy.speed_max         = 0;
+    shockwave_emitter_copy.count_min         = 1;
+    shockwave_emitter_copy.count_max         = 1;
+    shockwave_emitter_copy.scale_min         = 200;
+    shockwave_emitter_copy.scale_max         = 200;
+    shockwave_emitter_copy.lifetime_min      = 0.4f;
+    shockwave_emitter_copy.lifetime_max      = 0.5f;
+    shockwave_emitter_copy.gravity_multiplier = 0;
+    shockwave_emitter_copy.color             = Fade(WHITE, 0.25f);
+    shockwave_emitter_copy.enabled           = false;
+    str_copy(shockwave_emitter_copy.tag_16, "shockwave");
+    
+    big_shockwave_emitter_copy = shockwave_emitter_copy;
+    big_shockwave_emitter_copy.scale_min         = 1000;
+    big_shockwave_emitter_copy.scale_max         = 1000;
+    big_shockwave_emitter_copy.color         = Fade(WHITE, 0.05f);
+    str_copy(big_shockwave_emitter_copy.tag_16, "big_shockw");
+    
+    small_shockwave_emitter_copy = shockwave_emitter_copy;
+    small_shockwave_emitter_copy.scale_min         = 50;
+    small_shockwave_emitter_copy.scale_max         = 50;
+    small_shockwave_emitter_copy.color         = Fade(WHITE, 0.35f);
+    str_copy(small_shockwave_emitter_copy.tag_16, "smol_shockw");
+    
+    big_explosion_emitter_copy = explosion_emitter_copy;
+    big_explosion_emitter_copy.additional_emitters.clear();
+    big_explosion_emitter_copy.additional_emitters.add(&big_shockwave_emitter_copy);
+    str_copy(big_explosion_emitter_copy.tag_16, "big_explos");
     
     fire_emitter.spawn_radius       = 1.5f;
     fire_emitter.over_distance      = 1;
@@ -500,26 +548,52 @@ void setup_particles(){
     little_fire_emitter.enabled            = false;
     str_copy(little_fire_emitter.tag_16, "little_fire");
     
-    sparks_emitter.shape = PARTICLE_LINE;
-    sparks_emitter.line_length_multiplier = 1.0f;
-    sparks_emitter.line_width = 0.5f;
-    sparks_emitter.spawn_radius       = 1.5f;
-    sparks_emitter.over_distance      = 1;
-    sparks_emitter.direction_to_move  = 0;
-    sparks_emitter.over_time          = 0;
-    sparks_emitter.speed_min          = 1;
-    sparks_emitter.speed_max          = 30;
-    sparks_emitter.count_min          = 30;
-    sparks_emitter.count_max          = 100;
-    sparks_emitter.scale_min          = 0.2f;
-    sparks_emitter.scale_max          = 0.7f;
-    sparks_emitter.lifetime_min       = 0.3f;
-    sparks_emitter.lifetime_max       = 2.0f;
-    sparks_emitter.spread             = 0.1f;
-    sparks_emitter.gravity_multiplier = 0.1f;
-    sparks_emitter.color              = Fade(YELLOW, 0.9f);
-    sparks_emitter.enabled            = false;
-    str_copy(sparks_emitter.tag_16, "sparks");
+    attack_sparks_emitter.shape = PARTICLE_LINE;
+    attack_sparks_emitter.line_length_multiplier = 1.0f;
+    attack_sparks_emitter.line_width = 0.5f;
+    attack_sparks_emitter.spawn_radius       = 1.5f;
+    attack_sparks_emitter.over_distance      = 1;
+    attack_sparks_emitter.direction_to_move  = 0;
+    attack_sparks_emitter.over_time          = 0;
+    attack_sparks_emitter.speed_min          = 1;
+    attack_sparks_emitter.speed_max          = 30;
+    attack_sparks_emitter.count_min          = 30;
+    attack_sparks_emitter.count_max          = 100;
+    attack_sparks_emitter.scale_min          = 0.2f;
+    attack_sparks_emitter.scale_max          = 0.7f;
+    attack_sparks_emitter.lifetime_min       = 0.3f;
+    attack_sparks_emitter.lifetime_max       = 2.0f;
+    attack_sparks_emitter.spread             = 0.1f;
+    attack_sparks_emitter.gravity_multiplier = 0.1f;
+    attack_sparks_emitter.color              = Fade(ColorBrightness(YELLOW, 0.4f), 0.9f);
+    attack_sparks_emitter.enabled            = false;
+    str_copy(attack_sparks_emitter.tag_16, "att_sparks");
+    
+    sparks_emitter_copy = attack_sparks_emitter;
+    sparks_emitter_copy.gravity_multiplier = 2.0f;
+    sparks_emitter_copy.speed_min    = 10;
+    sparks_emitter_copy.speed_max    = 50;
+    sparks_emitter_copy.count_min    = 10;
+    sparks_emitter_copy.count_max    = 30;
+    sparks_emitter_copy.scale_min    = 0.2f;
+    sparks_emitter_copy.scale_max    = 0.8f;
+    sparks_emitter_copy.lifetime_min = 0.1f;
+    sparks_emitter_copy.lifetime_max = 1.0f;
+    sparks_emitter_copy.spread       = 0.1f;
+    sparks_emitter_copy.color       = Fade(ColorBrightness(YELLOW, 0.4f), 0.6f);
+    str_copy(sparks_emitter_copy.tag_16, "sparks");
+    
+    sword_sparks_emitter_copy = attack_sparks_emitter;
+    sword_sparks_emitter_copy.line_length_multiplier = 5.0f;
+    sword_sparks_emitter_copy.over_distance = 10.0f;
+    sword_sparks_emitter_copy.spread = 1;
+    sword_sparks_emitter_copy.spawn_radius = 0.5f;
+    sword_sparks_emitter_copy.lifetime_min = 0.05f;
+    sword_sparks_emitter_copy.lifetime_max = 0.3f;
+    sword_sparks_emitter_copy.count_min = 10;
+    sword_sparks_emitter_copy.count_max = 30;
+    sword_sparks_emitter_copy.speed_min = 1.0f;
+    sword_sparks_emitter_copy.speed_max = 5.0f;
     
     big_sparks_emitter.spawn_radius       = 3.5f;
     big_sparks_emitter.over_distance      = 0;
