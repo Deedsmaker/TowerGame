@@ -12,6 +12,15 @@
 
 struct Level_Context;
 
+#define LINE_TRAIL_MAX_POINTS 128
+
+struct Line_Trail{
+    b32 occupied = false;
+    Array<Vector2, LINE_TRAIL_MAX_POINTS> positions = Array<Vector2, LINE_TRAIL_MAX_POINTS>();  
+    Vector2 last_added_position = Vector2_zero;
+    i32 start_index = 0;
+};
+
 enum Particle_Shape{
     SQUARE,
     PARTICLE_TEXTURE,
@@ -28,6 +37,7 @@ struct Particle{
     f32 lifetime = 0;
     f32 max_lifetime = 0;
     
+    i32 line_trail_index = -1;
     i32 trail_emitter_index = -1;
     
     f32 rotation = 0;
@@ -41,8 +51,8 @@ enum Particle_Spawn_Area{
     BOX = 1
 };
 
-#define MAX_SMALL_COUNT_PARTICLE_EMITTERS 256
-#define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 128
+#define MAX_SMALL_COUNT_PARTICLE_EMITTERS 1024
+#define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 256
 #define MAX_BIG_COUNT_PARTICLE_EMITTERS 8
 
 #define MAX_SMALL_COUNT_PARTICLES 128
@@ -88,7 +98,7 @@ struct Particle_Emitter{
     char tag_16[16] = "Untagged";    
 
     // These just 'copy' emitters.
-    Array<Particle_Emitter*, 4> additional_emitters = Array<Particle_Emitter*, 4>();
+    Array<Particle_Emitter*, 6> additional_emitters = Array<Particle_Emitter*, 6>();
     Particle_Emitter *particle_trail_emitter = NULL;
 
     i32 connected_entity_id = -1;
@@ -104,10 +114,15 @@ struct Particle_Emitter{
     f32 line_length_multiplier = 1.0f;
     f32 line_width = 1.0f;
     
-    b32 real_noise_movement = false;
+    b32 individual_noise_movement = false;
     f32 noise_speed = 1.0f;
     f32 noise_power = 10;
     b32 random_movement = true;
+    
+    b32 stop_before_death = false;
+    f32 lifetime_t_to_start_stopping = 0.5f;
+    
+    b32 fade_till_death = false;
     
     b32 grow_till_death = false;
     b32 grow_after_birth    = false;
@@ -119,6 +134,7 @@ struct Particle_Emitter{
     i32 particles_max_index    = -1;
     i32 last_added_index = -1;
     
+    b32 particle_line_trail = false;
     
     b32 just_born = true;
     b32 enabled = false;
@@ -674,6 +690,8 @@ struct Projectile{
     f32 max_lifetime = 5;
     b32 dying = false;
     
+    i32 trail_emitter_index = -1;
+    
     Array<i32, 16> already_hit_ids = Array<i32, 16>();
     f32 last_light_spawn_time = -112;
 };
@@ -887,6 +905,8 @@ enum Death_Instinct_Reason{
     SWORD_WILL_EXPLODE = 1
 };
 
+#define MAX_LINE_TRAILS 128
+
 struct Level_Context{
     b32 inited = false;
     char name[64] = "\0";
@@ -895,10 +915,7 @@ struct Level_Context{
       
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(MAX_PARTICLES);
     Dynamic_Array<Particle_Emitter> particle_emitters  = Dynamic_Array<Particle_Emitter>(MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS);
-    // Dynamic_Array<Big_Count_Particle_Emitter> big_count_particle_emitters  = Dynamic_Array<Big_Count_Particle_Emitter>(MAX_BIG_COUNT_PARTICLE_EMITTERS);
-    // Dynamic_Array<Medium_Count_Particle_Emitter> medium_count_particle_emitters  = Dynamic_Array<Medium_Count_Particle_Emitter>(MAX_MEDIUM_COUNT_PARTICLE_EMITTERS);
-    // Dynamic_Array<Small_Count_Particle_Emitter> small_count_particle_emitters  = Dynamic_Array<Small_Count_Particle_Emitter>(MAX_SMALL_COUNT_PARTICLE_EMITTERS);
-    // i32 particles_top_index = 0;
+    Dynamic_Array<Line_Trail> line_trails = Dynamic_Array<Line_Trail>(MAX_LINE_TRAILS);
     
     Dynamic_Array<Note> notes = Dynamic_Array<Note>(128);
     

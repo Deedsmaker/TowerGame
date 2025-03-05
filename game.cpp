@@ -20,8 +20,6 @@ global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Arra
 //#define For(arr, type, value) for(i32 ii = 0; ii < arr.count; ii++){ type value = arr.get(ii);
 
 global_variable Input input;
-// global_variable Level current_level;
-// global_variable Context context = {};
 global_variable Level_Context editor_level_context = {};
 global_variable Level_Context game_level_context = {};
 global_variable Level_Context checkpoint_level_context = {};
@@ -38,12 +36,9 @@ global_variable i32 checkpoint_trigger_id = -1;
 
 global_variable Level_Replay level_replay = {};
 global_variable Render render = {};
-// global_variable Context saved_level_context = {};
 global_variable Console console = {};
 global_variable Editor editor  = {}; 
 global_variable Debug  debug  = {};
-//global_variable Entity *player_entity;
-global_variable b32 player_on_level;
 
 global_variable const char *first_level_name = "new_basics1";
 
@@ -549,6 +544,17 @@ inline i32 add_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter
     return *entity->particle_emitters_indexes.add(add_particle_emitter(emitter, entity->id));
 }
 
+inline i32 add_and_enable_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter_copy, Vector2 position, b32 need_to_follow){
+    i32 index = add_entity_particle_emitter(entity, emitter_copy);
+    Particle_Emitter *emitter = get_particle_emitter(index);
+    if (emitter){
+        emitter->follow_entity = need_to_follow;
+        enable_emitter(emitter, position);
+    }
+    
+    return index;
+}
+
 Particle_Emitter *get_particle_emitter(i32 index){
     if (index < 0 || index >= current_level_context->particle_emitters.max_count){
         printf("WARNING: Tried to get particle emitter with bad index: %d\n", index);
@@ -603,7 +609,6 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
             dest->particle_emitters.data[i] = src->particle_emitters.get(i);
         }
     }
-
     
     for (i32 i = 0; i < src->entities.max_count; i++){
         Table_Data<Entity> data = {};
@@ -626,26 +631,9 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     dest->entities.last_added_key = src->entities.last_added_key;
     // dest->entities.max_count = src->entities.max_count;
     
-    // PARTICLE EMITTERS COPY: Right now we don't really copy emitters, because all particle emitters for entities get's 
-    
-    // for (i32 i = 0; i < src->particles.count; i++){
-    //     dest->particles.data[i] = src->particles.get(i);
-    // }
-    // dest->particles.count = src->particles.count;
-    // dest->particles.max_count = src->particles.max_count;
-    
-    // for (i32 i = 0; i < src->lights.max_count; i++){
-    //     copy_light(dest->lights.get_ptr(i), src->lights.get_ptr(i));
-    //     // We init only entity lights, because we might want to free it and load render textures, 
-    //     // but we don't free temp lights and they are loaded in memory in init_level_context.
-    //     if (i >= session_context.entity_lights_start_index){
-    //         init_light(dest->lights.get_ptr(i));
-    //     }
-    // }
-
-    // for (i32 i = 0; i < src->lights.count; i++){
-    //     dest->lights.data[i] = src->lights.get(i);
-    // }
+    for (i32 i = 0; i < src->line_trails.max_count; i++){
+        dest->line_trails.data[i] = src->line_trails.get(i);
+    }
     
     current_level_context = original_level_context;
     game_state = original_game_state;
@@ -1435,9 +1423,12 @@ inline void free_particle_emitter(i32 index){
     assert(index >= 0 && index < current_level_context->particle_emitters.max_count);
     
     Particle_Emitter *emitter = get_particle_emitter(index);
-    assert(emitter);
-    for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
-        current_level_context->particles.get_ptr(i)->enabled = false;
+    if (emitter){
+        for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
+            current_level_context->particles.get_ptr(i)->enabled = false;
+        }
+    } else{
+        printf("L_WARNING: No emitter existing on free_particle_emitter. Index is %d\n", index);
     }
     
     *current_level_context->particle_emitters.get_ptr(index) = {};
@@ -1465,7 +1456,7 @@ void init_bird_emitters(Entity *entity){
     Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     free_entity_particle_emitters(entity);
     entity->bird_enemy.trail_emitter_index = add_entity_particle_emitter(entity, entity->flags & EXPLOSIVE ? &little_fire_emitter : &air_dust_emitter);
-    enable_emitter(get_particle_emitter(entity->bird_enemy.trail_emitter_index));
+    enable_emitter(entity->bird_enemy.trail_emitter_index);
     entity->bird_enemy.attack_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
     entity->bird_enemy.fire_emitter_index = add_entity_particle_emitter(entity, &fire_emitter);
     entity->bird_enemy.collision_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
@@ -2034,17 +2025,21 @@ void init_entity(Entity *entity){
     if (entity->flags & PROPELLER){
         // entity->emitters.clear();
         free_entity_particle_emitters(entity);
-        entity->propeller.air_emitter_index = add_entity_particle_emitter(entity, &air_emitter);
+        entity->propeller.air_emitter_index = add_entity_particle_emitter(entity, &air_emitter_copy);
         
         Particle_Emitter *air_emitter = get_particle_emitter(entity->propeller.air_emitter_index);
-        enable_emitter(air_emitter);
-        air_emitter->speed_multiplier    = entity->propeller.power / 50.0f;
-        air_emitter->count_multiplier    = entity->propeller.power / 50.0f;
-        air_emitter->lifetime_multiplier = (1.8f * (entity->scale.y / 120.0f)) / air_emitter->speed_multiplier;
-        // air_emitter->spawn_radius        = entity->scale.x * 0.5f;
-        air_emitter->spawn_offset = entity->up * entity->scale.y * 0.125f;
-        air_emitter->spawn_area = {entity->scale.x, entity->scale.y * 0.25f};
-        air_emitter->direction           = entity->up;
+        
+        if (air_emitter){
+            air_emitter->position = entity->position;
+            enable_emitter(air_emitter);
+            air_emitter->speed_multiplier    = entity->propeller.power / 50.0f;
+            air_emitter->count_multiplier    = entity->propeller.power / 50.0f;
+            air_emitter->lifetime_multiplier = (1.8f * (entity->scale.y / 120.0f)) / air_emitter->speed_multiplier;
+            // air_emitter->spawn_radius        = entity->scale.x * 0.5f;
+            air_emitter->spawn_offset = entity->up * entity->scale.y * 0.125f;
+            air_emitter->spawn_area = {entity->scale.x, entity->scale.y * 0.25f};
+            air_emitter->direction           = entity->up;
+        }
     }        
     
     if (entity->flags & DOOR){
@@ -2092,11 +2087,18 @@ void init_entity(Entity *entity){
         entity->enemy.max_hits_taken = 6;
         free_entity_particle_emitters(entity);
         entity->jump_shooter.trail_emitter_index  = add_entity_particle_emitter(entity, &air_dust_emitter);
-        get_particle_emitter(entity->jump_shooter.trail_emitter_index)->follow_entity = false;
-        enable_emitter(get_particle_emitter(entity->jump_shooter.trail_emitter_index));
+        
+        Particle_Emitter *trail_emitter = get_particle_emitter(entity->jump_shooter.trail_emitter_index);
+        if (trail_emitter){
+            trail_emitter->follow_entity = false;
+            enable_emitter(trail_emitter);
+        }
         
         entity->jump_shooter.flying_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
-        get_particle_emitter(entity->jump_shooter.flying_emitter_index)->follow_entity = false;
+        Particle_Emitter *flying_emitter = get_particle_emitter(entity->jump_shooter.flying_emitter_index);
+        if (flying_emitter){
+            flying_emitter->follow_entity = false;
+        }
         entity->enemy.gives_full_ammo = true;
         
         entity->enemy.sword_kill_speed_modifier = 10;
@@ -2714,6 +2716,9 @@ void init_level_context(Level_Context *level_context){
     for (i32 i = 0; i < level_context->particle_emitters.max_count; i++){
         *level_context->particle_emitters.get_ptr(i) = {};
     }
+    for (i32 i = 0; i < level_context->line_trails.max_count; i++){
+        *level_context->line_trails.get_ptr(i) = {};
+    }
 }
 
 void init_game(){
@@ -2940,8 +2945,16 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
         player_data.stun_emitter_index        = add_entity_particle_emitter(player_entity, &air_dust_emitter);
         player_data.rifle_trail_emitter_index = add_entity_particle_emitter(player_entity, &gunpowder_emitter);
         player_data.tires_emitter_index       = add_entity_particle_emitter(player_entity, &tires_emitter_copy);
-        get_particle_emitter(player_data.tires_emitter_index)->follow_entity = false;
-        get_particle_emitter(player_data.rifle_trail_emitter_index)->follow_entity = false;
+        
+        Particle_Emitter *tires_emitter = get_particle_emitter(player_data.tires_emitter_index);
+        if (tires_emitter){
+            tires_emitter->follow_entity = false;
+        }
+        
+        Particle_Emitter *rifle_trail_emitter = get_particle_emitter(player_data.rifle_trail_emitter_index);
+        if (rifle_trail_emitter){
+            rifle_trail_emitter->follow_entity = false;
+        }
         
         player_data.ammo_count = last_player_data.ammo_count;
         
@@ -6425,7 +6438,7 @@ void update_player(Entity *entity, f32 dt){
             player_data.timers.rifle_shake_start_time = core.time.game_time;
             player_data.timers.rifle_shoot_time = core.time.game_time;
             
-            enable_emitter(get_particle_emitter(player_data.rifle_trail_emitter_index));
+            enable_emitter(player_data.rifle_trail_emitter_index);
         } else if (input.press_flags & SHOOT){
             player_data.timers.rifle_shake_start_time = core.time.game_time;
             emit_particles(&gunpowder_emitter, sword_tip, sword->up);
@@ -6489,12 +6502,17 @@ void update_player(Entity *entity, f32 dt){
     sword->color = player_data.is_sword_big ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f);
     
     Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
-    enable_emitter(sword_tip_emitter);
+    if (sword_tip_emitter){
+        enable_emitter(sword_tip_emitter);
+        sword_tip_emitter->position = sword_tip;
+    }
     Particle_Emitter *sword_tip_ground_emitter = get_particle_emitter(sword_tip_ground_emitter_index);
-    
-    sword_tip_emitter->position = sword_tip;
-    sword_tip_ground_emitter->position = sword_tip;
-    chainsaw_emitter->position = input.mouse_position;
+    if (sword_tip_ground_emitter){
+        sword_tip_ground_emitter->position = sword_tip;
+    }
+    if (chainsaw_emitter){
+        chainsaw_emitter->position = input.mouse_position;
+    }
     
     f32 blood_t = player_data.blood_progress;
     f32 spin_t = player_data.sword_spin_progress;
@@ -6598,9 +6616,9 @@ void update_player(Entity *entity, f32 dt){
     player_data.timers.since_jump_timer += dt;
     
     if (!player_data.in_stun){
-        get_particle_emitter(player_data.stun_emitter_index)->enabled = false;
+        disable_emitter(player_data.stun_emitter_index);
     } else{
-        enable_emitter(get_particle_emitter(player_data.stun_emitter_index));
+        enable_emitter(player_data.stun_emitter_index);
     }
     
     /*
@@ -7849,9 +7867,10 @@ void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_T
     projectile_entity->projectile.velocity = velocity;
     projectile_entity->projectile.max_lifetime = 7;
     
-    Particle_Emitter *bullet_emitter = get_particle_emitter(add_entity_particle_emitter(projectile_entity, &rifle_bullet_emitter));
-    bullet_emitter->position = start_position;
-    enable_emitter(bullet_emitter);
+    projectile_entity->projectile.trail_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &bullet_trail_emitter_copy, start_position, true);
+    add_and_enable_entity_particle_emitter(projectile_entity, &bullet_trail_emitter_copy, start_position, true);
+    add_and_enable_entity_particle_emitter(projectile_entity, &magical_sparks_emitter_copy, start_position, true);
+    add_and_enable_entity_particle_emitter(projectile_entity, &white_sparks_emitter_copy, start_position, true);
 }
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale){
@@ -8066,7 +8085,7 @@ void calculate_projectile_collisions(Entity *entity){
                     projectile->type = WEAK;
                     projectile->birth_time = core.time.game_time;
                     stun_enemy(other, entity->position, col.normal);    
-                    sparks_speed += 1;
+                    // sparks_speed += 1;
                 } else if (other->flags & JUMP_SHOOTER && can_damage){
                     other->jump_shooter.velocity += projectile->velocity * 0.05f;
                     projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
@@ -8084,7 +8103,12 @@ void calculate_projectile_collisions(Entity *entity){
                     hitstop_add = 0.1f;
                 }
                 
-                emit_particles(&big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+                if (other->flags & BIRD_ENEMY || other->flags & JUMP_SHOOTER){
+                    emit_particles(&bullet_strong_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
+                } else{
+                    emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
+                }
+                
                 add_hitstop(0.03f + hitstop_add);
                 shake_camera(0.1f);
                 if (can_damage){
@@ -8107,20 +8131,20 @@ void calculate_projectile_collisions(Entity *entity){
             
             if (other->flags & PHYSICS_OBJECT){
                 apply_physics_force(projectile->velocity, 0.5f, &other->physics_object, col.normal);
-                emit_particles(&big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+                emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
                 entity->destroyed = true;
             }
             
             if (other->flags & GROUND){
                 entity->destroyed = true;
-                emit_particles(&big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+                emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
             }
             
             if (other->flags & ROPE_POINT){
                 // cut rope point
                 other->destroyed = true;
                 emit_particles(&rifle_bullet_emitter, col.point, col.normal, 6, 10);
-                emit_particles(&big_sparks_emitter, col.point, velocity_dir, sparks_count, sparks_speed);
+                emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
                 play_sound("RopeCut", col.point);
             }
             
@@ -8144,7 +8168,7 @@ void calculate_projectile_collisions(Entity *entity){
             
             if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
                 kill_enemy(entity, col.point, col.normal, 1);
-                emit_particles(&big_sparks_emitter, col.point, col.normal * -1, 1);
+                emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
             }
             
             if (other->flags & PLAYER && !player_data.dead_man && !enemy->dead_man){
@@ -8178,10 +8202,9 @@ void update_projectile(Entity *entity, f32 dt){
         return;
     }
     
+    f32 sqr_distance_to_player = sqr_magnitude(entity->position - player_entity->position);
     if (projectile->flags & PLAYER_RIFLE){
-        f32 distance_to_player = magnitude(entity->position - player_entity->position);
-        
-        if (distance_to_player > 1000){
+        if (sqr_distance_to_player > 1000 * 1000){
             entity->destroyed = true;
             return;
         }
@@ -8218,6 +8241,19 @@ void update_projectile(Entity *entity, f32 dt){
     Vector2 move_dir = normalized(move);
     f32 move_len = magnitude(move);
     f32 max_move_len = entity->scale.y * 0.5f;
+    
+    for (i32 i = 0; i < entity->particle_emitters_indexes.count; i++){
+        Particle_Emitter *emitter = get_particle_emitter(entity->particle_emitters_indexes.get(i));
+        if (emitter){
+            if (sqr_distance_to_player >= 500 * 500){
+                disable_emitter(emitter);
+            } else{
+                emitter->direction = move_dir * 1.0f;
+                enable_emitter(emitter, entity->position);
+            }
+        }
+    }
+
     
     while (move_len > max_move_len){
         entity->position += move_dir * max_move_len;
@@ -8852,6 +8888,9 @@ inline b32 update_entity(Entity *e, f32 dt){
         
         f32 block_direction_switch_time = 1.5f;
         
+        Particle_Emitter *trail_emitter = get_particle_emitter(shooter->trail_emitter_index);
+        Particle_Emitter *flying_emitter = get_particle_emitter(shooter->flying_emitter_index);
+        
         Vector2 vec_to_player = player_entity->position - e->position;
         Vector2 dir_to_player = normalized(vec_to_player);
         f32 distance_to_player = magnitude(vec_to_player);
@@ -9023,8 +9062,10 @@ inline b32 update_entity(Entity *e, f32 dt){
                     }
                     
                     Particle_Emitter *trail_emitter = get_particle_emitter(add_entity_particle_emitter(projectile_entity, &rifle_bullet_emitter));
-                    trail_emitter->position = projectile_entity->position;
-                    enable_emitter(trail_emitter);
+                    if (trail_emitter){
+                        trail_emitter->position = projectile_entity->position;
+                        enable_emitter(trail_emitter);
+                    }
                     
                     init_entity(projectile_entity);
                 }
@@ -9081,11 +9122,12 @@ inline b32 update_entity(Entity *e, f32 dt){
             Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 1.7f};
             change_scale(e, lerp(e->enemy.original_scale, target_scale, picking_point_t * picking_point_t));
             
-            get_particle_emitter(shooter->trail_emitter_index)->direction = e->up * -1;
-            get_particle_emitter(shooter->trail_emitter_index)->count_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
-            get_particle_emitter(shooter->trail_emitter_index)->speed_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
-            get_particle_emitter(shooter->trail_emitter_index)->over_time = 3.0f;
-            
+            if (trail_emitter){
+                trail_emitter->direction = e->up * -1;
+                trail_emitter->count_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
+                trail_emitter->speed_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
+                trail_emitter->over_time = 3.0f;
+            }   
             // jump shooter fly to next
             if (picking_point_time >= shooter->max_picking_point_time){
                 shooter->states.picking_point = false;
@@ -9093,12 +9135,16 @@ inline b32 update_entity(Entity *e, f32 dt){
                 shooter->states.flying_start_time = core.time.game_time;
                 
                 shooter->velocity = dir * 400;
-                get_particle_emitter(shooter->flying_emitter_index)->position = e->position - e->up * e->scale.y * 0.5f;
-                enable_emitter(get_particle_emitter(shooter->flying_emitter_index));
+                if (flying_emitter){
+                    flying_emitter->position = e->position - e->up * e->scale.y * 0.5f;
+                    enable_emitter(flying_emitter);
+                }
                 
-                get_particle_emitter(shooter->trail_emitter_index)->count_multiplier = 1;
-                get_particle_emitter(shooter->trail_emitter_index)->speed_multiplier = 1;
-                get_particle_emitter(shooter->trail_emitter_index)->over_time = 2.0f;
+                if (trail_emitter){
+                    trail_emitter->count_multiplier = 1;
+                    trail_emitter->speed_multiplier = 1;
+                    trail_emitter->over_time = 2.0f;
+                }
             }
         }
         
@@ -9129,15 +9175,19 @@ inline b32 update_entity(Entity *e, f32 dt){
         
         move_by_velocity_with_collisions(e, shooter->velocity, e->scale.x * 0.5f + e->scale.y * 0.5f, &respond_jump_shooter_collision, dt);
         
-        get_particle_emitter(shooter->trail_emitter_index)->position = e->position - e->up * e->scale.y * 0.5f;
-        if (!shooter->states.picking_point && shooter->velocity != Vector2_zero){
-            get_particle_emitter(shooter->trail_emitter_index)->direction = normalized(shooter->velocity * -1);;
+        if (trail_emitter){
+            trail_emitter->position = e->position - e->up * e->scale.y * 0.5f;
+            if (!shooter->states.picking_point && shooter->velocity != Vector2_zero){
+                trail_emitter->direction = normalized(shooter->velocity * -1);;
+            }
         }
         
         if (shooter->states.flying_to_point){
-            get_particle_emitter(shooter->flying_emitter_index)->position  = e->position - e->up * e->scale.y * 0.5f;
-            if (shooter->velocity != Vector2_zero){
-                get_particle_emitter(shooter->flying_emitter_index)->direction = normalized(shooter->velocity * -1);;
+            if (flying_emitter){
+                flying_emitter->position  = e->position - e->up * e->scale.y * 0.5f;
+                if (shooter->velocity != Vector2_zero){
+                    flying_emitter->direction = normalized(shooter->velocity * -1);;
+                }
             }
         }                
     } // end update jump shooter
@@ -9245,6 +9295,10 @@ void draw_player(Entity *entity){
 
 inline Vector2 get_perlin_in_circle(f32 speed){
     return {perlin_noise3_seed(core.time.game_time * speed, 1, 2, rnd(0, 10000)), perlin_noise3_seed(1, core.time.game_time * speed, 3, rnd(0, 10000))};
+}
+
+inline Vector2 get_perlin_in_circle(f32 speed, f32 seed1, f32 seed2){
+    return {perlin_noise3_seed(core.time.game_time * speed, seed1, seed2, rnd(0, 10000)), perlin_noise3_seed(seed2, core.time.game_time * speed, seed1, rnd(0, 10000))};
 }
 
 void draw_sword(Entity *entity){
@@ -10063,8 +10117,8 @@ void draw_particles(){
             continue;              
         }
         
-        for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
-            Particle particle = current_level_context->particles.get(i);
+        for (i32 emitter_index = emitter->particles_start_index; emitter_index < emitter->particles_max_index; emitter_index++){
+            Particle particle = current_level_context->particles.get(emitter_index);
             if (!particle.enabled){
                 continue;   
             }
@@ -10081,6 +10135,29 @@ void draw_particles(){
                     draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, particle.rotation, particle.color);
                 } break;
                 default: draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, particle.rotation, particle.color);
+            }
+            
+            if (particle.line_trail_index != -1){
+                Line_Trail *line_trail = get_line_trail(particle.line_trail_index);
+                if (line_trail && line_trail->occupied){
+                    // We go from start index to count becasuse line trail could loop-into-itself. 
+                    // For first max_count points we just add points to there will be usual array situation, but after
+                    // new trail points starts to occupy start_index position and we increasing start_index so it's 
+                    // working somewhat like ring buffer. Maybe it's weird. If after some time when i read this i did not 
+                    // understand this code from first 20 seconds - it's really weird.
+                    i32 drawed_count = 0;
+                    for (i32 i = line_trail->start_index; i < line_trail->positions.count + line_trail->start_index - 1; i++){
+                            drawed_count += 1;
+                            i32 index  = (i % LINE_TRAIL_MAX_POINTS);
+                            f32 color_t = clamp01((f32)drawed_count / (f32)line_trail->positions.count);
+                            draw_game_line(line_trail->positions.get(index), line_trail->positions.get((index + 1) % LINE_TRAIL_MAX_POINTS), 0.5f, lerp(Fade(particle.color, 0), particle.color, color_t));
+                    }
+                    
+                    i32 last_index = (line_trail->start_index + line_trail->positions.count - 1) % LINE_TRAIL_MAX_POINTS;
+                    draw_game_line(line_trail->positions.get(last_index), particle.position, 0.5f, particle.color);
+                } else{
+                    printf("WARNING: For some reason particle have line trail index, but we could not get line trail by that index: %d (Or it's don't occupied)\n", particle.line_trail_index);
+                }
             }
         }
     }

@@ -170,6 +170,8 @@ inline Particle_Emitter *get_sword_kill_particle_emitter(Entity *enemy_entity);
 inline void set_particle_emitter_start_and_max_indexes(Particle_Emitter_Count count_type, i32 *start_index, i32 *max_index);
 inline i32 get_particles_count_for_count_type(Particle_Emitter_Count count_type);
 i32 add_particle_emitter(Particle_Emitter *copy, i32 entity_id = -1);
+inline i32 add_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter);
+inline i32 add_and_enable_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter, Vector2 position, b32 need_to_follow);
 Particle_Emitter *get_particle_emitter(i32 index);
 
 inline void free_particle_emitter(i32 index);
@@ -206,6 +208,7 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
 f32 zoom_unit_size();
 
 inline Vector2 get_perlin_in_circle(f32 speed);
+inline Vector2 get_perlin_in_circle(f32 speed, f32 seed1, f32 seed2);
 
 inline f32 get_explosion_radius(Entity *entity, f32 base_radius = 40);
 
