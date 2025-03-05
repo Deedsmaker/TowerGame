@@ -6142,12 +6142,16 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
         add_hitstop(0.1f);
     }
     
+    Vector2 particles_direction = enemy_entity->up;
+    if (sword_tip_ground_emitter_index != -1){
+        particles_direction = get_particle_emitter(sword_tip_ground_emitter_index)->direction;
+    }
     // Should just do a enemy flag for serious enemies instead of picking everyone individualy.
     if (enemy_entity->flags & JUMP_SHOOTER){
-        kill_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, get_particle_emitter(sword_tip_ground_emitter_index)->direction, 1.0f);
+        kill_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, particles_direction, 1.0f);
         add_explosion_light(enemy_entity->position, 75, 0.03f, 0.1f, ColorBrightness(RED, 0.4f));
     } else{
-        stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, get_particle_emitter(sword_tip_ground_emitter_index)->direction, true);
+        stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, particles_direction, true);
     }
 }
 
@@ -6169,12 +6173,17 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         b32 was_alive_before_hit = !enemy_entity->enemy.dead_man;
         f32 hitstop_add = 0;
         
+        Vector2 particles_direction = enemy_entity->up;
+        if (sword_tip_ground_emitter_index != -1){
+            particles_direction = get_particle_emitter(sword_tip_ground_emitter_index)->direction;
+        }
+        
         if (enemy_entity->flags & BIRD_ENEMY){
             sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
         } else if (enemy_entity->flags & JUMP_SHOOTER){
             sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
         } else{
-            kill_enemy(enemy_entity, hit_position, get_particle_emitter(sword_tip_ground_emitter_index)->direction, lerp(1.0f, 1.5f, sqrtf(player_data.sword_spin_progress)));
+            kill_enemy(enemy_entity, hit_position, particles_direction, lerp(1.0f, 1.5f, sqrtf(player_data.sword_spin_progress)));
         }
         
         f32 max_speed_boost = 6 * player_data.sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
@@ -6376,8 +6385,11 @@ void update_player(Entity *entity, f32 dt){
     
     b32 rifle_failed_hard = false;
     
-    get_particle_emitter(player_data.rifle_trail_emitter_index)->position = sword_tip;
-    get_particle_emitter(player_data.rifle_trail_emitter_index)->direction = sword->up;
+    Particle_Emitter *rifle_trail_emitter = get_particle_emitter(player_data.rifle_trail_emitter_index);
+    if (rifle_trail_emitter){
+        rifle_trail_emitter->position = sword_tip;
+        rifle_trail_emitter->direction = sword->up;
+    }
     
     // @DO REdo this machinegun shit when we'll know for sure how we think this should work.
     i32 shoots_queued = 0;
@@ -6473,7 +6485,7 @@ void update_player(Entity *entity, f32 dt){
     f32 time_since_shoot = core.time.game_time - player_data.timers.rifle_shoot_time;
     
     if (time_since_shoot >= 0.5f && core.time.game_time > 1){
-        get_particle_emitter(player_data.rifle_trail_emitter_index)->enabled = false;
+        disable_emitter(player_data.rifle_trail_emitter_index);
     } else{
     }
     
@@ -7108,10 +7120,12 @@ void update_player(Entity *entity, f32 dt){
     } // end player body collisions
     
     if (is_body_huge_collision_speed || is_ground_huge_collision_speed){
-        tires_emitter->position = last_collision_point;
-        tires_emitter->direction = last_collision_normal;
-        tires_emitter->count_multiplier = 0.2f;
-        enable_emitter(tires_emitter);
+        if (tires_emitter){
+            tires_emitter->position = last_collision_point;
+            tires_emitter->direction = last_collision_normal;
+            tires_emitter->count_multiplier = 0.2f;
+            enable_emitter(tires_emitter);
+        }
     } else{
         disable_emitter(tires_emitter);
     }
@@ -7166,7 +7180,7 @@ void respond_physics_object_collision(Entity *entity, Collision col){
         }
         
         if (is_high_velocity){
-            emit_particles(&rifle_bullet_emitter, col.point, direction, lerp(0.5f, 2.0f, speed_t * speed_t), lerp(5, 20, speed_t * speed_t));
+            emit_particles(&rifle_bullet_emitter, col.point, direction, lerp(0.5f, 2.0f, speed_t * speed_t), 2);
             play_sound("BirdToGround", col.point, 0.5f);
         }
         
@@ -7253,7 +7267,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col){
             shooter->velocity = Vector2_zero;
             emit_particles(&ground_splash_emitter, col.point, col.normal, 6, 2.5f);
             
-            get_particle_emitter(shooter->flying_emitter_index)->enabled = false;
+            disable_emitter(shooter->flying_emitter_index);
         } else if (!shooter->states.standing){
             shooter->velocity = reflected_vector(shooter->velocity * 0.7f, col.normal);
             emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 0.5f);
@@ -7314,7 +7328,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             bird->velocity = reflected_vector(bird->velocity * 0.9f, col.normal);
             if (bird->attacking){
                 bird->attacking = false;
-                get_particle_emitter(bird->attack_emitter_index)->enabled = false;
+                disable_emitter(bird->attack_emitter_index);
                 bird->roaming = true;
                 bird->attacked_time = core.time.game_time;
                 bird->roam_start_time = core.time.game_time;
@@ -7426,7 +7440,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
         bird->roam_start_time = core.time.game_time;
         bird->charging = false;
         bird->attacking = false;
-        get_particle_emitter(bird->attack_emitter_index)->enabled = false;
+        disable_emitter(bird->attack_emitter_index);
         bird_clear_formation(bird);
         return;
     }
@@ -7466,7 +7480,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
                 bird->velocity = dir_to_player * bird_attack_speed;
                 
                 emit_particles(&attack_sparks_emitter, entity->position, entity->up, 2, 3);
-                enable_emitter(get_particle_emitter(bird->attack_emitter_index));
+                enable_emitter(bird->attack_emitter_index);
                 play_sound("BirdAttack", entity->position);
             }
         } 
@@ -7479,7 +7493,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
             bird->attacking = false;
             bird->roaming = true;
             bird->roam_start_time = core.time.game_time;
-            get_particle_emitter(bird->attack_emitter_index)->enabled = false;
+            disable_emitter(bird->attack_emitter_index);
             bird->attacked_time = core.time.game_time;
         } 
     }
@@ -7569,7 +7583,10 @@ void update_bird_enemy(Entity *entity, f32 dt){
         //what a state
     }
     
-    get_particle_emitter(bird->trail_emitter_index)->direction = entity->up * -1;
+    Particle_Emitter *trail_emitter = get_particle_emitter(bird->trail_emitter_index);
+    if (trail_emitter){
+        trail_emitter->direction = entity->up * -1;
+    }
 }
 
 inline f32 get_explosion_radius(Entity *entity, f32 base_radius){
