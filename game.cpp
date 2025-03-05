@@ -5,6 +5,8 @@
 //#define assert(a) (if (!a) (i32*)void*);
 //#define assert(Expression) if(!(Expression)) {*(i32 *)0 = 0;}
 
+global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Array<Collision>(256);
+
 #include "game.h"
 #include "../my_libs/perlin.h"
 
@@ -174,7 +176,7 @@ void free_entity(Entity *e){
     free_entity_particle_emitters(e);
 }
 
-void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+inline void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->clear();
     vertices->add({pivot.x, pivot.y});
     vertices->add({-pivot.x, pivot.y});
@@ -1386,7 +1388,6 @@ b32 load_level(const char *level_name){
     return true;
 } // end load level end
 
-global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Array<Collision>(256);
 inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **other){
     if (current_index >= collisions_buffer.count){
         col->collided = false;
@@ -6128,7 +6129,13 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
         add_hitstop(0.1f);
     }
     
-    stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, get_particle_emitter(sword_tip_ground_emitter_index)->direction, true);
+    // Should just do a enemy flag for serious enemies instead of picking everyone individualy.
+    if (enemy_entity->flags & JUMP_SHOOTER){
+        kill_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, get_particle_emitter(sword_tip_ground_emitter_index)->direction, 1.0f);
+        add_explosion_light(enemy_entity->position, 75, 0.03f, 0.1f, ColorBrightness(RED, 0.4f));
+    } else{
+        stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, get_particle_emitter(sword_tip_ground_emitter_index)->direction, true);
+    }
 }
 
 b32 is_type(Entity *entity, FLAGS flags){
@@ -6154,7 +6161,7 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         } else if (enemy_entity->flags & JUMP_SHOOTER){
             sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
         } else{
-            kill_enemy(enemy_entity, hit_position, get_particle_emitter(sword_tip_ground_emitter_index)->direction, lerp(1.0f, 4.0f, sqrtf(player_data.sword_spin_progress)));
+            kill_enemy(enemy_entity, hit_position, get_particle_emitter(sword_tip_ground_emitter_index)->direction, lerp(1.0f, 1.5f, sqrtf(player_data.sword_spin_progress)));
         }
         
         f32 max_speed_boost = 6 * player_data.sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
@@ -6171,7 +6178,13 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             shake_camera(0.1f);
         }
         
-        play_sound("SwordKill", hit_position, 0.5f);
+        if (enemy_entity->flags & BIRD_ENEMY && was_alive_before_hit){
+            play_sound("SwordHit33", hit_position, 0.5f, 1.1f, 0.1f);
+        } else if (enemy_entity->flags & JUMP_SHOOTER && was_alive_before_hit){
+            play_sound("SwordHit2222", hit_position, 0.5f, 0.7f, 0.1f);
+        } else{
+            play_sound("SwordKill", hit_position, 0.5f);
+        }
     }
 }
 
@@ -6192,7 +6205,9 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
                 player_data.weak_recoil_stun_start_time = core.time.app_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
-                play_sound("SwordBlock", col.point, 0.4f, 0.5f, 0.1f);
+                // changed pitch from 0.5f and changed sound from 0.4f
+                play_sound("SwordBlock", col.point, 0.3f, 0.75f, 0.1f);
+                emit_particles(&sparks_emitter_copy, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal, 1.5f, 1.0f);
                 continue;
             }
         }
@@ -6474,15 +6489,16 @@ void update_player(Entity *entity, f32 dt){
     sword->color = player_data.is_sword_big ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f);
     
     Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
+    enable_emitter(sword_tip_emitter);
     Particle_Emitter *sword_tip_ground_emitter = get_particle_emitter(sword_tip_ground_emitter_index);
     
     sword_tip_emitter->position = sword_tip;
     sword_tip_ground_emitter->position = sword_tip;
     chainsaw_emitter->position = input.mouse_position;
     
+    f32 blood_t = player_data.blood_progress;
+    f32 spin_t = player_data.sword_spin_progress;
     {
-        f32 spin_t = player_data.sword_spin_progress;
-        f32 blood_t = player_data.blood_progress;
     
         chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; 
         chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; 
@@ -6738,10 +6754,7 @@ void update_player(Entity *entity, f32 dt){
     
     f32 wall_acceleration = 400;
     
-    f32 sword_ground_particles_speed = 1;
-    
     // player collisions
-    
     f32 time_since_wall_jump = core.time.game_time - player_data.timers.wall_jump_time;
     f32 player_speed = magnitude(player_data.velocity);
     
@@ -6785,7 +6798,6 @@ void update_player(Entity *entity, f32 dt){
             }
             
             player_data.velocity += plane * acceleration * dt;
-            sword_ground_particles_speed += 2;
         }
         
         // player right wall
@@ -6825,7 +6837,6 @@ void update_player(Entity *entity, f32 dt){
             }
     
             player_data.velocity += plane * acceleration * dt;
-            sword_ground_particles_speed += 2;
         }
         
     }
@@ -7091,8 +7102,9 @@ void update_player(Entity *entity, f32 dt){
     
     if (player_data.sword_hit_ground){
         enable_emitter(sword_tip_ground_emitter);
-        sword_tip_ground_emitter->speed_multiplier = sword_ground_particles_speed;
-        sword_tip_ground_emitter->count_multiplier = fmax(1.0f, sword_ground_particles_speed * 0.5f);
+        f32 t = blood_t * spin_t;
+        sword_tip_ground_emitter->speed_multiplier = lerp(0.7f, 4.0f, t * t * t);;
+        sword_tip_ground_emitter->count_multiplier = lerp(0.45f, 1.0f, t * t * t);
     } else{
         sword_tip_ground_emitter->enabled = false;
     }
@@ -7130,7 +7142,7 @@ void respond_physics_object_collision(Entity *entity, Collision col){
         resolve_collision(entity, col);
         
         if (entity->flags & EXPLOSIVE){
-            kill_enemy(entity, col.point, direction, lerp(1, 5, speed_t * speed_t));
+            kill_enemy(entity, col.point, direction, lerp(1.0f, 2.0f, speed_t * speed_t));
         } else{
             physics_object->velocity = reflected_vector(physics_object->velocity * 0.5f, col.normal);
         }
@@ -7620,9 +7632,9 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     if (!enemy_entity->enemy.dead_man){
         enemy_entity->enemy.stun_start_time = core.time.game_time;
         enemy_entity->enemy.last_hit_time   = core.time.game_time;
-        f32 count = player_data.is_sword_big ? 3 : 1;
-        f32 area = player_data.is_sword_big ? 3 : 1;
-        emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, count, particles_speed_modifier, area);
+        // f32 count = player_data.is_sword_big ? 3 : 1;
+        // f32 area = player_data.is_sword_big ? 3 : 1;
+        emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, particles_speed_modifier, 1);
     
         enemy_entity->enemy.dead_man = true;
         enemy_entity->enemy.died_time = core.time.game_time;
@@ -7764,8 +7776,11 @@ void add_fire_light_to_entity(Entity *entity){
 
 inline Particle_Emitter *get_sword_kill_particle_emitter(Entity *enemy_entity){
     Particle_Emitter *emitter = &blood_pop_emitter_copy;
-    if (enemy_entity->flags & BIRD_ENEMY || enemy_entity->flags & JUMP_SHOOTER){
+    // Should just do a enemy flag for serious enemies instead of picking everyone individualy.
+    if (enemy_entity->flags & BIRD_ENEMY){
         emitter = &sword_kill_medium_emitter_copy;
+    } else if (enemy_entity->flags & JUMP_SHOOTER){
+        emitter = &sword_kill_big_emitter_copy;
     }
     
     return emitter;
@@ -7793,23 +7808,25 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
         
         if ((enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit) && !enemy->dead_man){
-            f32 area_multiplier = serious ? 3 : 1;
-            f32 count = serious ? 3 : 1;
-            f32 speed = serious ? 3 : 1;
+            // f32 area_multiplier = serious ? 3 : 1;
+            // f32 count = serious ? 3 : 1;
+            // f32 speed = serious ? 3 : 1;
             
-            emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, count, speed, area_multiplier);
+            emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, 1, 1);
         
             enemy->dead_man = true;
             enemy->died_time = core.time.game_time;
             
             if (enemy_entity->flags & BIRD_ENEMY){
                 // birds handle dead state by themselves
-                enable_emitter(get_particle_emitter(enemy_entity->bird_enemy.fire_emitter_index));
+                enable_emitter(enemy_entity->bird_enemy.fire_emitter_index);
                 add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & JUMP_SHOOTER){
                 Particle_Emitter *dead_fire_emitter = get_particle_emitter(add_entity_particle_emitter(enemy_entity, &fire_emitter));
-                dead_fire_emitter->position = enemy_entity->position;
-                enable_emitter(dead_fire_emitter);
+                if (dead_fire_emitter){
+                    dead_fire_emitter->position = enemy_entity->position;
+                    enable_emitter(dead_fire_emitter);
+                }
                 add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & CENTIPEDE_SEGMENT){
                 
@@ -10061,9 +10078,9 @@ void draw_particles(){
                     draw_game_line(particle.position, target_position, emitter->line_width * particle.scale.y, particle.color);
                 } break;
                 case SQUARE:{
-                    draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, 0, particle.color);
+                    draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, particle.rotation, particle.color);
                 } break;
-                default: draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, 0, particle.color);
+                default: draw_game_rect(particle.position, particle.scale, {0.5f, 0.5f}, particle.rotation, particle.color);
             }
         }
     }

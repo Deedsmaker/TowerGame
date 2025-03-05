@@ -21,12 +21,14 @@ enum Particle_Shape{
 struct Particle{
     b32 enabled = false;
     Particle_Shape shape = SQUARE;
-    Vector2 position;
+    Vector2 position = Vector2_zero;
     Vector2 scale = {1, 1};
-    Vector2 velocity;
-    Vector2 original_scale;
+    Vector2 velocity = Vector2_zero;
+    Vector2 original_scale = Vector2_one;
     f32 lifetime = 0;
     f32 max_lifetime = 0;
+    
+    i32 trail_emitter_index = -1;
     
     f32 rotation = 0;
     
@@ -52,8 +54,6 @@ constexpr i32 MEDIUM_COUNT_PARTICLES_START_INDEX = MAX_SMALL_COUNT_PARTICLES * M
 constexpr i32 BIG_COUNT_PARTICLES_START_INDEX    = MEDIUM_COUNT_PARTICLES_START_INDEX + MAX_MEDIUM_COUNT_PARTICLES * MAX_MEDIUM_COUNT_PARTICLE_EMITTERS;
 
 constexpr i32 MAX_PARTICLES = BIG_COUNT_PARTICLES_START_INDEX + MAX_BIG_COUNT_PARTICLES * MAX_BIG_COUNT_PARTICLE_EMITTERS;
-
-// try constexpr when compiles
 
 // @OPTIMIZATION:
 // Right now particles in emitters are stored as simple static array so Particle_Emmiter occupies many memory, which
@@ -87,7 +87,9 @@ enum Particle_Emitter_Count{
 struct Particle_Emitter{
     char tag_16[16] = "Untagged";    
 
+    // These just 'copy' emitters.
     Array<Particle_Emitter*, 4> additional_emitters = Array<Particle_Emitter*, 4>();
+    Particle_Emitter *particle_trail_emitter = NULL;
 
     i32 connected_entity_id = -1;
     i32 index = -1;
@@ -102,7 +104,11 @@ struct Particle_Emitter{
     f32 line_length_multiplier = 1.0f;
     f32 line_width = 1.0f;
     
+    b32 real_noise_movement = false;
+    f32 noise_speed = 1.0f;
+    f32 noise_power = 10;
     b32 random_movement = true;
+    
     b32 grow_till_death = false;
     b32 grow_after_birth    = false;
     b32 shrink_before_death = true;
@@ -113,8 +119,9 @@ struct Particle_Emitter{
     i32 particles_max_index    = -1;
     i32 last_added_index = -1;
     
+    
     b32 just_born = true;
-    b32 enabled = true;
+    b32 enabled = false;
     b32 destroyed = false;
     b32 follow_entity = true;
     
@@ -133,11 +140,12 @@ struct Particle_Emitter{
     };
     f32 gravity_multiplier = 1;
     
-    b32 emitting;
-    f32 emitting_timer;
+    f32 emitting_timer = 0;
     f32 over_time = 0;
     f32 over_distance = 0;
     b32 direction_to_move = false;
+    
+    b32 should_collide = false;
     
     f32 rotation_multiplier = 1.0f;
     

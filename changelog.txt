@@ -1,3 +1,6 @@
+04.03.2025:
+    - Huge particles work. Added debris, trails for particles, collision cor particles, some fixes and worked on game particles itself.
+
 03.03.2025:
     - Fixed tires for walls aswell.
     - Ability for particles to have 'children' emitters that it will emit at one time. Made that for blood emitter.

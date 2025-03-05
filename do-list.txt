@@ -4,7 +4,7 @@
 [ ] Reduce size of inspector ui and (probably) loading by macros.
 [ ] Particles rework and sounds improvements before showcase.
     [X] General particles rework.
-    [ ] Debris on different enemies kill. Simple shoot kill should do as id does now, but if we put many bullets in - you know.
+    [X] Debris on different enemies kill. Simple shoot kill should do as id does now, but if we put many bullets in - you know.
     [ ] Line trail for particles.
     [X] Multiple emitters.
     [ ] Different sounds on different enemies kill and sword spin. 

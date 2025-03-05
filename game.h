@@ -13,6 +13,8 @@ enum Drawing_State{
 global_variable Game_State game_state = EDITOR;
 global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
+inline void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot);
+
 void clean_up_scene();
 void enter_game_state(Level_Context *level_context, b32 should_init_entities);
 void enter_editor_state();
