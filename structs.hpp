@@ -921,7 +921,7 @@ struct Level_Context{
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
-    Dynamic_Array<Light> lights = Dynamic_Array<Light>(512);
+    Dynamic_Array<Light> lights = Dynamic_Array<Light>(1024);
 };
 
 struct State_Context{
@@ -979,7 +979,7 @@ struct Session_Context{
     
     // Dynamic_Array<Light> temp_lights = Dynamic_Array<Light>(512);
     
-    i32 temp_lights_count = 128;
+    i32 temp_lights_count = 512;
     //big lights are also in temp lights, it's first N 
     i32 big_temp_lights_count = 8;
     i32 huge_temp_lights_count = 4;

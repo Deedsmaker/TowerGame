@@ -3,6 +3,7 @@
     - Stability for particles work. (Reduced amount of calls like get_particle_emitter()->thing).
     - Line trail cool shit.
     - More particles work.
+    - Increased lights count and temp lights count so we don't have funny bugs where someone turns off the lights.
 
 04.03.2025:
     - Huge particles work. Added debris, emitter trails for particles, collision for particles, some fixes and worked on game particles itself.
