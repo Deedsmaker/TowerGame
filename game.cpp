@@ -4197,6 +4197,12 @@ void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action){
     undo_action->entity_id = entity->id;
 }
 
+void undo_add_vertices_change(Entity *entity){
+    Undo_Action undo_action = {};   
+    undo_apply_vertices_change(entity, &undo_action);
+    add_undo_action(undo_action);
+}
+
 void undo_remember_vertices_start(Entity *entity){
     editor.vertices_start.clear();
     editor.unscaled_vertices_start.clear();
@@ -5283,6 +5289,53 @@ Entity *editor_spawn_entity(const char *name, Vector2 position){
     return entity;
 }
 
+b32 snap_vertex_to_closest(Vector2 *entity_vertex, i32 vertex_index){ 
+    if (!editor.selected_entity){
+        return false;
+    }
+
+    Vector2 closest_vertex_global = Vector2_zero;
+    f32 distance_to_closest_vertex = INFINITY;
+
+    for (i32 i = 0; i < current_level_context->entities.max_count; i++){        
+        Entity *e = current_level_context->entities.get_ptr(i);
+        
+        if (!e->enabled){
+            continue;
+        }
+
+        for (i32 v = 0; v < e->vertices.count; v++){
+            Vector2 *vertex = e->vertices.get_ptr(v);
+            
+            Vector2 vertex_global = global(e, *vertex);
+                
+            if (e->id != editor.selected_entity->id){
+                f32 sqr_distance = sqr_magnitude(global(editor.selected_entity, *entity_vertex) - vertex_global);
+                if (sqr_distance < distance_to_closest_vertex){
+                    distance_to_closest_vertex = sqr_distance;
+                    closest_vertex_global = vertex_global;
+                }
+            }
+        }
+    }
+    
+    // Because when we start moving vertex we remembering these vertices already. 
+    // So if we do that here aswell - on undo vertices goes on place where we pressed button.
+    // Really need to change undo system though.
+    if (!editor.moving_vertex_entity){
+        undo_remember_vertices_start(editor.selected_entity);
+    }
+    move_vertex(editor.selected_entity, closest_vertex_global, vertex_index);
+
+    undo_add_vertices_change(editor.selected_entity);
+    
+    return true;
+}
+
+inline b32 is_vertex_on_mouse(Vector2 vertex_global){
+    return check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / session_context.cam.cam2D.zoom)});
+}
+
 void update_editor(){
     if (game_state == EDITOR){
         Vector2 grid_target_pos = editor.player_spawn_point;
@@ -5314,8 +5367,6 @@ void update_editor(){
     b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
     
     i32 selected_vertex_index;
-    Vector2 closest_vertex_global;
-    f32 distance_to_closest_vertex = INFINITY;
     
     mouse_entity.position = input.mouse_position;
     
@@ -5357,23 +5408,15 @@ void update_editor(){
         }
         
         //editor vertices
-        for (i32 v = 0; v < e->vertices.count && (need_move_vertices || need_snap_vertex); v++){
+        for (i32 v = 0; v < e->vertices.count && need_move_vertices; v++){
             Vector2 *vertex = e->vertices.get_ptr(v);
             
             Vector2 vertex_global = global(e, *vertex);
             
             if (need_move_vertices && (!moving_vertex_entity_candidate || (editor.selected_entity && e->id == editor.selected_entity->id))){
-                if (check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / session_context.cam.cam2D.zoom)})){
+                if (is_vertex_on_mouse(vertex_global)){
                     moving_vertex_entity_candidate = e;
                     moving_vertex_candidate = v;
-                }
-            }
-            
-            if (editor.moving_vertex && need_snap_vertex && e->id != editor.moving_vertex_entity->id){
-                f32 sqr_distance = sqr_magnitude(global(editor.moving_vertex_entity, *editor.moving_vertex) - vertex_global);
-                if (sqr_distance < distance_to_closest_vertex){
-                    distance_to_closest_vertex = sqr_distance;
-                    closest_vertex_global = vertex_global;
                 }
             }
         }
@@ -5404,13 +5447,23 @@ void update_editor(){
     }
     
     if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
-        move_vertex(editor.moving_vertex_entity, closest_vertex_global, editor.moving_vertex_index);
-    
-        undo_apply_vertices_change(editor.selected_entity, &undo_action);
-        something_in_undo = true;
+        snap_vertex_to_closest(editor.moving_vertex, editor.moving_vertex_index);
         
         editor.moving_vertex = NULL;
         editor.moving_vertex_entity = NULL;
+    }
+    
+    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT)){
+        i32 vertex_snap_index = -1;
+        if (IsKeyPressed(KEY_T))   vertex_snap_index = 0;
+        if (IsKeyPressed(KEY_Y))   vertex_snap_index = 1;
+        if (IsKeyPressed(KEY_F)) vertex_snap_index = 2;
+        if (IsKeyPressed(KEY_G))  vertex_snap_index = 3;
+        
+        if (vertex_snap_index != -1 && vertex_snap_index < editor.selected_entity->vertices.count){
+            Vector2 *vertex = editor.selected_entity->vertices.get_ptr(vertex_snap_index);
+            snap_vertex_to_closest(vertex, vertex_snap_index);
+        }
     }
     
     //This means we clicked all entities in one mouse position, so we want to cycle
@@ -10054,9 +10107,15 @@ void draw_editor(){
         draw_game_circle(editor.player_spawn_point, 3, BLUE);
         
         b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT);
+        // draw vertices
         if (draw_circles_on_vertices){
             for (i32 v = 0; v < e->vertices.count; v++){
-                draw_game_circle(global(e, e->vertices.get(v)), 1.0f * (0.4f / session_context.cam.cam2D.zoom), PINK);
+                Vector2 global_vertex_position = global(e, e->vertices.get(v));
+                if (editor.selected_entity && editor.selected_entity->id == e->id){
+                    const char *text = v == 0 ? "T" : (v == 1 ? "Y" : (v == 2 ? "F" : "G"));
+                    draw_game_text(global_vertex_position, text, 22.0f / session_context.cam.cam2D.zoom, YELLOW);
+                }
+                draw_game_circle(global_vertex_position, 1.0f * (0.4f / session_context.cam.cam2D.zoom), PINK);
                 //draw unscaled vertices
                 if (IsKeyDown(KEY_LEFT_SHIFT)){    
                     draw_game_circle(global(e, e->unscaled_vertices.get(v)), 1.0f * 0.4f, PURPLE);
