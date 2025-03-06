@@ -3210,8 +3210,7 @@ void fixed_game_update(f32 dt){
                         target_position -= target_position_velocity_addition * 0.5f;
                     }
                 }
-            }
-            
+            } 
             
             Vector2 vec_to_target = target_position - session_context.cam.target;
             Vector2 vec_to_player = player_entity->position - session_context.cam.target;
@@ -6340,8 +6339,13 @@ void update_player(Entity *entity, f32 dt){
     // change sword size
     if (input.press_flags & SWORD_BIG){
         player_data.is_sword_big = !player_data.is_sword_big;
+        
+        if (player_data.is_sword_big){
+            play_sound("SwordSwingBig", 0.7f, 1.0f, 0.05f);
+        } else{
+            play_sound("SwordSwing", 0.7f, 1.5f, 0.05f);
+        }
     }
-    // player_data.is_sword_big = input.hold_flags & SWORD_BIG_DOWN;
     
     f32 max_strong_stun_time = 2.0f;
     f32 max_weak_stun_time = 0.3f;

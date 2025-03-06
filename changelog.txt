@@ -3,6 +3,7 @@
     - Fixed bug with screen positions buffer that occured as I switched compiler and was forced to rewrite static arrays usage.
     - Further increased accuracy of sword spin collision detection.
     - Fixed rope bug and changed a place where we spawn rope. There was a really strange moment where on entity copy i just used to set rope ids to -1. Probably was some shit about old context system.
+    - Sound on sword size switching.
 
 05.03.2025:
     - For jump shooter added hit sparks.

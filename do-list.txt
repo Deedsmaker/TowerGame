@@ -1,16 +1,16 @@
-[ ] Rope on checkpoints stays. That's a bug.
-[ ] Camera movement towards enemies should not be when we're in rifle mode. Instead we can just move camera towards scope.
+[X] Rope duplicates after checkpoint loading. That's a bug.
+[\] Camera movement towards enemies should not be when we're in rifle mode. Instead we can just move camera towards scope. (Tried - that's too disorienting).
 [X] Right now we have problem with overdistance particles and it seems like they snap only when some particles alive.
 [X] Remove emitters spawning every frame (At least tires emitters, bird collision etc).
 [ ] Reduce size of inspector ui and (probably) loading by macros.
-[ ] Particles rework and sounds improvements before showcase.
+[X] Particles rework and sounds improvements before showcase.
     [X] General particles rework.
     [X] Debris on different enemies kill. Simple shoot kill should do as id does now, but if we put many bullets in - you know.
-    [ ] Line trail for particles.
+    [X] Line trail for particles.
     [X] Multiple emitters.
-    [ ] Different sounds on different enemies kill and sword spin. 
-    [ ] Try to give weight to sword kill and spin.
-    [ ] Sounds on big/small sword switching.
+    [X] Different sounds on different enemies kill and sword spin. 
+    [\] Try to give weight to sword kill and spin.
+    [X] Sounds on big/small sword switching.
     [X] When bullet kills multiple centipede cegments we could increase pitch of sound or do even cooler shit. (We could go for a even cooler shit later).
 [X] Ammo saves on full game restart (checked while game speedrunning).
 [X] Checkpoint issues:
