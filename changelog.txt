@@ -1,3 +1,6 @@
+06.03.2025:
+    - Changed compiler to msvc. 
+
 05.03.2025:
     - For jump shooter added hit sparks.
     - Stability for particles work. (Reduced amount of calls like get_particle_emitter()->thing).

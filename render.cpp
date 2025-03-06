@@ -216,7 +216,7 @@ void draw_text_boxed(const char *text, Rectangle rec, float fontSize, float spac
             if ((codepoint != ' ') && (codepoint != '\t'))
             {
                 f32 y_pos = up_to_down ? rec.y + textOffsetY : rec.y + rec.height - textOffsetY;
-                DrawTextCodepoint(font, codepoint, (Vector2){ rec.x + textOffsetX, y_pos }, fontSize, tint);
+                DrawTextCodepoint(font, codepoint, cast(Vector2){ rec.x + textOffsetX, y_pos }, fontSize, tint);
             }
         }
 

@@ -138,6 +138,7 @@ void free_entity(Entity *e){
         e->centipede.segments_ids.clear();
     }
     
+    // free physics objctt
     if (e->flags & PHYSICS_OBJECT){
         Entity *rope_entity = get_entity_by_id(e->physics_object.rope_id);
         if (e->physics_object.on_rope){
@@ -494,6 +495,7 @@ inline i32 get_particles_count_for_count_type(Particle_Emitter_Count count_type)
         case SMALL_PARTICLE_COUNT:  return MAX_SMALL_COUNT_PARTICLES;
         case MEDIUM_PARTICLE_COUNT: return MAX_MEDIUM_COUNT_PARTICLES;
         case BIG_PARTICLE_COUNT:    return MAX_BIG_COUNT_PARTICLES;
+        default: return -1;
     }
 }
 
@@ -2796,7 +2798,7 @@ void init_game(){
     
     session_context.cam.position = Vector2_zero;
     session_context.cam.cam2D.target = world_to_screen({0, 0});
-    session_context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, (f32)screen_height * 0.5f };
+    session_context.cam.cam2D.offset = cast(Vector2) { screen_width/2.0f, (f32)screen_height * 0.5f };
     session_context.cam.cam2D.rotation = 0.0f;
     session_context.cam.cam2D.zoom = 0.4f;
     
@@ -3353,8 +3355,8 @@ void update_console(){
 Cam get_cam_for_resolution(i32 width, i32 height){
     Cam cam = session_context.cam;
     cam.unit_size = width / SCREEN_WORLD_SIZE; 
-    cam.cam2D.target = (Vector2){ width/2.0f, height/2.0f };
-    cam.cam2D.offset = (Vector2){ width/2.0f, height/2.0f };
+    cam.cam2D.target = cast(Vector2){ width/2.0f, height/2.0f };
+    cam.cam2D.offset = cast(Vector2){ width/2.0f, height/2.0f };
     cam.width = width;
     cam.height = height;
     
@@ -3482,8 +3484,8 @@ void update_game(){
         session_context.cam.width = screen_width;
         session_context.cam.height = screen_height;
         session_context.cam.unit_size = screen_width / SCREEN_WORLD_SIZE; 
-        session_context.cam.cam2D.target = (Vector2){ screen_width/2.0f, screen_height/2.0f };
-        session_context.cam.cam2D.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f };
+        session_context.cam.cam2D.target = cast(Vector2){ screen_width/2.0f, screen_height/2.0f };
+        session_context.cam.cam2D.offset = cast(Vector2){ screen_width/2.0f, screen_height/2.0f };
         
         if (session_context.cam.width != 0 && session_context.cam.height != 0 && !window_minimized){
             aspect_ratio = session_context.cam.width / session_context.cam.height;
@@ -3526,17 +3528,8 @@ void update_game(){
             
                 // enter_editor_state();
                 if (is_have_checkpoint){
-                    // ForEntities(entity, 0){
-                    //     free_entity(entity);
-                    //     *entity = {};
-                    // }
-    
                     enter_game_state(&checkpoint_level_context, false);
-                    // clear_level_context(&game_level_context);
-                    // copy_level_context(&game_level_context, &checkpoint_level_context);
                     player_entity = checkpoint_player_entity;
-                    // player_entity->position = checkpoint_player_entity.position;
-                    // checkpoint_player_data.connected_entities_ids = player_data.connected_entities_ids;
                     player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
                     state_context = checkpoint_state_context;
@@ -3702,7 +3695,7 @@ void update_game(){
 
         // update editor camera
         if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
-            session_context.cam.position += ((Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
+            session_context.cam.position += (cast(Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
         }
         if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
             if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
@@ -4831,7 +4824,7 @@ void update_editor_ui(){
                 
                 if (selected->trigger.load_level){
                     make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
-                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_load_level_name") ){
+                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_load_level_name") ){
                         str_copy(selected->trigger.level_name, focus_input_field.content);
                     }
                     v_pos += height_add;
@@ -5512,7 +5505,7 @@ void update_editor(){
     }
     
     if (editor.dragging_entity != NULL && !moving_editor_cam){
-        Vector2 move_delta = ((Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
+        Vector2 move_delta = (cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
         editor.dragging_entity->position += move_delta;
     }
     
@@ -6490,7 +6483,7 @@ void update_player(Entity *entity, f32 dt){
     }
     
     //rifle activate
-    b32 spin_enough_for_shoot = player_data.sword_spin_progress >= 0.1f;
+    b32 spin_enough_for_shoot = 1 || player_data.sword_spin_progress >= 0.1f;
     b32 can_activate_rifle = !player_data.rifle_active && !can_shoot_rifle && spin_enough_for_shoot;
     if (can_activate_rifle && input.press_flags & SHOOT){
         player_data.rifle_active = true;
@@ -6947,7 +6940,7 @@ void update_player(Entity *entity, f32 dt){
             moving_object_detected = true;
         }
         
-        if (dot(((Vector2){0, 1}), col.normal) > 0.5f){
+        if (dot((cast(Vector2){0, 1}), col.normal) > 0.5f){
             player_data.velocity -= col.normal * dot(player_data.velocity, col.normal);
         }
         
@@ -9731,7 +9724,7 @@ void draw_entity(Entity *e){
                 if (content_count > chars_scaling_treshold){
                     note_size *= lerp(1.0f, 2.5f, clamp01(((f32)content_count - chars_scaling_treshold) / (chars_scaling_treshold * 4)));
                 }
-                if (make_input_field(note->content, world_to_screen_with_zoom(e->position + ((Vector2){e->scale.x * 0.5f, e->scale.y * -0.5f})), note_size, text_format("note%d", e->id))){
+                if (make_input_field(note->content, world_to_screen_with_zoom(e->position + (cast(Vector2){e->scale.x * 0.5f, e->scale.y * -0.5f})), note_size, text_format("note%d", e->id))){
                     str_copy(note->content, focus_input_field.content);
                 }
             }
@@ -10071,7 +10064,7 @@ void draw_editor(){
         }
         
         if (debug.draw_position){
-            draw_game_text(e->position + ((Vector2){0, -3}), text_format("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
+            draw_game_text(e->position + (cast(Vector2){0, -3}), text_format("POS:   {%.2f, %.2f}", e->position.x, e->position.y), 20, RED);
         }
         
         if (debug.draw_rotation){
@@ -10079,12 +10072,12 @@ void draw_editor(){
         }
         
         if (debug.draw_scale){
-            draw_game_text(e->position + ((Vector2){0, -6}), text_format("SCALE:   {%.2f, %.2f}", e->scale.x, e->scale.y), 20, RED);
+            draw_game_text(e->position + (cast(Vector2){0, -6}), text_format("SCALE:   {%.2f, %.2f}", e->scale.x, e->scale.y), 20, RED);
         }
         
         if (debug.draw_directions){
-            draw_game_text(e->position + ((Vector2){0, -6}), text_format("UP:    {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
-            draw_game_text(e->position + ((Vector2){0, -9}), text_format("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
+            draw_game_text(e->position + (cast(Vector2){0, -6}), text_format("UP:    {%.2f, %.2f}", e->up.x, e->up.y), 20, RED);
+            draw_game_text(e->position + (cast(Vector2){0, -9}), text_format("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
         }
         
         if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
@@ -10406,7 +10399,7 @@ void apply_shake(){
     f32 x_offset = perlin_noise3(core.time.game_time * x_shake_speed, 0, 1) * x_shake_power;
     f32 y_offset = perlin_noise3(0, core.time.game_time * y_shake_speed, 2) * y_shake_power;
     
-    session_context.cam.position += ((Vector2){x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
+    session_context.cam.position += (cast(Vector2){x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
 }
 
 Cam saved_cam;
@@ -11015,34 +11008,33 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
     draw_rect_lines(screen_pos, scale * session_context.cam.unit_size, color);
 }
 
+Array<Vector2, 256> screen_positions_buffer = Array<Vector2, 256>();
+
 void draw_game_line_strip(Entity *entity, Color color){
-    Vector2 screen_positions[entity->vertices.count];
-    
+    screen_positions_buffer.clear();
     for (i32 i = 0; i < entity->vertices.count; i++){
-        screen_positions[i] = world_to_screen(global(entity, entity->vertices.get(i)));
+        screen_positions_buffer.add(world_to_screen(global(entity, entity->vertices.get(i))));
     }
     
-    draw_line_strip(screen_positions, entity->vertices.count, color);
+    draw_line_strip(screen_positions_buffer.data, entity->vertices.count, color);
 }
 
 void draw_game_line_strip(Vector2 *points, i32 count, Color color){
-    Vector2 screen_positions[count];
-    
+    screen_positions_buffer.clear();
     for (i32 i = 0; i < count; i++){
-        screen_positions[i] = world_to_screen(points[i]);
+        screen_positions_buffer.add(world_to_screen(points[i]));
     }
     
-    draw_line_strip(screen_positions, count, color);
+    draw_line_strip(screen_positions_buffer.data, count, color);
 }
 
 void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color){
-    Vector2 screen_positions[vertices.count];
-    
+    screen_positions_buffer.clear();
     for (i32 i = 0; i < vertices.count; i++){
-        screen_positions[i] = world_to_screen(global(position, vertices.get(i)));
+        screen_positions_buffer.add(world_to_screen(global(position, vertices.get(i))));
     }
     
-    draw_triangle_strip(screen_positions, vertices.count, color);
+    draw_triangle_strip(screen_positions_buffer.data, vertices.count, color);
 }
 
 inline void draw_game_triangle_strip(Entity *entity, Color color){

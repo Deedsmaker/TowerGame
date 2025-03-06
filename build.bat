@@ -1,8 +1,14 @@
 @echo off
 
-::IF NOT EXIST build mkdir build
-::pushd build
-SET options=-g
-if "%~1"=="release" (SET options=-O3)
-clang -Wno-vla-extension ..\main.cpp -o main.exe -L..\lib -lmsvcrt -lraylib -lOpenGL32 -lGdi32 -lWinMM -lkernel32 -lshell32 -lUser32 -Xlinker /NODEFAULTLIB:libcmt --target=x86_64-pc-windows-msvc "%options%"
-::popd
+:: Create build directory if it doesn't exist
+IF NOT EXIST build mkdir build
+pushd build
+
+:: Set default options (debug mode with /Zi for debugging info)
+SET options= -Zi -EHa
+if "%~1"=="release" (SET options=-O2 -EHsc)
+
+:: Compile with MSVC cl compiler
+cl %options% ..\main.cpp /link /LIBPATH:..\lib msvcrt.lib raylib.lib OpenGL32.lib Gdi32.lib WinMM.lib kernel32.lib shell32.lib User32.lib /OUT:main.exe
+
+popd
