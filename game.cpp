@@ -382,12 +382,6 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
         enemy = copy->enemy;
     }
     
-    // if (flags & PHYSICS_OBJECT){
-    physics_object.rope_id = -1;
-    physics_object.up_rope_point_id = -1;
-    physics_object.down_rope_point_id = -1;
-    // }
-    
     if (flags & TRIGGER){
         trigger = copy->trigger;
         trigger.connected = Dynamic_Array<int>();
@@ -442,14 +436,6 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
         init_entity_light(this, copy_level_context->lights.get_ptr(copy->light_index));        
         // }
     }
-    
-    // if (flags & PARTICLE_EMITTER){
-    //     for (i32 i = 0; i < copy->emitters.count; i++){
-    //         particle_emitters_indexes.add(copy->emitters.get(i));
-    //     }
-    // }
-    
-    
     
     if (should_init_entity){
         particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
@@ -2082,6 +2068,38 @@ void init_entity(Entity *entity){
         }
         
         entity->flags ^= ENEMY;
+    }
+    
+    if (entity->flags & PHYSICS_OBJECT && game_state == GAME){
+        Entity *rope_entity = NULL;
+        if (entity->physics_object.rope_id == -1){
+            rope_entity = add_entity(entity->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
+            rope_entity->need_to_save = false;
+            entity->physics_object.rope_id = rope_entity->id;
+        } else{
+            rope_entity = get_entity_by_id(entity->physics_object.rope_id);
+        }
+        
+        // spawn rope point and check
+        Entity *up_rope_point_entity = NULL;
+        if (entity->physics_object.up_rope_point_id == -1){
+            up_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
+            up_rope_point_entity->draw_order = entity->draw_order - 1;
+            up_rope_point_entity->need_to_save = false;
+            entity->physics_object.up_rope_point_id = up_rope_point_entity->id;
+        } else{
+            up_rope_point_entity = get_entity_by_id(entity->physics_object.up_rope_point_id);
+        }
+        
+        Entity *down_rope_point_entity = NULL;
+        if (entity->physics_object.down_rope_point_id == -1){
+            down_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
+            down_rope_point_entity->draw_order = entity->draw_order - 1;
+            down_rope_point_entity->need_to_save = false;
+            entity->physics_object.down_rope_point_id = down_rope_point_entity->id;
+        } else{
+            down_rope_point_entity =  get_entity_by_id(entity->physics_object.down_rope_point_id);
+        }
     }
     
     if (entity->flags & JUMP_SHOOTER){
@@ -6554,6 +6572,11 @@ void update_player(Entity *entity, f32 dt){
     
     if (abs(player_data.sword_angular_velocity) > 10){ 
         // Someone could enter sword on previous frame after this update so we'll check for that.
+        
+        rotate(sword, -1.0f * 0.5f * sword_min_rotation_amount * player_data.sword_spin_direction);         
+        calculate_sword_collisions(sword, entity);
+        
+        rotate(sword, 0.5f * sword_min_rotation_amount * player_data.sword_spin_direction);         
         calculate_sword_collisions(sword, entity);
         while(need_to_rotate > sword_min_rotation_amount){
             rotate(sword, sword_min_rotation_amount * player_data.sword_spin_direction);
@@ -8701,36 +8724,11 @@ inline b32 update_entity(Entity *e, f32 dt){
     if (e->flags & PHYSICS_OBJECT){
         // update rope stuff
          if (e->physics_object.on_rope){
-            Entity *rope_entity = NULL;
-            if (e->physics_object.rope_id == -1){
-                rope_entity = add_entity(e->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
-                rope_entity->need_to_save = false;
-                e->physics_object.rope_id = rope_entity->id;
-            } else{
-                rope_entity = get_entity_by_id(e->physics_object.rope_id);
-            }
+            Entity *rope_entity            = get_entity_by_id(e->physics_object.rope_id);
+            Entity *up_rope_point_entity   = get_entity_by_id(e->physics_object.up_rope_point_id);
+            Entity *down_rope_point_entity = get_entity_by_id(e->physics_object.down_rope_point_id);
             
-            // spawn rope point and check
-            Entity *up_rope_point_entity = NULL;
-            if (e->physics_object.up_rope_point_id == -1){
-                up_rope_point_entity = add_entity(e->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
-                up_rope_point_entity->draw_order = e->draw_order - 1;
-                up_rope_point_entity->need_to_save = false;
-                e->physics_object.up_rope_point_id = up_rope_point_entity->id;
-            } else{
-                up_rope_point_entity = get_entity_by_id(e->physics_object.up_rope_point_id);
-            }
-            
-            Entity *down_rope_point_entity = NULL;
-            if (e->physics_object.down_rope_point_id == -1){
-                down_rope_point_entity = add_entity(e->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
-                down_rope_point_entity->draw_order = e->draw_order - 1;
-                down_rope_point_entity->need_to_save = false;
-                e->physics_object.down_rope_point_id = down_rope_point_entity->id;
-            } else{
-                down_rope_point_entity =  get_entity_by_id(e->physics_object.down_rope_point_id);
-            }
-            
+            // If any part of rope is missing - we destroy them all.
             if (!rope_entity || !up_rope_point_entity || !down_rope_point_entity){
                 e->physics_object.on_rope = false;
                 if (rope_entity){
@@ -8744,7 +8742,6 @@ inline b32 update_entity(Entity *e, f32 dt){
                 }
             } else{
                 update_entity_collision_cells(rope_entity);
-                
                 rope_entity->position = e->position + e->up * e->scale.y * 0.5f;
                 Vector2 vec_to_point = e->physics_object.rope_point - (e->position + e->up * e->scale.y * 0.5f);
                 f32 len = magnitude(vec_to_point);
@@ -11008,7 +11005,7 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
     draw_rect_lines(screen_pos, scale * session_context.cam.unit_size, color);
 }
 
-Array<Vector2, 256> screen_positions_buffer = Array<Vector2, 256>();
+Array<Vector2, 2048> screen_positions_buffer = Array<Vector2, 2048>();
 
 void draw_game_line_strip(Entity *entity, Color color){
     screen_positions_buffer.clear();
@@ -11016,7 +11013,7 @@ void draw_game_line_strip(Entity *entity, Color color){
         screen_positions_buffer.add(world_to_screen(global(entity, entity->vertices.get(i))));
     }
     
-    draw_line_strip(screen_positions_buffer.data, entity->vertices.count, color);
+    draw_line_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
 }
 
 void draw_game_line_strip(Vector2 *points, i32 count, Color color){
@@ -11025,7 +11022,7 @@ void draw_game_line_strip(Vector2 *points, i32 count, Color color){
         screen_positions_buffer.add(world_to_screen(points[i]));
     }
     
-    draw_line_strip(screen_positions_buffer.data, count, color);
+    draw_line_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
 }
 
 void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color){
@@ -11034,7 +11031,7 @@ void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 pos
         screen_positions_buffer.add(world_to_screen(global(position, vertices.get(i))));
     }
     
-    draw_triangle_strip(screen_positions_buffer.data, vertices.count, color);
+    draw_triangle_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
 }
 
 inline void draw_game_triangle_strip(Entity *entity, Color color){

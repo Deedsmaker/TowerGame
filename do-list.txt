@@ -136,6 +136,7 @@
 [ ] Zone in late-game that will make sword not spin continuously, but react to sharp mouse movements to make cuts and fast dashes.
 [ ] After tutorials we should make a long room splitted horizontaly where player will go in down part and in upper part will go player clone with recorded inputs to show player how cool he can play. By that we also hint some mechanics like a machinegun. 
 [ ] We could try that thing - if you hold down on ground and spin you accumulate velocity so you could make that sick shit.
+[ ] On half game mark we should DISABLE death instinct. That will be so huge.
 ///////////////////////////////////////////////////
 
 <Levels order>
