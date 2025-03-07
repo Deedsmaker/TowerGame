@@ -651,12 +651,12 @@ void clear_level_context(Level_Context *level_context){
     
     for (i32 i = 0; i < level_context->lights.max_count; i++){
         level_context->lights.get_ptr(i)->exists = false;
-        if (i >= session_context.entity_lights_start_index){
+        // if (i >= session_context.entity_lights_start_index){
             free_light(level_context->lights.get_ptr(i));       
             *(level_context->lights.get_ptr(i)) = {};
-        } else{ // So we in temp lights section
+        // } else{ // So we in temp lights section
             // fill_light_by_temp_light_template(level_context->lights.get_ptr(i));
-        }
+        // }
     }
     
     // level_context->we_got_a_winner = false;
@@ -2756,7 +2756,7 @@ void init_game(){
     current_level_context = &loaded_level_context;
 
     HideCursor();
-    DisableCursor();
+    // DisableCursor();
     
     game_state = EDITOR;
 
@@ -2880,10 +2880,6 @@ void clean_up_scene(){
 }
 
 void enter_game_state(Level_Context *level_context, b32 should_init_entities){
-    // if (game_state == GAME){
-    //     return;
-    // }
-    
     clean_up_scene();
     clear_level_context(&game_level_context);
     
@@ -2892,8 +2888,6 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
     core.time.game_time = 0;
     core.time.hitstop = 0;
     core.time.previous_dt = 0;
-    // core.time.app_time = 0;
-    // core.time = {};
     
     HideCursor();
     DisableCursor();
@@ -2910,8 +2904,6 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
         session_context.collision_grid.cells[i].entities_ids.clear();
     }
     
-    // save_level(text_format("temp/TEMP_%s", session_context.current_level_name));
-
     game_state = GAME;
     
     session_context.cam.cam2D.zoom = 0.35f;
@@ -3003,6 +2995,10 @@ void kill_player(){
 void enter_editor_state(){
     game_state = EDITOR;
     state_context = {};
+    
+    EnableCursor();
+    HideCursor();
+    input.screen_mouse_position = GetMousePosition();
     
     // current_level_context = &game_level_context;
     // clear_level_context(&game_level_context);
@@ -6569,7 +6565,7 @@ void update_player(Entity *entity, f32 dt){
         player_data.timers.rifle_activate_time = core.time.game_time;
         
         play_sound("RifleSwitch", 0.4f, 0.7f, 0.1f);
-    } else if (!spin_enough_for_shoot && input.press_flags & SHOOT){
+    } else if (input.press_flags & SHOOT){
         // Failed to activate rifle.
         if (!player_data.rifle_active || (player_data.ammo_count <= 0 && !debug.infinite_ammo)){
             play_sound("FailedRifleActivation", 0.4f);
@@ -7100,12 +7096,12 @@ void update_player(Entity *entity, f32 dt){
                 
                 Vector2 to_player = player_entity->position - other->position;
                 
-                f32 deceleration_power = lerp(0.0f, 300.0f, power_t * power_t);
-                f32 acceleration_power = lerp(0.0f, other->propeller.power, sqrtf(power_t));
+                f32 deceleration_power = lerp(0.0f, 300.0f, power_t * power_t * power_t);
+                f32 acceleration_power = lerp(0.0f, other->propeller.power, power_t * power_t * power_t);
                 
                 f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
                 
-                f32 damping_factor = lerp(0.0f, 10.0f, sqrtf(power_t));
+                f32 damping_factor = lerp(0.0f, 10.0f, power_t * power_t * power_t);
                 
                 player_data.velocity += deceleration_plane * deceleration_power * deceleration_sign * dt;
                 player_data.velocity *= 1.0f - (damping_factor * dt);
@@ -10753,7 +10749,11 @@ void draw_game(){
                     local_persist i32 light_texture_loc       = get_shader_location(smooth_edges_shader, "light_texture");
                     local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
                     
-                    set_shader_value_color(smooth_edges_shader, light_color_loc, ColorNormalize(Fade(light.color, light.opacity)));
+                    Vector4 color = ColorNormalize(Fade(light.color, light.opacity));
+                    // color.x *= light.power;
+                    // color.y *= light.power;
+                    // color.z *= light.power;
+                    set_shader_value_color(smooth_edges_shader, light_color_loc, color);
                     set_shader_value(smooth_edges_shader, light_power_loc, light.power);
                     set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
                     set_shader_value(smooth_edges_shader, my_size_loc, get_texture_pixels_size(shadowmask_texture, lightmap_game_scale));

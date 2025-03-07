@@ -1,3 +1,4 @@
+[ ] There's a leak of textures on checkpoint loading. Probably lights. 
 [X] Rope duplicates after checkpoint loading. That's a bug.
 [\] Camera movement towards enemies should not be when we're in rifle mode. Instead we can just move camera towards scope. (Tried - that's too disorienting).
 [X] Right now we have problem with overdistance particles and it seems like they snap only when some particles alive.
@@ -173,8 +174,8 @@
 ///////////////////////////////////////////////////
 //WITH EXISTING:
 //NEW:
-[ ] Robo-hand that can catch us and throw somewhere
-[ ] Charging stations where we need to spin. Also some enemies could charge of that and we can overcharge them.
+[\] Robo-hand that can catch us and throw somewhere. Don't know about that. We need to do something with our spin. 
+[ ] Charging stations where we need to spin. Also some enemies could charge of that and we can overcharge them. UPDATE 07.03.2025: That's actually cool because that's nice goal on arena. For example we could have three-doors-exit and we need to charge three these things to open doors and there's infinite enemy spawners so we need to think. Dunno about enemies charging though.
 [X] Block on the rope that can be cutted. (Maybe really **physics** objects on ropes that can be cut. So we can cut bombs, blocks etc.)
 [ ] Killable objects for buffs (like homing shot, etc. Already that could be bombs, but big bombs is dangerous for player so we work on explosion radius (maybe show radius to player(done)) or make special bombs that damage only enemies and we can do other funny stuff with it)
 [X] Enemy that doesn't allow to shoot
@@ -189,6 +190,7 @@
 [ ] Modifier for enemies so they can be killed with big or small sword.
 [ ] Враг/Модификатор . Делает врагу больше хп, но убить можно только если быстро нанести много урона. С мечом нужно крутиться на враге некоторое время (например 1.5 секунды), а с выстрелом настрелять много за короткое время. С мечом круче всего звучит, нужно будет реально подзадержаться на типе и такое можно использовать для боссов. Тяжело будет работать с птичками, но дуабл. Вероятно придется подумать еще над тем чтобы было легче оставаться на месте при сильном вращении, потому что в воздухе точно если будешь крутиться в одну сторону и жать кнопку ходьбы в другую - вращение меча перевесит. Показываться это будет полоской над врагом, которая будет заполняться при нанесении урона и убавляться когда некоторое время не дамажишь.
 [ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
+[ ] Block that connected to sword rotation at any distance. So we rotate clockwise - block rotates aswell. 
 ///////////////////////////////////////////////////
 
 <VISUAL>

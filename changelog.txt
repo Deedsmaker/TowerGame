@@ -1,3 +1,9 @@
+07.03.2025:
+    - Checked for hdr. We have that one!
+    - Changed propeller spin acceleration. It somewhat breaks our stuff with spin stop on levels, but that could be better overall. We'll see.   
+    - Maked that mouse in editor now could go off the window.
+    - Fixed failed rifle sound and shake. That broke because I removed requirement for spin to activate rifle.
+
 06.03.2025:
     - Changed compiler to msvc. 
     - Fixed bug with screen positions buffer that occured as I switched compiler and was forced to rewrite static arrays usage.
