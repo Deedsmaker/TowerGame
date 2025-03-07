@@ -3,6 +3,7 @@
     - Changed propeller spin acceleration. It somewhat breaks our stuff with spin stop on levels, but that could be better overall. We'll see.   
     - Maked that mouse in editor now could go off the window.
     - Fixed failed rifle sound and shake. That broke because I removed requirement for spin to activate rifle.
+    - Fixed gpu memory leak on checkpoints. That was because on checkpoint trigger enter I did not cleared previous checkpoint level context. Then was a problem because we still has global player_data clear on clear_level_context, which obviously should not happen. So now we clear player data on enter_game_state. And then it gets copied to whatever value we copied that should be in player_data at the time.
 
 06.03.2025:
     - Changed compiler to msvc. 

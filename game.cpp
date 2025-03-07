@@ -660,7 +660,7 @@ void clear_level_context(Level_Context *level_context){
     }
     
     // level_context->we_got_a_winner = false;
-    player_data = {};
+    // player_data = {};
     
     current_level_context = original_level_context;
 }
@@ -2880,6 +2880,8 @@ void clean_up_scene(){
 }
 
 void enter_game_state(Level_Context *level_context, b32 should_init_entities){
+    player_data = {};
+
     clean_up_scene();
     clear_level_context(&game_level_context);
     
@@ -8521,6 +8523,7 @@ i32 update_trigger(Entity *e){
     
     if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided){
         if (str_contains(e->name, "checkpoint") && checkpoint_trigger_id != e->id){
+            clear_level_context(&checkpoint_level_context);
             copy_level_context(&checkpoint_level_context, current_level_context, false);
             checkpoint_player_entity = player_entity;
             checkpoint_player_data = player_data;

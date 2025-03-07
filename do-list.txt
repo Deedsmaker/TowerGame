@@ -1,9 +1,9 @@
-[ ] There's a leak of textures on checkpoint loading. Probably lights. 
+[X] There's a leak of textures on checkpoint loading. Probably lights. 
 [X] Rope duplicates after checkpoint loading. That's a bug.
 [\] Camera movement towards enemies should not be when we're in rifle mode. Instead we can just move camera towards scope. (Tried - that's too disorienting).
 [X] Right now we have problem with overdistance particles and it seems like they snap only when some particles alive.
 [X] Remove emitters spawning every frame (At least tires emitters, bird collision etc).
-[ ] Reduce size of inspector ui and (probably) loading by macros.
+[ ] Reduce size of inspector ui and (probably) loading code by macros.
 [X] Particles rework and sounds improvements before showcase.
     [X] General particles rework.
     [X] Debris on different enemies kill. Simple shoot kill should do as id does now, but if we put many bullets in - you know.
