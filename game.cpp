@@ -165,7 +165,7 @@ void free_entity(Entity *e){
     // }
     
     // free light
-    if (e->flags & LIGHT){
+    if (e->light_index != -1){
         free_entity_light(e);
     }
     
@@ -430,7 +430,7 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
         door = copy->door;
     }
     
-    if (flags & LIGHT){
+    if (copy->light_index != -1){
         // if (!keep_id){
         light_index = -1;
         init_entity_light(this, copy_level_context->lights.get_ptr(copy->light_index));        
@@ -651,12 +651,12 @@ void clear_level_context(Level_Context *level_context){
     
     for (i32 i = 0; i < level_context->lights.max_count; i++){
         level_context->lights.get_ptr(i)->exists = false;
-        // if (i >= session_context.entity_lights_start_index){
+        if (i >= session_context.entity_lights_start_index){
             free_light(level_context->lights.get_ptr(i));       
             *(level_context->lights.get_ptr(i)) = {};
-        // } else{ // So we in temp lights section
+        } else{ // So we in temp lights section
             // fill_light_by_temp_light_template(level_context->lights.get_ptr(i));
-        // }
+        }
     }
     
     // level_context->we_got_a_winner = false;
@@ -719,7 +719,7 @@ i32 save_level(const char *level_name){
         fprintf(fptr, "hidden:%d: ", e->hidden);
         fprintf(fptr, "spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo);
         
-        if (e->flags & LIGHT && e->light_index >= 0){
+        if (e->light_index >= 0){
             Light *light = current_level_context->lights.get_ptr(e->light_index);
             fprintf(fptr, "light_shadows_size_flag:%d: ",     light->shadows_size_flags);
             fprintf(fptr, "light_backshadows_size_flag:%d: ", light->backshadows_size_flags);
@@ -870,6 +870,7 @@ i32 save_level(const char *level_name){
         
         if (e->flags & PROPELLER){
             fprintf(fptr, "propeller_power:%f: ", e->propeller.power);
+            fprintf(fptr, "propeller_spin_sensitive:%d: ", e->propeller.spin_sensitive);
         }
         
         if (e->flags & SHOOT_BLOCKER){
@@ -1071,6 +1072,9 @@ b32 load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "propeller_power")){
                 fill_f32_from_string(&entity_to_fill.propeller.power, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "propeller_spin_sensitive")){
+                fill_b32_from_string(&entity_to_fill.propeller.spin_sensitive, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "sword_kill_speed_modifier")){
                 fill_f32_from_string(&entity_to_fill.enemy.sword_kill_speed_modifier, splitted_line.get(i+1).data);
@@ -1930,10 +1934,8 @@ void init_entity(Entity *entity){
     // init explosive
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
-        entity->flags |= LIGHT;
+        // entity->flags |= LIGHT;
         Light explosive_light = {};
-        explosive_light.make_backshadows = true;
-        explosive_light.make_shadows     = true;
         if (entity->light_index != -1){
             explosive_light = current_level_context->lights.get(entity->light_index);
         } 
@@ -1941,9 +1943,13 @@ void init_entity(Entity *entity){
         if (entity->enemy.explosive_radius_multiplier >= 3){
             explosive_light.shadows_size_flags = BIG_LIGHT;
             explosive_light.backshadows_size_flags = BIG_LIGHT;
-        } else if (entity->enemy.explosive_radius_multiplier > 1){
+            explosive_light.make_backshadows = true;
+            explosive_light.make_shadows     = true;
+        } else if (entity->enemy.explosive_radius_multiplier > 1.5f){
             explosive_light.shadows_size_flags = MEDIUM_LIGHT;
             explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
+            explosive_light.make_backshadows = true;
+            explosive_light.make_shadows     = true;
         } else{
             explosive_light.make_shadows     = false;
             explosive_light.make_backshadows = false;
@@ -2065,40 +2071,43 @@ void init_entity(Entity *entity){
             
             segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
             segment->enemy = entity->enemy;
+            init_entity(segment);
         }
         
         entity->flags ^= ENEMY;
     }
     
     if (entity->flags & PHYSICS_OBJECT && game_state == GAME){
-        Entity *rope_entity = NULL;
-        if (entity->physics_object.rope_id == -1){
-            rope_entity = add_entity(entity->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
-            rope_entity->need_to_save = false;
-            entity->physics_object.rope_id = rope_entity->id;
-        } else{
-            rope_entity = get_entity_by_id(entity->physics_object.rope_id);
-        }
-        
-        // spawn rope point and check
-        Entity *up_rope_point_entity = NULL;
-        if (entity->physics_object.up_rope_point_id == -1){
-            up_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
-            up_rope_point_entity->draw_order = entity->draw_order - 1;
-            up_rope_point_entity->need_to_save = false;
-            entity->physics_object.up_rope_point_id = up_rope_point_entity->id;
-        } else{
-            up_rope_point_entity = get_entity_by_id(entity->physics_object.up_rope_point_id);
-        }
-        
-        Entity *down_rope_point_entity = NULL;
-        if (entity->physics_object.down_rope_point_id == -1){
-            down_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
-            down_rope_point_entity->draw_order = entity->draw_order - 1;
-            down_rope_point_entity->need_to_save = false;
-            entity->physics_object.down_rope_point_id = down_rope_point_entity->id;
-        } else{
-            down_rope_point_entity =  get_entity_by_id(entity->physics_object.down_rope_point_id);
+        if (entity->physics_object.on_rope){
+            Entity *rope_entity = NULL;
+            if (entity->physics_object.rope_id == -1){
+                rope_entity = add_entity(entity->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
+                rope_entity->need_to_save = false;
+                entity->physics_object.rope_id = rope_entity->id;
+            } else{
+                rope_entity = get_entity_by_id(entity->physics_object.rope_id);
+            }
+            
+            // spawn rope point and check
+            Entity *up_rope_point_entity = NULL;
+            if (entity->physics_object.up_rope_point_id == -1){
+                up_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
+                up_rope_point_entity->draw_order = entity->draw_order - 1;
+                up_rope_point_entity->need_to_save = false;
+                entity->physics_object.up_rope_point_id = up_rope_point_entity->id;
+            } else{
+                up_rope_point_entity = get_entity_by_id(entity->physics_object.up_rope_point_id);
+            }
+            
+            Entity *down_rope_point_entity = NULL;
+            if (entity->physics_object.down_rope_point_id == -1){
+                down_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
+                down_rope_point_entity->draw_order = entity->draw_order - 1;
+                down_rope_point_entity->need_to_save = false;
+                entity->physics_object.down_rope_point_id = down_rope_point_entity->id;
+            } else{
+                down_rope_point_entity =  get_entity_by_id(entity->physics_object.down_rope_point_id);
+            }
         }
     }
     
@@ -2755,7 +2764,7 @@ void init_game(){
     
     current_level_context = &loaded_level_context;
 
-    HideCursor();
+    // HideCursor();
     // DisableCursor();
     
     game_state = EDITOR;
@@ -2998,9 +3007,11 @@ void enter_editor_state(){
     game_state = EDITOR;
     state_context = {};
     
-    EnableCursor();
+    // EnableCursor();
+    // HideCursor();
+    // We want to enable cursor when user hits escape key.
     HideCursor();
-    input.screen_mouse_position = GetMousePosition();
+    DisableCursor();
     
     // current_level_context = &game_level_context;
     // clear_level_context(&game_level_context);
@@ -3522,7 +3533,7 @@ void update_game(){
         }
     } 
     
-    if (IsKeyPressed(KEY_TAB)){
+    if (IsKeyPressed(KEY_TAB) && !console.is_open){
         state_context.in_pause_editor = !state_context.in_pause_editor;
         if (state_context.in_pause_editor){
             editor.in_editor_time = 0;
@@ -4352,7 +4363,7 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
 #ifndef INSPECTOR_MACRO
 #define INSPECTOR_MACRO
     #define INSPECTOR_UI_TOGGLE(text, tag, bool_to_change, additional_action) { \
-        make_ui_text(text, {inspector_position.x + 5, v_pos}, tag); \
+        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
         if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, bool_to_change, tag)){ \
             bool_to_change = !bool_to_change; \
             additional_action; \
@@ -4360,13 +4371,22 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
         v_pos += height_add; \
     }   
     #define INSPECTOR_UI_TOGGLE_FLAGS(text, tag, flags, flag, additional_action) { \
-        make_ui_text(text, {inspector_position.x + 5, v_pos}, tag); \
+        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
         if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, flags & flag, tag)){ \
             flags ^= flag; \
             additional_action; \
         } \
         v_pos += height_add; \
     }   
+    
+    #define INSPECTOR_UI_INPUT_FIELD(text, tag, format, value_to_change, convert_function, additional_action) { \
+        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
+        if (make_input_field(text_format(format, value_to_change), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, tag)){ \
+            value_to_change = convert_function(focus_input_field.content); \
+            additional_action; \
+        } \
+        v_pos += height_add;\
+    }
 #endif
 
 void update_editor_ui(){
@@ -4379,6 +4399,7 @@ void update_editor_ui(){
         make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
         f32 height_add = 30 * UI_SCALING;
         f32 v_pos = inspector_position.y + height_add + 40;
+        f32 h_pos = 5;
         
         make_ui_text(text_format("ID: %d", selected->id), {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
         
@@ -4495,50 +4516,18 @@ void update_editor_ui(){
             INSPECTOR_UI_TOGGLE("Hidden: ", "entity_hidden", selected->hidden, );
             
             INSPECTOR_UI_TOGGLE("Spawn enemy when no ammo: ", "spawn_no_ammo", selected->spawn_enemy_when_no_ammo, );
-            // make_ui_text("Spawn enemy when no ammo: ", {inspector_position.x + 5, v_pos}, "text_spawn_no_ammo");
-            // if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->spawn_enemy_when_no_ammo, "toggle_spawn_no_ammo")){
-            //     selected->spawn_enemy_when_no_ammo = !selected->spawn_enemy_when_no_ammo;
-            // }
-            // v_pos += height_add;
             
             INSPECTOR_UI_TOGGLE_FLAGS("Physics object: ", "physics_object", selected->flags, PHYSICS_OBJECT, );
-            // make_ui_text("Physics object: ", {inspector_position.x + 5, v_pos}, "physics_object");
-            // if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & PHYSICS_OBJECT, "physics_object")){
-            //     selected->flags ^= PHYSICS_OBJECT;
-            // }
-            // v_pos += height_add;
-            
+            // physics object inspector ui
             if (selected->flags & PHYSICS_OBJECT){
+                h_pos = 25;
                 INSPECTOR_UI_TOGGLE("Simulating: ", "physics_simulating", selected->physics_object.simulating, );
-                // make_ui_text("Simulating: ", {inspector_position.x + 5, v_pos}, "physics_simulating");
-                // if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->physics_object.simulating, "physics_simulating")){
-                //     selected->physics_object.simulating = !selected->physics_object.simulating;
-                // }
-                // v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("On rope: ", "on_rope", selected->physics_object.on_rope, );
+                INSPECTOR_UI_TOGGLE("Rotate by velocity: ", "physics_rotate_by_velocity", selected->physics_object.rotate_by_velocity, );
+                INSPECTOR_UI_INPUT_FIELD("Gravity multiplier: ", "physics_gravity_multiplier", "%.1f", selected->physics_object.gravity_multiplier, to_f32, );
+                INSPECTOR_UI_INPUT_FIELD("Mass: ", "physics_mass", "%.1f", selected->physics_object.mass, to_f32, clamp(&selected->physics_object.mass, 0.1f, 100000.0f));
                 
-                make_ui_text("On rope: ", {inspector_position.x + 5, v_pos}, "on_rope");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->physics_object.on_rope, "on_rope")){
-                    selected->physics_object.on_rope = !selected->physics_object.on_rope;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Rotate by velocity: ", {inspector_position.x + 5, v_pos}, "physics_rotate_by_velocity");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->physics_object.rotate_by_velocity, "physics_rotate_by_velocity")){
-                    selected->physics_object.rotate_by_velocity = !selected->physics_object.rotate_by_velocity;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Gravity multiplier: ", {inspector_position.x + 5, v_pos}, "physics_gravity_multiplier");
-                if (make_input_field(text_format("%.1f", selected->physics_object.gravity_multiplier), {inspector_position.x + 250, v_pos}, {100, 25}, "physics_gravity_multiplier")){
-                    selected->physics_object.gravity_multiplier = to_f32(focus_input_field.content);
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Mass: ", {inspector_position.x + 5, v_pos}, "physics_mass");
-                if (make_input_field(text_format("%.1f", selected->physics_object.mass), {inspector_position.x + 250, v_pos}, {100, 25}, "physics_mass")){
-                    selected->physics_object.mass = clamp(to_f32(focus_input_field.content), 0.01f, 100000.0f);
-                }
-                v_pos += height_add;
+                h_pos = 5;
             }
             
             make_ui_text("Move sequence: ", {inspector_position.x + 5, v_pos}, "text_entity_move_sequence");
@@ -4547,12 +4536,11 @@ void update_editor_ui(){
             }
             v_pos += height_add;
             
+            // move sequence inspector ui
             if (selected->flags & MOVE_SEQUENCE){
-                make_ui_text("Moving: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_moving");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->move_sequence.moving, "toggle_entity_move_sequence_moving")){
-                    selected->move_sequence.moving = !selected->move_sequence.moving;
-                }
-                v_pos += height_add;
+                h_pos = 25;
+                INSPECTOR_UI_TOGGLE("Moving: ", "move_sequence_moving", selected->move_sequence.moving, );
+                
                 make_ui_text("Loop: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_loop");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->move_sequence.loop, "toggle_entity_move_sequence_loop")){
                     selected->move_sequence.loop = !selected->move_sequence.loop;
@@ -4565,11 +4553,12 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
             
-                make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
-                if (make_input_field(text_format("%.1f", selected->move_sequence.speed), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "move_sequence_speed")){
-                    selected->move_sequence.speed = to_f32(focus_input_field.content);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_INPUT_FIELD("Speed: ", "move_sequence_speed", "%.1f", selected->move_sequence.speed, to_f32, );  
+                // make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
+                // if (make_input_field(text_format("%.1f", selected->move_sequence.speed), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "move_sequence_speed")){
+                //     selected->move_sequence.speed = to_f32(focus_input_field.content);
+                // }
+                // v_pos += height_add;
                 
                 make_ui_text("Speed related player distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_speed_related_player_distance");
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.8f, v_pos}, selected->move_sequence.speed_related_player_distance, "move_sequence_speed_related_player_distance")){
@@ -4604,8 +4593,14 @@ void update_editor_ui(){
                 type_info_v_pos += type_font_size;
                 
                 make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "move_sequence_settings");
-            type_info_v_pos += type_font_size;
-
+                type_info_v_pos += type_font_size;
+                         
+                h_pos = 5;
+            }
+            
+            if (selected->flags & PROPELLER){            
+                INSPECTOR_UI_INPUT_FIELD("Propeller power: ", "propeller_power", "%.0f", selected->propeller.power, to_f32, );
+                INSPECTOR_UI_TOGGLE("Spin sensitive :", "propeller_spin_sensitive", selected->propeller.spin_sensitive, );
             }
         } // entity inspector end
         
@@ -4892,100 +4887,57 @@ void update_editor_ui(){
             
             if (editor.draw_enemy_settings){
                 INSPECTOR_UI_TOGGLE("Gives ammo: ", "enemy_gives_ammo", selected->enemy.gives_ammo, );
-                // make_ui_text("Gives ammo: ", {inspector_position.x + 5, v_pos}, "enemy_gives_ammo");
-                // if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->enemy.gives_ammo, "enemy_gives_ammo")){
-                //     selected->enemy.gives_ammo = !selected->enemy.gives_ammo;
-                // }
-                // v_pos += height_add;
                 if (selected->enemy.gives_ammo){
+                    h_pos = 15;
                     INSPECTOR_UI_TOGGLE("Gives full ammo: ", "gives_full_ammo", selected->enemy.gives_full_ammo, );
-                    // make_ui_text("Gives full ammo: ", {inspector_position.x + 5, v_pos}, "gives_full_ammo");
-                    // if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->enemy.gives_full_ammo, "gives_full_ammo")){
-                    //     selected->enemy.gives_full_ammo = !selected->enemy.gives_full_ammo;
-                    // }
-                    // v_pos += height_add;
+                    h_pos = 5;
                 }
                 
-                make_ui_text("Explosive: ", {inspector_position.x + 5, v_pos}, "text_enemy_explosive");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & EXPLOSIVE, "toggle_enemy_explosive")){
-                    selected->flags ^= EXPLOSIVE;
+                INSPECTOR_UI_TOGGLE_FLAGS("Explosive: ", "enemy_explosive", selected->flags, EXPLOSIVE, 
                     if (!(selected->flags & EXPLOSIVE)){
                         free_entity_light(selected);
                     }
                     init_entity(selected);
-                }
-                v_pos += height_add;
+                );
                 
                 if (selected->flags & EXPLOSIVE){
-                    make_ui_text("Explosion radius: ", {inspector_position.x + 5, v_pos}, "explosive_radius_multiplier");
-                    if (make_input_field(text_format("%.2f", selected->enemy.explosive_radius_multiplier), {inspector_position.x + inspector_size.x * 0.5f, v_pos}, 100, "explosive_radius_multiplier")){
-                        selected->enemy.explosive_radius_multiplier = fmax(to_f32(focus_input_field.content), 0);
+                    h_pos = 25;
+                    INSPECTOR_UI_INPUT_FIELD("Explosion radius: ", "explosive_radius_multiplier", "%.1f", selected->enemy.explosive_radius_multiplier, to_f32, 
+                        selected->enemy.explosive_radius_multiplier = fmaxf(selected->enemy.explosive_radius_multiplier, 0);
                         init_entity(selected);
-                    }
-                    v_pos += height_add;
+                    );
+                    h_pos = 5;
                 }
                 
-                make_ui_text("Blocker: ", {inspector_position.x + 5, v_pos}, "text_enemy_blocker");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & BLOCKER, "toggle_enemy_blocker")){
-                    selected->flags ^= BLOCKER;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE_FLAGS("Blocker: ", "enemy_blocker", selected->flags, BLOCKER, init_entity(selected)); 
                 
                 if (selected->flags & BLOCKER){
-                    make_ui_text("Blocker immortal: ", {inspector_position.x + 5, v_pos}, "text_enemy_blocker_immortal");
-                    if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->enemy.blocker_immortal, "toggle_enemy_blocker_immortal")){
-                        selected->enemy.blocker_immortal = !selected->enemy.blocker_immortal;
-                        init_entity(selected);
-                    }
-                    v_pos += height_add;
-
+                    h_pos = 25;
+                    INSPECTOR_UI_TOGGLE("Blocker immortal: ", "blocker_immortal", selected->enemy.blocker_immortal, init_entity(selected));
                     if (!selected->enemy.blocker_immortal){
-                        make_ui_text("Blocker clockwise: ", {inspector_position.x + 5, v_pos}, "text_enemy_blocker_clocksize");
-                        if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->enemy.blocker_clockwise, "toggle_enemy_blocker_clockwise")){
-                            selected->enemy.blocker_clockwise = !selected->enemy.blocker_clockwise;
-                            init_entity(selected);
-                        }
-                        v_pos += height_add;
+                        INSPECTOR_UI_TOGGLE("Blocker clockwise: ", "blocker_clockwise", selected->enemy.blocker_clockwise, init_entity(selected));
                     }
+                    h_pos = 5;
                 }
                 
-                make_ui_text("Shoot blocker: ", {inspector_position.x + 5, v_pos}, "text_enemy_shoot_blocker");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & SHOOT_BLOCKER, "toggle_enemy_shoot_blocker")){
-                    selected->flags ^= SHOOT_BLOCKER;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE_FLAGS("Shoot blocker: ", "enemy_shoot_blocker", selected->flags, SHOOT_BLOCKER, init_entity(selected)); 
                 
                 if (selected->flags & SHOOT_BLOCKER){
-                    make_ui_text("Shoot blocker immortal: ", {inspector_position.x + 5, v_pos}, "text_enemy_shoot_blocker_immortal");
-                    if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->enemy.shoot_blocker_immortal, "toggle_enemy_shoot_blocker_immortal")){
-                        selected->enemy.shoot_blocker_immortal = !selected->enemy.shoot_blocker_immortal;
-                        init_entity(selected);
-                    }
-                    v_pos += height_add;
+                    h_pos = 25;
+                    INSPECTOR_UI_TOGGLE("Shoot blocker immortal: ", "shoot_blocker_immortal", selected->enemy.shoot_blocker_immortal, init_entity(selected));
+                    h_pos = 5;
                 }
                 
-                make_ui_text("Sword size required: ", {inspector_position.x + 5, v_pos}, "enemy_sword_size_required");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & SWORD_SIZE_REQUIRED, "enemy_sword_size_required")){
-                    selected->flags ^= SWORD_SIZE_REQUIRED;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE_FLAGS("Sword size required: ", "enemy_sword_size_required", selected->flags, SWORD_SIZE_REQUIRED, init_entity(selected)); 
 
                 if (selected->flags & SWORD_SIZE_REQUIRED){
-                    make_ui_text("Big (1) or small (0) killable: ", {inspector_position.x + 5, v_pos}, "enemy_big_or_small_killable");
-                    if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->enemy.big_sword_killable, "enemy_big_or_small_killable")){
-                        selected->enemy.big_sword_killable = !selected->enemy.big_sword_killable;
-                        init_entity(selected);
-                    }
-                    v_pos += height_add;
+                    h_pos = 25;
+                    INSPECTOR_UI_TOGGLE("Big (1) or small (0) killable: ", "enemy_big_or_small_killable", selected->enemy.big_sword_killable, init_entity(selected));
+                
+                    h_pos = 5;
                 }
             }
         
-            if (selected->flags & BLOCKER){
-            }
-            
             make_ui_text(text_format("Ctrl+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
             type_info_v_pos += type_font_size;
             
@@ -5016,22 +4968,12 @@ void update_editor_ui(){
             v_pos += height_add;
             
             if (editor.draw_centipede_settings){
-                make_ui_text("Spikes on right: ", {inspector_position.x + 5, v_pos}, "spikes_on_right");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->centipede.spikes_on_right, "spikes_on_right")){
-                    selected->centipede.spikes_on_right = !selected->centipede.spikes_on_right;
-                }
-                v_pos += height_add;
-                make_ui_text("Spikes on left: ", {inspector_position.x + 5, v_pos}, "spikes_on_left");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->centipede.spikes_on_left, "spikes_on_left")){
-                    selected->centipede.spikes_on_left = !selected->centipede.spikes_on_left;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Segments count: ", {inspector_position.x + 25, v_pos}, "segments_count");
-                if (make_input_field(text_format("%d", selected->centipede.segments_count), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "segments_count")){
-                    selected->centipede.segments_count = fmin(to_i32(focus_input_field.content), MAX_CENTIPEDE_SEGMENTS);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Spikes on right: ", "spikes_on_right", selected->centipede.spikes_on_right, );
+                INSPECTOR_UI_TOGGLE("Spikes on left: ", "spikes_on_left", selected->centipede.spikes_on_left, );
+
+                INSPECTOR_UI_INPUT_FIELD("Segments count:", "segments_count", "%d", selected->centipede.segments_count, to_i32,
+                    selected->centipede.segments_count = fminf(selected->centipede.segments_count, MAX_CENTIPEDE_SEGMENTS);
+                );
             }
         }
         
@@ -5043,37 +4985,21 @@ void update_editor_ui(){
             v_pos += height_add;
             
             if (editor.draw_jump_shooter_settings){
-                make_ui_text("Shots count: ", {inspector_position.x + 5, v_pos}, "jump_shooter_shots_count");
-                if (make_input_field(text_format("%d", selected->jump_shooter.shots_count), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "jump_shooter_shots_count")){
-                    selected->jump_shooter.shots_count = to_i32(focus_input_field.content);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_INPUT_FIELD("Shots count:", "jump_shooter_shots_count", "%d", selected->jump_shooter.shots_count, to_i32, );
+                INSPECTOR_UI_INPUT_FIELD("Spread:", "jump_shooter_spread", "%.1f", selected->jump_shooter.spread, to_f32,
+                    selected->jump_shooter.spread = clamp(selected->jump_shooter.spread, 0.0f, 180.0f);
+                );   
                 
-                make_ui_text("Spread: ", {inspector_position.x + 5, v_pos}, "jump_shooter_spread");
-                if (make_input_field(text_format("%.1f", selected->jump_shooter.spread), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "jump_shooter_spread")){
-                    selected->jump_shooter.spread = clamp(to_f32(focus_input_field.content), 0.0f, 180.0f);
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Explosive count: ", {inspector_position.x + 5, v_pos}, "jump_shooter_explosive_count");
-                if (make_input_field(text_format("%d", selected->jump_shooter.explosive_count), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "jump_shooter_explosive_count")){
-                    selected->jump_shooter.explosive_count = fmin(fmin(to_i32(focus_input_field.content), 64), selected->jump_shooter.shots_count);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_INPUT_FIELD("Explosive count:", "jump_shooter_explosive_count", "%d", selected->jump_shooter.explosive_count, to_i32, 
+                    selected->jump_shooter.explosive_count = fmin(fmin(selected->jump_shooter.explosive_count, 64), selected->jump_shooter.shots_count);
+                );
 
-                make_ui_text("Shoot sword blockers: ", {inspector_position.x + 5, v_pos}, "shoot_sword_blockers");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->jump_shooter.shoot_sword_blockers, "shoot_sword_blockers")){
-                    selected->jump_shooter.shoot_sword_blockers = !selected->jump_shooter.shoot_sword_blockers;
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Shoot sword blockers: ", "shoot_sword_blockers", selected->jump_shooter.shoot_sword_blockers, );
                 
                 if (selected->jump_shooter.shoot_sword_blockers){
-                    v_pos += height_add;
-                    make_ui_text("Sword blockers immortal: ", {inspector_position.x + 5, v_pos}, "shoot_sword_blockers_immortal");
-                    if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->jump_shooter.shoot_sword_blockers_immortal, "shoot_sword_blockers_immortal")){
-                        selected->jump_shooter.shoot_sword_blockers_immortal = !selected->jump_shooter.shoot_sword_blockers_immortal;
-                    }
-                    v_pos += height_add;
+                    h_pos = 15;
+                    INSPECTOR_UI_TOGGLE("Sword blockers immortal: ", "shoot_sword_blockers_immortal", selected->jump_shooter.shoot_sword_blockers_immortal, );
+                    h_pos = 5;
                 }
                 
                 make_ui_text("Shoot bullet blockers: ", {inspector_position.x + 5, v_pos}, "shoot_bullet_blockers");
@@ -5121,6 +5047,7 @@ void update_editor_ui(){
         } else{ //open create box
             editor.create_box_open_mouse_position = input.mouse_position;
             
+            editor.create_box_scrolled = 0;
             editor.create_box_active = true;
             editor.create_box_closing = false;
             editor.create_box_lifetime = 0;
@@ -5178,9 +5105,8 @@ void update_editor_ui(){
                 continue;
             }
             
-            local_persist f32 create_box_scrolled = 0;
-            create_box_scrolled += GetMouseWheelMove();
-            Vector2 obj_position = field_position + Vector2_up * field_size.y * (fitting_count + 1) + Vector2_up * create_box_scrolled + Vector2_right * field_size.x * 0.2f;
+            editor.create_box_scrolled += GetMouseWheelMove();
+            Vector2 obj_position = field_position + Vector2_up * field_size.y * (fitting_count + 1) + Vector2_up * editor.create_box_scrolled + Vector2_right * field_size.x * 0.2f;
             Vector2 obj_size = {field_size.x * 0.6f, field_size.y};
             
             b32 this_object_selected = editor.create_box_selected_index == fitting_count;
@@ -5318,7 +5244,7 @@ b32 snap_vertex_to_closest(Vector2 *entity_vertex, i32 vertex_index){
     }
     
     // Because when we start moving vertex we remembering these vertices already. 
-    // So if we do that here aswell - on undo vertices goes on place where we pressed button.
+    // So if we do that here aswell - on undo vertices will go on place where we pressed button.
     // Really need to change undo system though.
     if (!editor.moving_vertex_entity){
         undo_remember_vertices_start(editor.selected_entity);
@@ -5335,8 +5261,23 @@ inline b32 is_vertex_on_mouse(Vector2 vertex_global){
 }
 
 void update_editor(){
+    if (IsKeyPressed(KEY_ESCAPE)){
+        EnableCursor();
+        ShowCursor();
+        SetMousePosition(input.screen_mouse_position.x, input.screen_mouse_position.y);
+    }
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        HideCursor();
+        DisableCursor();
+    }
+
     if (game_state == EDITOR){
-        Vector2 grid_target_pos = editor.player_spawn_point;
+        // We need grid to be at camera center because levels could be quite big and even our mouse collision detection does not work
+        // without grid at that place. 
+        // BUT i've recently (08.03.2025 currently) made that origin is on player spawn point in editor. Don't remember why. 
+        // There's could be other scary reason.
+        // Vector2 grid_target_pos = editor.player_spawn_point;
+        Vector2 grid_target_pos = session_context.cam.position;
         session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
     }
     Undo_Action undo_action;
@@ -6303,7 +6244,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             win_level();
         }
         
-        if (other->flags & BLOCK_ROPE){
+        if (other->flags & BLOCK_ROPE && player_data.sword_spin_progress >= 0.7f){
             // cut rope
             other->destroyed = true;
             emit_particles(&rifle_bullet_emitter, col.point, other->up, 6, 50);
@@ -6704,59 +6645,6 @@ void update_player(Entity *entity, f32 dt){
         enable_emitter(player_data.stun_emitter_index);
     }
     
-    /*
-    local_persist f32 last_climb_spin_direction = 0;
-    local_persist b32 in_climbing_state = false;
-    local_persist Vector2 last_climbing_normal = Vector2_one;
-    local_persist f32 climbing_in_one_direction_time = 0;
-    
-    if (in_climbing_state && !(input.hold_flags & DOWN)){
-        in_climbing_state = false;
-    }
-    
-    if (in_climbing_state){
-        f32 max_climbing_speed = 300;
-        
-        Collision ground_collision = get_nearest_ground_collision(entity->position, entity->scale.y * 0.6f);
-        
-        if (!ground_collision.collided){
-            Vector2 dir = normalized(player_data.velocity) * -1.0f - last_climbing_normal;
-            ground_collision = raycast(player_entity->position, dir, entity->scale.y * 4, GROUND, 1.0f, entity->id);
-            if (ground_collision.collided){
-                entity->position += normalized(ground_collision.point - entity->position);
-            }
-        }
-        
-        if (ground_collision.collided){
-            Vector2 move_plane = get_rotated_vector_90(ground_collision.normal, -1) * player_data.sword_spin_direction;
-            
-            if (player_data.sword_spin_direction != last_climb_spin_direction){
-                last_climb_spin_direction = player_data.sword_spin_direction;
-                climbing_in_one_direction_time = fminf(climbing_in_one_direction_time, 0.5f);
-            }
-            climbing_in_one_direction_time += dt;
-            
-            player_data.velocity = lerp(Vector2_zero, move_plane * max_climbing_speed * (player_data.sword_spin_progress * player_data.sword_spin_progress), clamp01(climbing_in_one_direction_time / 1.0f));
-            
-            clamp_magnitude(&player_data.velocity, max_climbing_speed);
-            entity->position += normalized(ground_collision.point - entity->position) * dt;
-            last_climbing_normal = ground_collision.normal;
-            
-        } else{
-            in_climbing_state = false;
-        }
-        
-        if (input.press_flags & JUMP){
-            in_climbing_state = false;
-            player_data.velocity *= 1.2f;
-            player_data.velocity += last_climbing_normal * 20;
-        }                
-    } else{
-        last_climbing_normal = Vector2_one;
-        climbing_in_one_direction_time = 0;
-        last_climb_spin_direction = 0;
-    }
-    */
     //player movement
     if (player_data.grounded && !player_data.in_stun/* && !in_climbing_state*/){
         // if (input.hold_flags & DOWN){
@@ -7098,12 +6986,17 @@ void update_player(Entity *entity, f32 dt){
                 
                 Vector2 to_player = player_entity->position - other->position;
                 
-                f32 deceleration_power = lerp(0.0f, 300.0f, power_t * power_t * power_t);
-                f32 acceleration_power = lerp(0.0f, other->propeller.power, power_t * power_t * power_t);
+                f32 power_progress = power_t * power_t * power_t;
+                if (other->propeller.spin_sensitive){
+                    power_progress = sqrtf(power_t);
+                }
+                
+                f32 deceleration_power = lerp(0.0f, 300.0f, power_progress);
+                f32 acceleration_power = lerp(0.0f, other->propeller.power, power_progress);
                 
                 f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
                 
-                f32 damping_factor = lerp(0.0f, 10.0f, power_t * power_t * power_t);
+                f32 damping_factor = lerp(0.0f, 10.0f, power_progress);
                 
                 player_data.velocity += deceleration_plane * deceleration_power * deceleration_sign * dt;
                 player_data.velocity *= 1.0f - (damping_factor * dt);
@@ -7759,7 +7652,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             f32 explosion_radius = get_explosion_radius(enemy_entity);
             
             Particle_Emitter *explosion_emitter = &explosion_emitter_copy;
-            if (enemy_entity->enemy.explosive_radius_multiplier > 1){
+            if (enemy_entity->enemy.explosive_radius_multiplier > 1.5f){
                 explosion_emitter = &big_explosion_emitter_copy;
             }
             
@@ -7876,7 +7769,7 @@ void add_fire_light_to_entity(Entity *entity){
         new_fire_light->backshadows_size_flags = MEDIUM;
         new_fire_light->color = ColorBrightness(ORANGE, 0.4f);
         new_fire_light->fire_effect = true;
-        entity->flags |= LIGHT;
+        // entity->flags |= LIGHT;
     }
 }
 
@@ -8430,7 +8323,7 @@ void update_editor_entity(Entity *e){
     
     if (e->flags & LIGHT){
         if (e->light_index == -1){
-            printf("WARNING: Entity with flag LIGHT don't have corresponding light index (id - %d)\n", e->id);
+            printf("WARNING: Entity with flag LIGHT don't have corresponding light index (name: %s; id: %d)\n", e->name, e->id);
         } else{
             Light *light = current_level_context->lights.get_ptr(e->light_index);
             light->position = e->position;
@@ -8814,7 +8707,7 @@ inline b32 update_entity(Entity *e, f32 dt){
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT){
         if (e->light_index == -1){
-            print("WARNING: Entity with flag LIGHT don't have corresponding light index");
+            printf("WARNING: Entity with flag LIGHT don't have corresponding light index. Name: %s, id: %d\n", e->name, e->id);
         }
     }
     
@@ -8895,7 +8788,7 @@ inline b32 update_entity(Entity *e, f32 dt){
         if (alive_count == 0){
             e->enemy.dead_man = true;
             e->enemy.died_time = core.time.game_time;
-            e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT);
+            e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT); //@WTF?
             Vector2 rnd = rnd_in_circle();// e->move_sequence.moved_last_frame;
             e->bird_enemy.velocity = {e->move_sequence.velocity.x * rnd.x, e->move_sequence.velocity.y * rnd.y};
 

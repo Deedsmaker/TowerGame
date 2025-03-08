@@ -1,9 +1,18 @@
+08.03.2025:
+    - Improved inspector ui macroses and replaced more inspector with them for less code size. 
+    - Made property 'spin_sensitive' for propellers and made that in few levels. That's because recently i made that propellers push really good only when spin is on it's highest, but we need sensitive ones for spin stop training and on some places where we don't want player to climb up.
+    - Now mouse is locked on window in editor again, but escape key releases mouse from that chains and another click in window captures mouse here forever.
+    - Changed light flag usage. Now we don't add this dynamicly (for example on explosive enemy init) and rather this only serves purpose on loading. Like when we do actual light objects on levels and not when we add light to enemies in game. For that purpose we have light index. That is a problem because for example on explosive initing we add light flag, but on free explosvie should we removing light flag? What if it still has lights? That's a weird moment and we'll think on flags overall later.
+    - Fixed newly occured bug with explosion light shadows. That's was because on clear_level_context I recently started to clearing all lights, even temp ones. But for temp lights we init it's size and make_shadows bool only in init_level_context. We'll work with lights later on full lights remake.
+    - Inspector code size reduction progress.
+
 07.03.2025:
     - Checked for hdr. We have that one!
     - Changed propeller spin acceleration. It somewhat breaks our stuff with spin stop on levels, but that could be better overall. We'll see.   
     - Maked that mouse in editor now could go off the window.
     - Fixed failed rifle sound and shake. That broke because I removed requirement for spin to activate rifle.
     - Fixed gpu memory leak on checkpoints. That was because on checkpoint trigger enter I did not cleared previous checkpoint level context. Then was a problem because we still has global player_data clear on clear_level_context, which obviously should not happen. So now we clear player data on enter_game_state. And then it gets copied to whatever value we copied that should be in player_data at the time.
+    - Fixed rope spawning on any physics object bug.
 
 06.03.2025:
     - Changed compiler to msvc. 

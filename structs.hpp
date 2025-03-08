@@ -452,6 +452,7 @@ struct Velocity_Move{
 
 struct Propeller{
     f32 power = 1000;  
+    b32 spin_sensitive = false;
     
     i32 air_emitter_index = -1;
 };
@@ -1140,6 +1141,7 @@ struct Editor{
 
     b32 update_cam_view_position = true;
 
+    f32 create_box_scrolled = 0;
     b32 create_box_active = false;
     b32 create_box_closing = false;
     i32 create_box_selected_index = 0;
