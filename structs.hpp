@@ -503,6 +503,7 @@ struct Bird_Enemy{
 #define MAX_CENTIPEDE_SEGMENTS 64
 
 struct Centipede_Segment{
+    i32 head_id = -1;
     i32 previous_id = -1;
 };
 
@@ -512,6 +513,8 @@ struct Centipede{
     i32 segments_count = 32;
     b32 spikes_on_right = true;
     b32 spikes_on_left = false;
+    
+    b32 all_segments_dead = false;
 };
 
 struct Sticky_Texture{

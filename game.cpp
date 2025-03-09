@@ -7516,6 +7516,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             enemy_entity->move_sequence.moving = false;
         }
         
+        // kill explosive
         if (enemy_entity->flags & EXPLOSIVE){
             hitmark_scale += 4;
             hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
@@ -7576,7 +7577,24 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             
             add_hitstop(0.1f * fmaxf(1.0f, enemy_entity->enemy.explosive_radius_multiplier * 0.5f), true);
             shake_camera(0.5f * fmaxf(1.0f, enemy_entity->enemy.explosive_radius_multiplier * 0.5f));
-        }
+            
+            // centipede explode segments
+            if (enemy_entity->flags & CENTIPEDE_SEGMENT){
+                // If we don't explode all segments at once then weird things occur when some segments in ground.
+                Centipede *head = &enemy_entity->centipede_head->centipede;
+                if (!head->all_segments_dead){
+                    head->all_segments_dead = true;
+                    for (i32 i = 0; i < head->segments_ids.count; i++){
+                        Entity *segment = get_entity_by_id(head->segments_ids.get(i));
+                        if (segment && segment->id != enemy_entity->id){
+                            kill_enemy(segment, segment->position, segment->up);
+                        } else if (!segment){
+                            print("WARNING: For some reason on exploding all centipede segments some segment was not here AT ALL!!");
+                        }
+                    }
+                }
+            }
+        } // kill explosive end
         
         b32 is_hitmark_follow = false;
         
@@ -8656,6 +8674,8 @@ inline b32 update_entity(Entity *e, f32 dt){
         }
         
         if (alive_count == 0){
+            centipede->all_segments_dead = true;
+        
             e->enemy.dead_man = true;
             e->enemy.died_time = core.time.game_time;
             e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT); //@WTF?

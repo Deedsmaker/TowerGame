@@ -2,6 +2,7 @@
     - Added spin progress ui at the top of the screen.
     - bombe level 'almost' finished. Only thing left it's some more enemies for pressure and testing.
     - Fixed projectile stuck in shoot blockers. Now it's just don't hit anymore if he hit more than 8 things.
+    - Now all centipede segments explode at once. Without it we encounter weird stuff when some segments is in ground and just can't explode. 
 
 08.03.2025:
     - Improved inspector ui macroses and replaced more inspector with them for less code size. 

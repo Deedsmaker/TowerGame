@@ -1,5 +1,5 @@
 [X] Fix bullets stuck in things like shoot blocker centipede segment. 
-[ ] Think about what we do about when centipede is inside falling block and it's weirdly exploding. Probably we just should explode all cegments of centipede.
+[X] Think about what we do about when centipede is inside falling block and it's weirdly exploding. Probably we just should explode all cegments of centipede.
 [ ] Make max speed for big sword spinning. So it's almost necessary to switch to small swort for changing spin direction.
 [X] There's a leak of textures on checkpoint loading. Probably lights. 
 [X] Rope duplicates after checkpoint loading. That's a bug.
