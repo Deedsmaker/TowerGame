@@ -1,3 +1,4 @@
+[ ] Make max speed for big sword spinning. So it's almost necessary to switch to small swort for changing spin direction.
 [X] There's a leak of textures on checkpoint loading. Probably lights. 
 [X] Rope duplicates after checkpoint loading. That's a bug.
 [\] Camera movement towards enemies should not be when we're in rifle mode. Instead we can just move camera towards scope. (Tried - that's too disorienting).
@@ -155,15 +156,16 @@
 [X] Jump shooters introduction + more rope blocks. (There on vertical section we can try to make shoot blockers enemy-blocks with modifier that requires spin for longer than just one hit. This could be general thing for that kinds of blocks)
 [X] Big bombs sections. Teaching that be can hide from explosions.
 [ ] Arena section with explosions involved. Also hiding behind centipedes.
+
 <Level ideas>
 ///////////////////////////////////////////////////
 [X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
-[ ] Big bomb in the middle and static camera. There should probably be multiple single-screen arenas or we could think about spawning bombs, but i don't think it's good. Also there should be flying blocks that will protect us.
+[X] Big bomb in the middle and static camera. There should probably be multiple single-screen arenas or we could think about spawning bombs, but i don't think it's good. Also there should be flying blocks that will protect us.
 [X] Tutorial for gravity increase - spikes above
 [X] Cool physics rope block introduction with static camera where we need to cut it and go down
 [ ] Ascending level (spikes go from below) where in parts we need to climb centipedes (and there's no real blocks). 
 [ ] One-screen survival level
-[ ] Small fast centipedes with full spikes on
+[X] Small fast centipedes with full spikes on
 [ ] Big centipedes without spikes that will act like a bridge. That may be escaping sequence, where we'll need to hop on centipedes, rope blocks etc.
 [ ] Escape sequence with constant big explosions and we need to hide below blocks
 [ ] Room with one explosive birdie, but we can't shoot (because of shoot stoper!!)
