@@ -7896,7 +7896,7 @@ void calculate_projectile_collisions(Entity *entity){
             Collision col = collisions_buffer.get(i);
             Entity *other = col.other_entity;
             
-            if (projectile->already_hit_ids.contains(other->id)){
+            if (projectile->already_hit_ids.count >= projectile->already_hit_ids.max_count || projectile->already_hit_ids.contains(other->id)){
                 continue;
             }
             
