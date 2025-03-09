@@ -4530,57 +4530,23 @@ void update_editor_ui(){
                 h_pos = 5;
             }
             
-            make_ui_text("Move sequence: ", {inspector_position.x + 5, v_pos}, "text_entity_move_sequence");
-            if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & MOVE_SEQUENCE, "toggle_entity_move_sequence")){
-                selected->flags ^= MOVE_SEQUENCE;
-            }
-            v_pos += height_add;
+            INSPECTOR_UI_TOGGLE_FLAGS("Move sequence: ", "entity_move_sequence", selected->flags, MOVE_SEQUENCE, );
             
             // move sequence inspector ui
             if (selected->flags & MOVE_SEQUENCE){
-                h_pos = 25;
+                f32 h_pos = 15;
                 INSPECTOR_UI_TOGGLE("Moving: ", "move_sequence_moving", selected->move_sequence.moving, );
+                INSPECTOR_UI_TOGGLE("Loop: ", "move_sequence_loop", selected->move_sequence.loop, );
+                INSPECTOR_UI_TOGGLE("Rotate: ", "move_sequence_rotate", selected->move_sequence.rotate, );
                 
-                make_ui_text("Loop: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_loop");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->move_sequence.loop, "toggle_entity_move_sequence_loop")){
-                    selected->move_sequence.loop = !selected->move_sequence.loop;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Rotate: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_rotate");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->move_sequence.rotate, "toggle_entity_move_sequence_rotate")){
-                    selected->move_sequence.rotate = !selected->move_sequence.rotate;
-                }
-                v_pos += height_add;
-            
                 INSPECTOR_UI_INPUT_FIELD("Speed: ", "move_sequence_speed", "%.1f", selected->move_sequence.speed, to_f32, );  
-                // make_ui_text("Speed: ", {inspector_position.x + 25, v_pos}, "text_move_sequence_speed");
-                // if (make_input_field(text_format("%.1f", selected->move_sequence.speed), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, "move_sequence_speed")){
-                //     selected->move_sequence.speed = to_f32(focus_input_field.content);
-                // }
-                // v_pos += height_add;
                 
-                make_ui_text("Speed related player distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_speed_related_player_distance");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.8f, v_pos}, selected->move_sequence.speed_related_player_distance, "move_sequence_speed_related_player_distance")){
-                    selected->move_sequence.speed_related_player_distance = !selected->move_sequence.speed_related_player_distance;
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Speed related player distance: : ", "move_sequence_speed_related_player_distance", selected->move_sequence.speed_related_player_distance, );
                 if (selected->move_sequence.speed_related_player_distance){
-                    make_ui_text("Min distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_min_distance");
-                    if (make_input_field(text_format("%.1f", selected->move_sequence.min_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_min_distance")){
-                        selected->move_sequence.min_distance = to_f32(focus_input_field.content);
-                    }
-                    v_pos += height_add;
-                    make_ui_text("Max distance: ", {inspector_position.x + 25, v_pos}, "move_sequence_max_distance");
-                    if (make_input_field(text_format("%.1f", selected->move_sequence.max_distance), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance")){
-                        selected->move_sequence.max_distance = to_f32(focus_input_field.content);
-                    }
-                    v_pos += height_add;
-                    make_ui_text("Max distance speed: ", {inspector_position.x + 25, v_pos}, "move_sequence_max_distance_speed");
-                    if (make_input_field(text_format("%.1f", selected->move_sequence.max_distance_speed), {inspector_position.x + 170, v_pos}, 100, "move_sequence_max_distance_speed")){
-                        selected->move_sequence.max_distance_speed = to_f32(focus_input_field.content);
-                    }
-                    v_pos += height_add;
+                    f32 h_pos = 25;
+                    INSPECTOR_UI_INPUT_FIELD("Min distance: ", "move_sequence_min_distance", "%.1f", selected->move_sequence.min_distance, to_f32, );  
+                    INSPECTOR_UI_INPUT_FIELD("Max distance: ", "move_sequence_max_distance", "%.1f", selected->move_sequence.max_distance, to_f32, );  
+                    INSPECTOR_UI_INPUT_FIELD("Max distance speed: ", "move_sequence_max_distance_speed", "%.1f", selected->move_sequence.max_distance_speed, to_f32, );  
                 }
                 
                 make_ui_text(text_format("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
@@ -4594,8 +4560,6 @@ void update_editor_ui(){
                 
                 make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "move_sequence_settings");
                 type_info_v_pos += type_font_size;
-                         
-                h_pos = 5;
             }
             
             if (selected->flags & PROPELLER){            
@@ -4605,15 +4569,9 @@ void update_editor_ui(){
         } // entity inspector end
         
         if (selected->flags & NOTE){
-            make_ui_text("NOTE draw in game: ", {inspector_position.x + 5, v_pos}, "note_draw_in_game");
+            f32 h_pos = 15;
             Note *note = current_level_context->notes.get_ptr(selected->note_index);
-            if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, note->draw_in_game, "note_draw_in_game")){
-                note->draw_in_game = !note->draw_in_game;
-            }
-            v_pos += height_add;
-            
-            // make_color_picker(inspector_position, inspector_size, v_pos, &note->in_game_color);
-            // v_pos += height_add;
+            INSPECTOR_UI_TOGGLE("NOTE draw in game: ", "note_draw_in_game", note->draw_in_game, );
         }
         
         // inspector light inspector
@@ -4623,42 +4581,24 @@ void update_editor_ui(){
         v_pos += height_add;
         
         if (editor.draw_light_settings){
-            make_ui_text("Make light: ", {inspector_position.x + 5, v_pos}, "make_light");
-            if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->flags & LIGHT, "make_light")){
-                selected->flags ^= LIGHT;
+            INSPECTOR_UI_TOGGLE_FLAGS("Make light: ", "make_light", selected->flags, LIGHT, 
                 if (selected->flags & LIGHT){
                     init_entity_light(selected);                    
                 } else{
                     free_entity_light(selected);
                 }
-            }
-            v_pos += height_add;
-            
+            );
             if (selected->flags & LIGHT && selected->light_index >= 0){
                 Light *light = current_level_context->lights.get_ptr(selected->light_index);
                 
                 make_color_picker(inspector_position, inspector_size, v_pos, &light->color);
                 v_pos += height_add;
                 
-                make_ui_text("Light radius: ", {inspector_position.x + 5, v_pos}, "light_radius");
-                if (make_input_field(text_format("%.2f", light->radius), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "light_radius") ){
-                    light->radius = to_f32(focus_input_field.content);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_INPUT_FIELD("Light radius: ", "light_radius", "%.2f", light->radius, to_f32, );
+                INSPECTOR_UI_INPUT_FIELD("Light opacity: ", "light_opacity", "%.2f", light->opacity, to_f32, );
+                INSPECTOR_UI_INPUT_FIELD("Light power: ", "light_power", "%.2f", light->power, to_f32, );
                 
-                make_ui_text("Light opacity: ", {inspector_position.x + 5, v_pos}, "light_opacity");
-                if (make_input_field(text_format("%.2f", light->opacity), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "light_opacity") ){
-                    light->opacity = to_f32(focus_input_field.content);
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Light power: ", {inspector_position.x + 5, v_pos}, "light_power");
-                if (make_input_field(text_format("%.2f", light->power), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "light_power") ){
-                    light->power = to_f32(focus_input_field.content);
-                }
-                v_pos += height_add;
-
-                
+                // Leave this without macro for colors.
                 make_ui_text("Bake shadows: ", {inspector_position.x + 5, v_pos}, "light_bake_shadows", 17, ColorBrightness(light->bake_shadows ? GREEN : RED, 0.5f));
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->bake_shadows, "light_bake_shadows")){
                     light->bake_shadows = !light->bake_shadows;
@@ -4666,12 +4606,7 @@ void update_editor_ui(){
                 }
                 v_pos += height_add;
                 
-                make_ui_text("Make shadows (expensive): ", {inspector_position.x + 5, v_pos}, "light_make_shadows");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->make_shadows, "light_make_shadows")){
-                    light->make_shadows = !light->make_shadows;
-                    init_entity_light(selected, light, true);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Make shadows: ", "light_make_shadows", light->make_shadows, init_entity_light(selected, light, true));
 
                 if (light->make_shadows){
                     make_ui_text("Shadows Size flags: ", {inspector_position.x + 5, v_pos}, "shadows_size_flags");
@@ -4680,12 +4615,7 @@ void update_editor_ui(){
                     v_pos += height_add * 2;
                 }
                 
-                make_ui_text("Make backshadows: ", {inspector_position.x + 5, v_pos}, "light_make_backshadows");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->make_backshadows, "light_make_backshadows")){
-                    light->make_backshadows = !light->make_backshadows;
-                    init_entity_light(selected, light, true);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Make backshadows: ", "light_make_backshadows", light->make_backshadows, init_entity_light(selected, light, true));
 
                 if (light->make_backshadows){
                     make_ui_text("Backshadows Size flags: ", {inspector_position.x + 5, v_pos}, "backshadows_size_flags");
@@ -4704,71 +4634,16 @@ void update_editor_ui(){
             v_pos += height_add;
             
             if (editor.draw_trigger_settings){
-                make_ui_text("Activate on player: ", {inspector_position.x + 5, v_pos}, "text_player_touch");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.player_touch, "toggle_player_touch")){
-                    selected->trigger.player_touch = !selected->trigger.player_touch;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Die after trigger: ", {inspector_position.x + 5, v_pos}, "trigger_die_after_trigger");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.die_after_trigger, "trigger_die_after_trigger")){
-                    selected->trigger.die_after_trigger = !selected->trigger.die_after_trigger;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Kill player: ", {inspector_position.x + 5, v_pos}, "trigger_kill_player");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.kill_player, "trigger_kill_player")){
-                    selected->trigger.kill_player = !selected->trigger.kill_player;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Kill enemies: ", {inspector_position.x + 5, v_pos}, "trigger_kill_enemies");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.kill_enemies, "trigger_kill_enemies")){
-                    selected->trigger.kill_enemies = !selected->trigger.kill_enemies;
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Open or close Doors: ", {inspector_position.x + 5, v_pos}, "trigger_open_doors");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.open_doors, "toggle_open_doors")){
-                    selected->trigger.open_doors = !selected->trigger.open_doors;                 
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Start physics: ", {inspector_position.x + 5, v_pos}, "trigger_start_physics_simulation");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_physics_simulation, "trigger_start_physics_simulation")){
-                    selected->trigger.start_physics_simulation = !selected->trigger.start_physics_simulation;                 
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Track enemies: ", {inspector_position.x + 5, v_pos}, "trigger_track_enemies");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.track_enemies, "toggle_track_enemies")){
-                    selected->trigger.track_enemies = !selected->trigger.track_enemies;                 
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Lines to tracked: ", {inspector_position.x + 5, v_pos}, "trigger_draw_lines_to_tracked");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.draw_lines_to_tracked, "trigger_draw_lines_to_tracked")){
-                    selected->trigger.draw_lines_to_tracked = !selected->trigger.draw_lines_to_tracked;                 
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Agro enemies: ", {inspector_position.x + 5, v_pos}, "text_trigger_agro_enemies");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.agro_enemies, "toggle_agro_enemies")){
-                    selected->trigger.agro_enemies = !selected->trigger.agro_enemies;                 
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Shows entities: ", {inspector_position.x + 5, v_pos}, "trigger_shows_entities", ColorBrightness(SKYBLUE, 0.5f));
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.shows_entities, "toggle_trigger_show_entity")){
-                    selected->trigger.shows_entities = !selected->trigger.shows_entities;                 
-                }
-                v_pos += height_add;
-                
-                make_ui_text("Starts moving sequence: ", {inspector_position.x + 5, v_pos}, "trigger_starts_moving_sequence");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.starts_moving_sequence, "toggle_starts_moving_sequence")){
-                    selected->trigger.starts_moving_sequence = !selected->trigger.starts_moving_sequence;                 
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Activate on player: ", "trigger_player_touch", selected->trigger.player_touch, );
+                INSPECTOR_UI_TOGGLE("Die after trigger: ", "trigger_die_after_trigger", selected->trigger.die_after_trigger, );
+                INSPECTOR_UI_TOGGLE("Kill player: ", "trigger_kill_player", selected->trigger.kill_player, );
+                INSPECTOR_UI_TOGGLE("Kill enemies: ", "trigger_kill_enemies", selected->trigger.kill_enemies, );
+                INSPECTOR_UI_TOGGLE("Doors Open(1) Close(0): ", "trigger_open_doors", selected->trigger.open_doors, );
+                INSPECTOR_UI_TOGGLE("Start physics: ", "trigger_start_physics_simulation", selected->trigger.start_physics_simulation, );
+                INSPECTOR_UI_TOGGLE("Lines to tracked: ", "trigger_draw_lines_to_tracked", selected->trigger.draw_lines_to_tracked, );
+                INSPECTOR_UI_TOGGLE("Agro enemies: ", "trigger_agro_enemies", selected->trigger.agro_enemies, );
+                INSPECTOR_UI_TOGGLE("Show(1) Hide(0) entities: ", "trigger_shows_entities", selected->trigger.shows_entities, );
+                INSPECTOR_UI_TOGGLE("Starts moving sequence: ", "trigger_starts_moving_sequence", selected->trigger.starts_moving_sequence, );
                 
                 Color cam_section_color = ColorBrightness(PINK, 0.4f);
                 make_ui_text("Change zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zoom_text", cam_section_color);
@@ -5017,12 +4892,7 @@ void update_editor_ui(){
             v_pos += height_add;
             
             if (editor.draw_door_settings){
-                make_ui_text("Open: ", {inspector_position.x + 5, v_pos}, "text_door_open");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->door.is_open, "toggle_door_open_closed")){
-                    selected->door.is_open = !selected->door.is_open;
-                    init_entity(selected);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Open: ", "door_open_closed", selected->door.is_open, );
             }
         
             make_ui_text(text_format("Ctrl+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
@@ -10126,6 +9996,18 @@ void draw_particles(){
 }
 
 void draw_ui(const char *tag){
+    // draw spin bar
+    if (game_state == GAME){
+        f32 width = player_data.sword_spin_progress * screen_width * 0.5f;
+        f32 height = screen_height * 0.01f;
+        f32 opacity = lerp(0.2f, 0.8f, player_data.sword_spin_progress * player_data.sword_spin_progress);
+        if (player_data.sword_spin_direction > 0){
+            draw_rect({screen_width * 0.5f, 0}, {width, height}, {0, 0}, 0, Fade(SKYBLUE, opacity));
+        } else{
+            draw_rect({screen_width * 0.5f, 0}, {width, height}, {1, 0}, 0, Fade(PURPLE, opacity));
+        }
+    }
+
     // Draw speedrun info after last level
     if (state_context.we_got_a_winner){
         // make_ui_text(

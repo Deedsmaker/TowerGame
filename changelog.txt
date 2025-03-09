@@ -1,3 +1,6 @@
+09.03.2025:
+    - Added spin progress ui at the top of the screen.
+
 08.03.2025:
     - Improved inspector ui macroses and replaced more inspector with them for less code size. 
     - Made property 'spin_sensitive' for propellers and made that in few levels. That's because recently i made that propellers push really good only when spin is on it's highest, but we need sensitive ones for spin stop training and on some places where we don't want player to climb up.
