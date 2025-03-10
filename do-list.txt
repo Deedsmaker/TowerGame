@@ -1,3 +1,8 @@
+[X] Jump shooters grow their particle emit rate constantly. Also jump shooters should die if they literally goes crashed by physics object. (Crushing by physics block maybe fixed, but dunno what about particle emit).
+[ ] Spawner overall and Spawner that will fly itself, so player should hunt him down.
+[ ] Enemy that buffs other enemies - adds them modifiers. We should experiment with that things that will make player Action becaue that's what the game tells me it needs.
+[ ] Think more about different goals on levels.
+[ ] Delay on contiguous explosions.
 [X] Fix bullets stuck in things like shoot blocker centipede segment. 
 [X] Think about what we do about when centipede is inside falling block and it's weirdly exploding. Probably we just should explode all cegments of centipede.
 [ ] Make max speed for big sword spinning. So it's almost necessary to switch to small swort for changing spin direction.
@@ -129,10 +134,12 @@
 
 <LONG TERM>
 ///////////////////////////////////////////////////
-[ ] Really strong lighting with shadows and reflections/refractions
-[ ] Particles rework
-[ ] Per-object motion blur
-[ ] Dynamic decals
+[ ] Really strong lighting with shadows and reflections/refractions.
+    - Update 10.03.2025: Think we'll go with mostly baked lighting and will be using pathtracing approach. Also nice background lighting with depth. For dynamic shadows we could use existing thing - that will be good enough if rest of lighting will be pathtraced with depth.
+[X] Particles rework.
+    - Particles general system reworked and most likely we'll go with it to the end. No really 'good' particles still of course, but that's will be done with the rest of art work, so this task marked complete.
+[ ] Per-object motion blur.
+[ ] Dynamic decals.
 [ ] Simulating only visual entities for fps more than fixed. Better later so less friction because simulation for visual guys should not make something catastrophical.
     - Made basic version of this - we just moving entities by their velocity and rotating some things, but that's not enough for final cut. Good enough for now. 05.02.2025.
 [ ] Profiling tool.
@@ -144,20 +151,25 @@
 ///////////////////////////////////////////////////
 
 <Levels order>
-[X] Basic spining movement
-[X] Basic shooting/triggers (also some immortal blockers)
-[X] Big sword tutorial and more blockers
-[X] Blocker turorial. Also propeller introduction
-[X] Air movement (Down key for gravity 1)
-[X] Explosive level
-[X] More air movement, fast escape from wall and wide propeller slowing introduction
+[X] Basic spining movement.
+[X] Spin practice. Blockers get introduced here.
+[X] Big sword practice. Sword size modifier introduced here.
+[X] Shooting practice. Propellers and sword spin stop introduced here.
+[ ] Explosive introduction v2.
+[ ] Air movement practice v2.
+                                                \[X] Basic shooting/triggers (also some immortal blockers).
+                                                \[X] Big sword tutorial and more blockers.
+                                                \[X] Blocker turorial. Also propeller introduction.
+                                                \[X] Air movement (Down key for gravity 1).
+                                                \[X] Explosive level.
 [X] Arena
-[X?] Escape level with need to stop spinning ?. + arena (bridge1 level as arena and escape sequence is ok, but we might not want to force player stop sword spinning so early)
+                                                \[X] More air movement, fast escape from wall and wide propeller slowing introduction
+[X?] Escape level with need to stop spinning ?. + arena.
 [X] Centipede
-[X] Rope blocks
-[X] Jump shooters introduction + more rope blocks. (There on vertical section we can try to make shoot blockers enemy-blocks with modifier that requires spin for longer than just one hit. This could be general thing for that kinds of blocks)
+[X] Rope blocks.
+[X] Jump shooters introduction + more rope blocks. (There on vertical section we can try to make shoot blockers enemy-blocks with modifier that requires spin for longer than just one hit. This could be general thing for that kinds of blocks).
 [X] Big bombs sections. Teaching that be can hide from explosions.
-[ ] Arena section with explosions involved. Also hiding behind centipedes.
+[X] Arena section with explosions involved. Also hiding behind centipedes. 
 
 <Level ideas>
 ///////////////////////////////////////////////////
@@ -195,6 +207,7 @@
 [ ] Враг/Модификатор . Делает врагу больше хп, но убить можно только если быстро нанести много урона. С мечом нужно крутиться на враге некоторое время (например 1.5 секунды), а с выстрелом настрелять много за короткое время. С мечом круче всего звучит, нужно будет реально подзадержаться на типе и такое можно использовать для боссов. Тяжело будет работать с птичками, но дуабл. Вероятно придется подумать еще над тем чтобы было легче оставаться на месте при сильном вращении, потому что в воздухе точно если будешь крутиться в одну сторону и жать кнопку ходьбы в другую - вращение меча перевесит. Показываться это будет полоской над врагом, которая будет заполняться при нанесении урона и убавляться когда некоторое время не дамажишь.
 [ ] Surface that when hit with sword - sword stoppes and player stucks in thing. 
 [ ] Block that connected to sword rotation at any distance. So we rotate clockwise - block rotates aswell. 
+[ ] Should we try something with gear? Synchronise spin?
 ///////////////////////////////////////////////////
 
 <VISUAL>

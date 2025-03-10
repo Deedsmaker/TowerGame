@@ -522,7 +522,7 @@ i32 add_particle_emitter(Particle_Emitter *copy, i32 entity_id){
     }
     
     if (emitter_index == -1){
-        print("WARNING: Could not found particle emitter index to add");
+        printf("WARNING: Could not found particle emitter index to add. Copy emitter tag is: %s. And count type is: %d\n", copy->tag_16, copy->count_type);
     }
     
     return emitter_index;
@@ -1448,9 +1448,10 @@ void init_bird_emitters(Entity *entity){
     Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     free_entity_particle_emitters(entity);
     entity->bird_enemy.trail_emitter_index = add_entity_particle_emitter(entity, entity->flags & EXPLOSIVE ? &little_fire_emitter : &air_dust_emitter);
-    enable_emitter(entity->bird_enemy.trail_emitter_index);
-    entity->bird_enemy.attack_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
+    enable_emitter(entity->bird_enemy.trail_emitter_index, entity->position);
+    entity->bird_enemy.attack_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
     entity->bird_enemy.fire_emitter_index = add_entity_particle_emitter(entity, &fire_emitter);
+    entity->bird_enemy.smoke_fire_emitter_index = add_entity_particle_emitter(entity, &smoke_fire_emitter_copy);
     entity->bird_enemy.collision_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
 }
 
@@ -2120,10 +2121,10 @@ void init_entity(Entity *entity){
         Particle_Emitter *trail_emitter = get_particle_emitter(entity->jump_shooter.trail_emitter_index);
         if (trail_emitter){
             trail_emitter->follow_entity = false;
-            enable_emitter(trail_emitter);
+            enable_emitter(trail_emitter, entity->position);
         }
         
-        entity->jump_shooter.flying_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
+        entity->jump_shooter.flying_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
         Particle_Emitter *flying_emitter = get_particle_emitter(entity->jump_shooter.flying_emitter_index);
         if (flying_emitter){
             flying_emitter->follow_entity = false;
@@ -2346,6 +2347,7 @@ void print_debug_commands_to_console(){
     console.str += "\t>full_light\n";
     console.str += "\t>collision_grid\n";
     console.str += "\t>timescale <scale>\n";
+    console.str += "\t>draw_triggers\n";
     
     console.str += "\t>play_replay - Plays current recorded game state replay. (Single level)\n";
     console.str += "\t>save_replay - Saves current replay to file\n";
@@ -2519,6 +2521,10 @@ void debug_stop_game(){
     debug.drawing_stopped = true;
 }
 
+void debug_toggle_draw_triggers(){
+    debug.draw_areas_in_game = !debug.draw_areas_in_game;
+}
+
 void init_console(){
     reload_level_files();    
 
@@ -2541,6 +2547,7 @@ void init_console(){
     console.commands.add(make_console_command("unlock_camera",  debug_unlock_camera));
     console.commands.add(make_console_command("full_light",     debug_toggle_full_light));
     console.commands.add(make_console_command("collision_grid", debug_toggle_collision_grid));
+    console.commands.add(make_console_command("draw_triggers", debug_toggle_draw_triggers));
     
     console.commands.add(make_console_command("save",     save_current_level, save_level_by_name));
     console.commands.add(make_console_command("load",     NULL, load_level_by_name));
@@ -6055,7 +6062,7 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         } else if (enemy_entity->flags & JUMP_SHOOTER){
             sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
         } else{
-            kill_enemy(enemy_entity, hit_position, particles_direction, lerp(1.0f, 1.5f, sqrtf(player_data.sword_spin_progress)));
+            kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data.sword_spin_progress)));
         }
         
         f32 max_speed_boost = 6 * player_data.sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
@@ -6080,6 +6087,15 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             play_sound("SwordKill", hit_position, 0.5f);
         }
     }
+}
+
+inline void cut_rope(Entity *entity, Vector2 point = Vector2_zero){
+    if (point == Vector2_zero){
+        point = entity->position;
+    }
+    entity->destroyed = true;
+    emit_particles(&rifle_bullet_emitter, point, entity->up, 6, 50);
+    play_sound("RopeCut", point);
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity){
@@ -6116,9 +6132,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
         
         if (other->flags & BLOCK_ROPE && player_data.sword_spin_progress >= 0.7f){
             // cut rope
-            other->destroyed = true;
-            emit_particles(&rifle_bullet_emitter, col.point, other->up, 6, 50);
-            play_sound("RopeCut", col.point);
+            cut_rope(other, col.point);
         }
         
         if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & PLATFORM){
@@ -7043,14 +7057,24 @@ void respond_physics_object_collision(Entity *entity, Collision col){
             // other->bird_enemy.velocity += direction * force / 100;
         }
         resolve_physics_collision(&physics_object->velocity, physics_object->mass, &other->bird_enemy.velocity, 5, col.normal);
-    } else if (other->flags & ENEMY && (!(other->flags & JUMP_SHOOTER))){
-        f32 force = dot(((physics_object->velocity) * physics_object->mass) / 5, col.normal * -1);   
-        if (physics_object->mass >= 5 && force > 1000){
-            kill_enemy(other, col.point, direction, force / 200);
-            play_sound("SwordKill", col.point, 0.5f);
-        } 
-        Vector2 fictional_velocity = Vector2_zero;
-        resolve_physics_collision(&physics_object->velocity, physics_object->mass, &fictional_velocity, 0.1f, col.normal);
+    } else if (other->flags & ENEMY){
+        // Right now we don't give velocity to entities (including player) that standing on some moving thing (physics object 
+        // currently). So when jump shooter sticking on this one - he'll just crush it and we done.
+        // We check for if jump shooter in jumping state also because if physics block moving fast and jump shooter jump off him - 
+        // he can just reach jump shooter and kill him. And I don't want that to happen.
+        b32 is_jump_shooter_standing_on_me = other->flags & JUMP_SHOOTER && (other->jump_shooter.states.standing || other->jump_shooter.states.jumping) && other->jump_shooter.standing_on_physics_object_id == entity->id;
+        
+        b32 should_not_crush_enemy = is_jump_shooter_standing_on_me;
+        
+        if (!should_not_crush_enemy){
+            f32 force = dot(((physics_object->velocity) * physics_object->mass) / 5, col.normal * -1);   
+            if (physics_object->mass >= 5 && force > 1000){
+                kill_enemy(other, col.point, direction, force / 200);
+                play_sound("SwordKill", col.point, 0.5f);
+            } 
+            Vector2 fictional_velocity = Vector2_zero;
+            resolve_physics_collision(&physics_object->velocity, physics_object->mass, &fictional_velocity, 0.1f, col.normal);
+        }
     }
 }
 
@@ -7187,7 +7211,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         bird->velocity              = reflected_vector(bird->velocity * 0.8f, col.normal);
         other->bird_enemy.velocity += reflected_vector(bird->velocity * 0.3f, col.normal * -1);
         
-        emit_particles(&rifle_bullet_emitter, col.point, col.normal, 0.5f, 1);
+        emit_particles(bird->collision_emitter_index, col.point, normalized(bird->velocity), 0.5f, 1);
         
         if (is_high_velocity){
             play_sound("BirdToBird", col.point, 0.5f);
@@ -7492,13 +7516,20 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     
 }
 
-void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, f32 particles_speed_modifier){
+void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 can_wait, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
     
     f32 hitmark_scale = 1;
     Color hitmark_color = WHITE;
     
     if (!enemy_entity->enemy.dead_man){
+        if (can_wait){
+            if (enemy_entity->flags & EXPLOSIVE && core.time.app_time - state_context.timers.last_explosion_app_time < 0.01f){
+                enemy_entity->enemy.should_explode = true;
+                return;
+            }
+        }
+    
         enemy_entity->enemy.stun_start_time = core.time.game_time;
         enemy_entity->enemy.last_hit_time   = core.time.game_time;
         // f32 count = player_data.is_sword_big ? 3 : 1;
@@ -7516,8 +7547,9 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             enemy_entity->move_sequence.moving = false;
         }
         
-        // kill explosive
+        // explosive kill explosive
         if (enemy_entity->flags & EXPLOSIVE){
+            state_context.timers.last_explosion_app_time = core.time.app_time;
             hitmark_scale += 4;
             hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
             f32 explosion_radius = get_explosion_radius(enemy_entity);
@@ -7535,6 +7567,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy_entity->enemy.explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f), light_size_flag);
             
             f32 explosion_add_speed = 80;
+            i32 spawned_particles_count = 0;
             ForEntities(other_entity, 0){
                 Vector2 vec_to_other = other_entity->position - enemy_entity->position;
                 f32 distance_to_other = magnitude(vec_to_other);
@@ -7547,9 +7580,12 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 u64 additional_flags = 0;
                 if (other_entity->flags & PLAYER) additional_flags |= CENTIPEDE_SEGMENT | CENTIPEDE;
                 
-                Collision raycast_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other, GROUND | additional_flags, 2, enemy_entity->id);
+                Collision raycast_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other - 1, GROUND | additional_flags, 2, enemy_entity->id);
                 if (raycast_collision.collided){
-                    emit_particles(&ground_splash_emitter, raycast_collision.point, raycast_collision.normal, 4, 5.5f);
+                    if (spawned_particles_count < 3){
+                        emit_particles(&ground_splash_emitter, raycast_collision.point, raycast_collision.normal, 4, 5.5f);
+                        spawned_particles_count += 1;
+                    }
                     continue;
                 }
                 
@@ -7568,6 +7604,10 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 
                 if (other_entity->flags & PHYSICS_OBJECT){
                     other_entity->physics_object.velocity += (dir_to_other * explosion_add_speed * (explosion_radius * 0.1f)) / other_entity->physics_object.mass;
+                }
+                
+                if (other_entity->flags & BLOCK_ROPE){
+                    cut_rope(other_entity);
                 }
                 
                 if (other_entity->flags & PLAYER && !player_data.dead_man && distance_to_other < explosion_radius * 0.75f){
@@ -7706,7 +7746,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             
             if (enemy_entity->flags & BIRD_ENEMY){
                 // birds handle dead state by themselves
-                enable_emitter(enemy_entity->bird_enemy.fire_emitter_index);
+                enable_emitter(enemy_entity->bird_enemy.fire_emitter_index, enemy_entity->position);
+                enable_emitter(enemy_entity->bird_enemy.smoke_fire_emitter_index, enemy_entity->position);
                 add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & JUMP_SHOOTER){
                 Particle_Emitter *dead_fire_emitter = get_particle_emitter(add_entity_particle_emitter(enemy_entity, &fire_emitter));
@@ -7963,7 +8004,7 @@ void calculate_projectile_collisions(Entity *entity){
                     stun_enemy(other, entity->position, col.normal);    
                     sparks_speed += 1;
                 } else if (can_damage){
-                    kill_enemy(other, entity->position, col.normal);
+                    kill_enemy(other, entity->position, col.normal, false);
                     killed = true;
                 }
                 
@@ -8036,7 +8077,7 @@ void calculate_projectile_collisions(Entity *entity){
             Entity *other = col.other_entity;
             
             if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
-                kill_enemy(entity, col.point, col.normal, 1);
+                kill_enemy(entity, col.point, col.normal);
                 emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
             }
             
@@ -8050,7 +8091,7 @@ void calculate_projectile_collisions(Entity *entity){
                 b32 can_kill_player = !projectile->dying || !(entity->flags & (BLOCKER | EXPLOSIVE));
                 if (can_kill_player){
                     if (can_sword_damage_enemy(entity)){
-                        kill_enemy(entity, col.point, col.normal, 1);
+                        kill_enemy(entity, col.point, col.normal);
                     } else{
                         kill_player();
                     }
@@ -8601,6 +8642,7 @@ inline b32 update_entity(Entity *e, f32 dt){
     
     session_context.collision_grid.origin = {(f32)((i32)player_entity->position.x - ((i32)player_entity->position.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)player_entity->position.y - ((i32)player_entity->position.y % (i32)session_context.collision_grid.cell_size.y))};
     
+    // update player
     if (e->flags & PLAYER){
         if (IsKeyDown(KEY_K) && !console.is_open){
             e->position = input.mouse_position;
@@ -8609,10 +8651,21 @@ inline b32 update_entity(Entity *e, f32 dt){
         }
     }
       
+    // update explosive
+    if (e->flags & EXPLOSIVE){
+        if (e->enemy.should_explode && !e->enemy.dead_man){
+            if (core.time.app_time - state_context.timers.last_explosion_app_time >= 0.01f){    
+                kill_enemy(e, e->position, e->up, false);
+            }
+        }
+    }
+        
+    // update bird enemy
     if (e->flags & BIRD_ENEMY && debug.enemy_ai){
         update_bird_enemy(e, dt);
     }
     
+    // update projectile
     if (e->flags & PROJECTILE){
         update_projectile(e, dt);
     }
@@ -8625,10 +8678,12 @@ inline b32 update_entity(Entity *e, f32 dt){
         // update_emitter(e->emitters.get_ptr(em), dt);
     }
     
+    // update sticky texture
     if (e->flags & STICKY_TEXTURE){
         update_sticky_texture(e, dt);
     }
     
+    // update trigger
     if (e->flags & TRIGGER){
         i32 trigger_action_flags = update_trigger(e);
         if (trigger_action_flags & TRIGGER_LEVEL_LOAD){
@@ -8636,6 +8691,7 @@ inline b32 update_entity(Entity *e, f32 dt){
         }
     }
     
+    // update move sequence
     if (e->flags & MOVE_SEQUENCE){
         update_move_sequence(e, dt);
     }
@@ -8719,6 +8775,7 @@ inline b32 update_entity(Entity *e, f32 dt){
             shooter->velocity.y -= GRAVITY * dt;
             rotate(e, shooter->velocity.x * 30 * dt);
             shooter->states = {};
+            disable_emitter(shooter->trail_emitter_index);
             shooter->states.standing = false;
             shooter->states.standing_start_time = core.time.game_time;
             
@@ -8804,6 +8861,9 @@ inline b32 update_entity(Entity *e, f32 dt){
                     
                     if (nearest_ground.other_entity->flags & PHYSICS_OBJECT){
                         e->position += nearest_ground.other_entity->physics_object.moved_last_frame;
+                        shooter->standing_on_physics_object_id = nearest_ground.other_entity->id;
+                    } else{
+                        shooter->standing_on_physics_object_id = -1;
                     }
                     
                     if (nearest_ground.other_entity->flags & MOVE_SEQUENCE){
@@ -8972,7 +9032,7 @@ inline b32 update_entity(Entity *e, f32 dt){
                 trail_emitter->direction = e->up * -1;
                 trail_emitter->count_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
                 trail_emitter->speed_multiplier = lerp(1.0f, 10.0f, sqrtf(picking_point_t));
-                trail_emitter->over_time = 3.0f;
+                trail_emitter->over_time = 1.0f;
             }   
             // jump shooter fly to next
             if (picking_point_time >= shooter->max_picking_point_time){
@@ -9387,12 +9447,7 @@ void fill_entities_draw_queue(){
                 }
             }
             
-            // @SHIT Wtf, why we do that here. That should be in trigger drawing and should happen only in editor. 
-            // But if we remove connected removal right now - we destroy ourselves because we should track that separetely in 
-            // game trigger update.
-            // Maybe that was made here because i wanted to draw stuff like lines and we did not have immediate drawing at that time, 
-            // but still that too stupid to be true.
-            b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id;
+            b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id || (IsKeyDown(KEY_LEFT_ALT) && should_draw_editor_hints());
             for (i32 ii = 0; ii < entity->trigger.connected.count; ii++){
                 i32 id = entity->trigger.connected.get(ii);
                 Entity *connected_entity = current_level_context->entities.get_by_key_ptr(id);
@@ -10906,39 +10961,39 @@ inline void draw_game_triangle_strip(Entity *entity){
     draw_game_triangle_strip(entity, entity->color);
 }
 
-void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
+inline void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, {0, 0});
     draw_rect(screen_pos, multiply(scale, session_context.cam.unit_size), pivot, rotation, color);
 }
 
-void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
+inline void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
     Vector2 screen_pos = world_to_screen(position);
     draw_text(text, screen_pos, size, color);
 }
 
-void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip){
+inline void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip){
     Vector2 screen_pos = world_to_screen(position);
     draw_texture(tex, screen_pos, transform_texture_scale(tex, scale), pivot, rotation, color, flip);
 }
 
-void draw_game_texture_full(Texture tex, Vector2 position, Vector2 pivot, f32 rotation, Color color){
+inline void draw_game_texture_full(Texture tex, Vector2 position, Vector2 pivot, f32 rotation, Color color){
     Vector2 screen_pos = world_to_screen(position);
     draw_texture(tex, screen_pos, {6.0f, 6.0f}, pivot, rotation, color, true);
 }
 
-void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
+inline void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
     draw_line(world_to_screen(start), world_to_screen(end), thick * session_context.cam.unit_size, color);
 }
 
-void draw_game_line(Vector2 start, Vector2 end, Color color){
+inline void draw_game_line(Vector2 start, Vector2 end, Color color){
     draw_line(world_to_screen(start), world_to_screen(end), color);
 }
 
-void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle, f32 end_angle){
+inline void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle, f32 end_angle){
     draw_ring_lines(world_to_screen(center), inner_radius * session_context.cam.unit_size, outer_radius * session_context.cam.unit_size, segments, color);
 }
 
-void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color){
+inline void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color){
     draw_triangle_lines(world_to_screen(v1), world_to_screen(v2), world_to_screen(v3), color);
 }
 

@@ -1,14 +1,14 @@
 #pragma once
 
-void draw_texture(Texture tex, Vector2 pos, Color tint){
+inline void draw_texture(Texture tex, Vector2 pos, Color tint){
     DrawTextureV(tex, pos, tint);
 }
 
-void draw_texture(Texture tex, int x, int y, Color tint){
+inline void draw_texture(Texture tex, int x, int y, Color tint){
     DrawTexture(tex, x, y, tint);
 }
 
-void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float rotation, Color tint, bool flip = false){
+inline void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float rotation, Color tint, bool flip = false){
     Vector2 target_size = {tex.width * scale.x, tex.height * scale.y};
     
     Vector2 origin = {target_size.x * pivot.x, target_size.y * pivot.y};
@@ -20,7 +20,7 @@ void draw_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, float 
     DrawTexturePro(tex, source, dest, origin, rotation, tint);
 }
 
-void draw_render_texture(Texture tex, Vector2 scale, Color tint){
+inline void draw_render_texture(Texture tex, Vector2 scale, Color tint){
     Vector2 target_size = {tex.width * scale.x, tex.height * scale.y};
     
     Vector2 origin = {target_size.x * 0.5f, target_size.y * 0.5f};
@@ -31,94 +31,94 @@ void draw_render_texture(Texture tex, Vector2 scale, Color tint){
     DrawTexturePro(tex, source, dest, origin, 0, tint);
 }
 
-void draw_rect(Vector2 pos, Vector2 size, Color color){
+inline void draw_rect(Vector2 pos, Vector2 size, Color color){
     DrawRectangleV(pos, size, color);
 }
-void draw_rect(Vector2 pos, Vector2 size, f32 rotation, Color color){
+inline void draw_rect(Vector2 pos, Vector2 size, f32 rotation, Color color){
     DrawRectanglePro({pos.x, pos.y, size.x, size.y}, {size.x * 0.5f, size.y * 0.5f}, rotation, color);
 }
-void draw_rect(Vector2 pos, Vector2 size, Vector2 pivot, f32 rotation, Color color){
+inline void draw_rect(Vector2 pos, Vector2 size, Vector2 pivot, f32 rotation, Color color){
     DrawRectanglePro({pos.x, pos.y, size.x, size.y}, {size.x * pivot.x, size.y * pivot.y}, rotation, color);
 }
-void draw_rect(int x, int y, int width, int height, Color color){
+inline void draw_rect(int x, int y, int width, int height, Color color){
     DrawRectangle(x, y, width, height, color);
 }
 
-void draw_rect_lines(Vector2 pos, Vector2 scale, f32 thick, Color color){
+inline void draw_rect_lines(Vector2 pos, Vector2 scale, f32 thick, Color color){
     Rectangle rec = {pos.x, pos.y, scale.x, scale.y};
     DrawRectangleLinesEx(rec, fmax(3, thick), color);
 }
 
-void draw_rect_lines(Vector2 pos, Vector2 scale, Color color){
+inline void draw_rect_lines(Vector2 pos, Vector2 scale, Color color){
     DrawRectangleLines(pos.x, pos.y, scale.x, scale.y, color);
 }
 
-void draw_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle = 0, f32 end_angle = 360){
+inline void draw_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle = 0, f32 end_angle = 360){
     DrawRingLines(center, inner_radius, outer_radius, start_angle, end_angle, segments, color);
 }
 
-void draw_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color){
+inline void draw_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color){
     DrawTriangleLines(v1, v2, v3, color);
 }
 
 
-void draw_line_strip(Vector2 *points, int count, Color color){
+inline void draw_line_strip(Vector2 *points, int count, Color color){
     DrawLineStrip(points, count, color);
 }
 
-void draw_triangle_strip(Vector2 *points, int count, Color color){
+inline void draw_triangle_strip(Vector2 *points, int count, Color color){
     DrawTriangleStrip(points, count, color);
 }
 
-void draw_circle(Vector2 pos, f32 radius, Color color){
+inline void draw_circle(Vector2 pos, f32 radius, Color color){
     DrawCircle(pos.x, pos.y, radius, color);
 }
 
-void draw_line(Vector2 start, Vector2 end, Color color){
+inline void draw_line(Vector2 start, Vector2 end, Color color){
     DrawLineV(start, end, color);
 }
 
-void draw_line(Vector2 start, Vector2 end, f32 thick, Color color){
+inline void draw_line(Vector2 start, Vector2 end, f32 thick, Color color){
     DrawLineEx(start, end, fmax(3, thick), color);
 }
 
-void draw_text(const char *text, Vector2 pos, float size, Color color){
+inline void draw_text(const char *text, Vector2 pos, float size, Color color){
     DrawText(text, pos.x, pos.y, size, color);
 }
 
-void draw_text(const char *text, float x, float y, float size, Color color){
+inline void draw_text(const char *text, float x, float y, float size, Color color){
     DrawText(text, x, y, size, color);
 }
 
-void draw_text(int num, float x, float y, float size, Color color){
+inline void draw_text(int num, float x, float y, float size, Color color){
     char *str = to_string(num);
     DrawText(str, x, y, size, color);
     free(str);
 }
 
-void draw_text(f32 num, float x, float y, float size, Color color){
+inline void draw_text(f32 num, float x, float y, float size, Color color){
     char *str = to_string(num);
     DrawText(str, x, y, size, color);
     free(str);
 }
 
-void draw_text(f64 num, float x, float y, float size, Color color){
+inline void draw_text(f64 num, float x, float y, float size, Color color){
     char *str = to_string(num);
     DrawText(str, x, y, size, color);
     free(str);
 }
 
-void draw_text(int num, Vector2 pos, float size, Color color){
+inline void draw_text(int num, Vector2 pos, float size, Color color){
     char *str = to_string(num);
     DrawText(str, pos.x, pos.y, size, color);
     free(str);
 }
-void draw_text(f32 num, Vector2 pos, float size, Color color){
+inline void draw_text(f32 num, Vector2 pos, float size, Color color){
     char *str = to_string(num);
     DrawText(str, pos.x, pos.y, size, color);
     free(str);
 }
-void draw_text(f64 num, Vector2 pos, float size, Color color){
+inline void draw_text(f64 num, Vector2 pos, float size, Color color){
     char *str = to_string(num);
     DrawText(str, pos.x, pos.y, size, color);
     free(str);

@@ -303,6 +303,8 @@ struct Enemy{
     b32 gives_ammo = true;
     b32 gives_full_ammo = false;
     
+    b32 should_explode = false;
+    
     Vector2 original_scale = {1, 1};
     
     b32 shoot_blocker_immortal = false;
@@ -333,8 +335,9 @@ struct Jump_Shooter{
         b32 picking_point = false;
         b32 flying_to_point = false;
     };
-    
     shooter_states states = {};
+    
+    i32 standing_on_physics_object_id = -1;
     
     f32 not_found_ground_timer = 0;
     
@@ -495,6 +498,7 @@ struct Bird_Enemy{
     i32 attack_emitter_index = -1;
     i32 trail_emitter_index = -1;
     i32 fire_emitter_index = -1;
+    i32 smoke_fire_emitter_index = -1;
     i32 collision_emitter_index = -1;
     
     // Sound_Handler *attack_sound = NULL;
@@ -909,7 +913,7 @@ enum Death_Instinct_Reason{
     SWORD_WILL_EXPLODE = 1
 };
 
-#define MAX_LINE_TRAILS 128
+#define MAX_LINE_TRAILS 256
 
 struct Level_Context{
     b32 inited = false;
@@ -935,6 +939,7 @@ struct State_Context{
         f32 background_flash_time = -21;
         f32 last_collision_cells_clear_time = -2;
         f32 last_projectile_hit_time = -12;
+        f32 last_explosion_app_time = -12;
     };
     Timers timers = {};
     

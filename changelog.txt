@@ -1,3 +1,14 @@
+10.03.2025:
+    - Fixed bird trail emitters on spawn. (Including centipede segments trail on die).
+    - Made delay for explosions.
+    - Remade particles on player death.
+    - Remade propeller particles. Now it's line and we spawn less.
+    - Tried to make that explosion will cut rope, but we still very stupidly check if explosion collision so will look into that later.
+    - Made smoke for explosions. Actually removed it later - that's too much for contiguous explosions.
+    - Made that on alt key triggers draw lines to tracked and triggered.
+    - Tried to fix trail emitter on jump shooters - did not understand what's the deal. Maybe there's actually no infinite spawn growth and it's just too much. 
+    - Made that physics objects can now crush jump shooters if they don't stand on them.
+
 09.03.2025:
     - Added spin progress ui at the top of the screen.
     - bombe level 'almost' finished. Only thing left it's some more enemies for pressure and testing.
