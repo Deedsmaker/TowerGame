@@ -135,10 +135,10 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier = 1, C
 
 Texture get_texture(const char *name);
 
-Vector2 world_to_screen(Vector2 pos);
-Vector2 world_to_screen_with_zoom(Vector2 position);
-Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale);
-Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale);
+inline Vector2 world_to_screen(Vector2 pos);
+inline Vector2 world_to_screen_with_zoom(Vector2 position);
+inline Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale);
+inline Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale);
 inline void draw_game_circle(Vector2 position, f32 radius, Color color);
 inline void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color);
 inline void draw_game_triangle_strip(Entity *entity);

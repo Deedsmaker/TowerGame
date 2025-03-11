@@ -1,3 +1,8 @@
+11.03.2025:
+    - A little rework of how we drag player around with debug key - not it's possible in pause in game. And we set velocity to zero. And player can't die while we dragging.
+    - Fixed death instinct cooldown. It's was broken because how we checked if we need to start cooldown when enemy flying towards. Don't know why it broke, but now we just using thing that we already using to check if threat still active, so that's better. Now game harder though, will need to see how this will be going.
+    - Air practice level.
+
 10.03.2025:
     - Fixed bird trail emitters on spawn. (Including centipede segments trail on die).
     - Made delay for explosions.

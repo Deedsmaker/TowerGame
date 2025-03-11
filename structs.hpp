@@ -1235,6 +1235,8 @@ struct Debug{
     b32 infinite_ammo = false;
     b32 enemy_ai = true;
     b32 god_mode = false;
+    
+    b32 dragging_player = false;
 };
 
 struct Console_Command{

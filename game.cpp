@@ -2997,7 +2997,7 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
 }
 
 void kill_player(){
-    if (debug.god_mode && !state_context.we_got_a_winner || player_data.dead_man){ 
+    if (debug.god_mode && !state_context.we_got_a_winner || player_data.dead_man || debug.dragging_player){ 
         return;
     }
     
@@ -3092,15 +3092,24 @@ void fixed_game_update(f32 dt){
         }
     }
 
+    debug.dragging_player = false;
+    if (game_state == GAME && player_entity){
+        if (IsKeyDown(KEY_K) && !console.is_open){
+            player_entity->position = input.mouse_position;
+            debug.dragging_player = true;
+            player_data.velocity = Vector2_zero;
+        } 
+    } 
+
     update_entities(dt);
     update_particle_emitters(dt);
     // update_particles(dt);
     
     // update camera
     if (game_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())){
-        f32 time_since_death_instinct = core.time.app_time - state_context.death_instinct.stop_time;
+        f32 time_since_death_instinct_stop = core.time.app_time - state_context.death_instinct.stop_time;
         
-        f32 locked_speed_t = clamp01(time_since_death_instinct);
+        f32 locked_speed_t = clamp01(time_since_death_instinct_stop);
         f32 locked_speed_multiplier = lerp(0.001f, 1.0f, locked_speed_t * locked_speed_t * locked_speed_t);
     
         if (!state_context.cam_state.locked){
@@ -3540,7 +3549,9 @@ void update_game(){
         }
     } 
     
-    if (IsKeyPressed(KEY_TAB) && !console.is_open){
+    // editor game pause
+    if (IsKeyPressed(KEY_TAB) && !console.is_open && game_state == GAME){
+        assign_selected_entity(NULL);
         state_context.in_pause_editor = !state_context.in_pause_editor;
         if (state_context.in_pause_editor){
             editor.in_editor_time = 0;
@@ -3611,12 +3622,13 @@ void update_game(){
         f32 radius_multiplier = lerp(80.0f, 10.0f, sqrtf(instinct_t));
         Color ring_color = Fade(ColorBrightness(RED, abs(sinf(core.time.app_time * lerp(1.0f, 10.0f, instinct_t)) * 0.8f - 0.5f)), instinct_t * 0.4f);
         make_ring_lines(threat_entity->position, 1.0f * radius_multiplier, 2.0f * radius_multiplier, 14, ring_color);
-        was_in_death_instinct = true;
         
         if (time_since_death_instinct >= 0.2f && !state_context.death_instinct.played_effects){
             play_sound("DeathInstinct", 2);
             state_context.death_instinct.played_effects = true;
         }
+        
+        was_in_death_instinct = true;
     } else if (was_in_death_instinct){
         stop_death_instinct();
         // core.time.target_time_scale = 1;
@@ -7833,7 +7845,7 @@ inline f32 get_death_instinct_radius(Vector2 threat_scale){
     return 40 + (threat_scale.x + threat_scale.y) - 8.0f;
 }
 
-inline b32 is_death_instinct_threat_active(){
+b32 is_death_instinct_threat_active(){
     Entity *threat_entity = get_entity_by_id(state_context.death_instinct.threat_entity_id);
     b32 entity_alive = threat_entity && !threat_entity->destroyed && !threat_entity->enemy.dead_man;
     
@@ -7879,7 +7891,10 @@ void stop_death_instinct(){
     if (state_context.death_instinct.last_reason == ENEMY_ATTACKING){
         // We start cooldown if there was flying guy if he's not here anymore so player really used that instinct and don't just
         // evaded enemy.
-        is_threat_status_gives_cooldown = (!threat_entity || threat_entity->enemy.dead_man || is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), normalized(player_entity->position - threat_entity->position), magnitude(player_entity->position - threat_entity->position), true));
+        // is_threat_status_gives_cooldown = (!threat_entity || threat_entity->enemy.dead_man || is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), normalized(player_entity->position - threat_entity->position), magnitude(player_entity->position - threat_entity->position), true));
+        if (threat_entity){
+            is_threat_status_gives_cooldown = !is_death_instinct_threat_active();
+        }
     } else if (state_context.death_instinct.last_reason == SWORD_WILL_EXPLODE){
         // If there was explosive we want start cooldown if threat is still alive so player evaded explosion. 
         // That's because if player killed it - he taked risk and succeeded.
@@ -7927,7 +7942,7 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
 }
 
 b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason){
-    if (is_in_death_instinct() || is_death_instinct_in_cooldown()){
+    if (is_in_death_instinct() || is_death_instinct_in_cooldown() || player_data.dead_man){
         return false;
     }
     
@@ -8408,7 +8423,7 @@ i32 update_trigger(Entity *e){
             trigger_entity(e, e);
         }
     
-        if (e->trigger.kill_player && !debug.god_mode){
+        if (e->trigger.kill_player){
             kill_player();
         }
         
@@ -8643,12 +8658,8 @@ inline b32 update_entity(Entity *e, f32 dt){
     session_context.collision_grid.origin = {(f32)((i32)player_entity->position.x - ((i32)player_entity->position.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)player_entity->position.y - ((i32)player_entity->position.y % (i32)session_context.collision_grid.cell_size.y))};
     
     // update player
-    if (e->flags & PLAYER){
-        if (IsKeyDown(KEY_K) && !console.is_open){
-            e->position = input.mouse_position;
-        } else{
-            update_player(e, dt);
-        }
+    if (e->flags & PLAYER && !debug.dragging_player){
+        update_player(e, dt);
     }
       
     // update explosive
@@ -8967,12 +8978,7 @@ inline b32 update_entity(Entity *e, f32 dt){
                         projectile_entity->enemy.shoot_blocker_immortal = true;
                     }
                     
-                    Particle_Emitter *trail_emitter = get_particle_emitter(add_entity_particle_emitter(projectile_entity, &rifle_bullet_emitter));
-                    if (trail_emitter){
-                        trail_emitter->position = projectile_entity->position;
-                        enable_emitter(trail_emitter);
-                    }
-                    
+                    add_and_enable_entity_particle_emitter(projectile_entity, &small_air_dust_trail_emitter_copy, projectile_entity->position, true);
                     init_entity(projectile_entity);
                 }
                 
@@ -10846,7 +10852,7 @@ inline Vector2 local(Entity *e, Vector2 global_pos){
     return global_pos - e->position;
 }
 
-Vector2 world_to_screen(Vector2 position){
+inline Vector2 world_to_screen(Vector2 position){
     Vector2 cam_pos = session_context.cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
@@ -10863,7 +10869,7 @@ Vector2 world_to_screen(Vector2 position){
 }
 
 //This gives us real screen pixel position
-Vector2 world_to_screen_with_zoom(Vector2 position){
+inline Vector2 world_to_screen_with_zoom(Vector2 position){
     Vector2 cam_pos = session_context.cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
@@ -10879,12 +10885,12 @@ Vector2 world_to_screen_with_zoom(Vector2 position){
     return to_center;
 }
 
-Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale){
+inline Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale){
     Vector2 screen_texture_size_multiplier = transform_texture_scale(texture, game_scale);
     return multiply({(f32)texture.width, (f32)texture.height}, screen_texture_size_multiplier) * session_context.cam.cam2D.zoom;
 }
 
-Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale){
+inline Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale){
     Vector2 pixels_size = get_texture_pixels_size(texture, game_scale);
     pixels_size.y *= -1;
     Vector2 texture_pos = world_to_screen_with_zoom(world_position) - pixels_size  * 0.5f;
