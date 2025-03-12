@@ -1,3 +1,5 @@
+[ ] Long spin modifier for enemies and make that in spin turorial so we REALLY and FOR SURE knew that player understood how to SPIN.
+[X] Don't allow shoot on first levels.
 [ ] Multiselect. 
 [ ] Loading multiple levels and switching between. IMPORTANT to think about how we will copy entities from one level to another, because we can't allow them to keep their id. Also we need to think about multiselect and simplest problem that i can think of - when we will copy trigger he may be connected to other entities so if he was copied alone - we need to clear things that he cannot find, BUT when we copy him with multiselect - his connected entities will change their ids. If we know every such case that should not be a big problem, but i don't know how much such things will occur.
 [ ] Link for triggers. So one triggers could fully copy other one and update it's settings accordingly. That will help for example in places where player could return to previous room and enter cam rails mode with proper points (and original trigger is in the beginning of that room). Also when we'll do cam blockers system - that trigger linking will be extremely important.
@@ -6,7 +8,7 @@
 [ ] Spawner overall and Spawner that will fly itself, so player should hunt him down.
 [ ] Enemy that buffs other enemies - adds them modifiers. We should experiment with that things that will make player Action becaue that's what the game tells me it needs.
 [ ] Think more about different goals on levels.
-[ ] Delay on contiguous explosions.
+[X] Delay on contiguous explosions.
 [X] Fix bullets stuck in things like shoot blocker centipede segment. 
 [X] Think about what we do about when centipede is inside falling block and it's weirdly exploding. Probably we just should explode all cegments of centipede.
 [ ] Make max speed for big sword spinning. So it's almost necessary to switch to small swort for changing spin direction.

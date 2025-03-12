@@ -1,6 +1,12 @@
 #pragma once
 
-// #define NO_EDITOR
+#ifndef RELEASE_BUILD
+    #define RELEASE_BUILD 0
+#endif
+
+#ifndef DEBUG_BUILD
+    #define DEBUG_BUILD 0
+#endif
 
 //#define assert(a) (if (!a) (i32*)void*);
 //#define assert(Expression) if(!(Expression)) {*(i32 *)0 = 0;}
@@ -58,6 +64,8 @@ global_variable b32 enter_game_state_on_new_level = false;
 
 global_variable Dynamic_Array<Texture_Data> textures_array = Dynamic_Array<Texture_Data>(512);
 global_variable Dynamic_Array<Sound_Handler> sounds_array = Dynamic_Array<Sound_Handler>(128);
+
+global_variable b32 initing_game = false;
 
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
@@ -762,6 +770,8 @@ i32 save_level(const char *level_name){
             fprintf(fptr, "trigger_starts_moving_sequence:%d: ",         e->trigger.starts_moving_sequence);
             fprintf(fptr, "trigger_lock_camera:%d: ",                    e->trigger.lock_camera);
             fprintf(fptr, "trigger_unlock_camera:%d: ",                  e->trigger.unlock_camera);
+            fprintf(fptr, "trigger_allow_player_shoot:%d: ",               e->trigger.allow_player_shoot);
+            fprintf(fptr, "trigger_forbid_player_shoot:%d: ",               e->trigger.forbid_player_shoot);
             fprintf(fptr, "trigger_locked_camera_position{:%f:, :%f:} ", e->trigger.locked_camera_position.x, e->trigger.locked_camera_position.y);
             
             fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
@@ -1165,6 +1175,12 @@ b32 load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "trigger_unlock_camera")){
                 fill_b32_from_string(&entity_to_fill.trigger.unlock_camera, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_allow_player_shoot")){
+                fill_b32_from_string(&entity_to_fill.trigger.allow_player_shoot, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "trigger_forbid_player_shoot")){
+                fill_b32_from_string(&entity_to_fill.trigger.forbid_player_shoot, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_locked_camera_position")){
                 fill_vector2_from_string(&entity_to_fill.trigger.locked_camera_position, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
                 i += 2;
@@ -1342,16 +1358,10 @@ b32 load_level(const char *level_name){
     clear_level_context(&editor_level_context);
     clear_level_context(&game_level_context);
     copy_level_context(&editor_level_context, &loaded_level_context, true);
-    // current_level_context = &editor_level_context;
-    // game_state = EDITOR;
     
-    if (enter_game_state_on_new_level || game_state == GAME){
+    if (enter_game_state_on_new_level || game_state == GAME || (initing_game && RELEASE_BUILD)){
         enter_game_state(&loaded_level_context, true);
         
-        // ForEntities(entity, 0){
-        //     update_editor_entity(entity);
-        // }
-
         if (enter_game_state_on_new_level){
             player_data.blood_amount = last_player_data.blood_amount;
             player_data.blood_progress = last_player_data.blood_progress;
@@ -1748,8 +1758,8 @@ void load_textures(){
     UnloadDirectoryFiles(textures);
     
     missing_texture = get_texture("MissingTexture");
-    spiral_clockwise_texture = get_texture("_clockwise");
-    spiral_counterclockwise_texture = get_texture("_counterclockwise");
+    spiral_clockwise_texture = get_texture("vpravo");
+    spiral_counterclockwise_texture = get_texture("levo");
     hitmark_small_texture = get_texture("hitmark_small");
 }
 
@@ -1980,6 +1990,8 @@ void init_entity(Entity *entity){
             sticky_entity->sticky_texture.need_to_follow = true;
             sticky_entity->sticky_texture.follow_id      = entity->id;
             sticky_entity->sticky_texture.birth_time     = core.time.game_time;
+            
+            sticky_entity->sticky_texture.alpha = 0.8f;
             
             entity->enemy.blocker_sticky_id = sticky_entity->id;
         }
@@ -2575,6 +2587,7 @@ void init_console(){
 Music ambient_theme;
 Music wind_theme;
 Music tires_theme;
+Music relas_music;
 f32 tires_volume = 0.0f;
 
 void load_sounds(){
@@ -2592,6 +2605,11 @@ void load_sounds(){
     tires_theme.looping = true;
     SetMusicVolume(tires_theme, tires_volume);
     PlayMusicStream(tires_theme);
+    
+    relas_music = LoadMusicStream("resources/audio/music/Beethoven - Fur Elise.ogg");
+    relas_music.looping = true;
+    SetMusicVolume(relas_music, 1);
+    PlayMusicStream(relas_music);
     
     FilePathList sounds = LoadDirectoryFiles("resources\\audio");
     for (i32 i = 0; i < sounds.count; i++){
@@ -2758,6 +2776,7 @@ void init_level_context(Level_Context *level_context){
 }
 
 void init_game(){
+    initing_game = true;
     str_copy(loaded_level_context.name, "loaded_level_context");
     str_copy(editor_level_context.name, "editor_level_context");
     str_copy(game_level_context.name, "game_level_context");
@@ -2771,21 +2790,16 @@ void init_game(){
     
     current_level_context = &loaded_level_context;
 
-    // HideCursor();
-    // DisableCursor();
-    
     game_state = EDITOR;
 
-    // context = {};    
-    
     session_context.entity_lights_start_index = session_context.temp_lights_count; 
     
     render = {};
-    #ifndef NO_EDITOR
-        str_copy(session_context.current_level_name, "test_level");
-    #else
+    if (RELEASE_BUILD){
         str_copy(session_context.current_level_name, first_level_name);
-    #endif
+    } else{
+        str_copy(session_context.current_level_name, "test_level");
+    }
     
     i32 cells_columns = (i32)(session_context.collision_grid.size.x / session_context.collision_grid.cell_size.x);
     i32 cells_rows    = (i32)(session_context.collision_grid.size.y / session_context.collision_grid.cell_size.y);
@@ -2828,7 +2842,6 @@ void init_game(){
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
     load_level(session_context.current_level_name);
-    // enter_editor_state();
     
     session_context.cam.position = Vector2_zero;
     session_context.cam.cam2D.target = world_to_screen({0, 0});
@@ -2836,7 +2849,7 @@ void init_game(){
     session_context.cam.cam2D.rotation = 0.0f;
     session_context.cam.cam2D.zoom = 0.4f;
     
-    // enter_editor_state();
+    initing_game = false;
 } // end init game end
 
 void destroy_player(){
@@ -2865,17 +2878,6 @@ void clean_up_scene(){
     }
 
     state_context = {};
-    // state_context.shoot_stopers_count = 0;
-    // state_context.timers.last_bird_attack_time = -11111;
-    // state_context.timers.last_jump_shooter_attack_time = -11111;
-    // state_context.timers.last_collision_cells_clear_time = -2;
-    
-    // state_context.cam_state.locked = false;
-    // state_context.cam_state.on_rails_horizontal = false;
-    // state_context.cam_state.on_rails_vertical   = false;
-    // state_context.cam_state.rails_trigger_id = -1;
-    
-    // state_context.death_instinct = {};
     checkpoint_trigger_id = -1;
     
     player_data = {};
@@ -2888,11 +2890,6 @@ void clean_up_scene(){
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
     close_create_box();
-    
-    // if (player_entity){
-    //     destroy_player();
-    //     player_data.dead_man = false;
-    // }
 }
 
 void enter_game_state(Level_Context *level_context, b32 should_init_entities){
@@ -3591,7 +3588,6 @@ void update_game(){
     core.time.real_dt = GetFrameTime();
     
     // update death instinct
-    local_persist b32 was_in_death_instinct = false;
     if (is_in_death_instinct() && is_death_instinct_threat_active() && game_state == GAME){
         f32 time_since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
         
@@ -3628,11 +3624,11 @@ void update_game(){
             state_context.death_instinct.played_effects = true;
         }
         
-        was_in_death_instinct = true;
-    } else if (was_in_death_instinct){
+        state_context.death_instinct.was_in_death_instinct = true;
+    } else if (state_context.death_instinct.was_in_death_instinct){
         stop_death_instinct();
         // core.time.target_time_scale = 1;
-        was_in_death_instinct = false;
+        state_context.death_instinct.was_in_death_instinct = false;
     } else if (game_state == GAME){
         core.time.target_time_scale = lerp(core.time.target_time_scale, 1.0f, clamp01(core.time.real_dt * 2));        
         if (1.0f - core.time.target_time_scale <= 0.01f){
@@ -3758,6 +3754,10 @@ void update_game(){
     UpdateMusicStream(ambient_theme);
     UpdateMusicStream(wind_theme);
     UpdateMusicStream(tires_theme);
+    
+    if (state_context.playing_relax || state_context.we_got_a_winner){
+        UpdateMusicStream(relas_music);
+    }
     
     session_context.just_entered_game_state = false;
     
@@ -4381,13 +4381,16 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
 
 #ifndef INSPECTOR_MACRO
 #define INSPECTOR_MACRO
-    #define INSPECTOR_UI_TOGGLE(text, tag, bool_to_change, additional_action) { \
-        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
+    #define INSPECTOR_UI_TOGGLE_COLOR(text, tag, bool_to_change, color, additional_action) { \
+        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag, color); \
         if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, bool_to_change, tag)){ \
             bool_to_change = !bool_to_change; \
             additional_action; \
         } \
         v_pos += height_add; \
+    }   
+    #define INSPECTOR_UI_TOGGLE(text, tag, bool_to_change, additional_action) { \
+        INSPECTOR_UI_TOGGLE_COLOR(text, tag, bool_to_change, WHITE, additional_action); \
     }   
     #define INSPECTOR_UI_TOGGLE_FLAGS(text, tag, flags, flag, additional_action) { \
         make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
@@ -4398,13 +4401,16 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
         v_pos += height_add; \
     }   
     
-    #define INSPECTOR_UI_INPUT_FIELD(text, tag, format, value_to_change, convert_function, additional_action) { \
-        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
+    #define INSPECTOR_UI_INPUT_FIELD_COLOR(text, tag, format, value_to_change, convert_function, color, additional_action) { \
+        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag, color); \
         if (make_input_field(text_format(format, value_to_change), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, tag)){ \
             value_to_change = convert_function(focus_input_field.content); \
             additional_action; \
         } \
         v_pos += height_add;\
+    }
+    #define INSPECTOR_UI_INPUT_FIELD(text, tag, format, value_to_change, convert_function, additional_action) { \
+        INSPECTOR_UI_INPUT_FIELD_COLOR(text, tag, format, value_to_change, convert_function, WHITE, additional_action); \
     }
 #endif
 
@@ -4526,7 +4532,7 @@ void update_editor_ui(){
         }
 
         //entity settings overall
-        if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Entity settings", "entity_settings")){
+        if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Entity settings", "entity_settings")){
             editor.draw_entity_settings = !editor.draw_entity_settings;
         }
         v_pos += height_add;
@@ -4594,7 +4600,7 @@ void update_editor_ui(){
         }
         
         // inspector light inspector
-        if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Light settings", "light_settings")){
+        if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Light settings", "light_settings")){
             editor.draw_light_settings = !editor.draw_light_settings;
         }
         v_pos += height_add;
@@ -4647,12 +4653,17 @@ void update_editor_ui(){
         
         // trigger inspector
         if (selected->flags & TRIGGER){
-            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Trigger settings", "trigger_settings")){
+            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Trigger settings", "trigger_settings")){
                 editor.draw_trigger_settings = !editor.draw_trigger_settings;
             }
             v_pos += height_add;
             
             if (editor.draw_trigger_settings){
+                if (make_button({inspector_position.x + inspector_size.x * 0.2f, v_pos + 3}, {inspector_size.x * 0.6f, height_add - 4}, "Trigger (in game)", "trigger_now_button", SKYBLUE, ColorBrightness(BROWN, -0.3f)) && game_state == GAME){
+                    selected->trigger.debug_should_trigger_now = true;
+                }
+                v_pos += height_add;
+            
                 INSPECTOR_UI_TOGGLE("Activate on player: ", "trigger_player_touch", selected->trigger.player_touch, );
                 INSPECTOR_UI_TOGGLE("Die after trigger: ", "trigger_die_after_trigger", selected->trigger.die_after_trigger, );
                 INSPECTOR_UI_TOGGLE("Kill player: ", "trigger_kill_player", selected->trigger.kill_player, );
@@ -4665,58 +4676,28 @@ void update_editor_ui(){
                 INSPECTOR_UI_TOGGLE("Starts moving sequence: ", "trigger_starts_moving_sequence", selected->trigger.starts_moving_sequence, );
                 
                 Color cam_section_color = ColorBrightness(PINK, 0.4f);
-                make_ui_text("Change zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zoom_text", cam_section_color);
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.change_zoom, "toggle_change_zoom")){
-                    selected->trigger.change_zoom = !selected->trigger.change_zoom;                 
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE_COLOR("Change zoom: ", "trigger_change_zoom", selected->trigger.change_zoom, cam_section_color, );
                 if (selected->trigger.change_zoom){
-                    make_ui_text("Zoom: ", {inspector_position.x + 5, v_pos}, "trigger_change_zooom_text", cam_section_color);
-                    if (make_input_field(text_format("%.2f", selected->trigger.zoom_value), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_zoom_name") ){
-                        selected->trigger.zoom_value = to_f32(focus_input_field.content);
-                    }
-                    v_pos += height_add;
+                    f32 h_pos = 10;
+                    INSPECTOR_UI_INPUT_FIELD_COLOR("Zoom value: ", "trigger_zoom_value", "%.2f", selected->trigger.zoom_value, to_f32, ColorBrightness(cam_section_color, -0.1f), );
                 }
                 
-                make_ui_text("Cam rails horizontal: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_horizontal", cam_section_color);
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_cam_rails_horizontal, "trigger_start_cam_rails_horizontal")){
-                    selected->trigger.start_cam_rails_horizontal = !selected->trigger.start_cam_rails_horizontal;                 
-                    init_entity(selected);
-                }
-                v_pos += height_add;
-                make_ui_text("Cam rails vertical: ", {inspector_position.x + 5, v_pos}, "trigger_start_cam_rails_vertical", cam_section_color);
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.start_cam_rails_vertical, "trigger_start_cam_rails_vertical")){
-                    selected->trigger.start_cam_rails_vertical = !selected->trigger.start_cam_rails_vertical;                 
-                    init_entity(selected);
-                }
-                v_pos += height_add;
-                make_ui_text("Stop cam rails: ", {inspector_position.x + 5, v_pos}, "trigger_stop_cam_rails", cam_section_color);
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.stop_cam_rails, "trigger_stop_cam_rails")){
-                    selected->trigger.stop_cam_rails = !selected->trigger.stop_cam_rails;                 
-                    init_entity(selected);
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE_COLOR("Cam rails horizontal: ", "trigger_start_cam_rails_horizontal", selected->trigger.start_cam_rails_horizontal, cam_section_color, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_COLOR("Cam rails vertical: ", "trigger_start_cam_rails_vertical", selected->trigger.start_cam_rails_vertical, cam_section_color, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_COLOR("Stop cam rails: ", "trigger_stop_cam_rails", selected->trigger.stop_cam_rails, cam_section_color, init_entity(selected));
                 
-                make_ui_text("Lock camera: ", {inspector_position.x + 5, v_pos}, "lock_camera_text", cam_section_color);
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.lock_camera, "lock_camera")){
-                    selected->trigger.lock_camera = !selected->trigger.lock_camera;                 
+                INSPECTOR_UI_TOGGLE_COLOR("Lock camera: ", "trigger_lock_camera", selected->trigger.lock_camera, cam_section_color, 
                     if (selected->trigger.lock_camera && selected->trigger.locked_camera_position == Vector2_zero){
                         selected->trigger.locked_camera_position = selected->position;
                     }
-                }
-                v_pos += height_add;
+                );
                 
-                make_ui_text("Unlock camera: ", {inspector_position.x + 5, v_pos}, "unlock_camera_text", cam_section_color);
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.unlock_camera, "unlock_camera")){
-                    selected->trigger.unlock_camera = !selected->trigger.unlock_camera;                 
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE_COLOR("Unlock camera: ", "trigger_unlock_camera", selected->trigger.unlock_camera, cam_section_color, );
                 
-                make_ui_text("Play sound: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.play_sound, "toggle_play_sound")){
-                    selected->trigger.play_sound = !selected->trigger.play_sound;                 
-                }
-                v_pos += height_add;
+                INSPECTOR_UI_TOGGLE("Allow player shoot: ", "trigger_allow_player_shoot", selected->trigger.allow_player_shoot, );
+                INSPECTOR_UI_TOGGLE("Forbid player shoot: ", "trigger_forbid_player_shoot", selected->trigger.forbid_player_shoot, );
+                
+                INSPECTOR_UI_TOGGLE_COLOR("Play sound: ", "trigger_play_sound", selected->trigger.play_sound, cam_section_color, );
                 if (selected->trigger.play_sound){
                     make_ui_text("Sound name: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound_name_text");
                     if (make_input_field(selected->trigger.sound_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_sound_name") ){
@@ -4724,14 +4705,8 @@ void update_editor_ui(){
                     }
                     v_pos += height_add;
                 }
-
                 
-                make_ui_text("Load level: ", {inspector_position.x + 5, v_pos}, "trigger_load_level");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->trigger.load_level, "toggle_load_level")){
-                    selected->trigger.load_level = !selected->trigger.load_level;                 
-                }
-                v_pos += height_add;
-                
+                INSPECTOR_UI_TOGGLE_COLOR("Load level: ", "trigger_load_level", selected->trigger.load_level, cam_section_color, );
                 if (selected->trigger.load_level){
                     make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
                     if (make_input_field(selected->trigger.level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_load_level_name") ){
@@ -4774,7 +4749,7 @@ void update_editor_ui(){
         
         // enemy inspector
         if (selected->flags & ENEMY){
-            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Enemy settings", "enemy_settings")){
+            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Enemy settings", "enemy_settings")){
                 editor.draw_enemy_settings = !editor.draw_enemy_settings;
             }
             v_pos += height_add;
@@ -4856,7 +4831,7 @@ void update_editor_ui(){
         }
         
         if (selected->flags & CENTIPEDE){
-            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Centipede settings", "centipede_settings")){
+            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Centipede settings", "centipede_settings")){
                 editor.draw_centipede_settings = !editor.draw_centipede_settings;
             }
             v_pos += height_add;
@@ -4873,7 +4848,7 @@ void update_editor_ui(){
         
         // jumps shooter inspector
         if (selected->flags & JUMP_SHOOTER){
-            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Jump shooter settings", "jump_shooter_settings")){
+            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Jump shooter settings", "jump_shooter_settings")){
                 editor.draw_jump_shooter_settings = !editor.draw_jump_shooter_settings;
             }
             v_pos += height_add;
@@ -4905,7 +4880,7 @@ void update_editor_ui(){
         }
 
         if (selected->flags & DOOR){
-            if (make_button({inspector_position.x + 5, v_pos}, {200, 18}, "Door settings", "door_settings")){
+            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Door settings", "door_settings")){
                 editor.draw_door_settings = !editor.draw_door_settings;
             }
             v_pos += height_add;
@@ -6394,7 +6369,7 @@ void update_player(Entity *entity, f32 dt){
     
     //rifle activate
     b32 spin_enough_for_shoot = 1 || player_data.sword_spin_progress >= 0.1f;
-    b32 can_activate_rifle = !player_data.rifle_active && !can_shoot_rifle && spin_enough_for_shoot;
+    b32 can_activate_rifle = !player_data.rifle_active && !can_shoot_rifle && spin_enough_for_shoot && player_data.can_shoot;
     if (can_activate_rifle && input.press_flags & SHOOT){
         player_data.rifle_active = true;
         
@@ -6542,7 +6517,7 @@ void update_player(Entity *entity, f32 dt){
     }
     
     //player movement
-    if (player_data.grounded && !player_data.in_stun/* && !in_climbing_state*/){
+    if (player_data.grounded && !player_data.in_stun && !player_data.on_propeller){
         // if (input.hold_flags & DOWN){
         //     in_climbing_state = true;
         // }
@@ -6619,7 +6594,7 @@ void update_player(Entity *entity, f32 dt){
         }
     }
     
-    f32 time_since_jump_press = core.time.game_time - player_data.timers.jump_press_time;
+    // f32 time_since_jump_press = core.time.game_time - player_data.timers.jump_press_time;
     f32 time_since_air_jump_press = core.time.game_time - player_data.timers.air_jump_press_time;
     
     b32 need_jump = (input.press_flags & JUMP && player_data.grounded)
@@ -6653,7 +6628,7 @@ void update_player(Entity *entity, f32 dt){
             Entity *other = col.other_entity;
             assert(col.collided);
             
-            if (time_since_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
+            if (time_since_air_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
                 player_data.velocity += col.normal * player_data.jump_force;
                 player_data.timers.wall_jump_time = core.time.game_time;
             }
@@ -6692,7 +6667,7 @@ void update_player(Entity *entity, f32 dt){
             Entity *other = col.other_entity;
             assert(col.collided);
             
-            if (time_since_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
+            if (time_since_air_jump_press <= player_data.wall_jump_buffer_time && time_since_wall_jump > 0.4f){
                 player_data.velocity += col.normal * player_data.jump_force;
                 player_data.timers.wall_jump_time = core.time.game_time;
             }
@@ -6856,7 +6831,7 @@ void update_player(Entity *entity, f32 dt){
     fill_collisions(entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
     
     b32 is_body_huge_collision_speed = false;
-    
+    b32 on_propeller = false;
     for (i32 i = 0; i < collisions_buffer.count; i++){
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
@@ -6875,6 +6850,7 @@ void update_player(Entity *entity, f32 dt){
         if (other->flags & PROPELLER){
             // update propeller
             if (player_data.sword_spin_progress > EPSILON){
+                on_propeller = true;
                 Vector2 acceleration_dir = other->up;
                 Vector2 deceleration_plane = other->right;
                 
@@ -6978,6 +6954,11 @@ void update_player(Entity *entity, f32 dt){
             play_sound("HeavyLanding", col.point, 1.5f);
         }
     } // end player body collisions
+    
+    // player_data.on_propeller = on_propeller;
+    // if (on_propeller){
+    player_data.on_propeller = on_propeller;
+    // }
     
     if (is_body_huge_collision_speed || is_ground_huge_collision_speed){
         if (tires_emitter){
@@ -8322,6 +8303,11 @@ i32 update_trigger(Entity *e){
     
     b32 trigger_now = false;
     
+    if (e->trigger.debug_should_trigger_now){
+        e->trigger.debug_should_trigger_now = false;
+        trigger_now = true;
+    }
+    
     if (e->flags & ENEMY && e->enemy.dead_man){
         trigger_now = true;
         e->enemy.dead_man = false;
@@ -8359,6 +8345,13 @@ i32 update_trigger(Entity *e){
     }
     
     if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided){
+        if (e->trigger.forbid_player_shoot){
+            player_data.can_shoot = false;
+        }
+        if (e->trigger.allow_player_shoot){
+            player_data.can_shoot = true;
+        }
+    
         if (str_contains(e->name, "checkpoint") && checkpoint_trigger_id != e->id){
             clear_level_context(&checkpoint_level_context);
             copy_level_context(&checkpoint_level_context, current_level_context, false);
@@ -8368,6 +8361,10 @@ i32 update_trigger(Entity *e){
             checkpoint_state_context = state_context;
             
             checkpoint_trigger_id = e->id;
+        }
+        
+        if (str_equal(e->name, "relax")){
+            state_context.playing_relax = true;
         }
     
         if (e->trigger.load_level){
@@ -9850,7 +9847,7 @@ void draw_entity(Entity *e){
     if (e->flags & BLOCKER && (game_state == EDITOR) && !e->enemy.blocker_immortal){
         Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
         
-        draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
+        draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.6f));
     }
     if (e->flags & BLOCKER && e->enemy.blocker_immortal){
         Vector2 triangle1 = {e->position.x, e->position.y + 3};

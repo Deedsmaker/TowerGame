@@ -1,3 +1,16 @@
+12.03.2025:
+    - Made button in inspector for triggering trigger in game.
+    - Minor improvements of inspector ui.
+    - Some more work on inspector macro.
+    - Made RELEASE_BUILD so we can start game on first level. Also we have DEBUG_BUILD defined now. It's automaticly defined as 1 on release and debug build.
+    - Now triggers can allow or forbid player shoot. Made that for first levels till shooting_practice.
+    - Changed blockers texture.
+    - Relax room and music.
+    - Propeller how don't require player to jump and just push him off the ground.
+    - Fixed problem with platforms and jump buffering. It was because wall jump buffers.
+    - leha_explosive1 level.
+    - Playtest.
+
 11.03.2025:
     - A little rework of how we drag player around with debug key - not it's possible in pause in game. And we set velocity to zero. And player can't die while we dragging.
     - Fixed death instinct cooldown. It's was broken because how we checked if we need to start cooldown when enemy flying towards. Don't know why it broke, but now we just using thing that we already using to check if threat still active, so that's better. Now game harder though, will need to see how this will be going.

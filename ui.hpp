@@ -98,7 +98,7 @@ b32 make_button(Vector2 position, Vector2 size, Vector2 pivot, const char *text,
     return false;
 }
 b32 make_button(Vector2 position, Vector2 size, const char *text, const char *tag, Color button_color = BLACK * 0.9f, Color text_color = WHITE * 0.9f, UI_FLAGS additional_flags = 0){
-    return make_button(position, size, {0, 0}, text, 18, tag); 
+    return make_button(position, size, {0, 0}, text, 18, tag, button_color, text_color); 
 }
 
 void make_ui_image(Vector2 position, Vector2 size, Vector2 pivot, Color color, const char *tag){

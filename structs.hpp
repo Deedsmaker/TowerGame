@@ -418,6 +418,9 @@ struct Trigger{
     b32 draw_lines_to_tracked    = false;
     b32 agro_enemies             = true;
     
+    b32 allow_player_shoot = false;
+    b32 forbid_player_shoot = false;
+    
     b32 shows_entities = true;
     b32 starts_moving_sequence = true;
     
@@ -435,6 +438,7 @@ struct Trigger{
     b32 load_level = false;
     char level_name[128] = "\0";
     
+    b32 debug_should_trigger_now = false;
     b32 triggered = false;
     
     b32 lock_camera = false;
@@ -591,6 +595,8 @@ struct Player{
     
     Timers timers = {};
     
+    b32 can_shoot = true;
+    
     b32 dead_man = false;
     
     f32 max_ground_angle = 60;
@@ -635,6 +641,8 @@ struct Player{
     Connected_Entities_Ids connected_entities_ids = {};
     
     Vector2 velocity = {0, 0};
+    
+    b32 on_propeller = false;
     
     //Sword
     f32 sword_rotation_speed = 5.0f;
@@ -933,6 +941,8 @@ struct Level_Context{
 };
 
 struct State_Context{
+    b32 playing_relax = false;
+
     struct Timers{
         f32 last_bird_attack_time = -11110;
         f32 last_jump_shooter_attack_time = -11110;
@@ -955,6 +965,7 @@ struct State_Context{
         b32 played_effects = false;
         
         b32 was_in_cooldown = false;
+        b32 was_in_death_instinct = false;
         
         f32 angle_till_explode = 0;
         
