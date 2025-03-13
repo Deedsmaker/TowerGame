@@ -1,3 +1,4 @@
+[ ] Make less spikes. 
 [ ] Long spin modifier for enemies and make that in spin turorial so we REALLY and FOR SURE knew that player understood how to SPIN.
 [X] Don't allow shoot on first levels.
 [ ] Multiselect. 

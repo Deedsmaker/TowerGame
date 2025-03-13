@@ -25,7 +25,7 @@ global_variable Core core = {};
 
 int screen_width = 1600;
 int screen_height = 900;
-f32 aspect_ratio = 1;
+f32 aspect_ratio = 1.0f;
 
 #define SCREEN_WORLD_SIZE 150.0f
 

@@ -240,7 +240,8 @@ enum Flags : u64{
     BLOCK_ROPE          = 1 << 27,
     ROPE_POINT          = 1 << 28,
     JUMP_SHOOTER        = 1 << 29,
-    LIGHT               = 1 << 30
+    LIGHT               = 1 << 30,
+    REPLAY_PLAYER       = 1 << 31
 };
 
 struct Physics_Object{
@@ -437,6 +438,9 @@ struct Trigger{
     
     b32 load_level = false;
     char level_name[128] = "\0";
+    
+    b32 play_replay = false;
+    char replay_name[128] = "\0";
     
     b32 debug_should_trigger_now = false;
     b32 triggered = false;
@@ -835,7 +839,9 @@ struct Light{
     RenderTexture backshadows_rt;
 };
 
-global_variable Player player_data;
+global_variable Player *player_data = {};
+global_variable Player real_player_data = {};
+global_variable Player replay_player_data = {};
 
 struct Spawn_Object{
     char name[64];
@@ -1095,6 +1101,9 @@ enum Press_Flags{
 };
 
 struct Input{
+    // @HACK. Gotta do real replays.
+    Vector2 player_position = Vector2_zero;
+
     Vector2 direction             = Vector2_zero;
     Vector2 tap_direction         = Vector2_zero;
     Vector2 screen_mouse_position = Vector2_zero;
@@ -1118,6 +1127,7 @@ struct Replay_Frame_Data{
 };
 
 struct Level_Replay{
+    i32 start_frame = 0;    
     Dynamic_Array<Replay_Frame_Data> input_record = Dynamic_Array<Replay_Frame_Data>(MAX_INPUT_RECORDS);
 };
 

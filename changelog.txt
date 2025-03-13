@@ -1,3 +1,7 @@
+13.03.2025:
+    - Fixed wide screen zoom.
+    - Hacky-changed how replays work and made level with replay on other room to show how cool the game is.
+
 12.03.2025:
     - Made button in inspector for triggering trigger in game.
     - Minor improvements of inspector ui.
