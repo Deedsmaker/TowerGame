@@ -3603,9 +3603,9 @@ void update_game(){
                 // enter_editor_state();
                 enter_game_state(&editor_level_context, true);
                 session_context.speedrun_timer.time = 0;
-            } else if (player_data->dead_man){
+            } else{
                 b32 is_have_checkpoint = checkpoint_trigger_id != -1;
-            
+                session_context.playing_replay = false;            
                 // enter_editor_state();
                 if (is_have_checkpoint){
                     enter_game_state(&checkpoint_level_context, false);

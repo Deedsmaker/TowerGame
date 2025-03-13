@@ -244,6 +244,8 @@ enum Flags : u64{
     REPLAY_PLAYER       = 1 << 31
 };
 
+#define LONG_SPIN 1 << 32
+
 struct Physics_Object{
     b32 simulating = true;
 
