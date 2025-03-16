@@ -3,6 +3,7 @@
     - Fixed shoot stoper line bug. 
     - Fixed long-gone vertices issues. This was because we actually did not used non 0.5 x pivot until now.
     - Made basic multiselection.
+    - Made multiselect moving multiple entities on Shift key and excluding entities from multiselect if clicked on entity with Ctrl hold.
 
 13.03.2025:
     - Fixed wide screen zoom.

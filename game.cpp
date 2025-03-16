@@ -4125,14 +4125,14 @@ Entity *get_entity_by_id(i32 id){
     return current_level_context->entities.get_by_key_ptr(id);
 }
 
-b32 contains_entity_id(i32 *ids_array, i32 count, i32 id_to_find){
+i32 contains_entity_id(i32 *ids_array, i32 count, i32 id_to_find){
     for (i32 i = 0; i < count; i++){
         if (ids_array[i] == id_to_find){
-            return true;
+            return i;
         }
     }
     
-    return false;
+    return -1;
 }
 
 Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, f32 step = 4, i32 my_id = -1){
@@ -5182,6 +5182,12 @@ inline b32 is_vertex_on_mouse(Vector2 vertex_global){
     return check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / session_context.cam.cam2D.zoom)});
 }
 
+void editor_mouse_move_entity(Entity *entity){
+    f32 zoom = session_context.cam.cam2D.zoom;
+    Vector2 move_delta = (cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
+    entity->position += move_delta;
+}
+
 void update_editor(){
     if (IsKeyPressed(KEY_ESCAPE)){
         EnableCursor();
@@ -5341,26 +5347,42 @@ void update_editor(){
     b32 need_start_dragging = false;
     
     // mouse select editor
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select && !IsKeyDown(KEY_LEFT_CONTROL)){
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select){
         if (editor.cursor_entity != NULL){ //selecting entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             need_start_dragging = is_same_selected_entity;
             if (!is_same_selected_entity){
-                assign_selected_entity(editor.cursor_entity);
-                editor.place_cursor_entities.add(editor.selected_entity);
+                // multiselect exclude multiselect remove
+                b32 removed = false;
+                if (IsKeyDown(KEY_LEFT_CONTROL) && editor.multiselected_entities.count > 0){
+                    i32 contains_index = contains_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, editor.cursor_entity->id);
+                    if (contains_index != -1){
+                        editor.multiselected_entities.remove(contains_index);
+                        removed = true;
+                    }
+                }
                 
-                editor.selected_this_click = true;
+                if (!removed){
+                    assign_selected_entity(editor.cursor_entity);
+                    editor.place_cursor_entities.add(editor.selected_entity);
+                    
+                    editor.selected_this_click = true;
+                }
             }
         }
     } 
     
     // multiselect
+    if (IsKeyPressed(KEY_ESCAPE)){
+        editor.multiselected_entities.clear();
+    }
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         editor.multiselecting = true;       
         editor.multiselect_start_point = input.mouse_position;
-        editor.multiselected_entities.clear();
+        // editor.multiselecting_start_time = core.time.app_time;
+        // assign_selected_entity(NULL);
     }
-    if (editor.multiselecting){
+    if (editor.multiselecting && sqr_magnitude(input.mouse_position - editor.multiselect_start_point) > 1){
         Vector2 pivot = Vector2_zero;    
         if (input.mouse_position.x >= editor.multiselect_start_point.x) pivot.x = 0;
         else pivot.x = 1;
@@ -5372,7 +5394,7 @@ void update_editor(){
         
         for (i32 i = 0; i < collisions_buffer.count; i++){
             Entity *other = collisions_buffer.get_ptr(i)->other_entity;
-            if (contains_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, other->id)){
+            if (contains_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, other->id) != -1){
                 continue;
             }
             
@@ -5386,13 +5408,40 @@ void update_editor(){
     }
     
     // update multiselected
-    for (i32 i = 0; i < editor.multiselected_entities.count; i++){
-        Entity *entity = get_entity_by_id(editor.multiselected_entities.get(i));
-        if (!entity){
-            continue;
+    if (editor.multiselected_entities.count > 0){
+        Vector2 top_vertex    = {0, -INFINITY} ;
+        Vector2 bottom_vertex = {0,  INFINITY} ;
+        Vector2 right_vertex  = {-INFINITY, 0} ;
+        Vector2 left_vertex   = { INFINITY, 0} ;
+        
+        Vector2 middle_position = Vector2_zero;
+    
+        for (i32 entity_index = 0; entity_index < editor.multiselected_entities.count; entity_index++){
+            Entity *entity = get_entity_by_id(editor.multiselected_entities.get(entity_index));
+            if (!entity){
+                continue;
+            }
+            
+            if (IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)){
+                editor_mouse_move_entity(entity);
+            }
+            
+            entity->color_changer.frame_changing = true;
+            
+            make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / session_context.cam.cam2D.zoom, GREEN); 
         }
         
-        entity->color_changer.frame_changing = true;
+        Bounds multiselect_bounds = {}; 
+        multiselect_bounds.offset = {left_vertex.x + (right_vertex.x - left_vertex.x) * 0.5f,
+                                    bottom_vertex.y + (top_vertex.y - bottom_vertex.y * 0.5f)};
+        multiselect_bounds.size = {right_vertex.x - left_vertex.x, top_vertex.y - bottom_vertex.y};
+        
+        // make_rect_lines(multiselect_bounds.offset, multiselect_bounds.size, {0.5f, 0.5f}, 2.0f / session_context.cam.cam2D.zoom, GREEN);
+        
+        // make_light(top_vertex, 100, 1, 1, RED);
+        // make_light(bottom_vertex, 100, 1, 1, BLUE);
+        // make_light(right_vertex, 100, 1, 1, GREEN);
+        // make_light(left_vertex, 100, 1, 1, PINK);
     }
     
     if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL && need_start_dragging && can_select){ // assign dragging entity
@@ -5481,8 +5530,7 @@ void update_editor(){
     }
     
     if (editor.dragging_entity != NULL && !moving_editor_cam){
-        Vector2 move_delta = (cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
-        editor.dragging_entity->position += move_delta;
+        editor_mouse_move_entity(editor.dragging_entity);
     }
     
     //editor Entity to mouse or go to entity
@@ -6447,19 +6495,21 @@ void update_player(Entity *player_entity, f32 dt, Input input){
                 
                 state_context.timers.last_shoot_stoper_failed_shot_app_time = core.time.app_time;
                 
-                ForEntities(entity, SHOOT_STOPER){
-                    if (entity->enemy.in_agro){
-                        Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
-                        sticky_line->sticky_texture.draw_line = true;
-                        sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
-                        sticky_line->sticky_texture.line_width = fmin(contiguous_failed_shots_count, 5) * 0.5f;
-                        sticky_line->sticky_texture.follow_id = entity->id;
-                        sticky_line->sticky_texture.need_to_follow = true;
-                        sticky_line->position = get_shoot_stoper_cross_position(entity);
-                        sticky_line->sticky_texture.birth_time = core.time.game_time;
-                        sticky_line->sticky_texture.max_distance = 0;
-                        sticky_line->draw_order = 1;
-                        shake_camera(0.1f);
+                if (contiguous_failed_shots_count <= 5){
+                    ForEntities(entity, SHOOT_STOPER){
+                        if (entity->enemy.in_agro){
+                            Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
+                            sticky_line->sticky_texture.draw_line = true;
+                            sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
+                            sticky_line->sticky_texture.line_width = contiguous_failed_shots_count * 0.5f;
+                            sticky_line->sticky_texture.follow_id = entity->id;
+                            sticky_line->sticky_texture.need_to_follow = true;
+                            sticky_line->position = get_shoot_stoper_cross_position(entity);
+                            sticky_line->sticky_texture.birth_time = core.time.game_time;
+                            sticky_line->sticky_texture.max_distance = 0;
+                            sticky_line->draw_order = 1;
+                            shake_camera(0.1f);
+                        }
                     }
                 }
                 
@@ -9755,7 +9805,7 @@ void draw_entity(Entity *e){
         if (game_state == EDITOR || state_context.in_pause_editor){
             make_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
             // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
-            if (editor.selected_entity && editor.selected_entity->id == e->id || IsKeyDown(KEY_LEFT_SHIFT) || focus_input_field.in_focus && str_contains(focus_input_field.tag, text_format("%d", e->id))){
+            if (editor.selected_entity && editor.selected_entity->id == e->id || (IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_ALT)) || focus_input_field.in_focus && str_contains(focus_input_field.tag, text_format("%d", e->id))){
                 Vector2 note_size = {screen_width * 0.2f, screen_height * 0.2f};
                 i32 content_count = str_len(note->content);
                 f32 chars_scaling_treshold = 200 * UI_SCALING;
