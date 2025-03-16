@@ -1184,6 +1184,8 @@ struct Editor{
     f32 create_box_slide_time = 0.25f;
     Vector2 create_box_open_mouse_position = {0, 0};
 
+    b32 move_entity_points = false;
+    
     Vector2 dragging_start;
     Vector2 scaling_start;
     f32     rotating_start;

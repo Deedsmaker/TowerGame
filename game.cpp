@@ -4467,6 +4467,14 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
 void update_editor_ui(){
     //inspector logic
     
+    // move entity points hint
+    if (editor.selected_entity || editor.multiselected_entities.count > 0){
+        if (IsKeyPressed(KEY_F10)){
+            editor.move_entity_points = !editor.move_entity_points;
+        }
+        make_ui_text(text_format("F10:\nMove entity points: %s", editor.move_entity_points ? "YES" : "NO"), {10, screen_height * 0.5f}, 30, Fade(GREEN, 0.6f), "move_entity_points_hint");
+    }
+    
     Entity *selected = editor.selected_entity;
     if (selected){
         Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.6f};
@@ -5186,6 +5194,19 @@ void editor_mouse_move_entity(Entity *entity){
     f32 zoom = session_context.cam.cam2D.zoom;
     Vector2 move_delta = (cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
     entity->position += move_delta;
+    
+    if (editor.move_entity_points){
+        if (entity->flags & MOVE_SEQUENCE){
+            for (i32 i = 0; i < entity->move_sequence.points.count; i++){
+                *entity->move_sequence.points.get_ptr(i) += move_delta;
+            }
+        }
+        if (entity->flags & TRIGGER){
+            for (i32 i = 0; i < entity->trigger.cam_rails_points.count; i++){
+                *entity->trigger.cam_rails_points.get_ptr(i) += move_delta;
+            }
+        }
+    }
 }
 
 void update_editor(){
@@ -5379,8 +5400,6 @@ void update_editor(){
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         editor.multiselecting = true;       
         editor.multiselect_start_point = input.mouse_position;
-        // editor.multiselecting_start_time = core.time.app_time;
-        // assign_selected_entity(NULL);
     }
     if (editor.multiselecting && sqr_magnitude(input.mouse_position - editor.multiselect_start_point) > 1){
         Vector2 pivot = Vector2_zero;    
@@ -5409,13 +5428,6 @@ void update_editor(){
     
     // update multiselected
     if (editor.multiselected_entities.count > 0){
-        Vector2 top_vertex    = {0, -INFINITY} ;
-        Vector2 bottom_vertex = {0,  INFINITY} ;
-        Vector2 right_vertex  = {-INFINITY, 0} ;
-        Vector2 left_vertex   = { INFINITY, 0} ;
-        
-        Vector2 middle_position = Vector2_zero;
-    
         for (i32 entity_index = 0; entity_index < editor.multiselected_entities.count; entity_index++){
             Entity *entity = get_entity_by_id(editor.multiselected_entities.get(entity_index));
             if (!entity){
@@ -5423,6 +5435,7 @@ void update_editor(){
             }
             
             if (IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)){
+                assign_selected_entity(NULL);
                 editor_mouse_move_entity(entity);
             }
             
@@ -5430,18 +5443,6 @@ void update_editor(){
             
             make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / session_context.cam.cam2D.zoom, GREEN); 
         }
-        
-        Bounds multiselect_bounds = {}; 
-        multiselect_bounds.offset = {left_vertex.x + (right_vertex.x - left_vertex.x) * 0.5f,
-                                    bottom_vertex.y + (top_vertex.y - bottom_vertex.y * 0.5f)};
-        multiselect_bounds.size = {right_vertex.x - left_vertex.x, top_vertex.y - bottom_vertex.y};
-        
-        // make_rect_lines(multiselect_bounds.offset, multiselect_bounds.size, {0.5f, 0.5f}, 2.0f / session_context.cam.cam2D.zoom, GREEN);
-        
-        // make_light(top_vertex, 100, 1, 1, RED);
-        // make_light(bottom_vertex, 100, 1, 1, BLUE);
-        // make_light(right_vertex, 100, 1, 1, GREEN);
-        // make_light(left_vertex, 100, 1, 1, PINK);
     }
     
     if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL && need_start_dragging && can_select){ // assign dragging entity
