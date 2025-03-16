@@ -61,6 +61,9 @@ inline void draw_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color)
     DrawTriangleLines(v1, v2, v3, color);
 }
 
+inline void draw_triangle(Vector2 a, Vector2 b, Vector2 c, Color color){
+    DrawTriangle(a, b, c, color);
+}
 
 inline void draw_line_strip(Vector2 *points, int count, Color color){
     DrawLineStrip(points, count, color);

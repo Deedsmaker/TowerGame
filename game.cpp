@@ -183,10 +183,10 @@ void free_entity(Entity *e){
 
 inline void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->clear();
-    vertices->add({pivot.x, pivot.y});
+    vertices->add({1.0f - pivot.x, pivot.y});
     vertices->add({-pivot.x, pivot.y});
-    vertices->add({pivot.x, pivot.y - 1.0f});
-    vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
+    vertices->add({1.0f - pivot.x, pivot.y - 1.0f});
+    vertices->add({-pivot.x, pivot.y - 1.0f});
 }
 
 void add_triangle_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
@@ -197,37 +197,17 @@ void add_triangle_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot
 }
 
 void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
-    vertices->clear();
-    vertices->add({pivot.x * 0.3f, pivot.y});
-    vertices->add({-pivot.x * 0.3f, pivot.y});
-    vertices->add({pivot.x, pivot.y - 1.0f});
-    vertices->add({pivot.x - 1.0f, pivot.y - 1.0f});
+    add_rect_vertices(vertices, pivot);
+    vertices->get_ptr(0)->x *= 0.3f;
+    vertices->get_ptr(1)->x *= 0.3f;
 }
 
 void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
-    vertices->clear();
-    vertices->add({pivot.x, pivot.y});
-    vertices->add({-pivot.x, pivot.y});
-    vertices->add({pivot.x * 0.3f, -pivot.y});
-    vertices->add({-pivot.x * 0.3f, -pivot.y});
+    add_rect_vertices(vertices, pivot);
+    vertices->get_ptr(2)->x *= 0.3f;
+    vertices->get_ptr(3)->x *= 0.3f;
 }
-
-// void add_texture_vertices(Array<Vector2, MAX_VERTICES> *vertices, Texture texture, Vector2 pivot){
-//     vertices->clear();
-//     Vector2 scaled_size = {texture.width / session_context.cam.unit_size, texture.height / session_context.cam.unit_size};
-//     vertices->add({pivot.x * scaled_size.x, pivot.y * scaled_size.y});
-//     vertices->add({-pivot.x * scaled_size.x, pivot.y * scaled_size.y});
-//     vertices->add({pivot.x * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
-//     vertices->add({(pivot.x - 1.0f) * scaled_size.x, (pivot.y - 1.0f) * scaled_size.y});
-// }
-
 void pick_vertices(Entity *entity){
-    // if (entity->flags & TEXTURE){
-    //     add_texture_vertices(&entity->vertices, entity->texture, entity->pivot);
-    //     add_texture_vertices(&entity->unscaled_vertices, entity->texture, entity->pivot);
-    //     return;
-    // }
-
     if (entity->flags & (SWORD | BIRD_ENEMY | CENTIPEDE | PROJECTILE)){
         add_sword_vertices(&entity->vertices, entity->pivot);
         add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
@@ -3808,7 +3788,7 @@ void update_game(){
 void update_color_changer(Entity *entity, f32 dt){
     Color_Changer *changer = &entity->color_changer;
     
-    if (changer->changing){
+    if (changer->changing || changer->frame_changing){
         f32 t = abs(sinf(core.time.app_time * changer->change_time));
         entity->color = lerp(changer->start_color, changer->target_color, t);
     } else if (entity->flags & EXPLOSIVE){
@@ -3822,11 +3802,17 @@ void update_color_changer(Entity *entity, f32 dt){
         }
     } else if (changer->interpolating) {
         entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
+    } else{
+        if (game_state == EDITOR || state_context.in_pause_editor){
+            entity->color = changer->start_color;
+        }
     }
     
     if (entity->flags & BLOCKER){
         entity->color = ColorTint(entity->color, RAYWHITE);
     }
+    
+    changer->frame_changing = false;
 }
 
 b32 check_col_point_rec(Vector2 point, Entity *e){
@@ -4027,7 +4013,7 @@ void fill_collision_cells(Vector2 position, Array<Vector2, MAX_VERTICES> vertice
     out_cells->clear();
     Collision_Grid grid = session_context.collision_grid;
     Vector2 center = position + bounds.offset;
-    center += {(pivot.x - 0.5f) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
+    center += {(0.5f - pivot.x) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
     
     // In this for loops we go left to right | bottom to top and it doesn't cover right side, so in loop after we cover fully right side.
     for (f32 h_pos = center.x - bounds.size.x * 0.5f; h_pos < center.x + bounds.size.x * 0.5f; h_pos += grid.cell_size.x){
@@ -4106,6 +4092,21 @@ void fill_collisions(Entity *entity, Dynamic_Array<Collision> *result, FLAGS inc
     fill_collisions(entity->position, entity->vertices, entity->bounds, entity->pivot, result, include_flags, entity->id);
 }
 
+void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Dynamic_Array<Collision> *result, FLAGS include_flags){
+    Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
+    add_rect_vertices(&vertices, pivot);    
+    for (i32 i = 0; i < vertices.count; i++){
+        vertices.get_ptr(i)->x *= scale.x;
+        vertices.get_ptr(i)->y *= scale.y;
+    }
+    Bounds bounds = get_bounds(vertices, pivot);
+    bounds.offset = Vector2_zero;
+    make_rect_lines(position, bounds.size, pivot, 5, RED);
+    
+    
+    fill_collisions(position, vertices, bounds, pivot, result, include_flags);   
+}
+
 Entity *get_entity_by_index(i32 index){
     if (!current_level_context->entities.has_index(index)){
         //log error
@@ -4122,6 +4123,16 @@ Entity *get_entity_by_id(i32 id){
     }
     
     return current_level_context->entities.get_by_key_ptr(id);
+}
+
+b32 contains_entity_id(i32 *ids_array, i32 count, i32 id_to_find){
+    for (i32 i = 0; i < count; i++){
+        if (ids_array[i] == id_to_find){
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, f32 step = 4, i32 my_id = -1){
@@ -5323,10 +5334,14 @@ void update_editor(){
     
     editor.cursor_entity = get_cursor_entity();
     
+    if (editor.cursor_entity){
+        editor.cursor_entity->color_changer.frame_changing = true;    
+    }
+    
     b32 need_start_dragging = false;
     
-    // mouse select
-    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select){
+    // mouse select editor
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select && !IsKeyDown(KEY_LEFT_CONTROL)){
         if (editor.cursor_entity != NULL){ //selecting entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             need_start_dragging = is_same_selected_entity;
@@ -5338,6 +5353,47 @@ void update_editor(){
             }
         }
     } 
+    
+    // multiselect
+    if (IsKeyDown(KEY_LEFT_CONTROL) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        editor.multiselecting = true;       
+        editor.multiselect_start_point = input.mouse_position;
+        editor.multiselected_entities.clear();
+    }
+    if (editor.multiselecting){
+        Vector2 pivot = Vector2_zero;    
+        if (input.mouse_position.x >= editor.multiselect_start_point.x) pivot.x = 0;
+        else pivot.x = 1;
+        if (input.mouse_position.y >= editor.multiselect_start_point.y) pivot.y = 1;
+        else pivot.y = 0;
+        
+        Vector2 scale = {abs(input.mouse_position.x - editor.multiselect_start_point.x), abs(input.mouse_position.y - editor.multiselect_start_point.y)};
+        fill_collisions_rect(editor.multiselect_start_point, scale, pivot, &collisions_buffer, 0);
+        
+        for (i32 i = 0; i < collisions_buffer.count; i++){
+            Entity *other = collisions_buffer.get_ptr(i)->other_entity;
+            if (contains_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, other->id)){
+                continue;
+            }
+            
+            editor.multiselected_entities.add(other->id);
+        }
+        
+        make_rect_lines(editor.multiselect_start_point, scale, pivot, 2.0f / (session_context.cam.cam2D.zoom), BLUE);
+    }
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+        editor.multiselecting = false;
+    }
+    
+    // update multiselected
+    for (i32 i = 0; i < editor.multiselected_entities.count; i++){
+        Entity *entity = get_entity_by_id(editor.multiselected_entities.get(i));
+        if (!entity){
+            continue;
+        }
+        
+        entity->color_changer.frame_changing = true;
+    }
     
     if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL && need_start_dragging && can_select){ // assign dragging entity
         if (editor.cursor_entity != NULL){
@@ -6378,22 +6434,36 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->timers.rifle_shake_start_time = core.time.game_time;
             emit_particles(&gunpowder_emitter, sword_tip, sword->up);
             
-            // shoot blocker blocked
+            // shoot stoper blocked
             if (state_context.shoot_stopers_count > 0){
+                local_persist i32 contiguous_failed_shots_count = 0;
+                f32 time_since_last_failed_shot = core.time.app_time - state_context.timers.last_shoot_stoper_failed_shot_app_time;
+                
+                if (time_since_last_failed_shot <= 0.4f){
+                    contiguous_failed_shots_count += 1;
+                } else{
+                    contiguous_failed_shots_count = 0;
+                }
+                
+                state_context.timers.last_shoot_stoper_failed_shot_app_time = core.time.app_time;
+                
                 ForEntities(entity, SHOOT_STOPER){
-                    if (player_entity->enemy.in_agro){
+                    if (entity->enemy.in_agro){
                         Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
                         sticky_line->sticky_texture.draw_line = true;
                         sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
-                        sticky_line->sticky_texture.follow_id = player_entity->id;
+                        sticky_line->sticky_texture.line_width = fmin(contiguous_failed_shots_count, 5) * 0.5f;
+                        sticky_line->sticky_texture.follow_id = entity->id;
                         sticky_line->sticky_texture.need_to_follow = true;
                         sticky_line->position = get_shoot_stoper_cross_position(entity);
                         sticky_line->sticky_texture.birth_time = core.time.game_time;
                         sticky_line->sticky_texture.max_distance = 0;
                         sticky_line->draw_order = 1;
-                        shake_camera(0.5f);
+                        shake_camera(0.1f);
                     }
                 }
+                
+                play_sound("FailedRifleActivation", 0.4f, 0.5f);
             }
         }
         shoots_queued -= 1;
@@ -6434,7 +6504,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
-    sword->color = player_data->is_sword_big ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f);
+    change_color(sword, player_data->is_sword_big ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
     
     Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
     if (sword_tip_emitter){
@@ -9583,7 +9653,7 @@ void fill_entities_draw_queue(){
                 Vector2 vec_to_follow = entity->position - player_entity->position;
                 f32 len = magnitude(vec_to_follow);
                 if (len <= entity->sticky_texture.max_distance || entity->sticky_texture.max_distance <= 0){
-                    make_line(player_entity->position, entity->position, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
+                    make_line(player_entity->position, entity->position, entity->sticky_texture.line_width, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
                 }
             }
         }
@@ -9627,6 +9697,11 @@ void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 wi
         Vector2 position = start_position + dir * ii + (spike ? vertical_addition : Vector2_zero);
         line_strip_points.add(position);
         spike = !spike;
+        
+        // Vector2 a = start_position + dir * ii;
+        // Vector2 b = a + dir * frequency + vertical_addition;
+        // Vector2 c = b + dir * frequency - vertical_addition;
+        // draw_game_triangle(c, b, a, e->hidden ? Fade(RED, 0.3f) : RED);
     }
     
     Color color = Fade(e->color, 0.1f);
@@ -10973,12 +11048,16 @@ inline Vector2 rect_screen_pos(Vector2 position, Vector2 scale, Vector2 pivot){
     return screen_pos;
 }
 
-void draw_game_circle(Vector2 position, f32 radius, Color color){
+inline void draw_game_triangle(Vector2 a, Vector2 b, Vector2 c, Color color){
+    draw_triangle(world_to_screen(a), world_to_screen(b), world_to_screen(c), color);
+}
+
+inline void draw_game_circle(Vector2 position, f32 radius, Color color){
     Vector2 screen_pos = world_to_screen(position);
     draw_circle(screen_pos, radius * session_context.cam.unit_size, color);
 }
 
-void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
+inline void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
     draw_rect(screen_pos, multiply(scale, session_context.cam.unit_size), color);
 }

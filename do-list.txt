@@ -1,4 +1,7 @@
-[ ] Make less spikes. 
+[X] Highlight entities that cursor are on. 
+[ ] Make a thing for copy position or scale of other entity.
+[ ] Moving only right or up on selected entity (make arrrows like in every other editor).
+[X] Make less spikes. 
 [ ] Long spin modifier for enemies and make that in spin turorial so we REALLY and FOR SURE knew that player understood how to SPIN.
 [X] Don't allow shoot on first levels.
 [ ] Multiselect. 
@@ -8,7 +11,7 @@
 [X] Jump shooters grow their particle emit rate constantly. Also jump shooters should die if they literally goes crashed by physics object. (Crushing by physics block maybe fixed, but dunno what about particle emit).
 [ ] Spawner overall and Spawner that will fly itself, so player should hunt him down.
 [ ] Enemy that buffs other enemies - adds them modifiers. We should experiment with that things that will make player Action becaue that's what the game tells me it needs.
-[ ] Think more about different goals on levels.
+[ ] Think more about different goals on levels. 
 [X] Delay on contiguous explosions.
 [X] Fix bullets stuck in things like shoot blocker centipede segment. 
 [X] Think about what we do about when centipede is inside falling block and it's weirdly exploding. Probably we just should explode all cegments of centipede.

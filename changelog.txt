@@ -1,3 +1,9 @@
+16.03.2025:
+    - Highlighting entities under cursor in editor.
+    - Fixed shoot stoper line bug. 
+    - Fixed long-gone vertices issues. This was because we actually did not used non 0.5 x pivot until now.
+    - Made basic multiselection.
+
 13.03.2025:
     - Fixed wide screen zoom.
     - Hacky-changed how replays work and made level with replay on other room to show how cool the game is.

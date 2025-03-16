@@ -541,6 +541,7 @@ struct Sticky_Texture{
     
     b32 draw_line = false;
     Color line_color = SKYBLUE;
+    f32 line_width = 0;
     
     f32 alpha = 1.0f;
     Vector2 base_size = {3, 3};
@@ -550,6 +551,8 @@ struct Sticky_Texture{
 };
 
 struct Color_Changer{
+    b32 frame_changing = false;
+    
     b32 changing = false;
     b32 interpolating = false;
     
@@ -958,6 +961,7 @@ struct State_Context{
         f32 last_collision_cells_clear_time = -2;
         f32 last_projectile_hit_time = -12;
         f32 last_explosion_app_time = -12;
+        f32 last_shoot_stoper_failed_shot_app_time = -12;
     };
     Timers timers = {};
     
@@ -1196,6 +1200,10 @@ struct Editor{
     Entity  *moving_vertex_entity = NULL;
     int moving_vertex_entity_id;
     Entity  *cursor_entity = NULL;
+    
+    b32 multiselecting = false;
+    Vector2 multiselect_start_point = Vector2_zero;
+    Dynamic_Array<i32> multiselected_entities = Dynamic_Array<i32>(128);
     
     Entity copied_entity;
     b32 is_copied;
