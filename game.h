@@ -197,7 +197,7 @@ void check_avaliable_ids_and_set_if_found(i32 *id);
 
 Entity *add_player_entity(Player *data);
 
-Entity* add_entity(Entity *copy, b32 keep_id = false);
+Entity* add_entity(Entity *copy, b32 keep_id = false, Level_Context *copy_entity_level_context = NULL);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags);

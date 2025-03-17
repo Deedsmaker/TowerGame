@@ -1,12 +1,13 @@
-[ ] Some setting to move also move-sequence points and cam rails points when moving entity.
+[X] Undo for multiselect. 
+[X] Some setting to move also move-sequence points and cam rails points when moving entity.
 [X] Highlight entities that cursor are on. 
 [ ] Make a thing for copy position or scale of other entity.
 [ ] Moving only right or up on selected entity (make arrrows like in every other editor).
 [X] Make less spikes. 
 [ ] Long spin modifier for enemies and make that in spin turorial so we REALLY and FOR SURE knew that player understood how to SPIN.
 [X] Don't allow shoot on first levels.
-[ ] Multiselect. 
-[ ] Loading multiple levels and switching between. IMPORTANT to think about how we will copy entities from one level to another, because we can't allow them to keep their id. Also we need to think about multiselect and simplest problem that i can think of - when we will copy trigger he may be connected to other entities so if he was copied alone - we need to clear things that he cannot find, BUT when we copy him with multiselect - his connected entities will change their ids. If we know every such case that should not be a big problem, but i don't know how much such things will occur.
+[X] Multiselect. 
+[ ] Loading multiple levels and switching between. IMPORTANT to think about how we will copy entities from one level to another, because we can't allow them to keep their id. Also we need to think about multiselect and simplest problem that i can think of - when we will copy trigger he may be connected to other entities so if he was copied alone - we need to clear things that he cannot find, BUT when we copy him with multiselect - his connected entities will change their ids. If we know every such case - that should not be a big problem, but i don't know how much such things will occur.
 [ ] Link for triggers. So one triggers could fully copy other one and update it's settings accordingly. That will help for example in places where player could return to previous room and enter cam rails mode with proper points (and original trigger is in the beginning of that room). Also when we'll do cam blockers system - that trigger linking will be extremely important.
 [ ] Think about something that will make it bad in the moment to spin and player will be thinking of how he can dodge without insane speed or with accurate shots. Here may help this mechanic with spinning platforms that will depend on player sword spin. Actually many things from list in battle ideas and long terms will help with that. 
 [X] Jump shooters grow their particle emit rate constantly. Also jump shooters should die if they literally goes crashed by physics object. (Crushing by physics block maybe fixed, but dunno what about particle emit).

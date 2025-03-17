@@ -16,6 +16,7 @@ global_variable i32 blood_trail_emitter_index = -1;
 global_variable Particle_Emitter big_blood_emitter_copy = {};
 global_variable Particle_Emitter rifle_bullet_emitter = {};
 global_variable Particle_Emitter small_air_dust_trail_emitter_copy = {};
+global_variable Particle_Emitter alarm_smoke_emitter_copy = {};
 global_variable Particle_Emitter air_dust_emitter = {};
 global_variable Particle_Emitter tires_emitter_copy = {};
 global_variable Particle_Emitter explosion_emitter_copy = {};
@@ -650,6 +651,23 @@ void setup_particles(){
     small_air_dust_trail_emitter_copy.scale_max     = 1.0f;
     small_air_dust_trail_emitter_copy.color         = WHITE;
     str_copy(small_air_dust_trail_emitter_copy.tag_16, "small_dust");
+    
+    alarm_smoke_emitter_copy = {};
+    alarm_smoke_emitter_copy.count_type = SMALL_PARTICLE_COUNT;
+    alarm_smoke_emitter_copy.over_distance = 0.1f;
+    alarm_smoke_emitter_copy.over_time     = 20.0f;
+    alarm_smoke_emitter_copy.speed_min     = 1;
+    alarm_smoke_emitter_copy.speed_max     = 10;
+    alarm_smoke_emitter_copy.count_min     = 30;
+    alarm_smoke_emitter_copy.count_max     = 40;
+    alarm_smoke_emitter_copy.scale_min     = 0.5f;
+    alarm_smoke_emitter_copy.scale_max     = 1.0f;
+    alarm_smoke_emitter_copy.lifetime_min     = 0.5f;
+    alarm_smoke_emitter_copy.lifetime_max     = 2.0f;
+    alarm_smoke_emitter_copy.gravity_multiplier     = -0.5f;
+    alarm_smoke_emitter_copy.color         = Fade(ColorBrightness(RED, 0.15f), 0.9f);
+    str_copy(alarm_smoke_emitter_copy.tag_16, "alarm_smoke");
+
     
     smoke_fire_emitter_copy = air_dust_emitter;
     smoke_fire_emitter_copy.over_distance = 0.3f;

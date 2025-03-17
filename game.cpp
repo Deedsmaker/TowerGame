@@ -31,6 +31,7 @@ global_variable Level_Context editor_level_context = {};
 global_variable Level_Context game_level_context = {};
 global_variable Level_Context checkpoint_level_context = {};
 global_variable Level_Context loaded_level_context = {};
+global_variable Level_Context undo_level_context = {};
 global_variable Level_Context *current_level_context = NULL;
 global_variable State_Context state_context = {};
 global_variable Session_Context session_context = {};
@@ -177,6 +178,8 @@ void free_entity(Entity *e){
     if (e->light_index != -1){
         free_entity_light(e);
     }
+    
+    e->color_changer.changing = false;
     
     free_entity_particle_emitters(e);
 }
@@ -1454,6 +1457,7 @@ void init_bird_emitters(Entity *entity){
     entity->bird_enemy.trail_emitter_index = add_entity_particle_emitter(entity, entity->flags & EXPLOSIVE ? &little_fire_emitter : &air_dust_emitter);
     enable_emitter(entity->bird_enemy.trail_emitter_index, entity->position);
     entity->bird_enemy.attack_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
+    entity->bird_enemy.alarm_emitter_index  = add_entity_particle_emitter(entity, &alarm_smoke_emitter_copy);
     entity->bird_enemy.fire_emitter_index = add_entity_particle_emitter(entity, &fire_emitter);
     entity->bird_enemy.smoke_fire_emitter_index = add_entity_particle_emitter(entity, &smoke_fire_emitter_copy);
     entity->bird_enemy.collision_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
@@ -1641,7 +1645,7 @@ void init_spawn_objects(){
     str_copy(centipede_object.name, centipede_entity.name);
     spawn_objects.add(centipede_object);
     
-    Entity centipede_segment_entity = Entity({0, 0}, {4, 4}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
+    Entity centipede_segment_entity = Entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
     centipede_segment_entity.need_to_save = false;
     centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
     str_copy(centipede_segment_entity.name, "centipede_segment"); 
@@ -2071,7 +2075,7 @@ void init_entity(Entity *entity){
                 previous = entity;
             }
 
-            segment->position = previous->position - previous->up * previous->scale.y * 1.2f;
+            segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
             segment->move_sequence = entity->move_sequence;
             
             segment->hidden = entity->hidden;
@@ -2311,6 +2315,8 @@ void reload_level_files(){
 }
 
 void print_hotkeys_to_console(){
+    console.str += "\t>Ctrl+Mouse - Multiselect\n";
+    console.str += "\t>Ctrl+Shift+Mouse - Move multiselected\n";
     console.str += "\t>Ctrl+Shift+Space - Toggle Game/Editor\n";
     console.str += "\t>Ctrl+S - Save current level.\n";
     console.str += "\t>Alt - See and move vertices with mouse.\n";
@@ -2795,6 +2801,7 @@ void init_game(){
     init_level_context(&editor_level_context);
     init_level_context(&game_level_context);
     init_level_context(&checkpoint_level_context);
+    init_level_context(&undo_level_context);
     
     player_data = &real_player_data;
     
@@ -4125,7 +4132,7 @@ Entity *get_entity_by_id(i32 id){
     return current_level_context->entities.get_by_key_ptr(id);
 }
 
-i32 contains_entity_id(i32 *ids_array, i32 count, i32 id_to_find){
+i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find){
     for (i32 i = 0; i < count; i++){
         if (ids_array[i] == id_to_find){
             return i;
@@ -4201,11 +4208,31 @@ void copy_entity(Entity *dest, Entity *src){
 }
 
 void add_undo_action(Undo_Action undo_action){
+    // Because we could go back and forth on current undo index with undo/redo. 
+    // Hard to wrap mind about that without remembering how undos work, but that's should work.
+    Undo_Action *undo_slot = editor.undo_actions.get_ptr(editor.undo_actions.count);
+    undo_slot->changed_entities.free_arr();
+    Level_Context *original_level_context = current_level_context;
+    current_level_context = &undo_level_context;
+    for (i32 i = 0; i < undo_slot->deleted_entities.count; i++){
+        free_entity(undo_slot->deleted_entities.get_ptr(i));
+    }
+    undo_slot->deleted_entities.free_arr();
+    
     editor.undo_actions.add(undo_action);
     
     if (editor.undo_actions.count >= MAX_UNDOS){
+        for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++){
+            editor.undo_actions.get_ptr(i)->changed_entities.free_arr();
+            for (i32 d = 0; d < undo_slot->deleted_entities.count; d++){
+                free_entity(undo_slot->deleted_entities.get_ptr(d));
+            }
+            editor.undo_actions.get_ptr(i)->deleted_entities.free_arr();
+        }
         editor.undo_actions.remove_first_half();
     }
+    
+    current_level_context = original_level_context;
     
     editor.max_undos_added = editor.undo_actions.count;
 }
@@ -4213,7 +4240,20 @@ void add_undo_action(Undo_Action undo_action){
 void undo_add_position(Entity *entity, Vector2 position_change){
     Undo_Action undo_action;
     undo_action.position_change = position_change;
+    undo_action.moved_entity_points = editor.move_entity_points;
     undo_action.entity_id = entity->id;
+    add_undo_action(undo_action);
+}
+
+void undo_add_multiselect_position_change(Vector2 change){
+    Undo_Action undo_action;
+    undo_action.position_change = change;
+    undo_action.moved_entity_points = editor.move_entity_points;
+
+    for (i32 i = 0; i < editor.multiselected_entities.count; i++){
+        undo_action.changed_entities.add(editor.multiselected_entities.get(i));
+    }
+    
     add_undo_action(undo_action);
 }
 
@@ -4248,16 +4288,40 @@ void undo_add_rotation(Entity *entity, f32 rotation_change){
 
 void editor_delete_entity(Entity *entity, b32 add_undo){
     if (add_undo){
-        Undo_Action undo_action;
+        Undo_Action undo_action = {};
         undo_action.entity_was_deleted = true;
-        copy_entity(&undo_action.deleted_entity, editor.selected_entity);
-        undo_action.entity_id = undo_action.deleted_entity.id;
+        Level_Context *original_level_context = current_level_context;
+        current_level_context = &undo_level_context;
+        undo_action.deleted_entities.add(Entity(editor.selected_entity, true, original_level_context));
+        undo_action.changed_entities.add(editor.selected_entity->id);
+        current_level_context = original_level_context;
+        // copy_entity(&undo_action.deleted_entity, editor.selected_entity);
+        // undo_action.entity_id = undo_action.deleted_entity.id;
         add_undo_action(undo_action);
     }
     entity->destroyed = true;
     editor.selected_entity = NULL;
     editor.dragging_entity = NULL;
     editor.cursor_entity   = NULL;
+}
+
+void editor_delete_multiselected_entities(){    
+    Undo_Action undo_action = {};
+    undo_action.entity_was_deleted = true;
+    for (i32 i = 0; i < editor.multiselected_entities.count; i++){
+        Entity *entity = get_entity_by_id(editor.multiselected_entities.get(i));
+        assert(entity);
+        Level_Context *original_level_context = current_level_context;
+        current_level_context = &undo_level_context;
+        undo_action.deleted_entities.add(Entity(entity, true, original_level_context));
+        undo_action.changed_entities.add(entity->id);
+        current_level_context = original_level_context;
+        editor_delete_entity(entity, false);
+    }
+    
+    add_undo_action(undo_action);
+        
+    editor.multiselected_entities.clear();
 }
 
 void editor_delete_entity(i32 entity_id, b32 add_undo){
@@ -5190,22 +5254,30 @@ inline b32 is_vertex_on_mouse(Vector2 vertex_global){
     return check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / session_context.cam.cam2D.zoom)});
 }
 
-void editor_mouse_move_entity(Entity *entity){
+void editor_move_entity_points(Entity *entity, Vector2 displacement){
+    if (entity->flags & MOVE_SEQUENCE){
+        for (i32 i = 0; i < entity->move_sequence.points.count; i++){
+            *entity->move_sequence.points.get_ptr(i) += displacement;
+        }
+    }
+    if (entity->flags & TRIGGER){
+        for (i32 i = 0; i < entity->trigger.cam_rails_points.count; i++){
+            *entity->trigger.cam_rails_points.get_ptr(i) += displacement;
+        }
+    }
+}
+
+inline Vector2 get_editor_mouse_move(){
     f32 zoom = session_context.cam.cam2D.zoom;
-    Vector2 move_delta = (cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
-    entity->position += move_delta;
+    return cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom} / (session_context.cam.unit_size);
+}
+
+void editor_mouse_move_entity(Entity *entity){
+    Vector2 move_delta = get_editor_mouse_move();
     
+    entity->position += move_delta;
     if (editor.move_entity_points){
-        if (entity->flags & MOVE_SEQUENCE){
-            for (i32 i = 0; i < entity->move_sequence.points.count; i++){
-                *entity->move_sequence.points.get_ptr(i) += move_delta;
-            }
-        }
-        if (entity->flags & TRIGGER){
-            for (i32 i = 0; i < entity->trigger.cam_rails_points.count; i++){
-                *entity->trigger.cam_rails_points.get_ptr(i) += move_delta;
-            }
-        }
+        editor_move_entity_points(entity, move_delta);
     }
 }
 
@@ -5375,11 +5447,16 @@ void update_editor(){
             if (!is_same_selected_entity){
                 // multiselect exclude multiselect remove
                 b32 removed = false;
-                if (IsKeyDown(KEY_LEFT_CONTROL) && editor.multiselected_entities.count > 0){
-                    i32 contains_index = contains_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, editor.cursor_entity->id);
+                if (IsKeyDown(KEY_LEFT_CONTROL) && (editor.multiselected_entities.count > 0 || editor.selected_entity)){
+                    i32 contains_index = get_index_of_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, editor.cursor_entity->id);
                     if (contains_index != -1){
                         editor.multiselected_entities.remove(contains_index);
                         removed = true;
+                    } else{
+                        editor.multiselected_entities.add(editor.cursor_entity->id);
+                        if (editor.selected_entity && get_index_of_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, editor.selected_entity->id) == -1){
+                            editor.multiselected_entities.add(editor.selected_entity->id);
+                        }
                     }
                 }
                 
@@ -5413,7 +5490,7 @@ void update_editor(){
         
         for (i32 i = 0; i < collisions_buffer.count; i++){
             Entity *other = collisions_buffer.get_ptr(i)->other_entity;
-            if (contains_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, other->id) != -1){
+            if (get_index_of_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, other->id) != -1){
                 continue;
             }
             
@@ -5428,13 +5505,28 @@ void update_editor(){
     
     // update multiselected
     if (editor.multiselected_entities.count > 0){
+        local_persist b32 was_moving_multiselected = false;
+        b32 should_move_multiselected = IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        
+        if (!was_moving_multiselected && should_move_multiselected){
+            editor.multiselect_moving_displacement = Vector2_zero;   
+        }
+        if (should_move_multiselected){
+            editor.multiselect_moving_displacement += get_editor_mouse_move();
+        }
+        if (was_moving_multiselected && !should_move_multiselected){
+            undo_add_multiselect_position_change(editor.multiselect_moving_displacement);
+        }
+        
+        was_moving_multiselected = should_move_multiselected;
+    
         for (i32 entity_index = 0; entity_index < editor.multiselected_entities.count; entity_index++){
             Entity *entity = get_entity_by_id(editor.multiselected_entities.get(entity_index));
             if (!entity){
                 continue;
             }
             
-            if (IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT)){
+            if (should_move_multiselected){
                 assign_selected_entity(NULL);
                 editor_mouse_move_entity(entity);
             }
@@ -5442,6 +5534,10 @@ void update_editor(){
             entity->color_changer.frame_changing = true;
             
             make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / session_context.cam.cam2D.zoom, GREEN); 
+        }
+        
+        if (IsKeyPressed(KEY_X)){
+            editor_delete_multiselected_entities();
         }
     }
     
@@ -5805,58 +5901,113 @@ void update_editor(){
         focus_input_field.in_focus = false;
         
         if (action->entity_was_deleted){
-            Entity *restored_entity = add_entity(&action->deleted_entity, true);
-            restored_entity->id = action->deleted_entity.id;
-            action->entity_id = action->deleted_entity.id;
+            assert(action->deleted_entities.count > 0);
+            assert(action->deleted_entities.count == action->changed_entities.count);
+            editor.multiselected_entities.clear();
+            for (i32 i = 0; i < action->deleted_entities.count; i++){            
+                i32 deleted_entity_id = action->changed_entities.get(i);
+                // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
+                // he's taked that id - on undo we should remove him.
+                assert(get_entity_by_id(deleted_entity_id) == NULL);
+                Entity *restored_entity = add_entity(action->deleted_entities.get_ptr(i), true, &undo_level_context);
+                restored_entity->id = deleted_entity_id;
+                
+                if (action->changed_entities.count > 1){
+                    editor.multiselected_entities.add(deleted_entity_id);
+                } else{
+                    editor.selected_entity = restored_entity;
+                }
+            }
             
         } else if (action->entity_was_spawned){
             editor_delete_entity(action->entity_id, false);
         } else{
-            assert(current_level_context->entities.has_key(action->entity_id));
-            Entity *undo_entity = current_level_context->entities.get_by_key_ptr(action->entity_id);
-
-            undo_entity->position   -= action->position_change;
-            undo_entity->scale      -= action->scale_change;
-            undo_entity->rotation   -= action->rotation_change;
-            undo_entity->draw_order -= action->draw_order_change;
-            
-            for (i32 i = 0; i < action->vertices_change.count; i++){
-                *undo_entity->vertices.get_ptr(i)          -= action->vertices_change.get(i);
-                *undo_entity->unscaled_vertices.get_ptr(i) -= action->unscaled_vertices_change.get(i);
+            for (i32 i = 0; i < action->changed_entities.count; i++){
+                Entity *changed_entity = get_entity_by_id(action->changed_entities.get(i));
+                // It should be there anyway i think, because even if we delete them - we should restore them firstly.
+                assert(changed_entity);
+                
+                changed_entity->position -= action->position_change;
+                if (action->moved_entity_points){
+                    editor_move_entity_points(changed_entity, action->position_change * -1.0f);
+                }
             }
-            rotate(undo_entity, 0);
             
-            calculate_bounds(undo_entity);
+            if (action->entity_id != -1){
+                assert(current_level_context->entities.has_key(action->entity_id));
+                Entity *undo_entity = current_level_context->entities.get_by_key_ptr(action->entity_id);
+    
+                undo_entity->position   -= action->position_change;
+                if (action->moved_entity_points){
+                    editor_move_entity_points(undo_entity, action->position_change * -1.0f);
+                }
+                
+                
+                undo_entity->scale      -= action->scale_change;
+                undo_entity->rotation   -= action->rotation_change;
+                undo_entity->draw_order -= action->draw_order_change;
+                
+                for (i32 i = 0; i < action->vertices_change.count; i++){
+                    *undo_entity->vertices.get_ptr(i)          -= action->vertices_change.get(i);
+                    *undo_entity->unscaled_vertices.get_ptr(i) -= action->unscaled_vertices_change.get(i);
+                }
+                rotate(undo_entity, 0);
+                
+                calculate_bounds(undo_entity);
+            }
         }
     }
     
+    // redo logic
     b32 need_make_redo = editor.max_undos_added > editor.undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
     if (need_make_redo){
         editor.undo_actions.count++;        
         Undo_Action *action = editor.undo_actions.last_ptr();
         
         if (action->entity_was_deleted){ //so we need delete this again
-            assert(current_level_context->entities.has_key(action->entity_id));
-            editor_delete_entity(current_level_context->entities.get_by_key_ptr(action->entity_id), false);
+            for (i32 i = 0; i < action->changed_entities.count; i++){
+                i32 entity_id_to_delete = action->changed_entities.get(i);
+                assert(get_entity_by_id(entity_id_to_delete));
+                editor_delete_entity(get_entity_by_id(entity_id_to_delete), false);
+            }
         } else if (action->entity_was_spawned){ //so we need spawn this again
             Entity *restored_entity = add_entity(&action->spawned_entity, true);
             restored_entity->id = action->spawned_entity.id;
             action->entity_id = restored_entity->id;
         } else{
-            assert(current_level_context->entities.has_key(action->entity_id));
-            Entity *undo_entity = current_level_context->entities.get_by_key_ptr(action->entity_id);
-            undo_entity->position   += action->position_change;
-            undo_entity->scale      += action->scale_change;
-            undo_entity->rotation   += action->rotation_change;
-            undo_entity->draw_order += action->draw_order_change;
-            
-            for (i32 i = 0; i < action->vertices_change.count; i++){
-                *undo_entity->vertices.get_ptr(i)          += action->vertices_change.get(i);
-                *undo_entity->unscaled_vertices.get_ptr(i) += action->unscaled_vertices_change.get(i);
+            for (i32 i = 0; i < action->changed_entities.count; i++){
+                Entity *changed_entity = get_entity_by_id(action->changed_entities.get(i));
+                // It should be there anyway i think, because even if we delete them - we should restore them firstly.
+                assert(changed_entity);
+                
+                changed_entity->position += action->position_change;
+                if (action->moved_entity_points){
+                    editor_move_entity_points(changed_entity, action->position_change);
+                }
             }
-            rotate(undo_entity, 0);
             
-            calculate_bounds(undo_entity);
+            if (action->entity_id != -1){
+                assert(current_level_context->entities.has_key(action->entity_id));
+                Entity *undo_entity = current_level_context->entities.get_by_key_ptr(action->entity_id);
+                
+                undo_entity->position   += action->position_change;
+                if (action->moved_entity_points){
+                    editor_move_entity_points(undo_entity, action->position_change);
+                }
+                
+                
+                undo_entity->scale      += action->scale_change;
+                undo_entity->rotation   += action->rotation_change;
+                undo_entity->draw_order += action->draw_order_change;
+                
+                for (i32 i = 0; i < action->vertices_change.count; i++){
+                    *undo_entity->vertices.get_ptr(i)          += action->vertices_change.get(i);
+                    *undo_entity->unscaled_vertices.get_ptr(i) += action->unscaled_vertices_change.get(i);
+                }
+                rotate(undo_entity, 0);
+                
+                calculate_bounds(undo_entity);
+            }
         }
     }
     
@@ -6123,6 +6274,10 @@ void add_player_ammo(i32 amount, b32 full_ammo){
     }
     
     player_data->ammo_count = clamp(player_data->ammo_count, 0, 3333);
+    
+    if (player_data->ammo_count == 0 && amount < 0){
+        player_data->timers.last_bullet_shot_time = core.time.game_time;
+    }
 }
 
 inline b32 is_sword_can_damage(){
@@ -6451,6 +6606,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     if (input.press_flags & SHOOT_RELEASED){
         shoot_press_time = -12;
         rifle_in_machinegun_mode = false;
+    }
+    
+    if (player_data->ammo_count == 0 && core.time.game_time - player_data->timers.last_bullet_shot_time >= 3.0f){
+        add_player_ammo(1, true);
     }
     
     // player shoot
@@ -6922,8 +7081,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         last_collision_point = col.point;
         last_collision_normal = col.normal;
         
-        player_entity->position.y += col.overlap;
-        
         Vector2 velocity_direction = normalized(player_data->velocity);
         f32 before_speed = magnitude(player_data->velocity);
         
@@ -6954,6 +7111,11 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         f32 angle = fangle(col.normal, player_entity->up);
         
         if (angle <= player_data->max_ground_angle){
+            // Check that we won't be clipping in the ceiling.
+            if (!raycast(player_entity->position + Vector2_up * player_entity->scale.y * 0.5f, Vector2_up, 2.0f, GROUND, 2.0f, player_entity->id).collided){
+                player_entity->position.y += col.overlap;
+            } 
+            
             found_ground = true;
             player_data->ground_normal = col.normal;
             player_data->ground_point = col.point;
@@ -7346,6 +7508,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
             if (bird->attacking){
                 bird->attacking = false;
                 disable_emitter(bird->attack_emitter_index);
+                disable_emitter(bird->alarm_emitter_index);
                 bird->roaming = true;
                 bird->attacked_time = core.time.game_time;
                 bird->roam_start_time = core.time.game_time;
@@ -7458,6 +7621,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
         bird->charging = false;
         bird->attacking = false;
         disable_emitter(bird->attack_emitter_index);
+        disable_emitter(bird->alarm_emitter_index);
         bird_clear_formation(bird);
         return;
     }
@@ -7497,7 +7661,11 @@ void update_bird_enemy(Entity *entity, f32 dt){
                 bird->velocity = dir_to_player * bird_attack_speed;
                 
                 emit_particles(&attack_sparks_emitter, entity->position, entity->up, 2, 3);
+                emit_particles(bird->alarm_emitter_index, entity->position, entity->up);
+                
                 enable_emitter(bird->attack_emitter_index);
+                enable_emitter(bird->alarm_emitter_index);
+                
                 play_sound("BirdAttack", entity->position);
             }
         } 
@@ -7511,6 +7679,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
             bird->roaming = true;
             bird->roam_start_time = core.time.game_time;
             disable_emitter(bird->attack_emitter_index);
+            disable_emitter(bird->alarm_emitter_index);
             bird->attacked_time = core.time.game_time;
         } 
     }
@@ -8293,22 +8462,6 @@ void update_projectile(Entity *entity, f32 dt){
         }
     }
     
-    if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
-        if (lifetime >= 0.5f && !projectile->dying){
-            Collision ray = raycast(entity->position + entity->up * entity->scale.y * 0.5f, entity->up, 10, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 5, entity->id);
-            if (ray.collided){
-                projectile->dying = true;
-            }
-        }
-    
-        if (lifetime >= 3 || projectile->dying){
-            f32 damping_factor = projectile->dying ? 25 : 4;
-            projectile->velocity *= 1.0f - (dt * damping_factor);
-            projectile->dying = true;
-        } else{
-        }
-    }
-    
     Vector2 move = projectile->velocity * dt;
     Vector2 move_dir = normalized(move);
     f32 move_len = magnitude(move);
@@ -8326,6 +8479,25 @@ void update_projectile(Entity *entity, f32 dt){
         }
     }
 
+    
+    if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
+        if (lifetime >= 0.5f && !projectile->dying){
+            Collision ray = raycast(entity->position + entity->up * entity->scale.y * 0.5f, entity->up, 10, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 5, entity->id);
+            if (ray.collided){
+                projectile->dying = true;
+            }
+        }
+    
+        if (lifetime >= 3 || projectile->dying){
+            f32 damping_factor = projectile->dying ? 25 : 4;
+            projectile->velocity *= 1.0f - (dt * damping_factor);
+            projectile->dying = true;
+            if (entity->flags & EXPLOSIVE || entity->flags & BLOCKER){
+                disable_emitter(entity->enemy.alarm_emitter_index);
+            }
+        } else{
+        }
+    }
     
     while (move_len > max_move_len){
         entity->position += move_dir * max_move_len;
@@ -9166,6 +9338,7 @@ inline b32 update_entity(Entity *e, f32 dt){
                     }
                     
                     add_and_enable_entity_particle_emitter(projectile_entity, &small_air_dust_trail_emitter_copy, projectile_entity->position, true);
+                    projectile_entity->enemy.alarm_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &alarm_smoke_emitter_copy, projectile_entity->position, true);
                     init_entity(projectile_entity);
                 }
                 
@@ -9904,14 +10077,14 @@ void draw_entity(Entity *e){
             draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
         } else{
             if (!e->enemy.dead_man){
-                draw_game_circle(e->position + e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+                draw_game_circle(e->position + e->right * e->scale.x * 0.5f, 2.0f, GREEN);
             }
         }
         if (e->centipede_head->centipede.spikes_on_left){
             draw_spikes(e, e->up, e->right * -1.0f, e->scale.y, e->scale.x);
         } else{
             if (!e->enemy.dead_man){
-                draw_game_circle(e->position - e->right * e->scale.x * 0.5f, e->scale.y * 0.4f, GREEN);
+                draw_game_circle(e->position - e->right * e->scale.x * 0.5f, 2.0f, GREEN);
             }
         }
     } else if (e->flags & CENTIPEDE){
@@ -10959,8 +11132,8 @@ void check_avaliable_ids_and_set_if_found(i32 *id){
     assert(try_count < 1000);
 }
 
-Entity* add_entity(Entity *copy, b32 keep_id){
-    Entity e = Entity(copy, keep_id);
+Entity* add_entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context){
+    Entity e = Entity(copy, keep_id, copy_entity_level_context);
     
     if (!keep_id && game_state == EDITOR){
         ForEntities(table_entity, 0){

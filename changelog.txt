@@ -1,3 +1,10 @@
+17.03.2025:
+    - HUGE finally fixed this collision issues with passing through ceiling. Also fixed strange collision handling on steep walls, where we were accumulating down velocity, but going up. That's all was because ground checker pushed us up even when something did not considered as ground. Passing through ceiling theoreticly still could happen, but we'll see. If it is then i'll just additionally check for ceiling raycast collision.... I've made that. Now no clipping should happen EVER.
+    - Made that when player has 0 ammo - after 3 seconds he gets one. Now with that we should not be afraid to require shots.
+    - Made alarm trail for projectiles that tells that this shit will kill us on touch.
+    - Multiselect moving undo.
+    - Multiselect deleting undo. Had to introduce a new level context called undo_level_context. That's a good thing, because that's exactly why i was making these level contexts (means that shoulda've been a good decision, but we'll see).
+
 16.03.2025:
     - Highlighting entities under cursor in editor.
     - Fixed shoot stoper line bug. 

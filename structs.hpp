@@ -313,6 +313,8 @@ struct Enemy{
     b32 shoot_blocker_immortal = false;
     Vector2 shoot_blocker_direction = Vector2_up;
     
+    i32 alarm_emitter_index = -1;
+    
     // Sound_Handler *explosion_sound = NULL;
     // Sound_Handler *big_explosion_sound = NULL;
 };
@@ -506,6 +508,7 @@ struct Bird_Enemy{
     Vector2 velocity = Vector2_zero;
     
     i32 attack_emitter_index = -1;
+    i32 alarm_emitter_index = -1;
     i32 trail_emitter_index = -1;
     i32 fire_emitter_index = -1;
     i32 smoke_fire_emitter_index = -1;
@@ -600,6 +603,7 @@ struct Player{
         f32 rifle_shake_start_time = 0;
         f32 rifle_activate_time = 0;
         f32 rifle_shoot_time = 0;
+        f32 last_bullet_shot_time = -12;
     };
     
     Timers timers = {};
@@ -1152,11 +1156,17 @@ struct Undo_Action{
     //Entity *entity;
     int entity_id = -1;
 
-    Entity deleted_entity;
+    // Entity deleted_entity;
+    Dynamic_Array<Entity> deleted_entities = Dynamic_Array<Entity>();
     b32    entity_was_deleted = false;
+    
     
     Entity spawned_entity;
     b32    entity_was_spawned = false;
+    
+    Dynamic_Array<i32> changed_entities = Dynamic_Array<i32>();
+    
+    b32 moved_entity_points = false;
     
     Vector2 position_change = {0, 0};  
     Vector2 scale_change = {0, 0};
@@ -1206,6 +1216,7 @@ struct Editor{
     b32 multiselecting = false;
     Vector2 multiselect_start_point = Vector2_zero;
     Dynamic_Array<i32> multiselected_entities = Dynamic_Array<i32>(128);
+    Vector2 multiselect_moving_displacement = Vector2_zero;
     
     Entity copied_entity;
     b32 is_copied;
