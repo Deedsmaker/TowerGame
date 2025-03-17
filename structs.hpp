@@ -409,8 +409,8 @@ enum Trigger_Action_Type{
 };
 
 struct Trigger{
-    Dynamic_Array<int> connected;
-    Dynamic_Array<int> tracking;
+    Dynamic_Array<i32> connected;
+    Dynamic_Array<i32> tracking;
     
     b32 die_after_trigger = false;
     
@@ -1217,6 +1217,9 @@ struct Editor{
     Vector2 multiselect_start_point = Vector2_zero;
     Dynamic_Array<i32> multiselected_entities = Dynamic_Array<i32>(128);
     Vector2 multiselect_moving_displacement = Vector2_zero;
+    
+    Vector2 mouse_position_on_copy = Vector2_zero;
+    Dynamic_Array<Entity> copied_entities = Dynamic_Array<Entity>(128);
     
     Entity copied_entity;
     b32 is_copied;

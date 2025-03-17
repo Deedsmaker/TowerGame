@@ -1,3 +1,5 @@
+[ ] Undo/redo for multiselected copy/paste.
+[X] Multiselect copy/paste.
 [X] Undo for multiselect. 
 [X] Some setting to move also move-sequence points and cam rails points when moving entity.
 [X] Highlight entities that cursor are on. 

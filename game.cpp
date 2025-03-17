@@ -32,6 +32,7 @@ global_variable Level_Context game_level_context = {};
 global_variable Level_Context checkpoint_level_context = {};
 global_variable Level_Context loaded_level_context = {};
 global_variable Level_Context undo_level_context = {};
+global_variable Level_Context copied_entities_level_context = {};
 global_variable Level_Context *current_level_context = NULL;
 global_variable State_Context state_context = {};
 global_variable Session_Context session_context = {};
@@ -2802,6 +2803,7 @@ void init_game(){
     init_level_context(&game_level_context);
     init_level_context(&checkpoint_level_context);
     init_level_context(&undo_level_context);
+    init_level_context(&copied_entities_level_context);
     
     player_data = &real_player_data;
     
@@ -4124,12 +4126,15 @@ Entity *get_entity_by_index(i32 index){
     return current_level_context->entities.get_ptr(index);
 }
 
-Entity *get_entity_by_id(i32 id){
-    if (id == -1 || !current_level_context->entities.has_key(id)){
+inline Entity *get_entity_by_id(i32 id, Level_Context *level_context){
+    if (!level_context){
+        level_context = current_level_context;
+    }
+    if (id == -1 || !level_context->entities.has_key(id)){
         return NULL;
     }
     
-    return current_level_context->entities.get_by_key_ptr(id);
+    return level_context->entities.get_by_key_ptr(id);
 }
 
 i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find){
@@ -4140,6 +4145,16 @@ i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find){
     }
     
     return -1;
+}
+
+inline b32 entity_array_contains_id(Entity *arr, i32 count, i32 id){
+    for (i32 i = 0; i < count; i++){
+        if (arr[i].id == id){
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, f32 step = 4, i32 my_id = -1){
@@ -5592,21 +5607,85 @@ void update_editor(){
     }
     
     //editor copy/paste
-    if (editor.selected_entity && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)){
-        copy_entity(&editor.copied_entity, editor.selected_entity);
+    if ((editor.selected_entity || editor.multiselected_entities.count > 0) && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)){
+        Level_Context *original_level_context = current_level_context;
+        current_level_context = &copied_entities_level_context;
+        for (i32 i = 0; i < editor.copied_entities.count; i++){
+            free_entity(editor.copied_entities.get_ptr(i));
+        }
+        editor.copied_entities.clear();
+        if (editor.multiselected_entities.count > 0){
+            for (i32 i = 0; i < editor.multiselected_entities.count; i++){
+                Entity *entity_to_copy = get_entity_by_id(editor.multiselected_entities.get(i), original_level_context);   
+                // We keep id here so later we could verify different connected entities by ids. 
+                editor.copied_entities.add(Entity(entity_to_copy, true, original_level_context));
+            }
+        } else{
+            Entity *entity_to_copy = get_entity_by_id(editor.selected_entity->id, original_level_context);   
+            editor.copied_entities.add(Entity(entity_to_copy, true, original_level_context));
+            // copy_entity(&editor.copied_entity, editor.selected_entity);
+        }
+        
+        current_level_context = original_level_context;
         editor.is_copied = true;
+        editor.mouse_position_on_copy = input.mouse_position;
     }
     
     if (editor.is_copied && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)){
-        Entity *pasted_entity = add_entity(&editor.copied_entity);
-        pasted_entity->position = input.mouse_position;
-        assign_selected_entity(pasted_entity);
-        
-        Undo_Action undo_action;
-        undo_action.spawned_entity = *pasted_entity;
-        undo_action.entity_id = pasted_entity->id;
-        undo_action.entity_was_spawned = true;
-        add_undo_action(undo_action);
+        if (editor.copied_entities.count > 0){
+            local_persist Dynamic_Array<i32> spawned_entities = Dynamic_Array<i32>(128);
+            spawned_entities.clear();
+            editor.multiselected_entities.clear();
+            for (i32 i = 0; i < editor.copied_entities.count; i++){
+                Entity *to_spawn = editor.copied_entities.get_ptr(i);
+                Entity *spawned = add_entity(to_spawn, false, &copied_entities_level_context);
+                spawned_entities.add(spawned->id);
+                spawned->position += input.mouse_position - editor.mouse_position_on_copy;
+                editor_move_entity_points(spawned, input.mouse_position - editor.mouse_position_on_copy);
+                editor.multiselected_entities.add(spawned->id);
+            }
+            
+            // Right now we want to verify connected entities only to triggers.
+            // Again - that's because when we copy trigger and in multiselected was his connected guys - they will have different
+            // ids. We know original ids (in copied_entiies we keep ids because they in different level context)
+            // and we will know which ids they have now, because we track spawned entities and they 
+            // have the same indexes as copied entities. If that was a bad explanation I've explained it also in do-list 
+            // in 'Loading multiple levels' task.
+            assert(spawned_entities.count == editor.copied_entities.count);
+            for (i32 i = 0; i < spawned_entities.count; i++){
+                Entity *spawned =  get_entity_by_id(spawned_entities.get(i));
+                if (spawned->flags & TRIGGER){
+                    // We have original trigger connected and tracking in copied_entities and we have.
+                    spawned->trigger.connected.clear();                                      
+                    spawned->trigger.tracking.clear();
+                    // Will have to change here when we'll remove all of types from entity. Nothing scary.
+                    Entity *copied_trigger_entity = editor.copied_entities.get_ptr(i);
+                    // Here we want to go through all copied entities and find entities with ids from copied trigger.
+                    // Then we want to add entity from spawned with the same index to connected and tracked of new trigger.
+                    // That's confusing because it's just is. Not sure if it's even possible to make simpler.
+                    // But on the bright side - that's not so much code.
+                    for (i32 x = 0; x < spawned_entities.count; x++){
+                        Entity *other_copied_entity = editor.copied_entities.get_ptr(x);
+                        if (copied_trigger_entity->trigger.connected.contains(other_copied_entity->id)){
+                            spawned->trigger.connected.add(spawned_entities.get(x));
+                        }
+                        if (copied_trigger_entity->trigger.tracking.contains(other_copied_entity->id)){
+                            spawned->trigger.tracking.add(spawned_entities.get(x));
+                        }
+                    }
+                }
+            }
+        } else{
+            // Entity *pasted_entity = add_entity(&editor.copied_entity);
+            // pasted_entity->position = input.mouse_position;
+            // assign_selected_entity(pasted_entity);
+            
+            // Undo_Action undo_action;
+            // undo_action.spawned_entity = *pasted_entity;
+            // undo_action.entity_id = pasted_entity->id;
+            // undo_action.entity_was_spawned = true;
+            // add_undo_action(undo_action);
+        }
     }
     
     //editor ruler
@@ -11135,10 +11214,17 @@ void check_avaliable_ids_and_set_if_found(i32 *id){
 Entity* add_entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context){
     Entity e = Entity(copy, keep_id, copy_entity_level_context);
     
-    if (!keep_id && game_state == EDITOR){
-        ForEntities(table_entity, 0){
-            if (table_entity->flags & TRIGGER && table_entity->trigger.connected.contains(copy->id)){
-                table_entity->trigger.connected.add(e.id);
+    // We check for copied entities count because that's actually could be frustrating when we copy big chunks of level    
+    // and all of a sudden - some trigger connecting.
+    if (!keep_id && game_state == EDITOR && editor.copied_entities.count < 10){
+        ForEntities(entity, 0){
+            // We want to check if in copied entities currently this same trigger because when we pasting multiple entities
+            // and there's this trigger - that means that this trigger should have his own copies of connected entities
+            // and we don't want original trigger to track new entities, that was created for other trigger.
+            if (entity->flags & TRIGGER
+                    && !entity_array_contains_id(editor.copied_entities.data, editor.copied_entities.count, entity->id)
+                    && entity->trigger.connected.contains(copy->id)){
+                entity->trigger.connected.add(e.id);
             }
         }
     }

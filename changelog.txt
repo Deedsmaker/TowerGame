@@ -4,6 +4,7 @@
     - Made alarm trail for projectiles that tells that this shit will kill us on touch.
     - Multiselect moving undo.
     - Multiselect deleting undo. Had to introduce a new level context called undo_level_context. That's a good thing, because that's exactly why i was making these level contexts (means that shoulda've been a good decision, but we'll see).
+    - Multiselect copy/paste with that insane shit about veryfiying trigger connected ids.
 
 16.03.2025:
     - Highlighting entities under cursor in editor.

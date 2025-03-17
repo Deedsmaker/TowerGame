@@ -33,7 +33,7 @@ void calculate_bounds(Entity *entity);
 Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
 Bounds get_cam_bounds(Cam cam, f32 zoom);
 
-Entity *get_entity_by_id(i32 id);
+inline Entity *get_entity_by_id(i32 id, Level_Context *level_context = NULL);
 Entity *get_entity_by_index(i32 index);
 
 Vector2 get_entity_velocity(Entity *entity);
