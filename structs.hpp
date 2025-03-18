@@ -1156,6 +1156,9 @@ struct Undo_Action{
     //Entity *entity;
     int entity_id = -1;
 
+    b32 added_to_multiselection = false;
+    b32 removed_from_multiselection = false;
+
     // Entity deleted_entity;
     Dynamic_Array<Entity> deleted_entities = Dynamic_Array<Entity>();
     b32    entity_was_deleted = false;
@@ -1213,12 +1216,17 @@ struct Editor{
     int moving_vertex_entity_id;
     Entity  *cursor_entity = NULL;
     
+    b32 excluding_multiselection = false;
     b32 multiselecting = false;
     Vector2 multiselect_start_point = Vector2_zero;
+    // This first one for when we actually currently selecting, so we can un-select if rect is not on entity anymore.
+    Dynamic_Array<i32> selection_multiselected_entities = Dynamic_Array<i32>(128);
+    // And this one is actual multiselected.
     Dynamic_Array<i32> multiselected_entities = Dynamic_Array<i32>(128);
+    Vector2 multiselected_entities_center = Vector2_zero;
     Vector2 multiselect_moving_displacement = Vector2_zero;
     
-    Vector2 mouse_position_on_copy = Vector2_zero;
+    Vector2 copied_entities_center = Vector2_zero;
     Dynamic_Array<Entity> copied_entities = Dynamic_Array<Entity>(128);
     
     Entity copied_entity;

@@ -1,3 +1,13 @@
+[ ] Rotation for multiselected. We could hold on that one a little bit. Also could think about scaling for multiselect.
+[X] Check in VersySleepy what's taking that much cpu. Just to know. Checked. That's shit app, need to do our own profiler.
+[ ] Required gameplay changes. I think i'll be making these incrementaly while working on graphics:
+    [ ] Made that when we standing on moving objects - we have it's velocity and not just gets moving.
+    [ ] Long spin modifier for enemies.
+    [ ] Spawner overall and Spawner that will fly itself, so player should hunt him down.
+    [ ] Try limiting big sword max spin acceleration.
+    [ ] Think more about different goals on levels. 
+    [ ] Enemy that buffs other enemies - adds them modifiers. We should experiment with that things that will make player Action becaue that's what the game tells me it needs.
+[ ] Undo for multiselecting. So we can press undo and select all the guys that was selected.
 [ ] Undo/redo for multiselected copy/paste.
 [X] Multiselect copy/paste.
 [X] Undo for multiselect. 
@@ -13,13 +23,9 @@
 [ ] Link for triggers. So one triggers could fully copy other one and update it's settings accordingly. That will help for example in places where player could return to previous room and enter cam rails mode with proper points (and original trigger is in the beginning of that room). Also when we'll do cam blockers system - that trigger linking will be extremely important.
 [ ] Think about something that will make it bad in the moment to spin and player will be thinking of how he can dodge without insane speed or with accurate shots. Here may help this mechanic with spinning platforms that will depend on player sword spin. Actually many things from list in battle ideas and long terms will help with that. 
 [X] Jump shooters grow their particle emit rate constantly. Also jump shooters should die if they literally goes crashed by physics object. (Crushing by physics block maybe fixed, but dunno what about particle emit).
-[ ] Spawner overall and Spawner that will fly itself, so player should hunt him down.
-[ ] Enemy that buffs other enemies - adds them modifiers. We should experiment with that things that will make player Action becaue that's what the game tells me it needs.
-[ ] Think more about different goals on levels. 
 [X] Delay on contiguous explosions.
 [X] Fix bullets stuck in things like shoot blocker centipede segment. 
 [X] Think about what we do about when centipede is inside falling block and it's weirdly exploding. Probably we just should explode all cegments of centipede.
-[ ] Make max speed for big sword spinning. So it's almost necessary to switch to small swort for changing spin direction.
 [X] There's a leak of textures on checkpoint loading. Probably lights. 
 [X] Rope duplicates after checkpoint loading. That's a bug.
 [\] Camera movement towards enemies should not be when we're in rifle mode. Instead we can just move camera towards scope. (Tried - that's too disorienting).

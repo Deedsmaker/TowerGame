@@ -1967,7 +1967,8 @@ void init_entity(Entity *entity){
         init_entity_light(entity, &explosive_light, true);
         Light *new_light = current_level_context->lights.get_ptr(entity->light_index);
         new_light->radius = 120;
-        new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 0.9f);
+        new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 1.0f);
+        new_light->power = 1.0f;
     }
     
     if (entity->flags & BLOCKER && game_state == GAME){
@@ -3806,7 +3807,7 @@ void update_color_changer(Entity *entity, f32 dt){
         entity->color = lerp(changer->start_color, target_color, t);
         
         if (entity->light_index > -1){
-            current_level_context->lights.get_ptr(entity->light_index)->color = lerp(target_color, Fade(ColorBrightness(ORANGE, 0.3f), 0.9f), t);
+            current_level_context->lights.get_ptr(entity->light_index)->color = lerp(Fade(target_color, 1), Fade(ColorBrightness(ORANGE, 0.3f), 0.9f), t);
             current_level_context->lights.get_ptr(entity->light_index)->radius = get_explosion_radius(entity) * 2 * lerp(0.9f, 1.3f, t);
         }
     } else if (changer->interpolating) {
@@ -4320,23 +4321,43 @@ void editor_delete_entity(Entity *entity, b32 add_undo){
     editor.cursor_entity   = NULL;
 }
 
-void editor_delete_multiselected_entities(){    
-    Undo_Action undo_action = {};
-    undo_action.entity_was_deleted = true;
+void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *undo_action){    
+    if (undo_action){
+        undo_action->changed_entities.clear();
+        undo_action->deleted_entities.clear();
+    }
+
+    if (undo_action && add_undo_to_list){
+        undo_action->entity_was_deleted = true;
+    }
     for (i32 i = 0; i < editor.multiselected_entities.count; i++){
         Entity *entity = get_entity_by_id(editor.multiselected_entities.get(i));
-        assert(entity);
+        if (!entity){
+            continue;    
+        }
+        
         Level_Context *original_level_context = current_level_context;
         current_level_context = &undo_level_context;
-        undo_action.deleted_entities.add(Entity(entity, true, original_level_context));
-        undo_action.changed_entities.add(entity->id);
+        
+        if (undo_action){
+            undo_action->deleted_entities.add(Entity(entity, true, original_level_context));
+            undo_action->changed_entities.add(entity->id);
+        }
         current_level_context = original_level_context;
         editor_delete_entity(entity, false);
     }
     
-    add_undo_action(undo_action);
+    if (add_undo_to_list){
+        add_undo_action(*undo_action);
+    }
         
+    // Do not add multiselection selection type undo here, because on undo/redo we selecting them if we deleted them.
     editor.multiselected_entities.clear();
+}
+
+inline void editor_delete_multiselected_entities(){
+    Undo_Action undo_action = {};
+    editor_delete_multiselected_entities(true, &undo_action);
 }
 
 void editor_delete_entity(i32 entity_id, b32 add_undo){
@@ -5296,6 +5317,115 @@ void editor_mouse_move_entity(Entity *entity){
     }
 }
 
+void restore_deleted_entities(Undo_Action *action){
+    assert(action->deleted_entities.count > 0);
+    assert(action->deleted_entities.count == action->changed_entities.count);
+    editor.multiselected_entities.clear();
+    for (i32 i = 0; i < action->deleted_entities.count; i++){            
+        i32 deleted_entity_id = action->changed_entities.get(i);
+        // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
+        // he's taked that id - on undo we should remove him.
+        assert(get_entity_by_id(deleted_entity_id) == NULL);
+        Entity *restored_entity = add_entity(action->deleted_entities.get_ptr(i), true, &undo_level_context);
+        restored_entity->id = deleted_entity_id;
+        
+        if (action->changed_entities.count > 1){
+            editor.multiselected_entities.add(deleted_entity_id);
+        } else{
+            editor.selected_entity = restored_entity;
+        }
+    }
+}
+
+inline i32 get_index_of_id(Dynamic_Array<i32> *arr, i32 id){
+    return get_index_of_entity_id(arr->data, arr->count, id);
+}
+
+void add_to_multiselection(i32 id, b32 add_to_undo){
+    i32 index = get_index_of_id(&editor.multiselected_entities, id);
+    
+    if (index == -1){
+        editor.multiselected_entities.add(id);
+        
+        if (add_to_undo){
+            Undo_Action undo_action = {};
+            undo_action.added_to_multiselection = true;
+            undo_action.changed_entities.add(id);
+            add_undo_action(undo_action);
+        }
+    }
+}
+
+void add_to_multiselection(Dynamic_Array<i32> *ids, b32 add_to_undo){
+    Undo_Action undo_action = {};
+    undo_action.added_to_multiselection = true;
+    
+    for (i32 i = 0 ; i < ids->count; i++){
+        i32 id = ids->get(i);
+        i32 index = get_index_of_id(&editor.multiselected_entities, id);
+        
+        if (index == -1){
+            editor.multiselected_entities.add(id);
+            
+            if (add_to_undo){
+                undo_action.changed_entities.add(id);
+            }
+        }
+    }
+    
+    if (add_to_undo && undo_action.changed_entities.count > 0){
+        add_undo_action(undo_action);
+    }
+}
+
+void remove_from_multiselection(Dynamic_Array<i32> *ids, b32 add_to_undo){
+    Undo_Action undo_action = {};
+    undo_action.removed_from_multiselection = true;
+
+    for (i32 i = 0; i < ids->count; i++){
+        i32 id = ids->get(i);
+        i32 index_to_remove_from_multiselected = get_index_of_id(&editor.multiselected_entities, id);
+        if (index_to_remove_from_multiselected != -1){
+            editor.multiselected_entities.remove(index_to_remove_from_multiselected);
+            
+            if (add_to_undo){
+                undo_action.changed_entities.add(id);
+            }
+        }
+    }
+    
+    if (add_to_undo && undo_action.changed_entities.count > 0){
+        add_undo_action(undo_action);
+    }
+}
+
+void remove_from_multiselection(i32 id, b32 add_to_undo){
+    i32 index = get_index_of_id(&editor.multiselected_entities, id);
+    if (index != -1){
+        editor.multiselected_entities.remove(index);
+        
+        if (add_to_undo){
+            Undo_Action undo_action = {};
+            undo_action.removed_from_multiselection = true;
+            undo_action.changed_entities.add(id);
+            add_undo_action(undo_action);
+        }
+    }
+}
+
+void clear_multiselected_entities(b32 add_to_undo){
+    if (add_to_undo && editor.multiselected_entities.count > 0){
+        Undo_Action undo_action = {};
+        undo_action.removed_from_multiselection = true;
+        for (i32 i = 0; i < editor.multiselected_entities.count; i++){
+            undo_action.changed_entities.add(editor.multiselected_entities.get(i));
+        }
+        add_undo_action(undo_action);
+    }
+    
+    editor.multiselected_entities.clear();
+}
+
 void update_editor(){
     if (IsKeyPressed(KEY_ESCAPE)){
         EnableCursor();
@@ -5462,20 +5592,21 @@ void update_editor(){
             if (!is_same_selected_entity){
                 // multiselect exclude multiselect remove
                 b32 removed = false;
-                if (IsKeyDown(KEY_LEFT_CONTROL) && (editor.multiselected_entities.count > 0 || editor.selected_entity)){
-                    i32 contains_index = get_index_of_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, editor.cursor_entity->id);
+                if (IsKeyDown(KEY_LEFT_CONTROL)){
+                    i32 contains_index = get_index_of_id(&editor.multiselected_entities, editor.cursor_entity->id);
                     if (contains_index != -1){
-                        editor.multiselected_entities.remove(contains_index);
+                        // editor.multiselected_entities.remove(contains_index);
+                        remove_from_multiselection(editor.cursor_entity->id, true);
                         removed = true;
                     } else{
-                        editor.multiselected_entities.add(editor.cursor_entity->id);
-                        if (editor.selected_entity && get_index_of_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, editor.selected_entity->id) == -1){
-                            editor.multiselected_entities.add(editor.selected_entity->id);
-                        }
+                        add_to_multiselection(editor.cursor_entity->id, true);
                     }
                 }
                 
                 if (!removed){
+                    if (!IsKeyDown(KEY_LEFT_CONTROL)){
+                        editor.multiselected_entities.clear();
+                    }
                     assign_selected_entity(editor.cursor_entity);
                     editor.place_cursor_entities.add(editor.selected_entity);
                     
@@ -5486,14 +5617,36 @@ void update_editor(){
     } 
     
     // multiselect
-    if (IsKeyPressed(KEY_ESCAPE)){
-        editor.multiselected_entities.clear();
+    if (IsKeyDown(KEY_LEFT_CONTROL) && IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+        editor.excluding_multiselection = true;     
+        editor.selection_multiselected_entities.clear();
+        editor.multiselect_start_point = input.mouse_position;
+    } else if (IsKeyPressed(KEY_ESCAPE) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)){
+        editor.selection_multiselected_entities.clear();
+        
+        if (!editor.multiselecting){
+            clear_multiselected_entities(true);
+        }
+        editor.multiselecting = false;
     }
+    
+    if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) && editor.excluding_multiselection){
+        editor.excluding_multiselection = false;
+        
+        remove_from_multiselection(&editor.selection_multiselected_entities, true);
+        
+        editor.selection_multiselected_entities.clear();
+    }
+    
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
         editor.multiselecting = true;       
         editor.multiselect_start_point = input.mouse_position;
+        editor.selection_multiselected_entities.clear();
     }
-    if (editor.multiselecting && sqr_magnitude(input.mouse_position - editor.multiselect_start_point) > 1){
+    
+    if ((editor.multiselecting || editor.excluding_multiselection) && sqr_magnitude(input.mouse_position - editor.multiselect_start_point) > 1){
+        editor.selection_multiselected_entities.clear();
+    
         Vector2 pivot = Vector2_zero;    
         if (input.mouse_position.x >= editor.multiselect_start_point.x) pivot.x = 0;
         else pivot.x = 1;
@@ -5505,23 +5658,31 @@ void update_editor(){
         
         for (i32 i = 0; i < collisions_buffer.count; i++){
             Entity *other = collisions_buffer.get_ptr(i)->other_entity;
-            if (get_index_of_entity_id(editor.multiselected_entities.data, editor.multiselected_entities.count, other->id) != -1){
+            if (get_index_of_entity_id(editor.selection_multiselected_entities.data, editor.selection_multiselected_entities.count, other->id) != -1){
                 continue;
             }
             
-            editor.multiselected_entities.add(other->id);
+            editor.selection_multiselected_entities.add(other->id);
+            
+            if (!editor.excluding_multiselection){
+                other->color_changer.frame_changing = true;
+                make_rect_lines(other->position + other->bounds.offset, other->bounds.size, other->pivot, 2.0f / session_context.cam.cam2D.zoom, BLUE); 
+            }
         }
         
-        make_rect_lines(editor.multiselect_start_point, scale, pivot, 2.0f / (session_context.cam.cam2D.zoom), BLUE);
+        Color color = editor.excluding_multiselection ? RED : BLUE;
+        make_rect_lines(editor.multiselect_start_point, scale, pivot, 2.0f / (session_context.cam.cam2D.zoom), color);
     }
-    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && editor.multiselecting && editor.multiselected_entities.count > 1){
         editor.multiselecting = false;
+        
+        add_to_multiselection(&editor.selection_multiselected_entities, true);
     }
     
     // update multiselected
     if (editor.multiselected_entities.count > 0){
         local_persist b32 was_moving_multiselected = false;
-        b32 should_move_multiselected = IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        b32 should_move_multiselected = IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_LEFT_CONTROL);
         
         if (!was_moving_multiselected && should_move_multiselected){
             editor.multiselect_moving_displacement = Vector2_zero;   
@@ -5535,21 +5696,50 @@ void update_editor(){
         
         was_moving_multiselected = should_move_multiselected;
     
+        Vector2 most_right_entity_position;
+        Vector2 most_left_entity_position;
+        Vector2 most_top_entity_position;
+        Vector2 most_bottom_entity_position;
+
         for (i32 entity_index = 0; entity_index < editor.multiselected_entities.count; entity_index++){
             Entity *entity = get_entity_by_id(editor.multiselected_entities.get(entity_index));
             if (!entity){
                 continue;
             }
             
+            b32 excluding_this_entity = editor.excluding_multiselection && editor.selection_multiselected_entities.contains(entity->id);
+            if (excluding_this_entity){
+                continue;
+            }
+            
             if (should_move_multiselected){
+                // We want to move entity points on multiselect moving.
+                b32 was_moving_entity_points = editor.move_entity_points;
+                if (editor.multiselected_entities.count > 1){
+                    editor.move_entity_points = true;
+                }
                 assign_selected_entity(NULL);
                 editor_mouse_move_entity(entity);
+                editor.move_entity_points = was_moving_entity_points;
             }
             
             entity->color_changer.frame_changing = true;
+            make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / session_context.cam.cam2D.zoom, BLUE); 
             
-            make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / session_context.cam.cam2D.zoom, GREEN); 
+            if (entity_index == 0){
+                most_right_entity_position = entity->position;
+                most_left_entity_position = entity->position;
+                most_top_entity_position = entity->position;
+                most_bottom_entity_position = entity->position;
+            } else{
+                if (entity->position.x > most_right_entity_position.x) most_right_entity_position = entity->position;
+                if (entity->position.x < most_left_entity_position.x) most_left_entity_position = entity->position;
+                if (entity->position.y > most_top_entity_position.y) most_top_entity_position = entity->position;
+                if (entity->position.y < most_bottom_entity_position.y) most_bottom_entity_position = entity->position;
+            }
         }
+        
+        editor.multiselected_entities_center = {most_left_entity_position.x + (most_right_entity_position.x - most_left_entity_position.x) * 0.5f, most_bottom_entity_position.y + (most_top_entity_position.y - most_bottom_entity_position.y) * 0.5f};
         
         if (IsKeyPressed(KEY_X)){
             editor_delete_multiselected_entities();
@@ -5620,19 +5810,23 @@ void update_editor(){
                 // We keep id here so later we could verify different connected entities by ids. 
                 editor.copied_entities.add(Entity(entity_to_copy, true, original_level_context));
             }
+            editor.copied_entities_center = editor.multiselected_entities_center;
         } else{
             Entity *entity_to_copy = get_entity_by_id(editor.selected_entity->id, original_level_context);   
             editor.copied_entities.add(Entity(entity_to_copy, true, original_level_context));
             // copy_entity(&editor.copied_entity, editor.selected_entity);
+            editor.copied_entities_center = entity_to_copy->position;
         }
         
         current_level_context = original_level_context;
         editor.is_copied = true;
-        editor.mouse_position_on_copy = input.mouse_position;
     }
     
     if (editor.is_copied && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)){
         if (editor.copied_entities.count > 0){
+            Undo_Action undo_action = {};
+            undo_action.entity_was_spawned = true;
+        
             local_persist Dynamic_Array<i32> spawned_entities = Dynamic_Array<i32>(128);
             spawned_entities.clear();
             editor.multiselected_entities.clear();
@@ -5640,10 +5834,14 @@ void update_editor(){
                 Entity *to_spawn = editor.copied_entities.get_ptr(i);
                 Entity *spawned = add_entity(to_spawn, false, &copied_entities_level_context);
                 spawned_entities.add(spawned->id);
-                spawned->position += input.mouse_position - editor.mouse_position_on_copy;
-                editor_move_entity_points(spawned, input.mouse_position - editor.mouse_position_on_copy);
+                spawned->position += input.mouse_position - editor.copied_entities_center;
+                editor_move_entity_points(spawned, input.mouse_position - editor.copied_entities_center);
                 editor.multiselected_entities.add(spawned->id);
+                
+                undo_action.changed_entities.add(spawned->id);
             }
+            
+            add_undo_action(undo_action);
             
             // Right now we want to verify connected entities only to triggers.
             // Again - that's because when we copy trigger and in multiselected was his connected guys - they will have different
@@ -5655,7 +5853,7 @@ void update_editor(){
             for (i32 i = 0; i < spawned_entities.count; i++){
                 Entity *spawned =  get_entity_by_id(spawned_entities.get(i));
                 if (spawned->flags & TRIGGER){
-                    // We have original trigger connected and tracking in copied_entities and we have.
+                    // We have original trigger connected and tracking in copied_entities.
                     spawned->trigger.connected.clear();                                      
                     spawned->trigger.tracking.clear();
                     // Will have to change here when we'll remove all of types from entity. Nothing scary.
@@ -5979,27 +6177,41 @@ void update_editor(){
         
         focus_input_field.in_focus = false;
         
-        if (action->entity_was_deleted){
-            assert(action->deleted_entities.count > 0);
-            assert(action->deleted_entities.count == action->changed_entities.count);
-            editor.multiselected_entities.clear();
-            for (i32 i = 0; i < action->deleted_entities.count; i++){            
-                i32 deleted_entity_id = action->changed_entities.get(i);
-                // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
-                // he's taked that id - on undo we should remove him.
-                assert(get_entity_by_id(deleted_entity_id) == NULL);
-                Entity *restored_entity = add_entity(action->deleted_entities.get_ptr(i), true, &undo_level_context);
-                restored_entity->id = deleted_entity_id;
-                
-                if (action->changed_entities.count > 1){
-                    editor.multiselected_entities.add(deleted_entity_id);
-                } else{
-                    editor.selected_entity = restored_entity;
+        // So we removing changed entities from multiselection
+        if (action->added_to_multiselection){
+            for (i32 i = 0; i < action->changed_entities.count; i++){
+                i32 id = action->changed_entities.get(i);
+                i32 index_in_multiselected = get_index_of_id(&editor.multiselected_entities, id);
+                if (index_in_multiselected != -1){
+                    editor.multiselected_entities.remove(index_in_multiselected);
                 }
             }
-            
+        }
+        
+        // So we adding it again
+        if (action->removed_from_multiselection){
+            for (i32 i = 0; i < action->changed_entities.count; i++){
+                i32 id = action->changed_entities.get(i);
+                if (!editor.multiselected_entities.contains(id)){
+                    editor.multiselected_entities.add(id);
+                }
+            }
+        }        
+        
+        if (action->entity_was_deleted){
+            restore_deleted_entities(action);            
         } else if (action->entity_was_spawned){
-            editor_delete_entity(action->entity_id, false);
+            if (action->entity_id != -1){
+                editor_delete_entity(action->entity_id, false);
+            }
+            
+            if (action->changed_entities.count > 0){
+                editor.multiselected_entities.clear();
+                for (i32 i = 0; i < action->changed_entities.count; i++){
+                    editor.multiselected_entities.add(action->changed_entities.get(i));
+                }
+                editor_delete_multiselected_entities(false, action);
+            }
         } else{
             for (i32 i = 0; i < action->changed_entities.count; i++){
                 Entity *changed_entity = get_entity_by_id(action->changed_entities.get(i));
@@ -6043,6 +6255,27 @@ void update_editor(){
         editor.undo_actions.count++;        
         Undo_Action *action = editor.undo_actions.last_ptr();
         
+        // So we adding it again.
+        if (action->added_to_multiselection){
+            for (i32 i = 0; i < action->changed_entities.count; i++){
+                i32 id = action->changed_entities.get(i);
+                if (!editor.multiselected_entities.contains(id)){
+                    editor.multiselected_entities.add(id);
+                }
+            }
+        }
+        
+        // So we removing it again
+        if (action->removed_from_multiselection){
+            for (i32 i = 0; i < action->changed_entities.count; i++){
+                i32 id = action->changed_entities.get(i);
+                i32 index_in_multiselected = get_index_of_id(&editor.multiselected_entities, id);
+                if (index_in_multiselected != -1){
+                    editor.multiselected_entities.remove(index_in_multiselected);
+                }
+            }
+        }        
+        
         if (action->entity_was_deleted){ //so we need delete this again
             for (i32 i = 0; i < action->changed_entities.count; i++){
                 i32 entity_id_to_delete = action->changed_entities.get(i);
@@ -6050,9 +6283,15 @@ void update_editor(){
                 editor_delete_entity(get_entity_by_id(entity_id_to_delete), false);
             }
         } else if (action->entity_was_spawned){ //so we need spawn this again
-            Entity *restored_entity = add_entity(&action->spawned_entity, true);
-            restored_entity->id = action->spawned_entity.id;
-            action->entity_id = restored_entity->id;
+            if (action->entity_id != -1){
+                Entity *restored_entity = add_entity(&action->spawned_entity, true);
+                restored_entity->id = action->spawned_entity.id;
+                action->entity_id = restored_entity->id;
+            }
+            
+            if (action->deleted_entities.count > 0){
+                restore_deleted_entities(action);
+            }
         } else{
             for (i32 i = 0; i < action->changed_entities.count; i++){
                 Entity *changed_entity = get_entity_by_id(action->changed_entities.get(i));
@@ -7920,7 +8159,6 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     } else{
         print("WARNING: Could not find temp light for explosion");
     }
-    
 }
 
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 can_wait, f32 particles_speed_modifier){
