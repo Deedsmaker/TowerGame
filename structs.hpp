@@ -877,7 +877,7 @@ struct Cam{
     f32 target_zoom = 0.35f;
     
     Vector2 target = Vector2_zero;
-    //For culling
+    // For culling
     Vector2 view_position = Vector2_zero;
     float rotation = 0;
     
@@ -939,7 +939,39 @@ enum Death_Instinct_Reason{
 
 #define MAX_LINE_TRAILS 256
 
+#define MAX_UNDOS 256
+
+struct Undo_Action{
+    //Entity *entity;
+    int entity_id = -1;
+
+    b32 added_to_multiselection = false;
+    b32 removed_from_multiselection = false;
+
+    // Entity deleted_entity;
+    Dynamic_Array<Entity> deleted_entities = Dynamic_Array<Entity>();
+    b32    entity_was_deleted = false;
+    
+    
+    Entity spawned_entity;
+    b32    entity_was_spawned = false;
+    
+    Dynamic_Array<i32> changed_entities = Dynamic_Array<i32>();
+    
+    b32 moved_entity_points = false;
+    
+    Vector2 position_change = {0, 0};  
+    Vector2 scale_change = {0, 0};
+    Array<Vector2, MAX_VERTICES> vertices_change = Array<Vector2, MAX_VERTICES>();
+    Array<Vector2, MAX_VERTICES> unscaled_vertices_change = Array<Vector2, MAX_VERTICES>();
+    f32 rotation_change = 0;
+    i32 draw_order_change = 0;
+};
+
 struct Level_Context{
+    Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
+    Cam cam = {};
+
     b32 inited = false;
     char name[64] = "\0";
     
@@ -1043,7 +1075,7 @@ struct Session_Context{
     i32 collision_grid_cells_count = 0;
     
     
-    Cam cam = {};
+    // Cam cam = {};
     
     Speedrun_Timer speedrun_timer = {};
 };
@@ -1154,41 +1186,12 @@ struct Circle{
     f32 radius;
 };
 
-#define MAX_UNDOS 256
-
-struct Undo_Action{
-    //Entity *entity;
-    int entity_id = -1;
-
-    b32 added_to_multiselection = false;
-    b32 removed_from_multiselection = false;
-
-    // Entity deleted_entity;
-    Dynamic_Array<Entity> deleted_entities = Dynamic_Array<Entity>();
-    b32    entity_was_deleted = false;
-    
-    
-    Entity spawned_entity;
-    b32    entity_was_spawned = false;
-    
-    Dynamic_Array<i32> changed_entities = Dynamic_Array<i32>();
-    
-    b32 moved_entity_points = false;
-    
-    Vector2 position_change = {0, 0};  
-    Vector2 scale_change = {0, 0};
-    Array<Vector2, MAX_VERTICES> vertices_change = Array<Vector2, MAX_VERTICES>();
-    Array<Vector2, MAX_VERTICES> unscaled_vertices_change = Array<Vector2, MAX_VERTICES>();
-    f32 rotation_change = 0;
-    i32 draw_order_change = 0;
-};
-
 struct Editor{
     f32 in_editor_time = 0;
 
     Array<Entity*, 30> place_cursor_entities = Array<Entity*, 30>();
     
-    Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
+    // Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
     int max_undos_added;
 
     b32 update_cam_view_position = true;

@@ -1,6 +1,8 @@
 19.03.2025:
     - Multiselect improvements.
     - Loading multiple levels and switching between them on TAB.
+    - Camera now contains in every level context. That's just should be better and it's required for fast switching levels, because we don't cant camera to lose it's position and zoom on switch. Also now we switch current_level_context with separate function so we don't forget to setup camera and clear stuff if need.
+    - With new multilevel loading worked on stability with multiselection, copy, undo etc. Now udno_actions contains in every level context.
 
 18.03.2025:
     - Made that on multiselect moving we always move entity points.

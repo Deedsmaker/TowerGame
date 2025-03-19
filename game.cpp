@@ -85,6 +85,26 @@ global_variable b32 initing_game = false;
 Player last_player_data = {};
 Player death_player_data = {};
 
+Cam global_cam_data = {};
+
+void setup_context_cam(Level_Context *level_context){
+    level_context->cam.width = global_cam_data.width;
+    level_context->cam.height = global_cam_data.height;
+    level_context->cam.unit_size = global_cam_data.width / SCREEN_WORLD_SIZE; 
+    level_context->cam.cam2D.target = cast(Vector2){ global_cam_data.width/2.0f, global_cam_data.height/2.0f };
+    level_context->cam.cam2D.offset = cast(Vector2){ global_cam_data.width/2.0f, global_cam_data.height/2.0f };
+    // level_context->cam = global_cam_data;
+}
+
+void switch_current_level_context(Level_Context *target, b32 clear_stuff = false){
+    if (clear_stuff){
+        clear_multiselected_entities(true);
+    }
+
+    current_level_context = target;
+    setup_context_cam(current_level_context);
+}
+
 inline Color color_fade(Color color, f32 alpha_multiplier){
     return {color.r, color.g, color.b, (u8)(clamp((f32)color.a * alpha_multiplier, 0.0f, 255.0f))};
 }
@@ -295,7 +315,7 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
     position = _pos;
     pivot    = _pivot;
     texture  = _texture;
-    scaling_multiplier = {texture.width / session_context.cam.unit_size, texture.height / session_context.cam.unit_size};
+    scaling_multiplier = {texture.width / current_level_context->cam.unit_size, texture.height / current_level_context->cam.unit_size};
     //scaling_multiplier = {1, 1};
     color = WHITE;
     //scale = transform_texture_scale(texture, _scale);
@@ -366,7 +386,7 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
     
     if (flags & TEXTURE){
         texture = copy->texture;
-        scaling_multiplier = {texture.width / session_context.cam.unit_size, texture.height / session_context.cam.unit_size};
+        scaling_multiplier = {texture.width / current_level_context->cam.unit_size, texture.height / current_level_context->cam.unit_size};
         // This means that copy is just texture. Visual flakes.
         if (copy->scale == Vector2_one){
             scale = {texture.width / 10.0f, texture.height / 10.0f};
@@ -578,13 +598,14 @@ i32 add_note(const char *content){
 void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init_entities){
     // *dest = *src;
     Level_Context *original_level_context = current_level_context;
-    current_level_context = dest;
+    switch_current_level_context(dest);
     
     Game_State original_game_state = game_state;
     game_state = EDITOR;
     
     str_copy(dest->level_name, src->level_name);
     dest->player_spawn_point = src->player_spawn_point;
+    dest->cam = src->cam;
     
     if (should_init_entities){
         // Particle emitters get's added on each entity init.
@@ -626,7 +647,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         dest->line_trails.data[i] = src->line_trails.get(i);
     }
     
-    current_level_context = original_level_context;
+    switch_current_level_context(original_level_context);
     game_state = original_game_state;
 }
 
@@ -638,7 +659,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
 
 void clear_level_context(Level_Context *level_context){
     Level_Context *original_level_context = current_level_context;
-    current_level_context = level_context;
+    switch_current_level_context(level_context);
     ForEntities(entity, 0){
         free_entity(entity);
         *entity = {};
@@ -665,7 +686,7 @@ void clear_level_context(Level_Context *level_context){
     // level_context->we_got_a_winner = false;
     // player_data = {};
     
-    current_level_context = original_level_context;
+    switch_current_level_context(original_level_context);
 }
 
 i32 save_level(const char *level_name){
@@ -969,7 +990,7 @@ b32 load_level(const char *level_name){
     
     // game_state = EDITOR;
     clean_up_scene();
-    current_level_context = &loaded_level_context;
+    switch_current_level_context(&loaded_level_context, true);
     clear_level_context(&loaded_level_context);
     setup_particles();
     
@@ -1362,8 +1383,11 @@ b32 load_level(const char *level_name){
         
     loop_entities(init_loaded_entity);
     
+    setup_context_cam(current_level_context);
+    current_level_context->cam.cam2D.zoom = 0.35f;
+    
     // We do that so editor has latest level in it.
-    // current_level_context = editor_level-conte
+    // switch_current_level_context(editor_level-cont)e
     clear_level_context(&game_level_context);
     
     // This shit so that we don't overwrite level that we currently on.
@@ -1390,8 +1414,8 @@ b32 load_level(const char *level_name){
         enter_editor_state();
     }
     
-    session_context.cam.position = current_level_context->player_spawn_point;
-    session_context.cam.target = current_level_context->player_spawn_point;
+    current_level_context->cam.position = current_level_context->player_spawn_point;
+    current_level_context->cam.target = current_level_context->player_spawn_point;
     return true;
 } // end load level end
 
@@ -2298,7 +2322,7 @@ void create_level(const char *level_name){
          console.str += "this level already exists\n";
     } else{
         clean_up_scene();
-        // current_level_context = &loaded_level_context;
+        // switch_current_level_context(&loaded_level_context);
         // clear_level_context(&loaded_level_context);
         clear_level_context(editor_level_context);
         
@@ -2692,7 +2716,7 @@ void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier 
     handler->current_index = (handler->current_index + 1) % handler->buffer.max_count;
     
     //check vector to camera for volume and pan
-    Vector2 to_position = position - session_context.cam.position;
+    Vector2 to_position = position - current_level_context->cam.position;
     f32 len = magnitude(to_position);
     f32 max_len = 250;
     
@@ -2737,7 +2761,7 @@ void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1, f
 }
 
 inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f){
-    play_sound(name, session_context.cam.position, volume_multiplier, base_pitch, pitch_variation);
+    play_sound(name, current_level_context->cam.position, volume_multiplier, base_pitch, pitch_variation);
 }
 
 RenderTexture emitters_occluders_rt;
@@ -2833,7 +2857,7 @@ void init_game(){
     
     player_data = &real_player_data;
     
-    current_level_context = &loaded_level_context;
+    switch_current_level_context(&loaded_level_context);
 
     game_state = EDITOR;
 
@@ -2890,11 +2914,11 @@ void init_game(){
     
     load_level(level_name_to_load);
     
-    session_context.cam.position = Vector2_zero;
-    session_context.cam.cam2D.target = world_to_screen({0, 0});
-    session_context.cam.cam2D.offset = cast(Vector2) { screen_width/2.0f, (f32)screen_height * 0.5f };
-    session_context.cam.cam2D.rotation = 0.0f;
-    session_context.cam.cam2D.zoom = 0.4f;
+    // current_level_context->cam.position = Vector2_zero;
+    // current_level_context->cam.cam2D.target = world_to_screen({0, 0});
+    // current_level_context->cam.cam2D.offset = cast(Vector2) { screen_width/2.0f, (f32)screen_height * 0.5f };
+    // current_level_context->cam.cam2D.rotation = 0.0f;
+    // current_level_context->cam.cam2D.zoom = 0.4f;
     
     initing_game = false;
 } // end init game end
@@ -3012,7 +3036,7 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
     DisableCursor();
     
     // clear_level_context(&game_level_context);
-    current_level_context = &game_level_context;
+    switch_current_level_context(&game_level_context);
     copy_level_context(&game_level_context, level_context, should_init_entities);
     
     Vector2 grid_target_pos = current_level_context->player_spawn_point;
@@ -3025,9 +3049,9 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
     
     game_state = GAME;
     
-    session_context.cam.cam2D.zoom = 0.35f;
-    session_context.cam.target_zoom = 0.35f;
-    session_context.cam.position = current_level_context->player_spawn_point;
+    current_level_context->cam.cam2D.zoom = 0.35f;
+    current_level_context->cam.target_zoom = 0.35f;
+    current_level_context->cam.position = current_level_context->player_spawn_point;
     
     session_context.game_frame_count = 0;
     if (!session_context.playing_replay){
@@ -3071,12 +3095,12 @@ void enter_editor_state(){
     HideCursor();
     DisableCursor();
     
-    // current_level_context = &game_level_context;
+    // switch_current_level_context(&game_level_context);
     // clear_level_context(&game_level_context);
     
     clean_up_scene();
     
-    current_level_context = editor_level_context;
+    switch_current_level_context(editor_level_context);
     // copy_context(editor_level_context, 
     core.time.game_time = 0;
     core.time.hitstop = 0;
@@ -3101,15 +3125,15 @@ void enter_editor_state(){
 }
 
 Vector2 screen_to_world(Vector2 pos){
-    f32 zoom = session_context.cam.cam2D.zoom;
+    f32 zoom = current_level_context->cam.cam2D.zoom;
 
-    f32 width = session_context.cam.width   ;
-    f32 height = session_context.cam.height ;
+    f32 width = current_level_context->cam.width   ;
+    f32 height = current_level_context->cam.height ;
 
     Vector2 screen_pos = pos;
-    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / session_context.cam.unit_size, (height * 0.5f - screen_pos.y) / session_context.cam.unit_size};
+    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / current_level_context->cam.unit_size, (height * 0.5f - screen_pos.y) / current_level_context->cam.unit_size};
     world_pos /= zoom;
-    world_pos = world_pos + session_context.cam.position;
+    world_pos = world_pos + current_level_context->cam.position;
     
     return world_pos;
 }
@@ -3256,9 +3280,9 @@ void fixed_game_update(f32 dt){
                         continue;
                     }
                     
-                    Vector2 addition = dir_to_enemy * (((60.0f * 0.35f) / session_context.cam.cam2D.zoom) / enemies_count);
+                    Vector2 addition = dir_to_enemy * (((60.0f * 0.35f) / current_level_context->cam.cam2D.zoom) / enemies_count);
                     // If enemy really close or to far we want to reduce amount of displacement
-                    f32 min_threshold = (SCREEN_WORLD_SIZE / session_context.cam.cam2D.zoom);
+                    f32 min_threshold = (SCREEN_WORLD_SIZE / current_level_context->cam.cam2D.zoom);
                     f32 max_threshold = (min_threshold * 2);
                     if (distance_to_enemy <= min_threshold){ 
                         addition *= (distance_to_enemy / min_threshold);
@@ -3273,8 +3297,8 @@ void fixed_game_update(f32 dt){
                     
                     additional_position += addition;
                     
-                    f32 max_x = (SCREEN_WORLD_SIZE / session_context.cam.cam2D.zoom) * 0.25f;
-                    f32 max_y = (SCREEN_WORLD_SIZE / aspect_ratio / session_context.cam.cam2D.zoom) * 0.2f;
+                    f32 max_x = (SCREEN_WORLD_SIZE / current_level_context->cam.cam2D.zoom) * 0.25f;
+                    f32 max_y = (SCREEN_WORLD_SIZE / aspect_ratio / current_level_context->cam.cam2D.zoom) * 0.2f;
                     clamp(&additional_position.x, -max_x, max_x);
                     clamp(&additional_position.y, -max_y, max_y);
                 }
@@ -3290,8 +3314,8 @@ void fixed_game_update(f32 dt){
                 }
             } 
             
-            Vector2 vec_to_target = target_position - session_context.cam.target;
-            Vector2 vec_to_player = player_entity->position - session_context.cam.target;
+            Vector2 vec_to_target = target_position - current_level_context->cam.target;
+            Vector2 vec_to_player = player_entity->position - current_level_context->cam.target;
             
             f32 target_dot = dot(vec_to_target, vec_to_player);
             
@@ -3300,17 +3324,17 @@ void fixed_game_update(f32 dt){
             f32 target_speed = lerp(3, 10, speed_t * speed_t);
             target_speed *= target_speed_multiplier;
             
-            session_context.cam.target = lerp(session_context.cam.target, target_position, clamp01(dt * target_speed));
+            current_level_context->cam.target = lerp(current_level_context->cam.target, target_position, clamp01(dt * target_speed));
             
             f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
             
-            session_context.cam.position = lerp(session_context.cam.position, session_context.cam.target, clamp01(dt * cam_speed * locked_speed_multiplier));
+            current_level_context->cam.position = lerp(current_level_context->cam.position, current_level_context->cam.target, clamp01(dt * cam_speed * locked_speed_multiplier));
             
         // Locked camera
         } else if ((!is_in_death_instinct() || !is_death_instinct_threat_active()) || state_context.free_cam){
-            session_context.cam.position = lerp(session_context.cam.position, session_context.cam.target, clamp01(dt * 4 * locked_speed_multiplier));
-            if (magnitude(session_context.cam.target - session_context.cam.position) <= EPSILON){
-                session_context.cam.position = session_context.cam.target;
+            current_level_context->cam.position = lerp(current_level_context->cam.position, current_level_context->cam.target, clamp01(dt * 4 * locked_speed_multiplier));
+            if (magnitude(current_level_context->cam.target - current_level_context->cam.position) <= EPSILON){
+                current_level_context->cam.position = current_level_context->cam.target;
             }
         }
     }
@@ -3322,11 +3346,11 @@ void fixed_game_update(f32 dt){
 
     if (!is_in_death_instinct() || !is_death_instinct_threat_active()){
         f32 zoom_speed = game_state == GAME ? 3 : 10;
-        session_context.cam.cam2D.zoom = lerp(session_context.cam.cam2D.zoom, session_context.cam.target_zoom, dt * zoom_speed);
+        current_level_context->cam.cam2D.zoom = lerp(current_level_context->cam.cam2D.zoom, current_level_context->cam.target_zoom, dt * zoom_speed);
     }
     
-    if (abs(session_context.cam.cam2D.zoom - session_context.cam.target_zoom) <= EPSILON){
-        session_context.cam.cam2D.zoom = session_context.cam.target_zoom;
+    if (abs(current_level_context->cam.cam2D.zoom - current_level_context->cam.target_zoom) <= EPSILON){
+        current_level_context->cam.cam2D.zoom = current_level_context->cam.target_zoom;
     }
 
     input.press_flags = 0;
@@ -3448,7 +3472,7 @@ void update_console(){
 }
 
 Cam get_cam_for_resolution(i32 width, i32 height){
-    Cam cam = session_context.cam;
+    Cam cam = current_level_context->cam;
     cam.unit_size = width / SCREEN_WORLD_SIZE; 
     cam.cam2D.target = cast(Vector2){ width/2.0f, height/2.0f };
     cam.cam2D.offset = cast(Vector2){ width/2.0f, height/2.0f };
@@ -3576,14 +3600,14 @@ void update_game(){
     //end update input
     
     if (screen_size_changed){
-        session_context.cam.width = screen_width;
-        session_context.cam.height = screen_height;
-        session_context.cam.unit_size = screen_width / SCREEN_WORLD_SIZE; 
-        session_context.cam.cam2D.target = cast(Vector2){ screen_width/2.0f, screen_height/2.0f };
-        session_context.cam.cam2D.offset = cast(Vector2){ screen_width/2.0f, screen_height/2.0f };
+        global_cam_data.width = screen_width;
+        global_cam_data.height = screen_height;
+        global_cam_data.unit_size = screen_width / SCREEN_WORLD_SIZE; 
+        global_cam_data.cam2D.target = cast(Vector2){ screen_width/2.0f, screen_height/2.0f };
+        global_cam_data.cam2D.offset = cast(Vector2){ screen_width/2.0f, screen_height/2.0f };
         
-        if (session_context.cam.width != 0 && session_context.cam.height != 0 && !window_minimized){
-            aspect_ratio = (f32)session_context.cam.width / (f32)session_context.cam.height;
+        if (global_cam_data.width != 0 && global_cam_data.height != 0 && !window_minimized){
+            aspect_ratio = (f32)global_cam_data.width / (f32)global_cam_data.height;
             UnloadRenderTexture(render.main_render_texture);
             UnloadRenderTexture(global_illumination_rt);
             UnloadRenderTexture(light_geometry_rt);
@@ -3592,6 +3616,8 @@ void update_game(){
             global_illumination_rt = LoadRenderTexture(screen_width, screen_height);
             light_geometry_rt = LoadRenderTexture(screen_width, screen_height);
         }
+        
+        setup_context_cam(current_level_context);
     }
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)){
@@ -3655,17 +3681,17 @@ void update_game(){
             
             f32 t = EaseOutQuint(distance_t);
             core.time.target_time_scale = lerp(0.6f, 0.02f, t * t);
-            session_context.cam.position        = lerp(session_context.cam.position, lerp(session_context.cam.target, cam_position, t * t), core.time.real_dt * t * 5);
-            session_context.cam.cam2D.zoom      = lerp(session_context.cam.cam2D.zoom, lerp(session_context.cam.target_zoom, 0.55f, t * t), core.time.real_dt * t * 5);;
+            current_level_context->cam.position        = lerp(current_level_context->cam.position, lerp(current_level_context->cam.target, cam_position, t * t), core.time.real_dt * t * 5);
+            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t * t), core.time.real_dt * t * 5);;
         } else if (state_context.death_instinct.last_reason == SWORD_WILL_EXPLODE){
             f32 distance_t = (1.0f - clamp01(state_context.death_instinct.angle_till_explode / 150.0f));
             f32 t = EaseOutQuint(distance_t);
             core.time.target_time_scale = lerp(0.6f, 0.015f, t);
-            session_context.cam.position        = lerp(session_context.cam.position, lerp(session_context.cam.target, cam_position, t), core.time.real_dt * t * 5);
-            session_context.cam.cam2D.zoom      = lerp(session_context.cam.cam2D.zoom, lerp(session_context.cam.target_zoom, 0.55f, t), core.time.real_dt * t * 5);;
+            current_level_context->cam.position        = lerp(current_level_context->cam.position, lerp(current_level_context->cam.target, cam_position, t), core.time.real_dt * t * 5);
+            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t), core.time.real_dt * t * 5);;
         } else{
-            session_context.cam.position        = lerp(session_context.cam.position, cam_position, clamp01(core.time.real_dt * 5));
-            session_context.cam.cam2D.zoom      = lerp(session_context.cam.cam2D.zoom, 0.55f, clamp01(core.time.real_dt * 5));
+            current_level_context->cam.position        = lerp(current_level_context->cam.position, cam_position, clamp01(core.time.real_dt * 5));
+            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, 0.55f, clamp01(core.time.real_dt * 5));
             core.time.target_time_scale = lerp(core.time.target_time_scale, 0.03f, clamp01(core.time.real_dt * 10));
         }
         
@@ -3776,9 +3802,9 @@ void update_game(){
     if (IsKeyPressed(KEY_H) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
         state_context.free_cam = !state_context.free_cam;
         if (!state_context.free_cam){
-            session_context.cam.target_zoom = debug.last_zoom;
+            current_level_context->cam.target_zoom = debug.last_zoom;
         } else{
-            debug.last_zoom = session_context.cam.target_zoom;
+            debug.last_zoom = current_level_context->cam.target_zoom;
         }
     }
     
@@ -3788,21 +3814,21 @@ void update_game(){
     
     if (game_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor){
     } else{
-        f32 zoom = session_context.cam.target_zoom;
+        f32 zoom = current_level_context->cam.target_zoom;
 
         // update editor camera
         if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
-            session_context.cam.position += (cast(Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (session_context.cam.unit_size);
+            current_level_context->cam.position += (cast(Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (current_level_context->cam.unit_size);
         }
         if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
             if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
-                session_context.cam.target_zoom += input.mouse_wheel * 0.05f;
+                current_level_context->cam.target_zoom += input.mouse_wheel * 0.05f;
             }
         }
     }
     
     if (editor.update_cam_view_position){
-        session_context.cam.view_position = session_context.cam.position;
+        current_level_context->cam.view_position = current_level_context->cam.position;
     }
     
     draw_game();
@@ -4253,31 +4279,31 @@ void copy_entity(Entity *dest, Entity *src){
 void add_undo_action(Undo_Action undo_action){
     // Because we could go back and forth on current undo index with undo/redo. 
     // Hard to wrap mind about that without remembering how undos work, but that's should work.
-    Undo_Action *undo_slot = editor.undo_actions.get_ptr(editor.undo_actions.count);
+    Undo_Action *undo_slot = current_level_context->undo_actions.get_ptr(current_level_context->undo_actions.count);
     undo_slot->changed_entities.free_arr();
     Level_Context *original_level_context = current_level_context;
-    current_level_context = &undo_level_context;
+    switch_current_level_context(&undo_level_context);
     for (i32 i = 0; i < undo_slot->deleted_entities.count; i++){
         free_entity(undo_slot->deleted_entities.get_ptr(i));
     }
     undo_slot->deleted_entities.free_arr();
     
-    editor.undo_actions.add(undo_action);
+    original_level_context->undo_actions.add(undo_action);
     
-    if (editor.undo_actions.count >= MAX_UNDOS){
+    if (original_level_context->undo_actions.count >= MAX_UNDOS){
         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++){
-            editor.undo_actions.get_ptr(i)->changed_entities.free_arr();
+            original_level_context->undo_actions.get_ptr(i)->changed_entities.free_arr();
             for (i32 d = 0; d < undo_slot->deleted_entities.count; d++){
                 free_entity(undo_slot->deleted_entities.get_ptr(d));
             }
-            editor.undo_actions.get_ptr(i)->deleted_entities.free_arr();
+            original_level_context->undo_actions.get_ptr(i)->deleted_entities.free_arr();
         }
-        editor.undo_actions.remove_first_half();
+        original_level_context->undo_actions.remove_first_half();
     }
     
-    current_level_context = original_level_context;
+    switch_current_level_context(original_level_context);
     
-    editor.max_undos_added = editor.undo_actions.count;
+    editor.max_undos_added = original_level_context->undo_actions.count;
 }
 
 void undo_add_position(Entity *entity, Vector2 position_change){
@@ -4334,10 +4360,10 @@ void editor_delete_entity(Entity *entity, b32 add_undo){
         Undo_Action undo_action = {};
         undo_action.entity_was_deleted = true;
         Level_Context *original_level_context = current_level_context;
-        current_level_context = &undo_level_context;
+        switch_current_level_context(&undo_level_context);
         undo_action.deleted_entities.add(Entity(editor.selected_entity, true, original_level_context));
         undo_action.changed_entities.add(editor.selected_entity->id);
-        current_level_context = original_level_context;
+        switch_current_level_context(original_level_context);
         // copy_entity(&undo_action.deleted_entity, editor.selected_entity);
         // undo_action.entity_id = undo_action.deleted_entity.id;
         add_undo_action(undo_action);
@@ -4364,13 +4390,13 @@ void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *und
         }
         
         Level_Context *original_level_context = current_level_context;
-        current_level_context = &undo_level_context;
+        switch_current_level_context(&undo_level_context);
         
         if (undo_action){
             undo_action->deleted_entities.add(Entity(entity, true, original_level_context));
             undo_action->changed_entities.add(entity->id);
         }
-        current_level_context = original_level_context;
+        switch_current_level_context(original_level_context);
         editor_delete_entity(entity, false);
     }
     
@@ -5314,7 +5340,7 @@ b32 snap_vertex_to_closest(Vector2 *entity_vertex, i32 vertex_index){
 }
 
 inline b32 is_vertex_on_mouse(Vector2 vertex_global){
-    return check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / session_context.cam.cam2D.zoom)});
+    return check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / current_level_context->cam.cam2D.zoom)});
 }
 
 void editor_move_entity_points(Entity *entity, Vector2 displacement){
@@ -5331,8 +5357,8 @@ void editor_move_entity_points(Entity *entity, Vector2 displacement){
 }
 
 inline Vector2 get_editor_mouse_move(){
-    f32 zoom = session_context.cam.cam2D.zoom;
-    return cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom} / (session_context.cam.unit_size);
+    f32 zoom = current_level_context->cam.cam2D.zoom;
+    return cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom} / (current_level_context->cam.unit_size);
 }
 
 void editor_mouse_move_entity(Entity *entity){
@@ -5481,8 +5507,11 @@ void update_editor(){
             
             if (*next_context->level_name){
                 editor_level_context = next_context;
-                current_level_context = editor_level_context;
+                // switch_current_level_context(editor_level_context);
+                switch_current_level_context(editor_level_context, true);
             }
+            
+            // setup_context_cam(current_level_context);
         }
     
         // We need grid to be at camera center because levels could be quite big and even our mouse collision detection does not work
@@ -5490,7 +5519,7 @@ void update_editor(){
         // BUT i've recently (08.03.2025 currently) made that origin is on player spawn point in editor. Don't remember why. 
         // There's could be other scary reason.
         // Vector2 grid_target_pos = current_level_context->player_spawn_point;
-        Vector2 grid_target_pos = session_context.cam.position;
+        Vector2 grid_target_pos = current_level_context->cam.position;
         session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
     }
     Undo_Action undo_action;
@@ -5508,7 +5537,7 @@ void update_editor(){
     
     b32 moving_editor_cam = false;
     
-    f32 zoom = session_context.cam.target_zoom;
+    f32 zoom = current_level_context->cam.target_zoom;
 
     
     if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)){
@@ -5578,7 +5607,7 @@ void update_editor(){
         b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger.cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
         for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count && !cannot_move_points; p++){
             Vector2 *point = e->move_sequence.points.get_ptr(p);
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / session_context.cam.cam2D.zoom})){
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})){
                 *point = input.mouse_position;
             }
         }
@@ -5586,7 +5615,7 @@ void update_editor(){
         //editor move cam rails points        
         for (i32 p = 0; e->flags & TRIGGER && (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger.cam_rails_points.count && !cannot_move_points; p++){
             Vector2 *point = e->trigger.cam_rails_points.get_ptr(p);
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / session_context.cam.cam2D.zoom})){
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})){
                 *point = input.mouse_position;
             }
         }
@@ -5713,12 +5742,12 @@ void update_editor(){
             
             if (!editor.excluding_multiselection){
                 other->color_changer.frame_changing = true;
-                make_rect_lines(other->position + other->bounds.offset, other->bounds.size, other->pivot, 2.0f / session_context.cam.cam2D.zoom, BLUE); 
+                make_rect_lines(other->position + other->bounds.offset, other->bounds.size, other->pivot, 2.0f / current_level_context->cam.cam2D.zoom, BLUE); 
             }
         }
         
         Color color = editor.excluding_multiselection ? RED : BLUE;
-        make_rect_lines(editor.multiselect_start_point, scale, pivot, 2.0f / (session_context.cam.cam2D.zoom), color);
+        make_rect_lines(editor.multiselect_start_point, scale, pivot, 2.0f / (current_level_context->cam.cam2D.zoom), color);
     }
     
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && editor.multiselecting){
@@ -5772,7 +5801,7 @@ void update_editor(){
             }
             
             entity->color_changer.frame_changing = true;
-            make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / session_context.cam.cam2D.zoom, BLUE); 
+            make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / current_level_context->cam.cam2D.zoom, BLUE); 
             
             if (entity_index == 0){
                 most_right_entity_position = entity->position;
@@ -5847,7 +5876,7 @@ void update_editor(){
     //editor copy/paste
     if ((editor.selected_entity || editor.multiselected_entities.count > 0) && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)){
         Level_Context *original_level_context = current_level_context;
-        current_level_context = &copied_entities_level_context;
+        switch_current_level_context(&copied_entities_level_context);
         for (i32 i = 0; i < editor.copied_entities.count; i++){
             free_entity(editor.copied_entities.get_ptr(i));
         }
@@ -5866,7 +5895,7 @@ void update_editor(){
             editor.copied_entities_center = entity_to_copy->position;
         }
         
-        current_level_context = original_level_context;
+        switch_current_level_context(original_level_context);
         editor.is_copied = true;
     }
     
@@ -5959,7 +5988,7 @@ void update_editor(){
     if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.dragging_entity){
         editor.dragging_entity->position = input.mouse_position;
     } else if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.selected_entity){
-        session_context.cam.position = editor.selected_entity->position;
+        current_level_context->cam.position = editor.selected_entity->position;
     }
     
     //editor Entity rotation
@@ -6138,7 +6167,7 @@ void update_editor(){
                 for (i32 i = 0; i < selected->trigger.cam_rails_points.count; i++){
                     Vector2 point = selected->trigger.cam_rails_points.get(i);   
                     
-                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / session_context.cam.cam2D.zoom)})){       
+                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})){       
                         selected->trigger.cam_rails_points.remove(i);
                         break;
                     }
@@ -6200,7 +6229,7 @@ void update_editor(){
                 for (i32 i = 0; i < selected->move_sequence.points.count; i++){
                     Vector2 point = selected->move_sequence.points.get(i);   
                     
-                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / session_context.cam.cam2D.zoom)})){       
+                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})){       
                         selected->move_sequence.points.remove(i);
                         break;
                     }
@@ -6220,8 +6249,8 @@ void update_editor(){
         add_undo_action(undo_action);
     }
     
-    if (editor.undo_actions.count > 0 && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z) && !IsKeyDown(KEY_LEFT_SHIFT)){
-        Undo_Action *action = editor.undo_actions.pop_ptr();
+    if (current_level_context->undo_actions.count > 0 && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z) && !IsKeyDown(KEY_LEFT_SHIFT)){
+        Undo_Action *action = current_level_context->undo_actions.pop_ptr();
         
         focus_input_field.in_focus = false;
         
@@ -6298,10 +6327,10 @@ void update_editor(){
     }
     
     // redo logic
-    b32 need_make_redo = editor.max_undos_added > editor.undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
+    b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
     if (need_make_redo){
-        editor.undo_actions.count++;        
-        Undo_Action *action = editor.undo_actions.last_ptr();
+        current_level_context->undo_actions.count++;        
+        Undo_Action *action = current_level_context->undo_actions.last_ptr();
         
         // So we adding it again.
         if (action->added_to_multiselection){
@@ -8477,7 +8506,7 @@ void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_T
 }
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale){
-    Vector2 real_scale = {(f32)texture.width / session_context.cam.unit_size, (f32)texture.height / session_context.cam.unit_size};
+    Vector2 real_scale = {(f32)texture.width / current_level_context->cam.unit_size, (f32)texture.height / current_level_context->cam.unit_size};
     
     return {wish_scale.x / real_scale.x, wish_scale.y / real_scale.y};
 }
@@ -8522,7 +8551,7 @@ inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EP
 }
 
 inline f32 get_death_instinct_radius(Vector2 threat_scale){
-    // return fmaxf(fminf((18.0f / session_context.cam.cam2D.zoom), 60), 40) * fmaxf(magnitude(velocity) / 200.0f, 1.0f);
+    // return fmaxf(fminf((18.0f / current_level_context->cam.cam2D.zoom), 60), 40) * fmaxf(magnitude(velocity) / 200.0f, 1.0f);
     return 40 + (threat_scale.x + threat_scale.y) - 8.0f;
 }
 
@@ -9116,7 +9145,7 @@ i32 update_trigger(Entity *e){
             // 21:9 it's 2.333333 aspect_ratio
             f32 target_zoom = e->trigger.zoom_value;
             target_zoom /= (aspect_ratio / 1.77777f);
-            session_context.cam.target_zoom = target_zoom;
+            current_level_context->cam.target_zoom = target_zoom;
         }
         
         if (e->trigger.unlock_camera){
@@ -9127,7 +9156,7 @@ i32 update_trigger(Entity *e){
             state_context.cam_state.locked = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
-            session_context.cam.target = e->trigger.locked_camera_position;
+            current_level_context->cam.target = e->trigger.locked_camera_position;
         }
     
         if (e->flags & DOOR){
@@ -10015,7 +10044,7 @@ Bounds get_cam_bounds(Cam cam, f32 zoom){
     Bounds cam_bounds;
     cam_bounds.size = {(f32)screen_width, (f32)screen_height};
     cam_bounds.size /= zoom;
-    cam_bounds.size /= session_context.cam.unit_size;
+    cam_bounds.size /= current_level_context->cam.unit_size;
     
     cam_bounds.offset = {0, 0};
     
@@ -10108,8 +10137,8 @@ void fill_entities_draw_queue(){
                 Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.2f);
                 
                 if (IsKeyDown(KEY_LEFT_ALT)){
-                    draw_game_circle(point, 1  * (0.4f / session_context.cam.cam2D.zoom), SKYBLUE);
-                    draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / session_context.cam.cam2D.zoom, RED);
+                    draw_game_circle(point, 1  * (0.4f / current_level_context->cam.cam2D.zoom), SKYBLUE);
+                    draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / current_level_context->cam.cam2D.zoom, RED);
                     
                     if (entity->flags & JUMP_SHOOTER){
                         Collision nearest_ground = get_nearest_ground_collision(point, 20);
@@ -10119,7 +10148,7 @@ void fill_entities_draw_queue(){
                                 make_line(ray_collision.point, ray_collision.point + ray_collision.normal * 5, GREEN);
                             }
                         } else{
-                            draw_game_circle(point, 1 * (0.4f / session_context.cam.cam2D.zoom), RED);
+                            draw_game_circle(point, 1 * (0.4f / current_level_context->cam.cam2D.zoom), RED);
                         }
                     }
                 }
@@ -10143,7 +10172,7 @@ void fill_entities_draw_queue(){
             if (should_draw_editor_hints()){
                 // draw cam zoom trigger draw trigger zoom draw trigger cam
                 if (entity->trigger.change_zoom){
-                    Bounds cam_bounds = get_cam_bounds(session_context.cam, entity->trigger.zoom_value);
+                    Bounds cam_bounds = get_cam_bounds(current_level_context->cam, entity->trigger.zoom_value);
                     Vector2 position = entity->position;
                     if (entity->trigger.lock_camera){
                     }
@@ -10154,8 +10183,8 @@ void fill_entities_draw_queue(){
                         cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.45f);
                     }
                     position = entity->trigger.locked_camera_position;
-                    make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (session_context.cam.cam2D.zoom), cam_border_color);
-                    draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, text_format("%.2f", entity->trigger.zoom_value), 18.0f / session_context.cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
+                    make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (current_level_context->cam.cam2D.zoom), cam_border_color);
+                    draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, text_format("%.2f", entity->trigger.zoom_value), 18.0f / current_level_context->cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
                 }
                 
                 if (entity->trigger.lock_camera){
@@ -10168,8 +10197,8 @@ void fill_entities_draw_queue(){
                         Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
                         
                         if (IsKeyDown(KEY_LEFT_ALT)){
-                            draw_game_circle(point, 1  * (0.4f / session_context.cam.cam2D.zoom), SKYBLUE);
-                            draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / session_context.cam.cam2D.zoom, RED);
+                            draw_game_circle(point, 1  * (0.4f / current_level_context->cam.cam2D.zoom), SKYBLUE);
+                            draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / current_level_context->cam.cam2D.zoom, RED);
                         }
                         if (ii < entity->trigger.cam_rails_points.count - 1){
                             make_line(point, entity->trigger.cam_rails_points.get(ii+1), color);
@@ -10248,7 +10277,7 @@ void fill_entities_draw_queue(){
         }
         
         // This checks for occlusion.
-        if (should_not_draw_entity(entity, session_context.cam)){
+        if (should_not_draw_entity(entity, current_level_context->cam)){
             entity->visible = false;
             continue;
         } else{
@@ -10328,7 +10357,7 @@ void draw_entity(Entity *e){
             // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE){
                 if (e->sticky_texture.should_draw_texture){
-                    e->scale = (e->sticky_texture.base_size) / fminf(session_context.cam.cam2D.zoom, 0.35f); 
+                    e->scale = (e->sticky_texture.base_size) / fminf(current_level_context->cam.cam2D.zoom, 0.35f); 
                     make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture.alpha));
                 }
             } else{
@@ -10507,7 +10536,7 @@ void draw_entity(Entity *e){
                 draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
             } else{
                 Vector2 scale = {3, 3};
-                scale /= session_context.cam.cam2D.zoom;
+                scale /= current_level_context->cam.cam2D.zoom;
                 Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
                 make_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
             }
@@ -10623,7 +10652,7 @@ void draw_entity(Entity *e){
     }
     
     if (debug.draw_bounds || editor.selected_entity && (game_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected_entity->id){
-        make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / session_context.cam.cam2D.zoom, GREEN);
+        make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / current_level_context->cam.cam2D.zoom, GREEN);
     }
 }
 
@@ -10686,9 +10715,9 @@ void draw_editor(){
                 Vector2 global_vertex_position = global(e, e->vertices.get(v));
                 if (editor.selected_entity && editor.selected_entity->id == e->id){
                     const char *text = v == 0 ? "T" : (v == 1 ? "Y" : (v == 2 ? "F" : "G"));
-                    draw_game_text(global_vertex_position, text, 22.0f / session_context.cam.cam2D.zoom, YELLOW);
+                    draw_game_text(global_vertex_position, text, 22.0f / current_level_context->cam.cam2D.zoom, YELLOW);
                 }
-                draw_game_circle(global_vertex_position, 1.0f * (0.4f / session_context.cam.cam2D.zoom), PINK);
+                draw_game_circle(global_vertex_position, 1.0f * (0.4f / current_level_context->cam.cam2D.zoom), PINK);
                 //draw unscaled vertices
                 if (IsKeyDown(KEY_LEFT_SHIFT)){    
                     draw_game_circle(global(e, e->unscaled_vertices.get(v)), 1.0f * 0.4f, PURPLE);
@@ -10745,8 +10774,8 @@ void draw_editor(){
         Vector2 vec_to_mouse = input.mouse_position - editor.ruler_start_position;
         f32 length = magnitude(vec_to_mouse);
         
-        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), text_format("%.2f", length), 24.0f / session_context.cam.cam2D.zoom, RED);
-        draw_game_text(input.mouse_position + Vector2_up, text_format("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26.0f / session_context.cam.cam2D.zoom, GREEN); 
+        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), text_format("%.2f", length), 24.0f / current_level_context->cam.cam2D.zoom, RED);
+        draw_game_text(input.mouse_position + Vector2_up, text_format("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26.0f / current_level_context->cam.cam2D.zoom, GREEN); 
         
     }
 }
@@ -11044,7 +11073,7 @@ void apply_shake(){
     f32 x_offset = perlin_noise3(core.time.game_time * x_shake_speed, 0, 1) * x_shake_power;
     f32 y_offset = perlin_noise3(0, core.time.game_time * y_shake_speed, 2) * y_shake_power;
     
-    session_context.cam.position += (cast(Vector2){x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
+    current_level_context->cam.position += (cast(Vector2){x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
 }
 
 Cam saved_cam;
@@ -11059,18 +11088,18 @@ inline void add_light_to_draw_queue(Light light){
 }
 
 void draw_game(){
-    saved_cam = session_context.cam;
+    saved_cam = current_level_context->cam;
 
     apply_shake();
     
-    with_shake_cam = session_context.cam;
+    with_shake_cam = current_level_context->cam;
 
     local_persist Shader smooth_edges_shader = LoadShader(0, "./resources/shaders/smooth_edges.fs");
     
     
     BeginDrawing();
     BeginTextureMode(render.main_render_texture);
-    BeginMode2D(session_context.cam.cam2D);
+    BeginMode2D(current_level_context->cam.cam2D);
     
     ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : GRAY);
     
@@ -11102,7 +11131,7 @@ void draw_game(){
             for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
                 Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
                 
-                draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / session_context.cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+                draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
             }
         }
     }
@@ -11122,7 +11151,7 @@ void draw_game(){
 
     BeginTextureMode(light_geometry_rt);{
         ClearBackground(Fade(BLACK, 0));
-        BeginMode2D(session_context.cam.cam2D);
+        BeginMode2D(current_level_context->cam.cam2D);
         BeginShaderMode(gaussian_blur_shader);
             i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
             set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (screen_width), (1.0f) / (screen_height)});
@@ -11130,7 +11159,7 @@ void draw_game(){
             // ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD){
             for (i32 i = 0; i < session_context.entities_draw_queue.count; i++){
                 Entity *entity = session_context.entities_draw_queue.get_ptr(i);
-                if (entity->hidden || should_not_draw_entity(entity, session_context.cam)){
+                if (entity->hidden || should_not_draw_entity(entity, current_level_context->cam)){
                     continue;
                 }
                 Color prev_color = entity->color;
@@ -11192,7 +11221,7 @@ void draw_game(){
         b32 should_calculate_light_anyway = light_ptr->bake_shadows && session_context.just_entered_game_state;
         
         Bounds lightmap_bounds = {lightmap_game_scale, {0, 0}};
-        if (!should_calculate_light_anyway && (!check_bounds_collision(session_context.cam.view_position, light.position, get_cam_bounds(session_context.cam, session_context.cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME)) || debug.full_light){
+        if (!should_calculate_light_anyway && (!check_bounds_collision(current_level_context->cam.view_position, light.position, get_cam_bounds(current_level_context->cam, current_level_context->cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME)) || debug.full_light){
             continue;
         }
         
@@ -11210,13 +11239,13 @@ void draw_game(){
             
             BeginTextureMode(light.shadowmask_rt);{
                 ClearBackground(Fade(WHITE, 0));
-                session_context.cam = get_cam_for_resolution(shadows_texture_size.x, shadows_texture_size.y);
-                session_context.cam.position = light.position;
-                session_context.cam.view_position = light.position;
-                session_context.cam.cam2D.zoom = get_light_zoom(light.radius);
-                BeginMode2D(session_context.cam.cam2D);
+                current_level_context->cam = get_cam_for_resolution(shadows_texture_size.x, shadows_texture_size.y);
+                current_level_context->cam.position = light.position;
+                current_level_context->cam.view_position = light.position;
+                current_level_context->cam.cam2D.zoom = get_light_zoom(light.radius);
+                BeginMode2D(current_level_context->cam.cam2D);
                 ForEntities(entity, GROUND | light.additional_shadows_flags){
-                    if (entity->hidden || entity->id == light.connected_entity_id || should_not_draw_entity(entity, session_context.cam)){
+                    if (entity->hidden || entity->id == light.connected_entity_id || should_not_draw_entity(entity, current_level_context->cam)){
                         continue;
                     }
                     
@@ -11231,7 +11260,7 @@ void draw_game(){
                 }
                 // draw_particles();
                 EndMode2D();
-                session_context.cam = with_shake_cam;
+                current_level_context->cam = with_shake_cam;
             }EndTextureMode();
             
             assert(shadows_texture_size.x >= 1);
@@ -11260,13 +11289,13 @@ void draw_game(){
         if (light.make_backshadows){
             BeginTextureMode(light.backshadows_rt);{
                 ClearBackground(Fade(WHITE, 0));
-                session_context.cam = get_cam_for_resolution(backshadows_texture_size.x, backshadows_texture_size.y);
-                session_context.cam.position = light.position;
-                session_context.cam.view_position = light.position;
-                session_context.cam.cam2D.zoom = get_light_zoom(light.radius);
-                BeginMode2D(session_context.cam.cam2D);
+                current_level_context->cam = get_cam_for_resolution(backshadows_texture_size.x, backshadows_texture_size.y);
+                current_level_context->cam.position = light.position;
+                current_level_context->cam.view_position = light.position;
+                current_level_context->cam.cam2D.zoom = get_light_zoom(light.radius);
+                BeginMode2D(current_level_context->cam.cam2D);
                 ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER | PLATFORM | SWORD){
-                    if (entity->hidden || entity->id == light.connected_entity_id || should_not_draw_entity(entity, session_context.cam)){
+                    if (entity->hidden || entity->id == light.connected_entity_id || should_not_draw_entity(entity, current_level_context->cam)){
                         continue;
                     }
                     Color prev_color = entity->color;
@@ -11284,24 +11313,24 @@ void draw_game(){
     
                     draw_texture(light.backshadows_rt.texture, backshadows_texture_size * 0.5f, {1.0f + 0.2f, 1.0f + 0.2f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
                 EndShaderMode();
-                session_context.cam = with_shake_cam;
+                current_level_context->cam = with_shake_cam;
             }; EndTextureMode();
         }
         
         // if (light.make_shadows || light.make_backshadows){
         //     BeginTextureMode(light.geometry_rt);{
         //         ClearBackground(Fade(BLACK, 0));
-        //         session_context.cam = get_cam_for_resolution(light.geometry_size, light.geometry_size);
-        //         session_context.cam.position = light_position;
-        //         session_context.cam.view_position = light_position;
-        //         session_context.cam.cam2D.zoom = get_light_zoom(light.radius);
-        //         BeginMode2D(session_context.cam.cam2D);
+        //         current_level_context->cam = get_cam_for_resolution(light.geometry_size, light.geometry_size);
+        //         current_level_context->cam.position = light_position;
+        //         current_level_context->cam.view_position = light_position;
+        //         current_level_context->cam.cam2D.zoom = get_light_zoom(light.radius);
+        //         BeginMode2D(current_level_context->cam.cam2D);
         //         BeginShaderMode(gaussian_blur_shader);
         //             i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
         //             set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (light.geometry_size), (1.0f) / (light.geometry_size)});
     
         //             ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD){
-        //                 if (entity->hidden || should_not_draw_entity(entity, session_context.cam)){
+        //                 if (entity->hidden || should_not_draw_entity(entity, current_level_context->cam)){
         //                     continue;
         //                 }
         //                 Color prev_color = entity->color;
@@ -11312,7 +11341,7 @@ void draw_game(){
         //             //draw_particles();
         //         EndShaderMode();
         //         EndMode2D();
-        //         session_context.cam = with_shake_cam;
+        //         current_level_context->cam = with_shake_cam;
         //     }EndTextureMode();
         // }
             
@@ -11327,7 +11356,7 @@ void draw_game(){
             Texture shadowmask_texture = light.make_shadows ? light.shadowmask_rt.texture : white_transparent_pixel_texture;
         
             Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(shadowmask_texture, light.position, lightmap_game_scale);
-            BeginMode2D(session_context.cam.cam2D);{
+            BeginMode2D(current_level_context->cam.cam2D);{
                     local_persist i32 light_power_loc         = get_shader_location(smooth_edges_shader, "light_power");
                     local_persist i32 light_color_loc         = get_shader_location(smooth_edges_shader, "light_color");
                     local_persist i32 my_pos_loc              = get_shader_location(smooth_edges_shader, "my_pos");
@@ -11354,7 +11383,7 @@ void draw_game(){
                     
                     draw_game_texture(shadowmask_texture, light.position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
             } EndMode2D();
-            session_context.cam = with_shake_cam;
+            current_level_context->cam = with_shake_cam;
     }
     } EndShaderMode();
     } EndTextureMode();
@@ -11383,7 +11412,7 @@ void draw_game(){
     
     update_input_field();
     
-    BeginMode2D(session_context.cam.cam2D);{
+    BeginMode2D(current_level_context->cam.cam2D);{
         draw_immediate_stuff();
     } EndMode2D();
     
@@ -11400,7 +11429,7 @@ void draw_game(){
     
     draw_ui("");
     
-    session_context.cam = saved_cam;
+    current_level_context->cam = saved_cam;
     
     f32 v_pos = 10;
     f32 font_size = 18;
@@ -11580,16 +11609,16 @@ inline Vector2 local(Entity *e, Vector2 global_pos){
 }
 
 inline Vector2 world_to_screen(Vector2 position){
-    Vector2 cam_pos = session_context.cam.position;
+    Vector2 cam_pos = current_level_context->cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
-    Vector2 pixels   = multiply(with_cam, session_context.cam.unit_size);
+    Vector2 pixels   = multiply(with_cam, current_level_context->cam.unit_size);
     
     //Horizontal center and vertical bottom
     f32 width_add, height_add;
     
-    width_add = session_context.cam.width * 0.5f;    
-    height_add = session_context.cam.height * 0.5f;    
+    width_add = current_level_context->cam.width * 0.5f;    
+    height_add = current_level_context->cam.height * 0.5f;    
     Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
 
     return to_center;
@@ -11597,16 +11626,16 @@ inline Vector2 world_to_screen(Vector2 position){
 
 //This gives us real screen pixel position
 inline Vector2 world_to_screen_with_zoom(Vector2 position){
-    Vector2 cam_pos = session_context.cam.position;
+    Vector2 cam_pos = current_level_context->cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
-    Vector2 pixels   = multiply(with_cam, session_context.cam.unit_size * session_context.cam.cam2D.zoom);
+    Vector2 pixels   = multiply(with_cam, current_level_context->cam.unit_size * current_level_context->cam.cam2D.zoom);
     //Horizontal center and vertical bottom
     
     f32 width_add, height_add;
     
-    width_add = session_context.cam.width * 0.5f;    
-    height_add = session_context.cam.height * 0.5f;    
+    width_add = current_level_context->cam.width * 0.5f;    
+    height_add = current_level_context->cam.height * 0.5f;    
     Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
 
     return to_center;
@@ -11614,7 +11643,7 @@ inline Vector2 world_to_screen_with_zoom(Vector2 position){
 
 inline Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale){
     Vector2 screen_texture_size_multiplier = transform_texture_scale(texture, game_scale);
-    return multiply({(f32)texture.width, (f32)texture.height}, screen_texture_size_multiplier) * session_context.cam.cam2D.zoom;
+    return multiply({(f32)texture.width, (f32)texture.height}, screen_texture_size_multiplier) * current_level_context->cam.cam2D.zoom;
 }
 
 inline Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale){
@@ -11640,22 +11669,22 @@ inline void draw_game_triangle(Vector2 a, Vector2 b, Vector2 c, Color color){
 
 inline void draw_game_circle(Vector2 position, f32 radius, Color color){
     Vector2 screen_pos = world_to_screen(position);
-    draw_circle(screen_pos, radius * session_context.cam.unit_size, color);
+    draw_circle(screen_pos, radius * current_level_context->cam.unit_size, color);
 }
 
 inline void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect(screen_pos, multiply(scale, session_context.cam.unit_size), color);
+    draw_rect(screen_pos, multiply(scale, current_level_context->cam.unit_size), color);
 }
 
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect_lines(screen_pos, scale * session_context.cam.unit_size, thick, color);
+    draw_rect_lines(screen_pos, scale * current_level_context->cam.unit_size, thick, color);
 }
 
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect_lines(screen_pos, scale * session_context.cam.unit_size, color);
+    draw_rect_lines(screen_pos, scale * current_level_context->cam.unit_size, color);
 }
 
 Array<Vector2, 2048> screen_positions_buffer = Array<Vector2, 2048>();
@@ -11700,7 +11729,7 @@ inline void draw_game_triangle_strip(Entity *entity){
 
 inline void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color){
     Vector2 screen_pos = rect_screen_pos(position, scale, {0, 0});
-    draw_rect(screen_pos, multiply(scale, session_context.cam.unit_size), pivot, rotation, color);
+    draw_rect(screen_pos, multiply(scale, current_level_context->cam.unit_size), pivot, rotation, color);
 }
 
 inline void draw_game_text(Vector2 position, const char *text, f32 size, Color color){
@@ -11719,7 +11748,7 @@ inline void draw_game_texture_full(Texture tex, Vector2 position, Vector2 pivot,
 }
 
 inline void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){
-    draw_line(world_to_screen(start), world_to_screen(end), thick * session_context.cam.unit_size, color);
+    draw_line(world_to_screen(start), world_to_screen(end), thick * current_level_context->cam.unit_size, color);
 }
 
 inline void draw_game_line(Vector2 start, Vector2 end, Color color){
@@ -11727,7 +11756,7 @@ inline void draw_game_line(Vector2 start, Vector2 end, Color color){
 }
 
 inline void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle, f32 end_angle){
-    draw_ring_lines(world_to_screen(center), inner_radius * session_context.cam.unit_size, outer_radius * session_context.cam.unit_size, segments, color);
+    draw_ring_lines(world_to_screen(center), inner_radius * current_level_context->cam.unit_size, outer_radius * current_level_context->cam.unit_size, segments, color);
 }
 
 inline void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color){
