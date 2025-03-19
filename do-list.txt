@@ -1,3 +1,4 @@
+[ ] Fix this trigger bug when copying connected. If it's even exists.
 [ ] Rotation for multiselected. We could hold on that one a little bit. Also could think about scaling for multiselect.
 [X] Check in VersySleepy what's taking that much cpu. Just to know. Checked. That's shit app, need to do our own profiler.
 [ ] Required gameplay changes. I think i'll be making these incrementaly while working on graphics:
@@ -7,8 +8,9 @@
     [ ] Try limiting big sword max spin acceleration.
     [ ] Think more about different goals on levels. 
     [ ] Enemy that buffs other enemies - adds them modifiers. We should experiment with that things that will make player Action becaue that's what the game tells me it needs.
-[ ] Undo for multiselecting. So we can press undo and select all the guys that was selected.
-[ ] Undo/redo for multiselected copy/paste.
+    [ ] Try to make that propellers affects physics objects and see what we can do with that. That could be funny.
+[X] Undo for multiselecting. So we can press undo and select all the guys that was selected.
+[X] Undo/redo for multiselected copy/paste.
 [X] Multiselect copy/paste.
 [X] Undo for multiselect. 
 [X] Some setting to move also move-sequence points and cam rails points when moving entity.

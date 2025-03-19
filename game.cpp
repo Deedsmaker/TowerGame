@@ -27,7 +27,14 @@ global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Arra
 
 global_variable Input input = {};
 global_variable Input replay_input = {};
-global_variable Level_Context editor_level_context = {};
+// global_variable Level_Context editor_level_context = {};
+
+#define MAX_LOADED_LEVELS 2
+global_variable Level_Context loaded_levels_contexts[MAX_LOADED_LEVELS];
+global_variable Level_Context *editor_level_context = NULL;
+i32 current_editor_level_context_index = 0;
+i32 last_loaded_editor_level_context_index = 0;
+
 global_variable Level_Context game_level_context = {};
 global_variable Level_Context checkpoint_level_context = {};
 global_variable Level_Context loaded_level_context = {};
@@ -576,6 +583,9 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     Game_State original_game_state = game_state;
     game_state = EDITOR;
     
+    str_copy(dest->level_name, src->level_name);
+    dest->player_spawn_point = src->player_spawn_point;
+    
     if (should_init_entities){
         // Particle emitters get's added on each entity init.
         // So when se init entities - we clear particle emitters, because they will be added again. 
@@ -678,7 +688,7 @@ i32 save_level(const char *level_name){
     
     fprintf(fptr, "Setup Data:\n");
     
-    fprintf(fptr, "player_spawn_point:{:%f:, :%f:} ", editor.player_spawn_point.x, editor.player_spawn_point.y);
+    fprintf(fptr, "player_spawn_point:{:%f:, :%f:} ", current_level_context->player_spawn_point.x, current_level_context->player_spawn_point.y);
     
     fprintf(fptr, ";\n");
     
@@ -896,10 +906,11 @@ i32 save_level(const char *level_name){
     b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
     b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave){
-        if (!str_equal(session_context.current_level_name, name)){
-            str_copy(session_context.previous_level_name, session_context.current_level_name);
+        // Why do we set previous level on saving??
+        if (!str_equal(current_level_context->level_name, name)){
+            str_copy(session_context.previous_level_name, current_level_context->level_name);
         }
-        str_copy(session_context.current_level_name, name);
+        str_copy(current_level_context->level_name, name);
         reload_level_files();
         console.str += text_format("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time);
         printf("level saved: \"%s\"; \n", level_path);
@@ -989,7 +1000,7 @@ b32 load_level(const char *level_name){
         for (i32 i = 0; i < splitted_line.count; i++){
             if (parsing_setup_data){
                 if (str_equal(splitted_line.get(i).data, "player_spawn_point")){
-                    fill_vector2_from_string(&editor.player_spawn_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                    fill_vector2_from_string(&current_level_context->player_spawn_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
                     i += 2;
                     continue;
                 }
@@ -1337,10 +1348,10 @@ b32 load_level(const char *level_name){
     b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
     b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave){
-        if (!str_equal(session_context.current_level_name, name)){
-            str_copy(session_context.previous_level_name, session_context.current_level_name);
+        if (!str_equal(current_level_context->level_name, name)){
+            str_copy(session_context.previous_level_name, current_level_context->level_name);
         }
-        str_copy(session_context.current_level_name, name);
+        str_copy(current_level_context->level_name, name);
         print_to_console(text_format("Loaded level: %s", name));
         editor.last_autosave_time = core.time.app_time;
     }
@@ -1353,9 +1364,17 @@ b32 load_level(const char *level_name){
     
     // We do that so editor has latest level in it.
     // current_level_context = editor_level-conte
-    clear_level_context(&editor_level_context);
     clear_level_context(&game_level_context);
-    copy_level_context(&editor_level_context, &loaded_level_context, true);
+    
+    // This shit so that we don't overwrite level that we currently on.
+    do {
+        last_loaded_editor_level_context_index += 1;    
+        last_loaded_editor_level_context_index %= MAX_LOADED_LEVELS;    
+    } while (last_loaded_editor_level_context_index == current_editor_level_context_index);
+    editor_level_context = &loaded_levels_contexts[last_loaded_editor_level_context_index];
+    current_editor_level_context_index = last_loaded_editor_level_context_index;
+    clear_level_context(editor_level_context);
+    copy_level_context(editor_level_context, &loaded_level_context, true);
     
     if (enter_game_state_on_new_level || game_state == GAME || (initing_game && RELEASE_BUILD)){
         enter_game_state(&loaded_level_context, true);
@@ -1371,8 +1390,8 @@ b32 load_level(const char *level_name){
         enter_editor_state();
     }
     
-    session_context.cam.position = editor.player_spawn_point;
-    session_context.cam.target = editor.player_spawn_point;
+    session_context.cam.position = current_level_context->player_spawn_point;
+    session_context.cam.target = current_level_context->player_spawn_point;
     return true;
 } // end load level end
 
@@ -2177,14 +2196,14 @@ void init_entity(Entity *entity){
 } // end init entity
 
 inline void save_current_level(){
-    save_level(session_context.current_level_name);
+    save_level(current_level_context->level_name);
 }
 
 inline void autosave_level(){
     i32 max_autosaves = 5;
     i32 autosave_index = -1;    
     for (i32 i = 0; i < max_autosaves; i++){
-        const char *path = text_format("levels/autosaves/AUTOSAVE_%d_%s.level", i, session_context.current_level_name);        
+        const char *path = text_format("levels/autosaves/AUTOSAVE_%d_%s.level", i, current_level_context->level_name);        
         if (!FileExists(path)){
             autosave_index = i;
             break;
@@ -2196,7 +2215,7 @@ inline void autosave_level(){
         i64 oldest_time = -1;
         
         for (i32 i = 0; i < max_autosaves; i++){
-            const char *path = text_format("levels/autosaves/AUTOSAVE_%d_%s.level", i, session_context.current_level_name);        
+            const char *path = text_format("levels/autosaves/AUTOSAVE_%d_%s.level", i, current_level_context->level_name);        
             u64 modification_time = GetFileModTime(path);
             if (oldest_time == -1 || modification_time < oldest_time){
                 oldest_time = modification_time;
@@ -2207,7 +2226,7 @@ inline void autosave_level(){
     
     assert(autosave_index != -1);
     
-    save_level(text_format("autosaves/AUTOSAVE_%d_%s", autosave_index, session_context.current_level_name));
+    save_level(text_format("autosaves/AUTOSAVE_%d_%s", autosave_index, current_level_context->level_name));
 }
 
 void load_level_by_name(const char *name){
@@ -2251,7 +2270,7 @@ void try_load_previous_level(){
 }
 
 void reload_level(){
-    load_level(session_context.current_level_name);       
+    load_level(current_level_context->level_name);       
 }
 
 Console_Command make_console_command(const char *name, void (func)() = NULL, void (func_arg)(const char*) = NULL){
@@ -2264,7 +2283,7 @@ Console_Command make_console_command(const char *name, void (func)() = NULL, voi
 
 void print_current_level(){
     console.str += "\t>";
-    console.str += session_context.current_level_name;
+    console.str += current_level_context->level_name;
     console.str += "\n";
 }
 
@@ -2281,7 +2300,7 @@ void create_level(const char *level_name){
         clean_up_scene();
         // current_level_context = &loaded_level_context;
         // clear_level_context(&loaded_level_context);
-        clear_level_context(&editor_level_context);
+        clear_level_context(editor_level_context);
         
         save_level(level_name);
         enter_editor_state();
@@ -2317,8 +2336,9 @@ void reload_level_files(){
 }
 
 void print_hotkeys_to_console(){
-    console.str += "\t>Ctrl+Mouse - Multiselect\n";
+    console.str += "\t>Ctrl+LeftMouse - Multiselect\n";
     console.str += "\t>Ctrl+Shift+Mouse - Move multiselected\n";
+    console.str += "\t>Ctrl+RightMouse - Exclude multiselect\n";
     console.str += "\t>Ctrl+Shift+Space - Toggle Game/Editor\n";
     console.str += "\t>Ctrl+S - Save current level.\n";
     console.str += "\t>Alt - See and move vertices with mouse.\n";
@@ -2435,7 +2455,7 @@ void save_replay(const char *replay_name){
 }
 
 void save_temp_replay(){
-    save_replay(text_format("TEMP_%s", get_substring_before_symbol(session_context.current_level_name, '.')));
+    save_replay(text_format("TEMP_%s", get_substring_before_symbol(current_level_context->level_name, '.')));
 }
 
 void play_loaded_replay(){
@@ -2469,7 +2489,7 @@ void load_replay(const char *replay_name){
 }
 
 void load_temp_replay(){
-    load_replay(text_format("TEMP_%s", get_substring_before_symbol(session_context.current_level_name, '.')));
+    load_replay(text_format("TEMP_%s", get_substring_before_symbol(current_level_context->level_name, '.')));
 }
 
 
@@ -2477,7 +2497,7 @@ void debug_toggle_play_replay(){
     session_context.playing_replay = !session_context.playing_replay;
         
     if (session_context.playing_replay){
-        enter_game_state(&editor_level_context, true);
+        enter_game_state(editor_level_context, true);
         play_loaded_replay();
     }
     
@@ -2794,17 +2814,22 @@ void init_level_context(Level_Context *level_context){
 void init_game(){
     initing_game = true;
     str_copy(loaded_level_context.name, "loaded_level_context");
-    str_copy(editor_level_context.name, "editor_level_context");
+    // str_copy(editor_level_context.name, "editor_level_context");
     str_copy(game_level_context.name, "game_level_context");
     str_copy(checkpoint_level_context.name, "checkpoint_level_context");
     
     // Now we need to init all level contexts once 
     init_level_context(&loaded_level_context);
-    init_level_context(&editor_level_context);
     init_level_context(&game_level_context);
     init_level_context(&checkpoint_level_context);
     init_level_context(&undo_level_context);
     init_level_context(&copied_entities_level_context);
+    
+    for (i32 i = 0; i < MAX_LOADED_LEVELS; i++){
+        init_level_context(&loaded_levels_contexts[i]);
+        str_copy(loaded_levels_contexts[i].name, text_format("editor_level_context_%d", i));
+    }
+    editor_level_context = &loaded_levels_contexts[0];
     
     player_data = &real_player_data;
     
@@ -2815,11 +2840,6 @@ void init_game(){
     session_context.entity_lights_start_index = session_context.temp_lights_count; 
     
     render = {};
-    if (RELEASE_BUILD){
-        str_copy(session_context.current_level_name, first_level_name);
-    } else{
-        str_copy(session_context.current_level_name, "test_level");
-    }
     
     i32 cells_columns = (i32)(session_context.collision_grid.size.x / session_context.collision_grid.cell_size.x);
     i32 cells_rows    = (i32)(session_context.collision_grid.size.y / session_context.collision_grid.cell_size.y);
@@ -2861,7 +2881,14 @@ void init_game(){
     
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
-    load_level(session_context.current_level_name);
+    char level_name_to_load[256] = "\0";
+    if (RELEASE_BUILD){
+        str_copy(level_name_to_load, first_level_name);
+    } else{
+        str_copy(level_name_to_load, "test_level");
+    }
+    
+    load_level(level_name_to_load);
     
     session_context.cam.position = Vector2_zero;
     session_context.cam.cam2D.target = world_to_screen({0, 0});
@@ -2914,7 +2941,7 @@ void clean_up_scene(){
 }
 
 Entity *add_player_entity(Player *data){
-    Entity *new_player_entity = add_entity(editor.player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
+    Entity *new_player_entity = add_entity(current_level_context->player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
     new_player_entity->collision_flags = GROUND | ENEMY;
     new_player_entity->draw_order = 30;
     
@@ -2933,7 +2960,7 @@ Entity *add_player_entity(Player *data){
     right_wall_checker->color = Fade(PURPLE, 0.8f);
     right_wall_checker->draw_order = 31;
     
-    Entity *sword_entity = add_entity(editor.player_spawn_point, data->sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
+    Entity *sword_entity = add_entity(current_level_context->player_spawn_point, data->sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
     sword_entity->collision_flags = ENEMY;
     sword_entity->color   = GRAY + RED * 0.1f;
     sword_entity->draw_order = 25;
@@ -2988,7 +3015,7 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
     current_level_context = &game_level_context;
     copy_level_context(&game_level_context, level_context, should_init_entities);
     
-    Vector2 grid_target_pos = editor.player_spawn_point;
+    Vector2 grid_target_pos = current_level_context->player_spawn_point;
     session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
 
     state_context.timers.last_collision_cells_clear_time = core.time.app_time;
@@ -3000,7 +3027,7 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
     
     session_context.cam.cam2D.zoom = 0.35f;
     session_context.cam.target_zoom = 0.35f;
-    session_context.cam.position = editor.player_spawn_point;
+    session_context.cam.position = current_level_context->player_spawn_point;
     
     session_context.game_frame_count = 0;
     if (!session_context.playing_replay){
@@ -3049,8 +3076,8 @@ void enter_editor_state(){
     
     clean_up_scene();
     
-    current_level_context = &editor_level_context;
-    // copy_context(&editor_level_context, 
+    current_level_context = editor_level_context;
+    // copy_context(editor_level_context, 
     core.time.game_time = 0;
     core.time.hitstop = 0;
     core.time.previous_dt = 0;
@@ -3062,7 +3089,7 @@ void enter_editor_state(){
     //     return;
     // }
     
-    // copy_context(&editor_level_context, &loaded
+    // copy_context(editor_level_context, &loaded
     
     SetMusicVolume(tires_theme, 0);
     SetMusicVolume(wind_theme, 0);
@@ -3569,7 +3596,7 @@ void update_game(){
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)){
         if (game_state == EDITOR){
-            enter_game_state(&editor_level_context, true);
+            enter_game_state(editor_level_context, true);
         } else if (game_state == GAME){
             enter_editor_state();
         }
@@ -3591,7 +3618,7 @@ void update_game(){
                 session_context.speedrun_timer.time = 0;
             } else if (session_context.speedrun_timer.level_timer_active){
                 // enter_editor_state();
-                enter_game_state(&editor_level_context, true);
+                enter_game_state(editor_level_context, true);
                 session_context.speedrun_timer.time = 0;
             } else{
                 b32 is_have_checkpoint = checkpoint_trigger_id != -1;
@@ -3607,7 +3634,7 @@ void update_game(){
                     player_data->velocity = Vector2_zero;
                     session_context.speedrun_timer.time = 0;
                 } else{
-                    enter_game_state(&editor_level_context, true);
+                    enter_game_state(editor_level_context, true);
                 }
             }
         }
@@ -3736,7 +3763,7 @@ void update_game(){
             session_context.speedrun_timer.time += core.time.dt;
         }
         
-        const char *title_and_time = text_format("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? session_context.current_level_name : "Game speedrun", session_context.speedrun_timer.time);
+        const char *title_and_time = text_format("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? current_level_context->level_name : "Game speedrun", session_context.speedrun_timer.time);
         make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
     }
     
@@ -4264,7 +4291,7 @@ void undo_add_position(Entity *entity, Vector2 position_change){
 void undo_add_multiselect_position_change(Vector2 change){
     Undo_Action undo_action;
     undo_action.position_change = change;
-    undo_action.moved_entity_points = editor.move_entity_points;
+    undo_action.moved_entity_points = editor.multiselected_entities.count > 1 ? true : editor.move_entity_points;
 
     for (i32 i = 0; i < editor.multiselected_entities.count; i++){
         undo_action.changed_entities.add(editor.multiselected_entities.get(i));
@@ -5426,6 +5453,7 @@ void clear_multiselected_entities(b32 add_to_undo){
     editor.multiselected_entities.clear();
 }
 
+// This can be called not only when game_state is EDITOR, but even when we're in pause for example.
 void update_editor(){
     if (IsKeyPressed(KEY_ESCAPE)){
         EnableCursor();
@@ -5438,11 +5466,30 @@ void update_editor(){
     }
 
     if (game_state == EDITOR){
+        if (IsKeyPressed(KEY_TAB) && !console.is_open){
+            current_editor_level_context_index += 1;    
+            current_editor_level_context_index %= MAX_LOADED_LEVELS;    
+            
+            Level_Context *next_context = &loaded_levels_contexts[current_editor_level_context_index];
+            i32 cycled = 0;
+            while (cycled <= MAX_LOADED_LEVELS && !(*next_context->level_name)){
+                cycled += 1;
+                current_editor_level_context_index += 1;    
+                current_editor_level_context_index %= MAX_LOADED_LEVELS;    
+                next_context = &loaded_levels_contexts[current_editor_level_context_index];
+            }
+            
+            if (*next_context->level_name){
+                editor_level_context = next_context;
+                current_level_context = editor_level_context;
+            }
+        }
+    
         // We need grid to be at camera center because levels could be quite big and even our mouse collision detection does not work
         // without grid at that place. 
         // BUT i've recently (08.03.2025 currently) made that origin is on player spawn point in editor. Don't remember why. 
         // There's could be other scary reason.
-        // Vector2 grid_target_pos = editor.player_spawn_point;
+        // Vector2 grid_target_pos = current_level_context->player_spawn_point;
         Vector2 grid_target_pos = session_context.cam.position;
         session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
     }
@@ -5586,7 +5633,7 @@ void update_editor(){
     
     // mouse select editor
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select){
-        if (editor.cursor_entity != NULL){ //selecting entity
+        if (editor.cursor_entity){ //select entity
             b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
             need_start_dragging = is_same_selected_entity;
             if (!is_same_selected_entity){
@@ -5604,8 +5651,8 @@ void update_editor(){
                 }
                 
                 if (!removed){
-                    if (!IsKeyDown(KEY_LEFT_CONTROL)){
-                        editor.multiselected_entities.clear();
+                    if (!IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_LEFT_SHIFT)){
+                        clear_multiselected_entities(true);
                     }
                     assign_selected_entity(editor.cursor_entity);
                     editor.place_cursor_entities.add(editor.selected_entity);
@@ -5673,7 +5720,8 @@ void update_editor(){
         Color color = editor.excluding_multiselection ? RED : BLUE;
         make_rect_lines(editor.multiselect_start_point, scale, pivot, 2.0f / (session_context.cam.cam2D.zoom), color);
     }
-    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && editor.multiselecting && editor.multiselected_entities.count > 1){
+    
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && editor.multiselecting){
         editor.multiselecting = false;
         
         add_to_multiselection(&editor.selection_multiselected_entities, true);
@@ -5746,7 +5794,7 @@ void update_editor(){
         }
     }
     
-    if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && editor.selected_entity != NULL && need_start_dragging && can_select){ // assign dragging entity
+    if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_LEFT_CONTROL) && editor.selected_entity != NULL && need_start_dragging && can_select){ // assign dragging entity
         if (editor.cursor_entity != NULL){
             if (editor.moving_vertex == NULL && editor.selected_entity->id == editor.cursor_entity->id){
                 editor.dragging_entity = editor.selected_entity;
@@ -5829,7 +5877,7 @@ void update_editor(){
         
             local_persist Dynamic_Array<i32> spawned_entities = Dynamic_Array<i32>(128);
             spawned_entities.clear();
-            editor.multiselected_entities.clear();
+            clear_multiselected_entities(true);
             for (i32 i = 0; i < editor.copied_entities.count; i++){
                 Entity *to_spawn = editor.copied_entities.get_ptr(i);
                 Entity *spawned = add_entity(to_spawn, false, &copied_entities_level_context);
@@ -6350,7 +6398,7 @@ void update_editor(){
     }
     
     if (can_control_with_single_button && IsKeyPressed(KEY_P) && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL)){
-        editor.player_spawn_point = input.mouse_position;
+        current_level_context->player_spawn_point = input.mouse_position;
     }
 
     clicked_ui = false;
@@ -10629,7 +10677,7 @@ void draw_editor(){
             continue;
         }
         
-        draw_game_circle(editor.player_spawn_point, 3, BLUE);
+        draw_game_circle(current_level_context->player_spawn_point, 3, BLUE);
         
         b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT);
         // draw vertices
@@ -11047,7 +11095,7 @@ void draw_game(){
     if (debug.draw_collision_grid){
         // draw collision grid
         Collision_Grid grid = session_context.collision_grid;
-        Vector2 player_position = player_entity ? player_entity->position : editor.player_spawn_point;
+        Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
         
         update_entity_collision_cells(&mouse_entity);
         for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
@@ -11453,7 +11501,7 @@ Entity* add_entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_c
     Entity e = Entity(copy, keep_id, copy_entity_level_context);
     
     // We check for copied entities count because that's actually could be frustrating when we copy big chunks of level    
-    // and all of a sudden - some trigger connecting.
+    // without trigger and trigger connecting to new level parts that could be not even relevant to him.
     if (!keep_id && game_state == EDITOR && editor.copied_entities.count < 10){
         ForEntities(entity, 0){
             // We want to check if in copied entities currently this same trigger because when we pasting multiple entities
@@ -11476,10 +11524,6 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
     check_avaliable_ids_and_set_if_found(&e.id);
     e.level_context = current_level_context;
-    // assert(e.id != 1);  
-    // if (flags & PLAYER){
-    //     e.id = 1;
-    // }
     current_level_context->entities.add(e.id, e);
     return current_level_context->entities.last_ptr();
 }
@@ -11522,12 +11566,6 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
     setup_color_changer(e);
     return e;
 }
-
-// Particle_Emitter* add_emitter(){
-//     Particle_Emitter e = Particle_Emitter();
-//     current_level_context->particle_emitters_indexes.add(e);    
-//     return current_level_context->emitters.last_ptr();
-// }
 
 inline Vector2 global(Entity *e, Vector2 local_pos){
     return e->position + local_pos;

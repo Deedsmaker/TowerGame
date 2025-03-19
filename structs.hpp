@@ -874,6 +874,8 @@ struct Collision_Grid{
 
 struct Cam{
     Vector2 position = Vector2_zero;
+    f32 target_zoom = 0.35f;
+    
     Vector2 target = Vector2_zero;
     //For culling
     Vector2 view_position = Vector2_zero;
@@ -885,7 +887,6 @@ struct Cam{
     
     //Shake
     Camera2D cam2D = {};
-    f32 target_zoom = 0.35f;
 };
 
 //definition in particles.hpp
@@ -941,6 +942,9 @@ enum Death_Instinct_Reason{
 struct Level_Context{
     b32 inited = false;
     char name[64] = "\0";
+    
+    Vector2 player_spawn_point = Vector2_zero;
+    char level_name[256] = "\0";
 
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
       
@@ -1032,7 +1036,7 @@ struct Session_Context{
     
     // Death instinct timers is in app time. (Because it's manipulating time!!).
     
-    char current_level_name[256] = "\0";
+    // char current_level_name[256] = "\0";
     char previous_level_name[256] = "\0";
     
     Collision_Grid collision_grid;
@@ -1248,7 +1252,7 @@ struct Editor{
     
     f32 last_autosave_time = 0;
     
-    Vector2 player_spawn_point = {0, 0};
+    // Vector2 player_spawn_point = {0, 0};
     Vector2 last_click_position = {0, 0};
     f32 last_click_time = 0;
     

@@ -1,3 +1,7 @@
+19.03.2025:
+    - Multiselect improvements.
+    - Loading multiple levels and switching between them on TAB.
+
 18.03.2025:
     - Made that on multiselect moving we always move entity points.
     - Now we detect multiselected entities center and with that i made better positioning of pasted entities.
