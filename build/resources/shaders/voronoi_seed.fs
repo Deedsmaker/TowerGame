@@ -13,5 +13,5 @@ out vec4 finalColor;
 void main()
 {
     vec4 sceneColor = texture(texture0, fragTexCoord);
-    finalColor = vec4(fragTexCoord.x * sceneColor.a, fragTexCoord.y * sceneColor.a, 0, 1);
+    finalColor = vec4(fragTexCoord.x * sceneColor.a, fragTexCoord.y * sceneColor.a, 0, sceneColor.a);
 }

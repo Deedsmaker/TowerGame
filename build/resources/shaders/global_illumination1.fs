@@ -44,8 +44,7 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out vec2 hit_pos)
 
       // we've hit a surface if distance field returns 0 or close to 0 (due to our distance field using a 16-bit float
       // the precision isn't enough to just check against 0).
-      if(dist_to_surface < 0.001f)
-      {
+      if(dist_to_surface <= 0.00001){
          hit_pos = sample_point;
          return true;
       }
@@ -60,7 +59,7 @@ void get_surface(vec2 uv, out float emissive, out vec3 colour)
 {	
    vec4 emissive_data = texture(u_scene_data, uv);
    emissive = max(emissive_data.r, max(emissive_data.g, emissive_data.b)) * u_emission_multi;
-   colour = emissive_data.rgb * u_emission_multi;
+   colour = emissive_data.rgb * u_emission_multi * emissive_data.a;
 }
 
 vec3 lin_to_srgb(vec4 color)
