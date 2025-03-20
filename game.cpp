@@ -11087,15 +11087,8 @@ inline void add_light_to_draw_queue(Light light){
     render.lights_draw_queue.add(light);
 }
 
-void draw_game(){
-    saved_cam = current_level_context->cam;
-
-    apply_shake();
-    
-    with_shake_cam = current_level_context->cam;
-
+void old_render(){
     local_persist Shader smooth_edges_shader = LoadShader(0, "./resources/shaders/smooth_edges.fs");
-    
     
     BeginDrawing();
     BeginTextureMode(render.main_render_texture);
@@ -11409,6 +11402,16 @@ void draw_game(){
         
         draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     } EndShaderMode();
+}
+
+void draw_game(){
+    saved_cam = current_level_context->cam;
+
+    apply_shake();
+    
+    with_shake_cam = current_level_context->cam;
+
+    old_render();
     
     update_input_field();
     
