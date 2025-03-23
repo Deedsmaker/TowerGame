@@ -2839,28 +2839,43 @@ global_variable RenderTexture emitters_occluders_rt;
 global_variable RenderTexture voronoi_seed_rt;
 global_variable RenderTexture jump_flood_rt;
 global_variable RenderTexture distance_field_rt;
-global_variable RenderTexture raytracing_global_illumination_rt;
+// global_variable RenderTexture raytracing_global_illumination_rt;
+global_variable Array<RenderTexture, 2> lightmaps = Array<RenderTexture, 2>();
 
 global_variable Shader voronoi_seed_shader;
 global_variable Shader jump_flood_shader;
 global_variable Shader distance_field_shader;
 global_variable Shader global_illumination_shader;
 
-i32 light_texture_width = 1024;
-i32 light_texture_height = 1024;
+i32 light_texture_width = 512;
+i32 light_texture_height = 512;
 
-void init_game(){
+Shader load_shader(const char *vertex, const char *fragment){
+    Shader loaded = LoadShader(vertex, fragment);
+    if (!IsShaderReady(loaded)){
+        print("WARNIGNG: Shader could not load");
+    }
+    
+    return loaded;
+}
+
+void load_render(){
     emitters_occluders_rt = LoadRenderTexture(light_texture_width, light_texture_height);
     voronoi_seed_rt = LoadRenderTexture(light_texture_width, light_texture_height);
     jump_flood_rt = LoadRenderTexture(light_texture_width, light_texture_height);
     distance_field_rt = LoadRenderTexture(light_texture_width, light_texture_height);
-    raytracing_global_illumination_rt = LoadRenderTexture(light_texture_width, light_texture_height);
+    // raytracing_global_illumination_rt = LoadRenderTexture(light_texture_width, light_texture_height);
+    for (i32 i = 0; i < lightmaps.max_count; i++){
+        *lightmaps.get_ptr(i) = LoadRenderTexture(light_texture_width, light_texture_height);
+    }
     
     voronoi_seed_shader = LoadShader(0, "./resources/shaders/voronoi_seed.fs");
     jump_flood_shader = LoadShader(0, "./resources/shaders/jump_flood.fs");
     distance_field_shader = LoadShader(0, "./resources/shaders/distance_field.fs");
-    global_illumination_shader = LoadShader(0, "./resources/shaders/global_illumination1.fs");
+    global_illumination_shader = load_shader(0, "./resources/shaders/global_illumination1.fs");
+}
 
+void init_game(){
     initing_game = true;
     str_copy(loaded_level_context.name, "loaded_level_context");
     // str_copy(editor_level_context.name, "editor_level_context");
@@ -2928,6 +2943,8 @@ void init_game(){
     
     load_sounds();
     
+    load_render();
+    
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
     char level_name_to_load[256] = "\0";
@@ -2938,12 +2955,6 @@ void init_game(){
     }
     
     load_level(level_name_to_load);
-    
-    // current_level_context->cam.position = Vector2_zero;
-    // current_level_context->cam.cam2D.target = world_to_screen({0, 0});
-    // current_level_context->cam.cam2D.offset = cast(Vector2) { screen_width/2.0f, (f32)screen_height * 0.5f };
-    // current_level_context->cam.cam2D.rotation = 0.0f;
-    // current_level_context->cam.cam2D.zoom = 0.4f;
     
     initing_game = false;
 } // end init game end
@@ -3383,7 +3394,7 @@ void fixed_game_update(f32 dt){
     input.sum_mouse_wheel = 0;
     
     session_context.game_frame_count += 1;
-}
+} // end fixed game update
 
 void update_console(){
     b32 can_control_console = !editor.create_box_active;
@@ -3871,6 +3882,8 @@ void update_game(){
     
     // We do this so lights don't bake all at one frame 
     session_context.baked_shadows_this_frame = false;
+    
+    session_context.app_frame_count += 1;
 } // update game end
 
 void update_color_changer(Entity *entity, f32 dt){
@@ -11430,130 +11443,153 @@ void old_render(){
 }
 
 void new_render(){
+    // old_render();
+    f32 light_texture_game_size = 1024.0f;
+    Vector2 lightmap_position = {0, 0};
     
-    BeginTextureMode(emitters_occluders_rt);{
-    ClearBackground(Fade(WHITE, 0));
-    // BeginMode2D(context.cam.cam2D);
-        // ForEntities(entity, GROUND){   
-            // draw_game_triangle_strip(entity);
-        // }
-        // draw_game();
-        // draw_game_circle(editor.player_spawn_point, 10, WHITE);
-    draw_rect({400, 400}, {200, 50}, WHITE);
-    draw_rect({800, 300}, {60, 300}, PINK);
-    // EndMode2D();
-    // draw_rect({0.0f, 0.0f/*-screen_height * LIGHT_TEXTURE_SIZE_MULTIPLIER*/}, {(f32)screen_width * 0.3f, 20}, WHITE);
-    }EndTextureMode();
-    
-    // blur pass
-    local_persist i32 iterations = 0;
-    for (i32 i = 0; i < iterations; i++){
-        BeginTextureMode(emitters_occluders_rt);{
-            BeginShaderMode(gaussian_blur_shader);{
-                i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                set_shader_value(gaussian_blur_shader, u_pixel_loc, {(2.0f) / screen_width, (2.0f) / screen_height});
-                draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
-            } EndShaderMode();
-        } EndTextureMode();
-    }
-
-    
-    BeginTextureMode(voronoi_seed_rt);{
-        ClearBackground({0, 0, 0, 0});
-        // BeginMode2D(context.cam.cam2D);
-        BeginShaderMode(voronoi_seed_shader);
-            draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
-        EndShaderMode();
-    // EndMode2D();
-    }EndTextureMode();
-    
-    RenderTexture prev = voronoi_seed_rt;
-    RenderTexture next = jump_flood_rt;
-    
-    //jump flood voronoi render pass
-    {
-        i32 passes = ceilf(logf(fmaxf(light_texture_width, light_texture_height)) / logf(2.0f));
-        // i32 passes = 6;
-        
-        i32 level_loc     = get_shader_location(jump_flood_shader, "u_level");
-        i32 max_steps_loc = get_shader_location(jump_flood_shader, "u_max_steps");
-        i32 offset_loc    = get_shader_location(jump_flood_shader, "u_offset");
-        // i32 pixel_loc     = get_shader_location(jump_flood_shader, "u_pixel");
-        // i32 step_loc      = get_shader_location(jump_flood_shader, "u_step");
-        i32 tex_loc       = get_shader_location(jump_flood_shader, "u_tex");
-        
-        
-        for (int i = 0; i < passes; i++){
-            f32 offset = powf(2.0f, passes - i - 1);
-            BeginTextureMode(next);{
-                BeginShaderMode(jump_flood_shader);
-                set_shader_value(jump_flood_shader, max_steps_loc, passes);
-                set_shader_value(jump_flood_shader, level_loc, i);
-                set_shader_value(jump_flood_shader, offset_loc, offset);
-                
-                i32 screen_pixel_size_loc  = get_shader_location(jump_flood_shader, "u_screen_pixel_size");
-        
-                set_shader_value(jump_flood_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
-
-                
-                // set_shader_value(jump_flood_shader, step_loc, 1 << i);
-                // set_shader_value(jump_flood_shader, pixel_loc, {LIGHT_TEXTURE_SCALING_FACTOR / screen_width, LIGHT_TEXTURE_SCALING_FACTOR / screen_height});
-                set_shader_value_tex(jump_flood_shader, tex_loc, prev.texture);
-                draw_render_texture(voronoi_seed_rt.texture, {1.0f, 1.0f}, WHITE);
-                EndShaderMode();
-            }EndTextureMode();
-            
-            RenderTexture temp = next;
-            next = prev;
-            prev = temp;
+    local_persist i32 last_baked_index = -1;
+    b32 need_to_bake = (IsKeyPressed(KEY_F1) || session_context.app_frame_count == 0);
+    if (need_to_bake || (last_baked_index < lightmaps.max_count && last_baked_index != -1)){
+        last_baked_index += 1;
+        if (last_baked_index >= lightmaps.max_count){
+            last_baked_index = -1;
         }
     }
     
-    //distance field pass (Render voronoi)
-    BeginTextureMode(distance_field_rt);{
-        // ClearBackground(BLACK);
-        BeginShaderMode(distance_field_shader);
-        i32 tex_loc = get_shader_location(distance_field_shader, "u_tex");
-        set_shader_value_tex(distance_field_shader, tex_loc, prev.texture);
-        draw_render_texture(prev.texture, {1.0f, 1.0f}, WHITE);
-        EndShaderMode();
-    }EndTextureMode();
-    
-    //global illumination pass
-    BeginTextureMode(raytracing_global_illumination_rt);{
-        // ClearBackground(BLACK);
+    for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
+        RenderTexture lightmap_rt = lightmaps.get(lightmap_index);
+        lightmap_position = {lightmap_index * light_texture_game_size, 0};
         
-        BeginShaderMode(global_illumination_shader);
-        i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
-        i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
-        i32 scene_data_loc         = get_shader_location(global_illumination_shader, "u_scene_data");
-        i32 emission_multi_loc     = get_shader_location(global_illumination_shader, "u_emission_multi");
-        i32 max_raymarch_steps_loc = get_shader_location(global_illumination_shader, "u_max_raymarch_steps");
-        i32 time_loc               = get_shader_location(global_illumination_shader, "u_time");
-        i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
-        
-        set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
-        set_shader_value(global_illumination_shader, time_loc, core.time.app_time);
-        
-        set_shader_value(global_illumination_shader, rays_per_pixel_loc, 1024);
-        set_shader_value_tex(global_illumination_shader, distance_data_loc, distance_field_rt.texture);
-        set_shader_value_tex(global_illumination_shader, scene_data_loc, emitters_occluders_rt.texture);
-        set_shader_value(global_illumination_shader, emission_multi_loc, 2.0f);
-        set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 2048);
-        // ClearBackground({1, 0, 0, 0});
-        draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
-        // draw_rect({1, 1}, {1, 1}, WHITE);
-        EndShaderMode();
-        EndShaderMode();
-    } EndTextureMode();
+        // Baking lightmaps
+        if (lightmap_index == last_baked_index){
+            current_level_context->cam = get_cam_for_resolution(light_texture_width, light_texture_height);
+            current_level_context->cam.position = lightmap_position;
+            current_level_context->cam.view_position = lightmap_position;
+            current_level_context->cam.cam2D.zoom = get_light_zoom(light_texture_game_size);
+            BeginTextureMode(emitters_occluders_rt);{
+            BeginMode2D(current_level_context->cam.cam2D);
+            ClearBackground(Fade(WHITE, 0));
+                ForEntities(entity, LIGHT){   
+                    draw_game_triangle_strip(entity, current_level_context->lights.get_ptr(entity->light_index)->color);
+                    // draw_game_circle({-, 10, WHITE);
+                }
+                // ForEntities(entity3, TEXTURE){   
+                //     // draw_game_triangle_strip(entity3, current_level_context->lights.get_ptr(entity->light_index)->color);
+                //     draw_entity(entity3);
+                //     // draw_game_circle({-, 10, WHITE);
+                // }
+                ForEntities(entity2, GROUND){   
+                    draw_game_triangle_strip(entity2, BLACK);
+                    // draw_game_circle({-, 10, WHITE);
+                }
+                // draw_game();
+                // draw_game_rect({-2, 0}, {20, 15}, {0.5f, 0.5f}, 0, WHITE);
+                // draw_game_rect({5, 10}, {5, 30} , {0.5f, 0.5f}, 0, ColorBrightness(PINK, -0.5f));
+            // draw_rect({light_texture_width * 0.1f, light_texture_height * 0.6f}, {200, 50}, WHITE);
+            // draw_rect({light_texture_width * 0.6f, light_texture_height * 0.4f}, {60, 300}, ColorBrightness(PINK, 0.5f));
     
-    
-    // draw_render_texture(emitters_occluders_rt.texture, {1, 1}, WHITE);
-    // draw_render_texture(voronoi_seed_rt.texture, {1, 1}, WHITE);
-    // draw_render_texture(prev.texture, {1, 1}, WHITE);
-    // draw_render_texture(distance_field_rt.texture, {1, 1}, WHITE);
-    // draw_render_texture(global_illumination_rt.texture, {1, 1}, WHITE);
-    // EndDrawing();
+            // draw_rect({0.0f, 0.0f/*-screen_height * LIGHT_TEXTURE_SIZE_MULTIPLIER*/}, {(f32)screen_width * 0.3f, 20}, WHITE);
+            EndMode2D();
+            }EndTextureMode();
+            current_level_context->cam = with_shake_cam;
+            
+            BeginTextureMode(voronoi_seed_rt);{
+                ClearBackground({0, 0, 0, 0});
+                // BeginMode2D(context.cam.cam2D);
+                BeginShaderMode(voronoi_seed_shader);
+                    draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
+                EndShaderMode();
+            // EndMode2D();
+            }EndTextureMode();
+            
+            RenderTexture prev = voronoi_seed_rt;
+            RenderTexture next = jump_flood_rt;
+            
+            //jump flood voronoi render pass
+            {
+                i32 passes = ceilf(logf(fmaxf(light_texture_width, light_texture_height)) / logf(2.0f));
+                // i32 passes = 6;
+                
+                i32 level_loc     = get_shader_location(jump_flood_shader, "u_level");
+                i32 max_steps_loc = get_shader_location(jump_flood_shader, "u_max_steps");
+                i32 offset_loc    = get_shader_location(jump_flood_shader, "u_offset");
+                // i32 pixel_loc     = get_shader_location(jump_flood_shader, "u_pixel");
+                // i32 step_loc      = get_shader_location(jump_flood_shader, "u_step");
+                i32 tex_loc       = get_shader_location(jump_flood_shader, "u_tex");
+                
+                
+                for (int i = 0; i < passes; i++){
+                    f32 offset = powf(2.0f, passes - i - 1);
+                    BeginTextureMode(next);{
+                        BeginShaderMode(jump_flood_shader);
+                        set_shader_value(jump_flood_shader, max_steps_loc, passes);
+                        set_shader_value(jump_flood_shader, level_loc, i);
+                        set_shader_value(jump_flood_shader, offset_loc, offset);
+                        
+                        i32 screen_pixel_size_loc  = get_shader_location(jump_flood_shader, "u_screen_pixel_size");
+                
+                        set_shader_value(jump_flood_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
+        
+                        
+                        // set_shader_value(jump_flood_shader, step_loc, 1 << i);
+                        // set_shader_value(jump_flood_shader, pixel_loc, {LIGHT_TEXTURE_SCALING_FACTOR / screen_width, LIGHT_TEXTURE_SCALING_FACTOR / screen_height});
+                        set_shader_value_tex(jump_flood_shader, tex_loc, prev.texture);
+                        draw_render_texture(voronoi_seed_rt.texture, {1.0f, 1.0f}, WHITE);
+                        EndShaderMode();
+                    }EndTextureMode();
+                    
+                    RenderTexture temp = next;
+                    next = prev;
+                    prev = temp;
+                }
+            }
+            
+            //distance field pass (Render voronoi)
+            BeginTextureMode(distance_field_rt);{
+                ClearBackground({0, 0, 0, 0});
+                BeginShaderMode(distance_field_shader);
+                i32 tex_loc = get_shader_location(distance_field_shader, "u_tex");
+                i32 tex2_loc = get_shader_location(distance_field_shader, "obstacles_texture");
+                set_shader_value_tex(distance_field_shader, tex_loc, prev.texture);
+                set_shader_value_tex(distance_field_shader, tex2_loc, emitters_occluders_rt.texture);
+                draw_render_texture(prev.texture, {1.0f, 1.0f}, WHITE);
+                EndShaderMode();
+            }EndTextureMode();
+            
+            //global illumination pass
+            BeginTextureMode(lightmap_rt);{
+                ClearBackground(Fade(BLACK, 0));
+                
+                BeginShaderMode(global_illumination_shader);
+                i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
+                i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
+                i32 scene_data_loc         = get_shader_location(global_illumination_shader, "u_scene_data");
+                i32 emission_multi_loc     = get_shader_location(global_illumination_shader, "u_emission_multi");
+                i32 max_raymarch_steps_loc = get_shader_location(global_illumination_shader, "u_max_raymarch_steps");
+                i32 time_loc               = get_shader_location(global_illumination_shader, "u_time");
+                i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
+                
+                set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
+                set_shader_value(global_illumination_shader, time_loc, core.time.app_time);
+                
+                set_shader_value(global_illumination_shader, rays_per_pixel_loc, 1024);
+                set_shader_value_tex(global_illumination_shader, distance_data_loc, distance_field_rt.texture);
+                set_shader_value_tex(global_illumination_shader, scene_data_loc, emitters_occluders_rt.texture);
+                set_shader_value(global_illumination_shader, emission_multi_loc, 2.0f);
+                set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 2048);
+                // ClearBackground({1, 0, 0, 0});
+                draw_render_texture(emitters_occluders_rt.texture, {1.0f, 1.0f}, WHITE);
+                // draw_rect({1, 1}, {1, 1}, WHITE);
+                EndShaderMode();
+                EndShaderMode();
+            } EndTextureMode();
+        }
+        
+        BeginMode2D(current_level_context->cam.cam2D);
+        draw_game_texture(lightmap_rt.texture, lightmap_position, {light_texture_game_size, light_texture_game_size}, {0.5f, 0.5f}, 0,  WHITE, true);
+        EndMode2D();
+    }
+    // draw_render_texture(raytracing_global_illumination_rt.texture, {1, 1},  WHITE);
 }
 
 void draw_game(){
@@ -11565,13 +11601,10 @@ void draw_game(){
     BeginDrawing();
 
     // old_render();
-    if (IsKeyPressed(KEY_F1) || session_context.game_frame_count == 1){
-        new_render();
-    }
-    draw_render_texture(raytracing_global_illumination_rt.texture, {1, 1}, WHITE);
+    
+    new_render();
     
     update_input_field();
-    
     
     BeginMode2D(current_level_context->cam.cam2D);{
         if (game_state == EDITOR || state_context.in_pause_editor){

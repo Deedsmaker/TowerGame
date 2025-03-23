@@ -1058,6 +1058,7 @@ struct Session_Context{
     // We should set it in beginning 
     i32 entity_lights_start_index = -1;
     
+    i32 app_frame_count = 0;
     i32 game_frame_count = 0;
     b32 playing_replay = false;
     

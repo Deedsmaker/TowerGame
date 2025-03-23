@@ -16,6 +16,8 @@
 #include "include\raymath.h"
 #include "include\rlgl.h"
 
+#include "include/Vulkan/vulkan/vulkan.h"
+
 #include "structs.hpp"
 
 global_variable Core core = {};

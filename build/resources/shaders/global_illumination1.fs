@@ -10,6 +10,13 @@ uniform sampler2D texture0;
 // constants
 uniform float PI = 3.141596;
 
+struct Lightmap_Data{
+   sampler2D distance_texture; 
+   sampler2D scene_texture;
+};
+
+uniform Lightmap_Data[3] lightmap_data;
+
 // uniforms
 uniform float u_time;
 uniform int u_rays_per_pixel = 32;
@@ -17,13 +24,13 @@ uniform sampler2D u_distance_data;
 uniform sampler2D u_scene_data;
 uniform float u_emission_multi = 1.0;
 uniform int u_max_raymarch_steps = 128;
-uniform float u_dist_mod = 1.0;
+uniform float u_dist_mod = 1;
 uniform vec2 u_screen_pixel_size;
 
 out vec4 finalColor;
 
-float random (vec2 st) 
-{
+float random (vec2 st){
+   vec4 d = texture(lightmap_data[0].distance_texture, fragTexCoord);
    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
    // return fract((fragTexCoord.x + fragTexCoord.y));
 }
@@ -42,14 +49,22 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out vec2 hit_pos)
 
       float dist_to_surface = texture(u_distance_data, sample_point).r / u_dist_mod;
 
-      // we've hit a surface if distance field returns 0 or close to 0 (due to our distance field using a 16-bit float
-      // the precision isn't enough to just check against 0).
-      if(dist_to_surface <= 0.00001){
+      if (texture(u_distance_data, sample_point).a == 0){
          hit_pos = sample_point;
          return true;
       }
 
+      // we've hit a surface if distance field returns 0 or close to 0 (due to our distance field using a 16-bit float
+      // the precision isn't enough to just check against 0).
+      // if(dist_to_surface <= 0.00001){
+      //    hit_pos = sample_point;
+      //    return true;
+      // }
+
       // if we don't hit a surface, continue marching along the ray.
+      if (dist_to_surface < 0.001){
+         dist_to_surface = 0.001;
+      }
       current_dist += dist_to_surface;
    }
    return false;
@@ -75,21 +90,21 @@ vec3 lin_to_srgb(vec4 color)
 
 void main()
 {
-    float pixel_emis = 0.0;
-    vec3 pixel_col = vec3(0.0);
-    
-    //vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
-    
-    // convert from uv aspect to world aspect.
-    vec2 uv = fragTexCoord;
-    float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
-    uv.x *= aspect;
-    
-    float rand2pi = random(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
-    float golden_angle = PI * 0.7639320225; // magic number that gives us a good ray distribution.
-    
-    // cast our rays.
-    for(int i = 0; i < u_rays_per_pixel; i++){
+   float pixel_emis = 0.0;
+   vec3 pixel_col = vec3(0.0);
+   
+   //vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
+   
+   // convert from uv aspect to world aspect.
+   vec2 uv = fragTexCoord;
+   float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
+   uv.x *= aspect;
+   
+   float rand2pi = random(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
+   float golden_angle = PI * 0.7639320225; // magic number that gives us a good ray distribution.
+   
+   // cast our rays.
+   for (int i = 0; i < u_rays_per_pixel; i++){
         // get our ray dir by taking the random angle and adding golden_angle * ray number.
         float cur_angle = rand2pi + golden_angle * float(i);
         vec2 ray_dir = normalize(vec2(cos(cur_angle), sin(cur_angle)));
@@ -106,7 +121,7 @@ void main()
             // pixel_col = 1;
             // pixel_emis = 2;
         }
-    }
+   }
     
     pixel_col /= pixel_emis;
     pixel_emis /= float(u_rays_per_pixel);
