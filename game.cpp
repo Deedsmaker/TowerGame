@@ -6983,7 +6983,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     b32 can_sword_spin = !player_data->rifle_active && !player_data->in_stun;
     
-    f32 sword_max_spin_speed = 5000;
+    // was 5000
+    f32 sword_max_spin_speed = player_data->is_sword_big ? 1500.0f : 10000.0f;
     if (can_sword_spin){
         f32 sword_spin_sense = player_data->is_sword_big ? 1 : 10; 
         if (can_sword_spin && input.hold_flags & SPIN_DOWN){
@@ -6992,10 +6993,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         } else{
         }
     }
-    
-    f32 blood_progress_for_strong = 0.4f;
-    b32 is_sword_filled = player_data->blood_progress >= blood_progress_for_strong;
-    b32 is_rifle_charged = player_data->rifle_active && is_sword_filled;
     
     player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
     
@@ -8701,7 +8698,7 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason){
 }
 
 inline b32 should_kill_player(Entity *entity){
-    return !can_sword_damage_enemy(entity);
+    return true;// !can_sword_damage_enemy(entity);
 }
 
 void calculate_projectile_collisions(Entity *entity){
@@ -11600,9 +11597,9 @@ void draw_game(){
     with_shake_cam = current_level_context->cam;
     BeginDrawing();
 
-    // old_render();
+    old_render();
     
-    new_render();
+    // new_render();
     
     update_input_field();
     
