@@ -2840,15 +2840,15 @@ global_variable RenderTexture voronoi_seed_rt;
 global_variable RenderTexture jump_flood_rt;
 global_variable RenderTexture distance_field_rt;
 // global_variable RenderTexture raytracing_global_illumination_rt;
-global_variable Array<RenderTexture, 2> lightmaps = Array<RenderTexture, 2>();
+global_variable Array<RenderTexture, 6> lightmaps = Array<RenderTexture, 6>();
 
 global_variable Shader voronoi_seed_shader;
 global_variable Shader jump_flood_shader;
 global_variable Shader distance_field_shader;
 global_variable Shader global_illumination_shader;
 
-i32 light_texture_width = 512;
-i32 light_texture_height = 512;
+i32 light_texture_width = 2048;
+i32 light_texture_height = 2048;
 
 Shader load_shader(const char *vertex, const char *fragment){
     Shader loaded = LoadShader(vertex, fragment);
@@ -6757,7 +6757,8 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
         kill_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, particles_direction, 1.0f);
         add_explosion_light(enemy_entity->position, 75, 0.03f, 0.1f, ColorBrightness(RED, 0.4f));
     } else{
-        stun_enemy(enemy_entity, sword->position + sword->up * sword->scale.y * sword->pivot.y, particles_direction, true);
+        // Vector2 kill_position = sword->position + sword->up * sword->scale.y * sword->pivot.y;
+        stun_enemy(enemy_entity, enemy_entity->position, particles_direction, true);
     }
 }
 
@@ -6791,6 +6792,8 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         } else{
             kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
         }
+        
+        player_data->sword_angular_velocity += player_data->sword_spin_direction * 1400;
         
         f32 max_speed_boost = 6 * player_data->sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
         f32 max_vertical_speed_boost = player_data->grounded ? 0 : 20;
@@ -6979,17 +6982,32 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         chainsaw_emitter->enabled = false;
     }
     
-    player_data->sword_angular_velocity *= 1.0f - (dt);
+    f32 max_big_sword_speed = 2500;
+    f32 max_small_sword_speed = 7500;
+    
+    f32 spin_damping_factor = 0.8f;
+    if (player_data->is_sword_big){
+        // We want damping be max when angular velocity is in boundaries, but if player manages to speed up big sword beyond - 
+        // we probably want to keep it a little bit.
+        f32 damping_t = clamp01((abs(player_data->sword_angular_velocity) - max_big_sword_speed) / max_small_sword_speed);
+        spin_damping_factor = lerp(20.0f, 5.0f, sqrtf(damping_t));
+    }
+    player_data->sword_angular_velocity *= 1.0f - (dt * spin_damping_factor);
     
     b32 can_sword_spin = !player_data->rifle_active && !player_data->in_stun;
     
+    f32 sword_max_spin_speed = player_data->is_sword_big ? max_big_sword_speed : max_small_sword_speed;
     // was 5000
-    f32 sword_max_spin_speed = player_data->is_sword_big ? 1500.0f : 10000.0f;
     if (can_sword_spin){
-        f32 sword_spin_sense = player_data->is_sword_big ? 1 : 10; 
+        f32 sword_spin_sense = player_data->is_sword_big ? 4 : 10; 
         if (can_sword_spin && input.hold_flags & SPIN_DOWN){
-            player_data->sword_angular_velocity += input.sum_mouse_delta.x * sword_spin_sense;
-            clamp(&player_data->sword_angular_velocity, -sword_max_spin_speed, sword_max_spin_speed);
+            if (abs(player_data->sword_angular_velocity) >= sword_max_spin_speed && input.sum_mouse_delta.x * player_data->sword_angular_velocity > 0){
+                // That's means we overshooting velocity.
+            } else{
+                f32 next_angular_velocity = clamp(player_data->sword_angular_velocity + input.sum_mouse_delta.x * sword_spin_sense, -sword_max_spin_speed, sword_max_spin_speed);
+                player_data->sword_angular_velocity = next_angular_velocity;
+            }
+            // clamp(&player_data->sword_angular_velocity, -sword_max_spin_speed, sword_max_spin_speed);
         } else{
         }
     }
@@ -8669,6 +8687,8 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
         return false;
     }
     
+    // That's pretty sloppy when player tries to just kill single enemy with big sword, but without slowmo it's just REALLY hard and 
+    // we should left that for late game.
     b32 will_kill_on_hit = (should_kill_player(entity) || (entity->flags & EXPLOSIVE));
     if (!will_kill_on_hit){
         return false;       
@@ -11455,7 +11475,7 @@ void new_render(){
     
     for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
         RenderTexture lightmap_rt = lightmaps.get(lightmap_index);
-        lightmap_position = {lightmap_index * light_texture_game_size, 0};
+        lightmap_position = {lightmap_index * light_texture_game_size - light_texture_game_size * lightmaps.max_count * 0.5f, 0};
         
         // Baking lightmaps
         if (lightmap_index == last_baked_index){

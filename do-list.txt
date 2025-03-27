@@ -1,4 +1,6 @@
-[ ] Make that enemies no longer kill themselves when hit player if he's spining. That could be huge.
+[ ] Try to directly map big sword rotation to mouse input.
+[ ] Make that big sword stop almost immediately when stop mouse spin input. That should give us more control.
+[X] Make that enemies no longer kill themselves when hit player if he's spining. That could be huge. (That's huge).
 [ ] Fix this trigger bug when copying connected. If it's even exists.
 [ ] Rotation for multiselected. We could hold on that one a little bit. Also could think about scaling for multiselect.
 [X] Check in VersySleepy what's taking that much cpu. Just to know. Checked. That's shit app, need to do our own profiler.

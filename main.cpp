@@ -16,7 +16,7 @@
 #include "include\raymath.h"
 #include "include\rlgl.h"
 
-#include "include/Vulkan/vulkan/vulkan.h"
+// #include "include/Vulkan/vulkan/vulkan.h"
 
 #include "structs.hpp"
 
@@ -43,6 +43,8 @@ b32 window_minimized = false;
 
 #include "game.cpp"
 int main(){
+    SetTraceLogLevel(LOG_ERROR);
+
     InitWindow(screen_width, screen_height, "Pure Action");
     SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_ALWAYS_RUN);
     InitAudioDevice();
