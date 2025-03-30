@@ -231,6 +231,15 @@ void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     add_rect_vertices(vertices, pivot);
     vertices->get_ptr(0)->x *= 0.3f;
     vertices->get_ptr(1)->x *= 0.3f;
+    
+    vertices->get_ptr(2)->y += 0.15f;
+    vertices->get_ptr(3)->y += 0.15f;
+}
+
+void add_prism_shaped_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+    add_rect_vertices(vertices, pivot);
+    vertices->get_ptr(0)->x *= 0.3f;
+    vertices->get_ptr(1)->x *= 0.3f;
 }
 
 void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
@@ -239,9 +248,12 @@ void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 piv
     vertices->get_ptr(3)->x *= 0.3f;
 }
 void pick_vertices(Entity *entity){
-    if (entity->flags & (SWORD | BIRD_ENEMY | CENTIPEDE | PROJECTILE)){
+    if (entity->flags & (SWORD)){
         add_sword_vertices(&entity->vertices, entity->pivot);
         add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
+    } else if (entity->flags & (BIRD_ENEMY | CENTIPEDE | PROJECTILE)){
+        add_prism_shaped_vertices(&entity->vertices, entity->pivot);
+        add_prism_shaped_vertices(&entity->unscaled_vertices, entity->pivot);
     } else if (entity->flags & (JUMP_SHOOTER)){
         add_upsidedown_vertices(&entity->vertices, entity->pivot);
         add_upsidedown_vertices(&entity->unscaled_vertices, entity->pivot);
@@ -6835,6 +6847,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity, Player *pl
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         
+        // blocker block
         if ((other->flags & BLOCKER || other->flags & SWORD_SIZE_REQUIRED) && !player->in_stun){
             if (is_sword_can_damage() && !can_sword_damage_enemy(other)){
                 player->velocity = player->velocity * -0.5f;
@@ -6846,6 +6859,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity, Player *pl
                 // changed pitch from 0.5f and changed sound from 0.4f
                 play_sound("SwordBlock", col.point, 0.3f, 0.75f, 0.1f);
                 emit_particles(&sparks_emitter_copy, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal, 1.5f, 1.0f);
+                emit_particles(&shockwave_emitter_copy, sword->position + sword->up * sword->scale.y * sword->pivot.y, col.normal, 1.0f, 1.0f);
                 continue;
             }
         }
@@ -10045,6 +10059,9 @@ void draw_sword(Entity *entity){
     if (player_data->rifle_active){
         visual_entity.color = ColorBrightness(GREEN, 0.3f);
     }
+    
+    Vector2 handle_end = visual_entity.position + visual_entity.up * visual_entity.scale.y * 0.2f;
+    draw_game_line(visual_entity.position, handle_end, visual_entity.scale.x * 0.2f, BLACK);
     
     draw_game_triangle_strip(&visual_entity);
     

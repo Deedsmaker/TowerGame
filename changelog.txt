@@ -1,3 +1,7 @@
+30.03.2025:
+    - Sword work. Made handle for sword and how sword don't hit ground with it's base constantly.
+    - Vulkakkakakn work.
+
 27.03.2025:
     - Vulkan progress.
     - Experimented some with new big sword rotation. Made that on kill we give spin speed so it's easier to constantly spin while you killing shit.
