@@ -11609,6 +11609,13 @@ void new_render(){
             ClearBackground(Fade(BLACK, 0));
             
             BeginShaderMode(global_illumination_shader);
+            
+            // Passing neighbours
+            {          
+                i32 my_lightmap_index_loc = get_shader_location(global_illumination_shader, "my_lightmap_index");
+                set_shader_value(global_illumination_shader, my_lightmap_index_loc, lightmap_index);
+            }
+            
             i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
             i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
             i32 scene_data_loc         = get_shader_location(global_illumination_shader, "u_scene_data");
