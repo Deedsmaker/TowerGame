@@ -10,12 +10,14 @@ uniform sampler2D texture0;
 // constants
 uniform float PI = 3.141596;
 
+#define MAX_CONNECTED_LIGHTMAPS 3
+
 struct Lightmap_Data{
    sampler2D distance_texture; 
    sampler2D scene_texture;
 };
 
-uniform Lightmap_Data[3] lightmap_data;
+uniform Lightmap_Data[MAX_CONNECTED_LIGHTMAPS] lightmap_data;
 
 // uniforms
 uniform float u_time;
@@ -38,6 +40,7 @@ float random (vec2 st){
 bool raymarch(vec2 origin, vec2 dir, float aspect, out vec2 hit_pos)
 {
    float current_dist = 0.0;
+   
    for(int i = 0; i < u_max_raymarch_steps; i++)
    {
       vec2 sample_point = origin + dir * current_dist;
