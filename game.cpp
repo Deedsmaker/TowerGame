@@ -2857,6 +2857,9 @@ struct Lightmap_Data{
     RenderTexture global_illumination_rt = {}; 
     RenderTexture emitters_occluders_rt  = {};
     RenderTexture distance_field_rt      = {};
+    
+    i32 distance_texture_loc = -1;
+    i32 emitters_occluders_loc = -1;
 };
 
 // #define MAX_LIGHTMAPS 3
@@ -11587,6 +11590,9 @@ void new_render(){
             draw_render_texture(prev.texture, {1.0f, 1.0f}, WHITE);
             EndShaderMode();
         }EndTextureMode();
+        
+        lightmap_data->distance_texture_loc = get_shader_location(global_illumination_shader, text_format("lightmaps_data[%i].distance_texture", lightmap_index));        
+        lightmap_data->emitters_occluders_loc = get_shader_location(global_illumination_shader, text_format("lightmaps_data[%i].emitters_occluders_texture", lightmap_index));        
     }
     
     // At this point we computed emitters/occluders and distnace fields for every lightmap.
@@ -11614,6 +11620,15 @@ void new_render(){
             {          
                 i32 my_lightmap_index_loc = get_shader_location(global_illumination_shader, "my_lightmap_index");
                 set_shader_value(global_illumination_shader, my_lightmap_index_loc, lightmap_index);
+                
+                for (i32 i = 0; i < lightmaps.max_count; i++){
+                    Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
+                    RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
+                    RenderTexture *distance_field_rt = &lightmap_data->distance_field_rt;
+
+                    set_shader_value_tex(global_illumination_shader, lightmap_data->distance_texture_loc, distance_field_rt->texture);
+                    set_shader_value_tex(global_illumination_shader, lightmap_data->emitters_occluders_loc, emitters_occluders_rt->texture);
+                }
             }
             
             i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");

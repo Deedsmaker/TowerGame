@@ -1,3 +1,4 @@
+[ ] On kill we should not just give sword angular velocity, but also for time reduce angular damping so player really could do a long slices without going off the table with the mouse.
 [X] Make handle for sword wo we don't hit ground with sword base.
 [\] Try to directly map big sword rotation to mouse input.
 [X] Make that big sword stop almost immediately when stop mouse spin input. That should give us more control.

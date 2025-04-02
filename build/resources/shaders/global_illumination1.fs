@@ -14,16 +14,19 @@ uniform float PI = 3.141596;
 
 struct Lightmap_Data{
    sampler2D distance_texture; 
-   sampler2D scene_texture;
+   sampler2D emitters_occluders_texture;
 };
 
-uniform Lightmap_Data[MAX_CONNECTED_LIGHTMAPS] lightmap_data;
+uniform Lightmap_Data lightmaps_data[MAX_CONNECTED_LIGHTMAPS];
+uniform int my_lightmap_index;
 
 // uniforms
 uniform float u_time;
 uniform int u_rays_per_pixel = 32;
-uniform sampler2D u_distance_data;
-uniform sampler2D u_scene_data;
+// uniform sampler2D u_distance_data;
+// uniform sampler2D u_scene_data;
+// uniform sampler2D current_distance_texture;
+// uniform sampler2D current_emitters_occluders_texture;
 uniform float u_emission_multi = 1.0;
 uniform int u_max_raymarch_steps = 128;
 uniform float u_dist_mod = 1;
@@ -32,27 +35,37 @@ uniform vec2 u_screen_pixel_size;
 out vec4 finalColor;
 
 float random (vec2 st){
-   vec4 d = texture(lightmap_data[0].distance_texture, fragTexCoord);
    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
-   // return fract((fragTexCoord.x + fragTexCoord.y));
 }
 
 bool raymarch(vec2 origin, vec2 dir, float aspect, out vec2 hit_pos)
 {
    float current_dist = 0.0;
    
+   // current_distance_texture = lightmaps_data[my_lightmap_index].distance_texture;
+   
+   int lightmap_index = my_lightmap_index;
    for(int i = 0; i < u_max_raymarch_steps; i++)
    {
       vec2 sample_point = origin + dir * current_dist;
       sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
 
       // early exit if we hit the edge of the screen.
-      if(sample_point.x > 1.0 || sample_point.x < 0.0 || sample_point.y > 1.0 || sample_point.y < 0.0)
+      if(sample_point.x < 0.0 || sample_point.y > 1.0 || sample_point.y < 0.0)
          return false;
+         
+      if (sample_point.x > 1.0){
+         // if (lightmap_index < MAX_CONNECTED_LIGHTMAPS){
+            lightmap_index = my_lightmap_index + int(sample_point.x);
+            sample_point.x -= int(sample_point.x);
+         // } else{
+            // return false;
+         // }
+      }
 
-      float dist_to_surface = texture(u_distance_data, sample_point).r / u_dist_mod;
+      float dist_to_surface = texture(lightmaps_data[lightmap_index].distance_texture, sample_point).r / u_dist_mod;
 
-      if (texture(u_distance_data, sample_point).a == 0){
+      if (texture(lightmaps_data[lightmap_index].distance_texture, sample_point).a == 0){
          hit_pos = sample_point;
          return true;
       }
@@ -75,9 +88,19 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out vec2 hit_pos)
 
 void get_surface(vec2 uv, out float emissive, out vec3 colour)
 {	
-   vec4 emissive_data = texture(u_scene_data, uv);
-   emissive = max(emissive_data.r, max(emissive_data.g, emissive_data.b)) * u_emission_multi;
-   colour = emissive_data.rgb * u_emission_multi * emissive_data.a;
+    int lightmap_index = my_lightmap_index;
+    if (uv.x > 1.0){
+        lightmap_index = my_lightmap_index + int(uv.x);
+        uv.x -= int(uv.x);
+        // colour = vec3(1, 0, 0);
+        // emissive = 100;
+        // return;
+    }
+    // current_emitters_occluders_texture = lightmaps_data[lightmap_index].emitters_occluders_texture;
+    
+    vec4 emissive_data = texture(lightmaps_data[lightmap_index].emitters_occluders_texture, uv);
+    emissive = max(emissive_data.r, max(emissive_data.g, emissive_data.b)) * u_emission_multi;
+    colour = emissive_data.rgb * u_emission_multi * emissive_data.a;
 }
 
 vec3 lin_to_srgb(vec4 color)
