@@ -38,70 +38,81 @@ float random (vec2 st){
    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
 }
 
-bool raymarch(vec2 origin, vec2 dir, float aspect, out vec2 hit_pos)
+void get_surface(vec4 surface_color, out float emissive, out vec3 colour)
+{	
+    // vec4 emissive_data = texture(lightmaps_data[lightmap_index].emitters_occluders_texture, uv);
+    emissive = max(surface_color.r, max(surface_color.g, surface_color.b)) * u_emission_multi;
+    colour = surface_color.rgb * u_emission_multi * surface_color.a;
+}
+
+bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out vec3 mat_colour)
 {
    float current_dist = 0.0;
    
    // current_distance_texture = lightmaps_data[my_lightmap_index].distance_texture;
    
-   int lightmap_index = my_lightmap_index;
-   for(int i = 0; i < u_max_raymarch_steps; i++)
-   {
-      vec2 sample_point = origin + dir * current_dist;
-      sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
+    for (int i = 0; i < u_max_raymarch_steps; i++){
+        int lightmap_index = my_lightmap_index;
+        vec2 sample_point = origin + dir * current_dist;
+        sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
 
-      // early exit if we hit the edge of the screen.
-      if(sample_point.x < 0.0 || sample_point.y > 1.0 || sample_point.y < 0.0)
-         return false;
-         
-      if (sample_point.x > 1.0){
-         // if (lightmap_index < MAX_CONNECTED_LIGHTMAPS){
-            lightmap_index = my_lightmap_index + int(sample_point.x);
-            sample_point.x -= int(sample_point.x);
-         // } else{
-            // return false;
-         // }
-      }
+        // early exit if we hit the edge of the screen.
+        if(sample_point.y > 1.0 || sample_point.y < 0.0)
+            return false;
+           
+        if (sample_point.x > 1.0){
+           // if (lightmap_index < MAX_CONNECTED_LIGHTMAPS){
+                while (sample_point.x > 1){
+                    sample_point.x -= 1;
+                    lightmap_index += 1;
+                }
+              // lightmap_index = my_lightmap_index + int(sample_point.x);
+              // sample_point.x -= int(sample_point.x);
+           // } else{
+              // return false;
+           // }
+        }
+        if (sample_point.x < 0.0){
+           // if (lightmap_index < MAX_CONNECTED_LIGHTMAPS){
+                while (sample_point.x < 0.0){
+                    sample_point.x += 1;
+                    lightmap_index -= 1;
+                }
+              // lightmap_index = my_lightmap_index - int(sample_point.x);
+              // sample_point.x += int(sample_point.x) - 1;
+           // } else{
+              // return false;
+           // }
+        }
+        
+        vec4 distance_data           = texture(lightmaps_data[lightmap_index].distance_texture, sample_point);
+    
+        float dist_to_surface = distance_data.r / u_dist_mod;
 
-      float dist_to_surface = texture(lightmaps_data[lightmap_index].distance_texture, sample_point).r / u_dist_mod;
+        if (distance_data.a == 0){
+            vec4 emitters_occluders_data = texture(lightmaps_data[lightmap_index].emitters_occluders_texture, sample_point);
+            // hit_pos = sample_point;
+            get_surface(emitters_occluders_data, mat_emissive, mat_colour);
+            return true;
+        }
 
-      if (texture(lightmaps_data[lightmap_index].distance_texture, sample_point).a == 0){
-         hit_pos = sample_point;
-         return true;
-      }
+        // we've hit a surface if distance field returns 0 or close to 0 (due to our distance field using a 16-bit float
+        // the precision isn't enough to just check against 0).
+        // if(dist_to_surface <= 0.00001){
+        //    hit_pos = sample_point;
+        //    return true;
+        // }
 
-      // we've hit a surface if distance field returns 0 or close to 0 (due to our distance field using a 16-bit float
-      // the precision isn't enough to just check against 0).
-      // if(dist_to_surface <= 0.00001){
-      //    hit_pos = sample_point;
-      //    return true;
-      // }
-
-      // if we don't hit a surface, continue marching along the ray.
-      if (dist_to_surface < 0.001){
-         dist_to_surface = 0.001;
-      }
-      current_dist += dist_to_surface;
+        // if we don't hit a surface, continue marching along the ray.
+        if (dist_to_surface < 0.001){
+            dist_to_surface = 0.001;
+        }
+        current_dist += dist_to_surface;
    }
+   
    return false;
 }
 
-void get_surface(vec2 uv, out float emissive, out vec3 colour)
-{	
-    int lightmap_index = my_lightmap_index;
-    if (uv.x > 1.0){
-        lightmap_index = my_lightmap_index + int(uv.x);
-        uv.x -= int(uv.x);
-        // colour = vec3(1, 0, 0);
-        // emissive = 100;
-        // return;
-    }
-    // current_emitters_occluders_texture = lightmaps_data[lightmap_index].emitters_occluders_texture;
-    
-    vec4 emissive_data = texture(lightmaps_data[lightmap_index].emitters_occluders_texture, uv);
-    emissive = max(emissive_data.r, max(emissive_data.g, emissive_data.b)) * u_emission_multi;
-    colour = emissive_data.rgb * u_emission_multi * emissive_data.a;
-}
 
 vec3 lin_to_srgb(vec4 color)
 {
@@ -116,38 +127,37 @@ vec3 lin_to_srgb(vec4 color)
 
 void main()
 {
-   float pixel_emis = 0.0;
-   vec3 pixel_col = vec3(0.0);
+    float pixel_emis = 0.0;
+    vec3 pixel_col = vec3(0.0);
    
-   //vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
+    //vec2 screen_pixel_size = vec2(4.0 / 1600.0, 4.0 / 900.0);
    
-   // convert from uv aspect to world aspect.
-   vec2 uv = fragTexCoord;
-   float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
-   uv.x *= aspect;
+    // convert from uv aspect to world aspect.
+    vec2 uv = fragTexCoord;
+    float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
+    uv.x *= aspect;
+    
+    float rand2pi = random(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
+    float golden_angle = PI * 0.7639320225; // magic number that gives us a good ray distribution.
    
-   float rand2pi = random(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
-   float golden_angle = PI * 0.7639320225; // magic number that gives us a good ray distribution.
-   
-   // cast our rays.
-   for (int i = 0; i < u_rays_per_pixel; i++){
+    // cast our rays.
+    for (int i = 0; i < u_rays_per_pixel; i++){
         // get our ray dir by taking the random angle and adding golden_angle * ray number.
         float cur_angle = rand2pi + golden_angle * float(i);
         vec2 ray_dir = normalize(vec2(cos(cur_angle), sin(cur_angle)));
         vec2 ray_origin = uv;
-        vec2 hit_pos;
-        bool hit = raymarch(ray_origin, ray_dir, aspect, hit_pos);
-        if(hit){
-            float mat_emissive;
-            vec3 mat_colour;
-            get_surface(hit_pos, mat_emissive, mat_colour);
-            
+        
+        float mat_emissive;
+        vec3 mat_colour;
+        // vec2 hit_pos;
+        
+        bool hit = raymarch(ray_origin, ray_dir, aspect, mat_emissive, mat_colour);
+        if (hit){
+            // get_surface(hit_pos, mat_emissive, mat_colour);
             pixel_emis += mat_emissive;
             pixel_col += mat_colour;
-            // pixel_col = 1;
-            // pixel_emis = 2;
         }
-   }
+    }
     
     pixel_col /= pixel_emis;
     pixel_emis /= float(u_rays_per_pixel);
@@ -156,5 +166,6 @@ void main()
     // finalColor = vec4(scene_color.x * uv.x, scene_color.y * uv.y, 0, 1);
     // finalColor = scene_color;
     
-    finalColor = vec4(lin_to_srgb(vec4(pixel_emis * pixel_col, 1)), 1.0);
+    // finalColor = vec4(lin_to_srgb(vec4(pixel_emis * pixel_col, 1)), 1.0);
+    finalColor = texture(lightmaps_data[my_lightmap_index].distance_texture, fragTexCoord);
 }

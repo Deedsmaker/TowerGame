@@ -3882,8 +3882,11 @@ void update_game(){
             current_level_context->cam.position += (cast(Vector2){-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (current_level_context->cam.unit_size);
         }
         if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active){
-            if (input.mouse_wheel > 0 && zoom < 5 || input.mouse_wheel < 0 && zoom > 0.1f){
+            f32 max_zoom = 5;
+            f32 min_zoom = 0.03f;
+            if (input.mouse_wheel > 0 || input.mouse_wheel < 0){
                 current_level_context->cam.target_zoom += input.mouse_wheel * 0.05f;
+                clamp(&current_level_context->cam.target_zoom, min_zoom, max_zoom);
             }
         }
     }
@@ -11599,14 +11602,17 @@ void new_render(){
     // Now we do real global illumination work and we will need this info for calculating neighbours.
     for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
         // Baking one at the time to see that something is happening.
-        if (lightmap_index != last_baked_index){
-            continue;
+        // if (lightmap_index != last_baked_index){
+        //     continue;
+        // }
+        if (!need_to_bake){
+            break;
         }
     
-        Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
-        RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
+        Lightmap_Data *lightmap_data         = lightmaps.get_ptr(lightmap_index);
+        RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
         RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
-        RenderTexture *distance_field_rt = &lightmap_data->distance_field_rt;
+        RenderTexture *distance_field_rt     = &lightmap_data->distance_field_rt;
         
         lightmap_position = {lightmap_index * light_texture_game_size - light_texture_game_size * lightmaps.max_count * 0.5f, 0};
         
@@ -11621,13 +11627,14 @@ void new_render(){
                 i32 my_lightmap_index_loc = get_shader_location(global_illumination_shader, "my_lightmap_index");
                 set_shader_value(global_illumination_shader, my_lightmap_index_loc, lightmap_index);
                 
-                for (i32 i = 0; i < lightmaps.max_count; i++){
-                    Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
-                    RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
-                    RenderTexture *distance_field_rt = &lightmap_data->distance_field_rt;
+                for (i32 i = 0; i < lightmaps.max_count - 1; i++){
+                    i32 index = i < 3 ? i + 1 : i;
+                    Lightmap_Data *other_lightmap_data = lightmaps.get_ptr(index);
+                    RenderTexture *other_emitters_occluders_rt = &other_lightmap_data->emitters_occluders_rt;
+                    RenderTexture *other_distance_field_rt = &other_lightmap_data->distance_field_rt;
 
-                    set_shader_value_tex(global_illumination_shader, lightmap_data->distance_texture_loc, distance_field_rt->texture);
-                    set_shader_value_tex(global_illumination_shader, lightmap_data->emitters_occluders_loc, emitters_occluders_rt->texture);
+                    set_shader_value_tex(global_illumination_shader, other_lightmap_data->distance_texture_loc, other_distance_field_rt->texture);
+                    set_shader_value_tex(global_illumination_shader, other_lightmap_data->emitters_occluders_loc, other_emitters_occluders_rt->texture);
                 }
             }
             
@@ -11651,7 +11658,7 @@ void new_render(){
             draw_render_texture(emitters_occluders_rt->texture, {1.0f, 1.0f}, WHITE);
             // draw_rect({1, 1}, {1, 1}, WHITE);
             EndShaderMode();
-            EndShaderMode();
+            // EndShaderMode();
         } EndTextureMode();
         
     }
