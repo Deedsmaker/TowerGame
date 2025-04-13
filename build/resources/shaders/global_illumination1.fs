@@ -10,7 +10,7 @@ uniform sampler2D texture0;
 // constants
 uniform float PI = 3.141596;
 
-#define MAX_CONNECTED_LIGHTMAPS 3
+#define MAX_CONNECTED_LIGHTMAPS 6
 
 struct Lightmap_Data{
    sampler2D distance_texture; 
@@ -168,4 +168,8 @@ void main()
     
     // finalColor = vec4(lin_to_srgb(vec4(pixel_emis * pixel_col, 1)), 1.0);
     finalColor = texture(lightmaps_data[my_lightmap_index].distance_texture, fragTexCoord);
+    // if (my_lightmap_index == 2){
+    //     // finalColor = mix(finalColor, vec4(1, 0, 0, 1), fragTexCoord.x);
+    //     finalColor = texture(lightmaps_data[my_lightmap_index].emitters_occluders_texture, fragTexCoord);
+    // }
 }

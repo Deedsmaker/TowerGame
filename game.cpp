@@ -2863,7 +2863,7 @@ struct Lightmap_Data{
 };
 
 // #define MAX_LIGHTMAPS 3
-global_variable Array<Lightmap_Data, 3> lightmaps = Array<Lightmap_Data, 3>();
+global_variable Array<Lightmap_Data, 6> lightmaps = Array<Lightmap_Data, 6>();
 
 global_variable Shader voronoi_seed_shader;
 global_variable Shader jump_flood_shader;
@@ -11534,6 +11534,7 @@ void new_render(){
             ForEntities(entity2, GROUND){   
                 draw_game_triangle_strip(entity2, BLACK);
             }
+            draw_circle({0, 0}, 100, WHITE);
         EndMode2D();
         }EndTextureMode();
         current_level_context->cam = with_shake_cam;
@@ -11627,8 +11628,9 @@ void new_render(){
                 i32 my_lightmap_index_loc = get_shader_location(global_illumination_shader, "my_lightmap_index");
                 set_shader_value(global_illumination_shader, my_lightmap_index_loc, lightmap_index);
                 
-                for (i32 i = 0; i < lightmaps.max_count - 1; i++){
-                    i32 index = i < 3 ? i + 1 : i;
+                for (i32 i = 0; i < lightmaps.max_count; i++){
+                    // i32 index = i < 3 ? i + 1 : i;
+                    i32 index = i;
                     Lightmap_Data *other_lightmap_data = lightmaps.get_ptr(index);
                     RenderTexture *other_emitters_occluders_rt = &other_lightmap_data->emitters_occluders_rt;
                     RenderTexture *other_distance_field_rt = &other_lightmap_data->distance_field_rt;
@@ -11663,16 +11665,17 @@ void new_render(){
         
     }
     
+    BeginMode2D(current_level_context->cam.cam2D);
     for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
         Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
 
         lightmap_position = {lightmap_index * light_texture_game_size - light_texture_game_size * lightmaps.max_count * 0.5f, 0};
     
-        BeginMode2D(current_level_context->cam.cam2D);
         draw_game_texture(gi_rt->texture, lightmap_position, {light_texture_game_size, light_texture_game_size}, {0.5f, 0.5f}, 0,  WHITE, true);
-        EndMode2D();
+        // draw_game_texture(lightmap_data->distance_field_rt.texture, lightmap_position, {light_texture_game_size, light_texture_game_size}, {0.5f, 0.5f}, 0,  WHITE, true);
     }
+    EndMode2D();
     // draw_render_texture(raytracing_global_illumination_rt.texture, {1, 1},  WHITE);
 }
 

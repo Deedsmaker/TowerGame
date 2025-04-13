@@ -8,6 +8,6 @@ if "%~1"=="release" (SET options=-O2 -EHsc -DRELEASE_BUILD=1)
 
 :: SET vulkan_libs= vulkan-1.lib shaderc_combined.lib
 
-cl %options% -DVK_USE_PLATFORM_WIN32_KHR ..\main.cpp /link /LIBPATH:..\lib msvcrt.lib raylib.lib OpenGL32.lib Gdi32.lib WinMM.lib kernel32.lib shell32.lib User32.lib /OUT:main.exe 
+cl %options% ..\win32_main.cpp /link /LIBPATH:..\lib msvcrt.lib raylib.lib OpenGL32.lib Gdi32.lib WinMM.lib kernel32.lib shell32.lib User32.lib d3d11.lib d3dcompiler.lib /OUT:main.exe 
 
 popd
