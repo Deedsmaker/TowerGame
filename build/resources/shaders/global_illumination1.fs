@@ -10,15 +10,12 @@ uniform sampler2D texture0;
 // constants
 uniform float PI = 3.141596;
 
-#define MAX_CONNECTED_LIGHTMAPS 6
+uniform sampler2D distance_texture;
+uniform sampler2D emitters_occluders_texture;
 
-struct Lightmap_Data{
-   sampler2D distance_texture; 
-   sampler2D emitters_occluders_texture;
-};
-
-uniform Lightmap_Data lightmaps_data[MAX_CONNECTED_LIGHTMAPS];
-uniform int my_lightmap_index;
+// This position will be zero when we calculating our own lights.
+// It will be {1, 0} when we looking at the right neighbour to take the lights from there. etc.
+uniform vec2 lightmap_position = vec2(0);
 
 // uniforms
 uniform float u_time;
@@ -47,50 +44,49 @@ void get_surface(vec4 surface_color, out float emissive, out vec3 colour)
 
 bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out vec3 mat_colour)
 {
-   float current_dist = 0.0;
+    float current_dist = 0.0;
    
-   // current_distance_texture = lightmaps_data[my_lightmap_index].distance_texture;
+    // current_distance_texture = lightmaps_data[my_lightmap_index].distance_texture;
    
     for (int i = 0; i < u_max_raymarch_steps; i++){
-        int lightmap_index = my_lightmap_index;
         vec2 sample_point = origin + dir * current_dist;
         sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
 
         // early exit if we hit the edge of the screen.
-        if(sample_point.y > 1.0 || sample_point.y < 0.0)
+        if(sample_point.y > 1.0 || sample_point.y < 0.0){
             return false;
-           
-        if (sample_point.x > 1.0){
-           // if (lightmap_index < MAX_CONNECTED_LIGHTMAPS){
-                while (sample_point.x > 1){
-                    sample_point.x -= 1;
-                    lightmap_index += 1;
-                }
-              // lightmap_index = my_lightmap_index + int(sample_point.x);
-              // sample_point.x -= int(sample_point.x);
-           // } else{
-              // return false;
-           // }
         }
-        if (sample_point.x < 0.0){
-           // if (lightmap_index < MAX_CONNECTED_LIGHTMAPS){
-                while (sample_point.x < 0.0){
-                    sample_point.x += 1;
-                    lightmap_index -= 1;
-                }
-              // lightmap_index = my_lightmap_index - int(sample_point.x);
-              // sample_point.x += int(sample_point.x) - 1;
-           // } else{
-              // return false;
-           // }
+            
+        //So if we calculating neighbours data and we still at original texture position.
+        if (sample_point.x >= 0.0 && sample_point.x <= 1.0){
+            if (lightmap_position.x != 0){
+                current_dist += 0.01;
+                continue;
+            }
+            // return false;
         }
         
-        vec4 distance_data           = texture(lightmaps_data[lightmap_index].distance_texture, sample_point);
+        if (sample_point.x > 1.0){
+            if (lightmap_position.x < 1.0 || sample_point.x > 2.0){
+                return false;
+            } else{
+                sample_point.x -= 1.0;
+            }
+        }
+        if (sample_point.x < 0.0){
+            if (lightmap_position.x > -1.0){
+                return false;
+            } else{
+                sample_point.x += 1.0;
+            }
+        }
+           
+        vec4 distance_data = texture(distance_texture, sample_point);
     
         float dist_to_surface = distance_data.r / u_dist_mod;
 
         if (distance_data.a == 0){
-            vec4 emitters_occluders_data = texture(lightmaps_data[lightmap_index].emitters_occluders_texture, sample_point);
+            vec4 emitters_occluders_data = texture(emitters_occluders_texture, sample_point);
             // hit_pos = sample_point;
             get_surface(emitters_occluders_data, mat_emissive, mat_colour);
             return true;
@@ -162,14 +158,10 @@ void main()
     pixel_col /= pixel_emis;
     pixel_emis /= float(u_rays_per_pixel);
 
-    // vec4 scene_color = texture(u_distance_data, fragTexCoord);
-    // finalColor = vec4(scene_color.x * uv.x, scene_color.y * uv.y, 0, 1);
-    // finalColor = scene_color;
-    
-    // finalColor = vec4(lin_to_srgb(vec4(pixel_emis * pixel_col, 1)), 1.0);
-    finalColor = texture(lightmaps_data[my_lightmap_index].distance_texture, fragTexCoord);
-    // if (my_lightmap_index == 2){
-    //     // finalColor = mix(finalColor, vec4(1, 0, 0, 1), fragTexCoord.x);
-    //     finalColor = texture(lightmaps_data[my_lightmap_index].emitters_occluders_texture, fragTexCoord);
-    // }
+    vec4 current_color = texture(texture0, fragTexCoord);
+    finalColor = current_color + vec4(lin_to_srgb(vec4(pixel_emis * pixel_col, 1)), 0.0);
+    finalColor.a = 1.0;
+    // finalColor = current_color;
+    ////////
+    // finalColor = vec4(1, 0, 0, 1);
 }
