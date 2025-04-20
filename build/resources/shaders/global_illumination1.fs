@@ -13,6 +13,9 @@ uniform float PI = 3.141596;
 uniform sampler2D distance_texture;
 uniform sampler2D emitters_occluders_texture;
 
+uniform sampler2D other_distance_texture;
+uniform sampler2D other_emitters_occluders_texture;
+
 // This position will be zero when we calculating our own lights.
 // It will be {1, 0} when we looking at the right neighbour to take the lights from there. etc.
 uniform vec2 lightmap_position = vec2(0);
@@ -20,8 +23,6 @@ uniform vec2 lightmap_position = vec2(0);
 // uniforms
 uniform float u_time;
 uniform int u_rays_per_pixel = 32;
-// uniform sampler2D u_distance_data;
-// uniform sampler2D u_scene_data;
 // uniform sampler2D current_distance_texture;
 // uniform sampler2D current_emitters_occluders_texture;
 uniform float u_emission_multi = 1.0;
@@ -47,30 +48,38 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
     float current_dist = 0.0;
    
     // current_distance_texture = lightmaps_data[my_lightmap_index].distance_texture;
-   
     for (int i = 0; i < u_max_raymarch_steps; i++){
-        vec2 sample_point = origin + dir * current_dist;
-        sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
+        bool should_add_color = true;
+        vec2 original_sample_point = origin + dir * current_dist;
+        original_sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
+        vec2 sample_point = original_sample_point;
 
         // early exit if we hit the edge of the screen.
         if(sample_point.y > 1.0 || sample_point.y < 0.0){
             return false;
         }
             
+        vec4 distance_data = texture(distance_texture, sample_point);
+        vec4 emitters_occluders_data = texture(emitters_occluders_texture, sample_point);
+        
         //So if we calculating neighbours data and we still at original texture position.
         if (sample_point.x >= 0.0 && sample_point.x <= 1.0){
             if (lightmap_position.x != 0){
-                current_dist += 0.01;
-                continue;
+                // current_dist += 0.01;
+                // continue;
+                should_add_color = false;
             }
             // return false;
-        }
+        } else{
+         }
         
         if (sample_point.x > 1.0){
             if (lightmap_position.x < 1.0 || sample_point.x > 2.0){
                 return false;
             } else{
                 sample_point.x -= 1.0;
+                distance_data = texture(other_distance_texture, sample_point);
+                emitters_occluders_data = texture(other_emitters_occluders_texture, sample_point);
             }
         }
         if (sample_point.x < 0.0){
@@ -78,17 +87,19 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
                 return false;
             } else{
                 sample_point.x += 1.0;
+                distance_data = texture(other_distance_texture, sample_point);
+                emitters_occluders_data = texture(other_emitters_occluders_texture, sample_point);
             }
         }
            
-        vec4 distance_data = texture(distance_texture, sample_point);
     
         float dist_to_surface = distance_data.r / u_dist_mod;
 
         if (distance_data.a == 0){
-            vec4 emitters_occluders_data = texture(emitters_occluders_texture, sample_point);
             // hit_pos = sample_point;
-            get_surface(emitters_occluders_data, mat_emissive, mat_colour);
+            if (should_add_color){
+                get_surface(emitters_occluders_data, mat_emissive, mat_colour);
+            }
             return true;
         }
 
@@ -103,7 +114,17 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
         if (dist_to_surface < 0.001){
             dist_to_surface = 0.001;
         }
+        
         current_dist += dist_to_surface;
+        vec2 next_sample_point = origin + dir * current_dist;
+        if (next_sample_point.x > 1 && original_sample_point.x < 1){
+            current_dist -= dist_to_surface;
+            current_dist += 0.01;
+        }
+        if (next_sample_point.x < 0 && original_sample_point.x > 0){
+            current_dist -= dist_to_surface;
+            current_dist += 0.01;
+        }
    }
    
    return false;
@@ -123,6 +144,10 @@ vec3 lin_to_srgb(vec4 color)
 
 void main()
 {
+    if (abs(lightmap_position.x) > 1){
+        return;
+    }
+
     float pixel_emis = 0.0;
     vec3 pixel_col = vec3(0.0);
    

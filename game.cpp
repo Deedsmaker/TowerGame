@@ -11614,33 +11614,39 @@ void new_render(){
     
         Lightmap_Data *lightmap_data         = lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
-        RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
-        RenderTexture *distance_field_rt     = &lightmap_data->distance_field_rt;
+        RenderTexture *my_emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
+        RenderTexture *my_distance_field_rt     = &lightmap_data->distance_field_rt;
         
         // lightmap_position = {1000 + lightmap_index * light_texture_game_size - light_texture_game_size * lightmaps.max_count * 0.5f, 0};
         
         //global illumination pass
-        for (i32 i = 0; i < 2; i++){
-            if (i == 1 && lightmap_index < lightmaps.max_count - 1){
-                emitters_occluders_rt = &lightmaps.get_ptr(lightmap_index + 1)->emitters_occluders_rt;
-                distance_field_rt = &lightmaps.get_ptr(lightmap_index + 1)->distance_field_rt;
-            }
+        b32 first_pass = true;
+        for (i32 i = 0; i < lightmaps.max_count; i++){
+            RenderTexture *other_emitters_occluders_rt = &lightmaps.get_ptr(i)->emitters_occluders_rt;
+            RenderTexture *other_distance_field_rt = &lightmaps.get_ptr(i)->emitters_occluders_rt;
+            
             BeginTextureMode(*gi_rt);{
-                if (i == 0){
+                if (first_pass){
                     ClearBackground(Fade(BLACK, 1));
+                    first_pass = false;
                 }
                 
                 BeginShaderMode(global_illumination_shader);
                 
                 i32 lightmap_neighbour_position_loc = get_shader_location(global_illumination_shader, "lightmap_position");
-                set_shader_value(global_illumination_shader, lightmap_neighbour_position_loc, {(f32)i, 0});
+                Vector2 lightmap_neighbour_position = {(f32)(i - lightmap_index), 0};
+                set_shader_value(global_illumination_shader, lightmap_neighbour_position_loc, lightmap_neighbour_position);
                 
-                set_shader_value_tex(global_illumination_shader, lightmap_data->distance_texture_loc, distance_field_rt->texture);
-                set_shader_value_tex(global_illumination_shader, lightmap_data->emitters_occluders_loc, emitters_occluders_rt->texture);
+                set_shader_value_tex(global_illumination_shader, lightmap_data->distance_texture_loc, my_distance_field_rt->texture);
+                set_shader_value_tex(global_illumination_shader, lightmap_data->emitters_occluders_loc, my_emitters_occluders_rt->texture);
+                
+                i32 other_distance_texture_loc = get_shader_location(global_illumination_shader, "other_distance_texture");        
+                set_shader_value_tex(global_illumination_shader, other_distance_texture_loc, other_distance_field_rt->texture);
+                
+                i32 other_emitters_occluders_texture_loc = get_shader_location(global_illumination_shader, "other_emitters_occluders_texture");        
+                set_shader_value_tex(global_illumination_shader, other_emitters_occluders_texture_loc, other_emitters_occluders_rt->texture);
                 
                 i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
-                i32 distance_data_loc      = get_shader_location(global_illumination_shader, "u_distance_data");
-                i32 scene_data_loc         = get_shader_location(global_illumination_shader, "u_scene_data");
                 i32 emission_multi_loc     = get_shader_location(global_illumination_shader, "u_emission_multi");
                 i32 max_raymarch_steps_loc = get_shader_location(global_illumination_shader, "u_max_raymarch_steps");
                 i32 time_loc               = get_shader_location(global_illumination_shader, "u_time");
@@ -11649,11 +11655,9 @@ void new_render(){
                 set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
                 set_shader_value(global_illumination_shader, time_loc, core.time.app_time);
                 
-                set_shader_value(global_illumination_shader, rays_per_pixel_loc, 1024);
-                set_shader_value_tex(global_illumination_shader, distance_data_loc, distance_field_rt->texture);
-                set_shader_value_tex(global_illumination_shader, scene_data_loc, emitters_occluders_rt->texture);
+                set_shader_value(global_illumination_shader, rays_per_pixel_loc, 256);
                 set_shader_value(global_illumination_shader, emission_multi_loc, 2.0f);
-                set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 2048);
+                set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 512);
                 // ClearBackground({1, 0, 0, 0});
                 
                 draw_render_texture(gi_rt->texture, {1.0f, 1.0f}, WHITE);
