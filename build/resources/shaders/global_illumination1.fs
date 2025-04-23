@@ -13,6 +13,8 @@ uniform float PI = 3.141596;
 uniform sampler2D distance_texture;
 uniform sampler2D emitters_occluders_texture;
 
+uniform float bake_progress = -1;
+
 // uniforms
 uniform float u_time;
 uniform int u_rays_per_pixel = 32;
@@ -90,6 +92,15 @@ vec3 lin_to_srgb(vec4 color)
 
 void main()
 {
+    if (bake_progress > -1){
+        // baking in chunks of 0.05 of uv width.
+        bool we_are_ahead = fragTexCoord.x > bake_progress;
+        bool we_are_on_baked_stuff = fragTexCoord.x < bake_progress - 0.05;
+        if (we_are_ahead || we_are_on_baked_stuff){
+            return;    
+        }
+    }
+
     float pixel_emis = 0.0;
     vec3 pixel_col = vec3(0.0);
    

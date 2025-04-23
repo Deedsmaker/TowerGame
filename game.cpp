@@ -2870,8 +2870,8 @@ global_variable Shader jump_flood_shader;
 global_variable Shader distance_field_shader;
 global_variable Shader global_illumination_shader;
 
-i32 light_texture_width = 1024;
-i32 light_texture_height = 1024;
+i32 light_texture_width = 2048;
+i32 light_texture_height = 2048;
 
 Shader load_shader(const char *vertex, const char *fragment){
     Shader loaded = LoadShader(vertex, fragment);
@@ -11601,6 +11601,11 @@ void new_render(){
         lightmap_data->emitters_occluders_loc = get_shader_location(global_illumination_shader, "emitters_occluders_texture");        
     }
     
+    local_persist f32 bake_progress = 0;
+    if (need_to_bake){
+        bake_progress = 0;
+    }
+        
     // At this point we computed emitters/occluders and distnace fields for every lightmap.
     // Now we do real global illumination work and we will need this info for calculating neighbours.
     for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
@@ -11608,9 +11613,12 @@ void new_render(){
         // if (lightmap_index != last_baked_index){
         //     continue;
         // }
-        if (!need_to_bake){
+        
+        if (!need_to_bake && bake_progress >= 1){
             break;
         }
+        
+        bake_progress += 0.05f;
     
         Lightmap_Data *lightmap_data         = lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
@@ -11621,7 +11629,10 @@ void new_render(){
         
         //global illumination pass
         BeginTextureMode(*gi_rt);{
-            ClearBackground(Fade(BLACK, 1));
+            // Means we're just started
+            if (need_to_bake){
+                ClearBackground(Fade(BLACK, 1));
+            }
             
             BeginShaderMode(global_illumination_shader);
             
@@ -11641,6 +11652,10 @@ void new_render(){
             set_shader_value(global_illumination_shader, emission_multi_loc, 2.0f);
             set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 512);
             // ClearBackground({1, 0, 0, 0});
+            
+            i32 bake_progress_loc = get_shader_location(global_illumination_shader, "bake_progress");
+            set_shader_value(global_illumination_shader, bake_progress_loc, bake_progress);
+            
             
             draw_render_texture(gi_rt->texture, {1.0f, 1.0f}, WHITE);
             
