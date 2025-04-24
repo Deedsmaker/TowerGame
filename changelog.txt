@@ -1,3 +1,8 @@
+24.04.2025:
+    - We finally know where we're going.
+    - Baking now goes in portions (even for one texture!).
+    - We're saving lightmaps to files now.
+
 30.03.2025:
     - Sword work. Made handle for sword and how sword don't hit ground with it's base constantly.
     - Vulkakkakakn work.

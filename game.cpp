@@ -2854,6 +2854,9 @@ global_variable RenderTexture jump_flood_rt;
 // global_variable RenderTexture raytracing_global_illumination_rt;
 
 struct Lightmap_Data{
+    Vector2 position = {0, 0};
+    Vector2 game_size = {2048.0f, 2048.0f};
+
     RenderTexture global_illumination_rt = {}; 
     RenderTexture emitters_occluders_rt  = {};
     RenderTexture distance_field_rt      = {};
@@ -11495,11 +11498,7 @@ void old_render(){
 
 #define MAX_BUFFERED_TRANSFERTS 48
 
-void new_render(){
-    // old_render();
-    f32 light_texture_game_size = 2048.0f;
-    Vector2 lightmap_position = {0, 0};
-    
+void bake_lightmaps_if_need(){
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
@@ -11518,12 +11517,10 @@ void new_render(){
         RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture *distance_field_rt = &lightmap_data->distance_field_rt;
 
-        // lightmap_position = {1000 + lightmap_index * light_texture_game_size - light_texture_game_size * lightmaps.max_count * 0.5f, 0};
-        
         current_level_context->cam = get_cam_for_resolution(light_texture_width, light_texture_height);
-        current_level_context->cam.position = lightmap_position;
-        current_level_context->cam.view_position = lightmap_position;
-        current_level_context->cam.cam2D.zoom = get_light_zoom(light_texture_game_size);
+        current_level_context->cam.position = lightmap_data->position;
+        current_level_context->cam.view_position = lightmap_data->position;
+        current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
         
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
@@ -11618,14 +11615,14 @@ void new_render(){
             break;
         }
         
-        bake_progress += 0.05f;
+        if (lightmap_index == 0){
+            bake_progress += 0.05f;
+        }
     
         Lightmap_Data *lightmap_data         = lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
         RenderTexture *my_emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture *my_distance_field_rt     = &lightmap_data->distance_field_rt;
-        
-        // lightmap_position = {1000 + lightmap_index * light_texture_game_size - light_texture_game_size * lightmaps.max_count * 0.5f, 0};
         
         //global illumination pass
         BeginTextureMode(*gi_rt);{
@@ -11648,9 +11645,9 @@ void new_render(){
             set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
             set_shader_value(global_illumination_shader, time_loc, core.time.app_time + PI);
             
-            set_shader_value(global_illumination_shader, rays_per_pixel_loc, 256);
+            set_shader_value(global_illumination_shader, rays_per_pixel_loc, 1024);
             set_shader_value(global_illumination_shader, emission_multi_loc, 2.0f);
-            set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 512);
+            set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 2048);
             // ClearBackground({1, 0, 0, 0});
             
             i32 bake_progress_loc = get_shader_location(global_illumination_shader, "bake_progress");
@@ -11662,20 +11659,26 @@ void new_render(){
             // draw_rect({1, 1}, {1, 1}, WHITE);
             EndShaderMode();
         } EndTextureMode();
+        
+        if (bake_progress >= 1.0f){
+            Image lightmap_image = LoadImageFromTexture(gi_rt->texture);
+            ExportImage(lightmap_image, "resources/lightmaps/lightmap.png");
+            UnloadImage(lightmap_image);
+        }
     }
-    
+}
+
+void new_render(){
+    bake_lightmaps_if_need();
+
     BeginMode2D(current_level_context->cam.cam2D);
     for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
         Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
 
-        // lightmap_position = {1000 + lightmap_index * light_texture_game_size - light_texture_game_size * lightmaps.max_count * 0.5f, 0};
-    
-        draw_game_texture(gi_rt->texture, lightmap_position, {light_texture_game_size, light_texture_game_size}, {0.5f, 0.5f}, 0,  WHITE, true);
-        // draw_game_texture(lightmap_data->distance_field_rt.texture, lightmap_position, {light_texture_game_size, light_texture_game_size}, {0.5f, 0.5f}, 0,  WHITE, true);
+        draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
     }
     EndMode2D();
-    // draw_render_texture(raytracing_global_illumination_rt.texture, {1, 1},  WHITE);
 }
 
 void draw_game(){
