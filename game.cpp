@@ -11441,31 +11441,31 @@ void old_render(){
         
             Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(shadowmask_texture, light.position, lightmap_game_scale);
             BeginMode2D(current_level_context->cam.cam2D);{
-                    local_persist i32 light_power_loc         = get_shader_location(smooth_edges_shader, "light_power");
-                    local_persist i32 light_color_loc         = get_shader_location(smooth_edges_shader, "light_color");
-                    local_persist i32 my_pos_loc              = get_shader_location(smooth_edges_shader, "my_pos");
-                    local_persist i32 my_size_loc             = get_shader_location(smooth_edges_shader, "my_size");
-                    local_persist i32 gi_size_loc             = get_shader_location(smooth_edges_shader, "gi_size");
-                    local_persist i32 gi_texture_loc          = get_shader_location(smooth_edges_shader, "gi_texture");
-                    local_persist i32 geometry_texture_loc    = get_shader_location(smooth_edges_shader, "geometry_texture");
-                    local_persist i32 light_texture_loc       = get_shader_location(smooth_edges_shader, "light_texture");
-                    local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
-                    
-                    Vector4 color = ColorNormalize(Fade(light.color, light.opacity));
-                    // color.x *= light.power;
-                    // color.y *= light.power;
-                    // color.z *= light.power;
-                    set_shader_value_color(smooth_edges_shader, light_color_loc, color);
-                    set_shader_value(smooth_edges_shader, light_power_loc, light.power);
-                    set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
-                    set_shader_value(smooth_edges_shader, my_size_loc, get_texture_pixels_size(shadowmask_texture, lightmap_game_scale));
-                    set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
-                    set_shader_value_tex(smooth_edges_shader, gi_texture_loc,          global_illumination_rt.texture);
-                    set_shader_value_tex(smooth_edges_shader, light_texture_loc,       smooth_circle_texture);
-                    set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, light.make_backshadows ? light.backshadows_rt.texture : white_transparent_pixel_texture);
-                    set_shader_value_tex(smooth_edges_shader, geometry_texture_loc,    light.make_shadows || light.make_backshadows ? light_geometry_rt.texture : black_pixel_texture);
-                    
-                    draw_game_texture(shadowmask_texture, light.position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
+                local_persist i32 light_power_loc         = get_shader_location(smooth_edges_shader, "light_power");
+                local_persist i32 light_color_loc         = get_shader_location(smooth_edges_shader, "light_color");
+                local_persist i32 my_pos_loc              = get_shader_location(smooth_edges_shader, "my_pos");
+                local_persist i32 my_size_loc             = get_shader_location(smooth_edges_shader, "my_size");
+                local_persist i32 gi_size_loc             = get_shader_location(smooth_edges_shader, "gi_size");
+                local_persist i32 gi_texture_loc          = get_shader_location(smooth_edges_shader, "gi_texture");
+                local_persist i32 geometry_texture_loc    = get_shader_location(smooth_edges_shader, "geometry_texture");
+                local_persist i32 light_texture_loc       = get_shader_location(smooth_edges_shader, "light_texture");
+                local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
+                
+                Vector4 color = ColorNormalize(Fade(light.color, light.opacity));
+                // color.x *= light.power;
+                // color.y *= light.power;
+                // color.z *= light.power;
+                set_shader_value_color(smooth_edges_shader, light_color_loc, color);
+                set_shader_value(smooth_edges_shader, light_power_loc, light.power);
+                set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
+                set_shader_value(smooth_edges_shader, my_size_loc, get_texture_pixels_size(shadowmask_texture, lightmap_game_scale));
+                set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
+                set_shader_value_tex(smooth_edges_shader, gi_texture_loc,          global_illumination_rt.texture);
+                set_shader_value_tex(smooth_edges_shader, light_texture_loc,       smooth_circle_texture);
+                set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, light.make_backshadows ? light.backshadows_rt.texture : white_transparent_pixel_texture);
+                set_shader_value_tex(smooth_edges_shader, geometry_texture_loc,    light.make_shadows || light.make_backshadows ? light_geometry_rt.texture : black_pixel_texture);
+                
+                draw_game_texture(shadowmask_texture, light.position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
             } EndMode2D();
             current_level_context->cam = with_shake_cam;
     }
@@ -11510,8 +11510,6 @@ void bake_lightmaps_if_need(){
         }
     }
     
-    // Currently baking distance data and emitters/occluders at one go, because that's simpler and I don't thing it's that huge
-    // on gpu.
     for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count && need_to_bake; lightmap_index++){
         Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
         RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
@@ -11526,12 +11524,18 @@ void bake_lightmaps_if_need(){
         BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(Fade(WHITE, 0));
             ForEntities(entity, LIGHT){   
-                draw_game_triangle_strip(entity, current_level_context->lights.get_ptr(entity->light_index)->color);
+                u64 static_light_source_flags = LIGHT | DUMMY;              
+                if (entity->flags & LIGHT && entity->flags & DUMMY){
+                    draw_game_triangle_strip(entity, current_level_context->lights.get_ptr(entity->light_index)->color);
+                }
             }
             ForEntities(entity2, GROUND){   
+                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT){
+                    continue;
+                }
+                
                 draw_game_triangle_strip(entity2, BLACK);
             }
-            // draw_circle({0, 0}, 100, WHITE);
         EndMode2D();
         }EndTextureMode();
         current_level_context->cam = with_shake_cam;
@@ -11645,14 +11649,13 @@ void bake_lightmaps_if_need(){
             set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
             set_shader_value(global_illumination_shader, time_loc, core.time.app_time + PI);
             
-            set_shader_value(global_illumination_shader, rays_per_pixel_loc, 1024);
-            set_shader_value(global_illumination_shader, emission_multi_loc, 2.0f);
-            set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 2048);
+            set_shader_value(global_illumination_shader, rays_per_pixel_loc, 128);
+            set_shader_value(global_illumination_shader, emission_multi_loc, 1.6f);
+            set_shader_value(global_illumination_shader, max_raymarch_steps_loc, 256);
             // ClearBackground({1, 0, 0, 0});
             
             i32 bake_progress_loc = get_shader_location(global_illumination_shader, "bake_progress");
             set_shader_value(global_illumination_shader, bake_progress_loc, bake_progress);
-            
             
             draw_render_texture(gi_rt->texture, {1.0f, 1.0f}, WHITE);
             
@@ -11661,6 +11664,17 @@ void bake_lightmaps_if_need(){
         } EndTextureMode();
         
         if (bake_progress >= 1.0f){
+            // i32 iterations = 1;
+            // for (i32 i = 0; i < iterations; i++){
+            //     BeginTextureMode(*gi_rt);{
+            //         BeginShaderMode(gaussian_blur_shader);{
+            //             i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
+            //             set_shader_value(gaussian_blur_shader, u_pixel_loc, {(2.0f) / light_texture_width, (2.0f) / light_texture_height});
+            //             draw_render_texture(gi_rt->texture, {1.0f, 1.0f}, WHITE);
+            //         } EndShaderMode();
+            //     } EndTextureMode();
+            // }
+        
             Image lightmap_image = LoadImageFromTexture(gi_rt->texture);
             ExportImage(lightmap_image, "resources/lightmaps/lightmap.png");
             UnloadImage(lightmap_image);
@@ -11671,14 +11685,72 @@ void bake_lightmaps_if_need(){
 void new_render(){
     bake_lightmaps_if_need();
 
+    BeginTextureMode(render.main_render_texture);
     BeginMode2D(current_level_context->cam.cam2D);
-    for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
-        Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
-        RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
-
-        draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+    
+    ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : GRAY);
+    
+    drawing_state = CAMERA_DRAWING;
+    draw_entities();
+    // ClearBackground(WHITE);
+    draw_particles();
+    
+    if (player_entity && debug.draw_player_collisions){
+        for (i32 i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
+            
+            make_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
+            draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
+        }
+    }
+    
+    if (debug.draw_collision_grid){
+        // draw collision grid
+        Collision_Grid grid = session_context.collision_grid;
+        Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
+        
+        update_entity_collision_cells(&mouse_entity);
+        for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
+            for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
+                Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
+                
+                draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+            }
+        }
     }
     EndMode2D();
+    EndTextureMode();
+    
+    BeginTextureMode(global_illumination_rt);{
+    BeginMode2D(current_level_context->cam.cam2D);
+    
+        ClearBackground(BLACK);
+        for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
+            Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
+            RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
+    
+            draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+        }
+    EndMode2D();
+    } EndTextureMode();
+
+
+    drawing_state = CAMERA_DRAWING;
+    BeginShaderMode(env_light_shader);{
+        local_persist i32 gi_data_loc = get_shader_location(env_light_shader, "u_gi_data");
+        set_shader_value_tex(env_light_shader, gi_data_loc, global_illumination_rt.texture);
+        
+        draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
+    } EndShaderMode();
+
+    // BeginMode2D(current_level_context->cam.cam2D);
+    // for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
+    //     Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
+    //     RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
+
+    //     draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+    // }
+    // EndMode2D();
 }
 
 void draw_game(){
@@ -12026,11 +12098,6 @@ inline void draw_game_text(Vector2 position, const char *text, f32 size, Color c
 inline void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip){
     Vector2 screen_pos = world_to_screen(position);
     draw_texture(tex, screen_pos, transform_texture_scale(tex, scale), pivot, rotation, color, flip);
-}
-
-inline void draw_game_texture_full(Texture tex, Vector2 position, Vector2 pivot, f32 rotation, Color color){
-    Vector2 screen_pos = world_to_screen(position);
-    draw_texture(tex, screen_pos, {6.0f, 6.0f}, pivot, rotation, color, true);
 }
 
 inline void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color){

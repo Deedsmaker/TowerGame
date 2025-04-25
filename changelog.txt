@@ -1,3 +1,7 @@
+25.04.2025:
+    - Light blending with real entities.
+    
+
 24.04.2025:
     - We finally know where we're going.
     - Baking now goes in portions (even for one texture!).
