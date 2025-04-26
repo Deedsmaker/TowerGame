@@ -1113,11 +1113,18 @@ struct Immediate_Texture{
     Color color = WHITE;
 };
 
+struct Outline{
+    Vector2 position = Vector2_zero;
+    Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
+    Color color = PINK;
+};
+
 struct Render{
-    Dynamic_Array<Line> lines_to_draw = Dynamic_Array<Line>(128);
-    Dynamic_Array<Ring_Lines> ring_lines_to_draw = Dynamic_Array<Ring_Lines>(32);
-    Dynamic_Array<Rect_Lines> rect_lines_to_draw = Dynamic_Array<Rect_Lines>(32);
+    Dynamic_Array<Line> lines_to_draw                   = Dynamic_Array<Line>(128);
+    Dynamic_Array<Ring_Lines> ring_lines_to_draw        = Dynamic_Array<Ring_Lines>(32);
+    Dynamic_Array<Rect_Lines> rect_lines_to_draw        = Dynamic_Array<Rect_Lines>(32);
     Dynamic_Array<Immediate_Texture> textures_to_draw   = Dynamic_Array<Immediate_Texture>(32);
+    Dynamic_Array<Outline> outlines_to_draw             = Dynamic_Array<Outline>(64);
     
     Dynamic_Array<Light> lights_draw_queue = Dynamic_Array<Light>(128);
 

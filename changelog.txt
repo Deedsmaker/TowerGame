@@ -1,6 +1,10 @@
+26.04.2025:
+    - Added dynamic lights to work with lightmaps.
+    - Immediate outlines. Basic version for now, but will be useful later.
+    - Fixed selection on paste entity. Before on paste we always added pasted thing to multiselected, but when we copy/paste only one entity we want pasted entity to become selected entity - and now it works that way.    
+
 25.04.2025:
     - Light blending with real entities.
-    
 
 24.04.2025:
     - We finally know where we're going.

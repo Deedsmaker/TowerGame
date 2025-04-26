@@ -99,6 +99,7 @@ void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color
 void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color);
 void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
 inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
+inline void make_outline(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Color color);
 
 inline b32 should_draw_editor_hints();
 void draw_immediate_stuff();
@@ -153,6 +154,7 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
 inline void draw_game_line_strip(Entity *entity, Color color);
 inline void draw_game_line_strip(Vector2 *points, int count, Color color);
+inline void draw_game_line_strip(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Color color);
 inline void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip = false);
 inline void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
 inline void draw_game_line(Vector2 start, Vector2 end, Color color);

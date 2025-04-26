@@ -13,6 +13,8 @@ uniform float PI = 3.141596;
 uniform sampler2D distance_texture;
 uniform sampler2D emitters_occluders_texture;
 
+uniform sampler2D perlin_texture;
+
 uniform float bake_progress = -1;
 
 // uniforms
@@ -29,11 +31,39 @@ float random (vec2 st){
    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
 }
 
+float noise(vec2 st){
+    vec2 i = floor(st);
+    vec2 f = fract(st);
+    
+    // Four corners in 2D of a tile.
+    float a = random(i);
+    float b = random(i + vec2(1.0, 0.0));
+    float c = random(i + vec2(0.0, 1.0));
+    float d = random(i + vec2(1.0, 1.0));
+    
+    // Smooth interpolation.
+    
+    // Cubic Hernie Curve. Save as SmoothStep().
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    // u = smoothstep(0.0, 1.0, f);
+    
+    // Mix 4 corners percentages
+    return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+}
+
+float perlin(vec2 st){
+    st.x -= int(st.x);
+    st.y -= int(st.y);
+    
+    vec4 color = texture(perlin_texture, st);
+    return (color.r + color.g + color.b + color.a) / 4.0;
+}
+
 void get_surface(vec4 surface_color, out float emissive, out vec3 colour)
 {	
     // vec4 emissive_data = texture(lightmaps_data[lightmap_index].emitters_occluders_texture, uv);
-    emissive = max(surface_color.r, max(surface_color.g, surface_color.b)) * u_emission_multi;
-    colour = surface_color.rgb * u_emission_multi * surface_color.a;
+    emissive = max(surface_color.r, max(surface_color.g, surface_color.b)) * u_emission_multi * 0.51;
+    colour = surface_color.rgb * u_emission_multi;
 }
 
 bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out vec3 mat_colour)
@@ -111,7 +141,7 @@ void main()
     float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
     uv.x *= aspect;
     
-    float rand2pi = random(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
+    float rand2pi = perlin(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
     float golden_angle = PI * 0.7639320225; // magic number that gives us a good ray distribution.
    
     // cast our rays.
@@ -137,7 +167,7 @@ void main()
     pixel_emis /= float(u_rays_per_pixel);
 
     vec4 current_color = texture(texture0, fragTexCoord);
-    finalColor = current_color + vec4(lin_to_srgb(vec4(pixel_emis * pixel_col, 1)), 0.0);
+    finalColor = current_color + vec4(pixel_emis * pixel_col, 1);
     finalColor.a = 1.0;
     // finalColor = current_color;
     ////////

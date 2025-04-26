@@ -2,6 +2,7 @@
     [ ] Resizable lightmaps.
     [ ] Debug options for disabling lightmap view.
     [ ] Debug option to see only lightmaps.
+    [ ] Saving lightmaps to file as a console command.
 There has been change in the game ideas during May of 2025, so next tasks may be not correspond with past.
 -----------------------------------------------------------------------------------------------------
 [ ] On kill we should not just give sword angular velocity, but also for time reduce angular damping so player really could do a long slices without going off the table with the mouse.
