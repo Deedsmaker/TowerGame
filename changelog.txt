@@ -1,3 +1,34 @@
+27.04.2025:
+    - Light work, finally added ability to control light intencity by changing light opacity.
+    - Debug options for full light and view only lightmaps.
+
+26.04.2025:
+    - Added dynamic lights to work with lightmaps.
+    - Immediate outlines. Basic version for now, but will be useful later.
+    - Fixed selection on paste entity. Before on paste we always added pasted thing to multiselected, but when we copy/paste only one entity we want pasted entity to become selected entity - and now it works that way.    
+
+25.04.2025:
+    - Light blending with real entities.
+
+24.04.2025:
+    - We finally know where we're going.
+    - Baking now goes in portions (even for one texture!).
+    - We're saving lightmaps to files now.
+
+30.03.2025:
+    - Sword work. Made handle for sword and how sword don't hit ground with it's base constantly.
+    - Vulkakkakakn work.
+
+27.03.2025:
+    - Vulkan progress.
+    - Experimented some with new big sword rotation. Made that on kill we give spin speed so it's easier to constantly spin while you killing shit.
+
+26.03.2025:
+    - Working on Vulkan integration.
+    - Recently made that we NEED to hit enemy with sword and we don't have a 'immortality' while spinning - if enemy hits player body he will kill him, even if player spinning. That's a huge gamplay change and I think it's for the best. But of course we need to change many things for that to be verry good.
+    - Following change of reduced player protection - made that big sword now spinning a lot slower than small one, but also big sword loses it's angular velocity almost immediately and that gives us great control. Also that's now look just as I wanted from beginning - so we could have these moments of player just made a discrete move and swing this sword.
+    - Further improvements of new big sword spin. Don't actually know if that was improvements - i made that big sword keep really huge spin speed for some time after switching from small, but I may don't want that (if that's gonna be main tactic because it's safest). Maybe we want to go with more controllable thing and really require precise inputs. It's just hard to spin big sword, but with this keeping velocity things it's not really easier. Or maybe it is, we'll need to check this in gameplay.
+
 19.03.2025:
     - Multiselect improvements.
     - Loading multiple levels and switching between them on TAB.

@@ -51,6 +51,18 @@ enum Particle_Spawn_Area{
     BOX = 1
 };
 
+struct Lightmap_Data{
+    Vector2 position = {0, 0};
+    Vector2 game_size = {2048.0f, 2048.0f};
+
+    RenderTexture global_illumination_rt = {}; 
+    RenderTexture emitters_occluders_rt  = {};
+    RenderTexture distance_field_rt      = {};
+    
+    i32 distance_texture_loc = -1;
+    i32 emitters_occluders_loc = -1;
+};
+
 #define MAX_SMALL_COUNT_PARTICLE_EMITTERS 1024
 #define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 256
 #define MAX_BIG_COUNT_PARTICLE_EMITTERS 8
@@ -1058,6 +1070,7 @@ struct Session_Context{
     // We should set it in beginning 
     i32 entity_lights_start_index = -1;
     
+    i32 app_frame_count = 0;
     i32 game_frame_count = 0;
     b32 playing_replay = false;
     
@@ -1112,11 +1125,18 @@ struct Immediate_Texture{
     Color color = WHITE;
 };
 
+struct Outline{
+    Vector2 position = Vector2_zero;
+    Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
+    Color color = PINK;
+};
+
 struct Render{
-    Dynamic_Array<Line> lines_to_draw = Dynamic_Array<Line>(128);
-    Dynamic_Array<Ring_Lines> ring_lines_to_draw = Dynamic_Array<Ring_Lines>(32);
-    Dynamic_Array<Rect_Lines> rect_lines_to_draw = Dynamic_Array<Rect_Lines>(32);
+    Dynamic_Array<Line> lines_to_draw                   = Dynamic_Array<Line>(128);
+    Dynamic_Array<Ring_Lines> ring_lines_to_draw        = Dynamic_Array<Ring_Lines>(32);
+    Dynamic_Array<Rect_Lines> rect_lines_to_draw        = Dynamic_Array<Rect_Lines>(32);
     Dynamic_Array<Immediate_Texture> textures_to_draw   = Dynamic_Array<Immediate_Texture>(32);
+    Dynamic_Array<Outline> outlines_to_draw             = Dynamic_Array<Outline>(64);
     
     Dynamic_Array<Light> lights_draw_queue = Dynamic_Array<Light>(128);
 
@@ -1297,6 +1317,8 @@ struct Debug{
     b32 infinite_ammo = false;
     b32 enemy_ai = true;
     b32 god_mode = false;
+    
+    b32 view_only_lightmaps = false;
     
     b32 dragging_player = false;
 };

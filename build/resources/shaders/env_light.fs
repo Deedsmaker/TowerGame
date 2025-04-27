@@ -41,12 +41,16 @@ void main()
     
     get_surface(fragTexCoord, pixel_emis, color);
     
-    //finalColor = vec4(pixel_emis * vec4(color, 1.0) * current_color);
-    //finalColor.a = current_color.a;
-    // finalColor = mix(fragColor, color, fragColor.a);
-    // finalColor += color;
-    // finalColor = mix(current_color, current_color * color, color.a);
-    finalColor = current_color * color;
-    finalColor = mix(finalColor, finalColor * 2, color.a);
+    float light_intencity = sqrt(color.r * color.r + color.g * color.g + color.b * color.b);
+    
+    // finalColor = current_color * color;
+    // finalColor.rgb = pow(current_color + color, 2.2);
+    finalColor = (current_color * light_intencity) + color * current_color;
     finalColor.a = 1;
+    
+    // finalColor = current_color * color;
+    // finalColor = mix(finalColor, finalColor * 2, color.a);
+    // finalColor.a = 1;
+    
+    
 }
