@@ -11531,16 +11531,18 @@ void old_render(){
 struct Bake_Settings{
     i32 rays_per_pixel = 128;
     i32 raymarch_steps = 256;
+    f32 distance_mod = 1;
 };
 
-Bake_Settings light_bake_settings = {128, 256};
-Bake_Settings heavy_bake_settings = {512, 1024};
+Bake_Settings light_bake_settings = {128, 256, 1};
+Bake_Settings heavy_bake_settings = {512, 1024, 4};
+Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
-    b32 need_to_bake = (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_F2) || session_context.app_frame_count == 0);
+    b32 need_to_bake = (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_F2) || IsKeyPressed(KEY_F3) || session_context.app_frame_count == 0);
     local_persist Bake_Settings bake_settings = light_bake_settings;
     if (need_to_bake || (last_baked_index < lightmaps.max_count && last_baked_index != -1)){
         last_baked_index += 1;
@@ -11552,6 +11554,8 @@ void bake_lightmaps_if_need(){
             bake_settings = light_bake_settings;
         } else if (IsKeyPressed(KEY_F2)){
             bake_settings = heavy_bake_settings;
+        } else if (IsKeyPressed(KEY_F3)){
+            bake_settings = final_bake_settings;
         }
     }
     
@@ -11567,12 +11571,14 @@ void bake_lightmaps_if_need(){
         
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
-        ClearBackground(Fade(WHITE, 0));
+        ClearBackground(Fade(BLACK, 0));
+        BeginBlendMode(BLEND_ADDITIVE);
             ForEntities(entity, LIGHT){   
                 u64 static_light_source_flags = LIGHT | DUMMY;              
                 if (entity->flags & LIGHT && entity->flags & DUMMY){
                     Light *light = current_level_context->lights.get_ptr(entity->light_index);
-                    draw_game_triangle_strip(entity, color_fade(light->color, 1));
+                    draw_game_triangle_strip(entity, Fade(light->color, light->opacity));
+                    // draw_game_triangle_strip(entity, light->color);
                 }
             }
             ForEntities(entity2, GROUND){   
@@ -11582,6 +11588,7 @@ void bake_lightmaps_if_need(){
                 
                 draw_game_triangle_strip(entity2, BLACK);
             }
+        EndBlendMode();
         EndMode2D();
         }EndTextureMode();
         current_level_context->cam = with_shake_cam;
@@ -11678,7 +11685,7 @@ void bake_lightmaps_if_need(){
         BeginTextureMode(*gi_rt);{
             // Means we're just started
             if (need_to_bake){
-                ClearBackground(Fade(BLACK, 1));
+                ClearBackground(Fade(BLACK, 0));
             }
             
             BeginShaderMode(global_illumination_shader);
@@ -11690,13 +11697,15 @@ void bake_lightmaps_if_need(){
             i32 emission_multi_loc     = get_shader_location(global_illumination_shader, "u_emission_multi");
             i32 max_raymarch_steps_loc = get_shader_location(global_illumination_shader, "u_max_raymarch_steps");
             i32 time_loc               = get_shader_location(global_illumination_shader, "u_time");
+            i32 distance_mod           = get_shader_location(global_illumination_shader, "u_dist_mod");
             i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
             
+            set_shader_value(global_illumination_shader, distance_mod, bake_settings.distance_mod);
             set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
             set_shader_value(global_illumination_shader, time_loc, core.time.app_time + PI * 10);
             
             set_shader_value(global_illumination_shader, rays_per_pixel_loc, bake_settings.rays_per_pixel);
-            set_shader_value(global_illumination_shader, emission_multi_loc, 1.6f);
+            set_shader_value(global_illumination_shader, emission_multi_loc, 2.5f);
             set_shader_value(global_illumination_shader, max_raymarch_steps_loc, bake_settings.raymarch_steps);
             
             i32 bake_progress_loc = get_shader_location(global_illumination_shader, "bake_progress");
@@ -11712,17 +11721,6 @@ void bake_lightmaps_if_need(){
         } EndTextureMode();
         
         if (bake_progress >= 1.0f){
-            // i32 iterations = 1;
-            // for (i32 i = 0; i < iterations; i++){
-            //     BeginTextureMode(*gi_rt);{
-            //         BeginShaderMode(gaussian_blur_shader);{
-            //             i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-            //             set_shader_value(gaussian_blur_shader, u_pixel_loc, {(2.0f) / light_texture_width, (2.0f) / light_texture_height});
-            //             draw_render_texture(gi_rt->texture, {1.0f, 1.0f}, WHITE);
-            //         } EndShaderMode();
-            //     } EndTextureMode();
-            // }
-        
             // Saving lightmap to file. We should make that a console command because it's taking fairly long. 
             // Image lightmap_image = LoadImageFromTexture(gi_rt->texture);
             // ExportImage(lightmap_image, "resources/lightmaps/lightmap.png");

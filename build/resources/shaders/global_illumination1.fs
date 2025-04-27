@@ -56,14 +56,21 @@ float perlin(vec2 st){
     st.y -= int(st.y);
     
     vec4 color = texture(perlin_texture, st);
-    return (color.r + color.g + color.b + color.a) / 4.0;
+    return (color.r + color.g + color.b) / 3.0;
 }
 
 void get_surface(vec4 surface_color, out float emissive, out vec3 colour)
 {	
     // vec4 emissive_data = texture(lightmaps_data[lightmap_index].emitters_occluders_texture, uv);
-    emissive = max(surface_color.r, max(surface_color.g, surface_color.b)) * u_emission_multi * 0.51;
+    if (surface_color.a <= 0){
+        emissive = 0;
+        colour = vec3(0);
+        return;
+    }
+    
+    emissive = max(surface_color.r, max(surface_color.g, surface_color.b)) * u_emission_multi * surface_color.a;
     colour = surface_color.rgb * u_emission_multi;
+    // colour = vec3(1, 0, 0);
 }
 
 bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out vec3 mat_colour)
@@ -101,7 +108,7 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
         if (dist_to_surface < 0.001){
             dist_to_surface = 0.001;
         }
-        
+      
         current_dist += dist_to_surface;
    }
    
@@ -163,11 +170,13 @@ void main()
         }
     }
     
-    pixel_col /= pixel_emis;
+    pixel_col /= float(u_rays_per_pixel);
     pixel_emis /= float(u_rays_per_pixel);
+    pixel_emis *= u_emission_multi;
 
     vec4 current_color = texture(texture0, fragTexCoord);
-    finalColor = current_color + vec4(pixel_emis * pixel_col, 1);
+    // finalColor = current_color + vec4(pixel_emis * pixel_col, 1);
+    finalColor = current_color + vec4(pixel_col * pixel_emis, 1);
     finalColor.a = 1.0;
     // finalColor = current_color;
     ////////
