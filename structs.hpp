@@ -51,6 +51,18 @@ enum Particle_Spawn_Area{
     BOX = 1
 };
 
+struct Lightmap_Data{
+    Vector2 position = {0, 0};
+    Vector2 game_size = {2048.0f, 2048.0f};
+
+    RenderTexture global_illumination_rt = {}; 
+    RenderTexture emitters_occluders_rt  = {};
+    RenderTexture distance_field_rt      = {};
+    
+    i32 distance_texture_loc = -1;
+    i32 emitters_occluders_loc = -1;
+};
+
 #define MAX_SMALL_COUNT_PARTICLE_EMITTERS 1024
 #define MAX_MEDIUM_COUNT_PARTICLE_EMITTERS 256
 #define MAX_BIG_COUNT_PARTICLE_EMITTERS 8
@@ -1305,6 +1317,8 @@ struct Debug{
     b32 infinite_ammo = false;
     b32 enemy_ai = true;
     b32 god_mode = false;
+    
+    b32 view_only_lightmaps = false;
     
     b32 dragging_player = false;
 };

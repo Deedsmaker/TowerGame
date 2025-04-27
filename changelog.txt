@@ -1,5 +1,6 @@
 27.04.2025:
     - Light work, finally added ability to control light intencity by changing light opacity.
+    - Debug options for full light and view only lightmaps.
 
 26.04.2025:
     - Added dynamic lights to work with lightmaps.

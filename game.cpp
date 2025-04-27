@@ -77,6 +77,8 @@ global_variable Dynamic_Array<Sound_Handler> sounds_array = Dynamic_Array<Sound_
 
 global_variable b32 initing_game = false;
 
+global_variable Array<Lightmap_Data, 1> lightmaps = Array<Lightmap_Data, 1>();
+
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
 #include "text_input.hpp"
@@ -1525,6 +1527,8 @@ void init_bird_entity(Entity *entity){
     entity->collision_flags = BIRD_ENEMY_COLLISION_FLAGS;//GROUND | PLAYER | BIRD_ENEMY;
     change_color(entity, entity->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
     
+    change_scale(entity, {6, 10});
+
     entity->enemy.gives_full_ammo = true;
     
     entity->enemy.sword_kill_speed_modifier = 4;
@@ -1590,7 +1594,7 @@ void init_spawn_objects(){
     str_copy(enemy_base_object.name, enemy_base_entity.name);
     spawn_objects.add(enemy_base_object);
     
-    Entity bird_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
+    Entity bird_entity = Entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     init_bird_entity(&bird_entity);
     
     Spawn_Object enemy_bird_object;
@@ -1996,7 +2000,7 @@ void init_entity(Entity *entity){
         entity->enemy.max_hits_taken = 3;
         init_bird_entity(entity);
     }
-
+    
     // init explosive
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
@@ -2433,6 +2437,10 @@ void debug_toggle_player_speed(){
     debug.info_player_speed = !debug.info_player_speed;
 }
 
+void debug_toggle_view_only_lightmaps(){
+    debug.view_only_lightmaps = !debug.view_only_lightmaps;
+}
+
 void debug_print_entities_count(){
     i32 count = 0;
     ForEntities(entity, 0){
@@ -2604,6 +2612,14 @@ void debug_toggle_draw_triggers(){
     debug.draw_areas_in_game = !debug.draw_areas_in_game;
 }
 
+void save_lightmaps_to_file(){
+    for (i32 i = 0; i < lightmaps.max_count; i++){
+        Image lightmap_image = LoadImageFromTexture(lightmaps.get(i).global_illumination_rt.texture);
+        ExportImage(lightmap_image, text_format("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, i));
+        UnloadImage(lightmap_image);
+    }
+}
+
 void init_console(){
     reload_level_files();    
 
@@ -2634,6 +2650,8 @@ void init_console(){
     console.commands.add(make_console_command("next",     try_load_next_level, NULL));
     console.commands.add(make_console_command("previous", try_load_previous_level, NULL));
     console.commands.add(make_console_command("reload",   reload_level, NULL));
+    
+    console.commands.add(make_console_command("save_lightmap", save_lightmaps_to_file, NULL));
     
     console.commands.add(make_console_command("restart_game",      restart_game, NULL));
     console.commands.add(make_console_command("first",             restart_game, NULL));
@@ -2854,20 +2872,7 @@ global_variable RenderTexture jump_flood_rt;
 // global_variable RenderTexture distance_field_rt;
 // global_variable RenderTexture raytracing_global_illumination_rt;
 
-struct Lightmap_Data{
-    Vector2 position = {0, 0};
-    Vector2 game_size = {2048.0f, 2048.0f};
-
-    RenderTexture global_illumination_rt = {}; 
-    RenderTexture emitters_occluders_rt  = {};
-    RenderTexture distance_field_rt      = {};
-    
-    i32 distance_texture_loc = -1;
-    i32 emitters_occluders_loc = -1;
-};
-
 // #define MAX_LIGHTMAPS 3
-global_variable Array<Lightmap_Data, 1> lightmaps = Array<Lightmap_Data, 1>();
 
 global_variable Shader voronoi_seed_shader;
 global_variable Shader jump_flood_shader;
@@ -3412,7 +3417,12 @@ void fixed_game_update(f32 dt){
 
     if (!is_in_death_instinct() || !is_death_instinct_threat_active()){
         f32 zoom_speed = game_state == GAME ? 3 : 10;
-        current_level_context->cam.cam2D.zoom = lerp(current_level_context->cam.cam2D.zoom, current_level_context->cam.target_zoom, dt * zoom_speed);
+        Cam *cam = &current_level_context->cam;
+        cam->cam2D.zoom = lerp(cam->cam2D.zoom, cam->target_zoom, dt * zoom_speed);
+        
+        if (core.time.real_dt >= 0.4){
+            cam->cam2D.zoom = cam->target_zoom;
+        }
     }
     
     if (abs(current_level_context->cam.cam2D.zoom - current_level_context->cam.target_zoom) <= EPSILON){
@@ -11038,7 +11048,7 @@ void draw_ui(const char *tag){
 }
 
 inline b32 should_add_immediate_stuff(){
-    return drawing_state == CAMERA_DRAWING;
+    return drawing_state == CAMERA_DRAWING && !debug.view_only_lightmaps;
 }
 
 void make_light(Vector2 position, f32 radius, f32 power, f32 opacity, Color color){
@@ -11542,7 +11552,7 @@ void bake_lightmaps_if_need(){
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
-    b32 need_to_bake = (IsKeyPressed(KEY_F1) || IsKeyPressed(KEY_F2) || IsKeyPressed(KEY_F3) || session_context.app_frame_count == 0);
+    b32 need_to_bake = ((IsKeyPressed(KEY_F9) || IsKeyPressed(KEY_F10) || IsKeyPressed(KEY_F11)) || session_context.app_frame_count == 0);
     local_persist Bake_Settings bake_settings = light_bake_settings;
     if (need_to_bake || (last_baked_index < lightmaps.max_count && last_baked_index != -1)){
         last_baked_index += 1;
@@ -11550,11 +11560,11 @@ void bake_lightmaps_if_need(){
             last_baked_index = -1;
         }
         
-        if (IsKeyPressed(KEY_F1)){
+        if (IsKeyPressed(KEY_F9)){
             bake_settings = light_bake_settings;
-        } else if (IsKeyPressed(KEY_F2)){
+        } else if (IsKeyPressed(KEY_F10)){
             bake_settings = heavy_bake_settings;
-        } else if (IsKeyPressed(KEY_F3)){
+        } else if (IsKeyPressed(KEY_F11)){
             bake_settings = final_bake_settings;
         }
     }
@@ -11577,7 +11587,7 @@ void bake_lightmaps_if_need(){
                 u64 static_light_source_flags = LIGHT | DUMMY;              
                 if (entity->flags & LIGHT && entity->flags & DUMMY){
                     Light *light = current_level_context->lights.get_ptr(entity->light_index);
-                    draw_game_triangle_strip(entity, Fade(light->color, light->opacity));
+                    draw_game_triangle_strip(entity, Fade(light->color, sqrtf(light->opacity)));
                     // draw_game_triangle_strip(entity, light->color);
                 }
             }
@@ -11705,7 +11715,7 @@ void bake_lightmaps_if_need(){
             set_shader_value(global_illumination_shader, time_loc, core.time.app_time + PI * 10);
             
             set_shader_value(global_illumination_shader, rays_per_pixel_loc, bake_settings.rays_per_pixel);
-            set_shader_value(global_illumination_shader, emission_multi_loc, 2.5f);
+            set_shader_value(global_illumination_shader, emission_multi_loc, 1.5f);
             set_shader_value(global_illumination_shader, max_raymarch_steps_loc, bake_settings.raymarch_steps);
             
             i32 bake_progress_loc = get_shader_location(global_illumination_shader, "bake_progress");
@@ -11719,13 +11729,6 @@ void bake_lightmaps_if_need(){
             // draw_rect({1, 1}, {1, 1}, WHITE);
             EndShaderMode();
         } EndTextureMode();
-        
-        if (bake_progress >= 1.0f){
-            // Saving lightmap to file. We should make that a console command because it's taking fairly long. 
-            // Image lightmap_image = LoadImageFromTexture(gi_rt->texture);
-            // ExportImage(lightmap_image, "resources/lightmaps/lightmap.png");
-            // UnloadImage(lightmap_image);
-        }
     }
 }
 
@@ -12003,13 +12006,33 @@ void new_render(){
     // In original lighting there goes blur pass, but we can think about drawing dynamic lights in other render texture and blur
     // it instead, because there's no way we want to blur whole global illumination including lightmaps.
 
+    if (IsKeyPressed(KEY_F1)){
+        debug_toggle_full_light();    
+    }
+    if (IsKeyPressed(KEY_F2)){
+        debug_toggle_view_only_lightmaps();
+    }
+
     drawing_state = CAMERA_DRAWING;
-    BeginShaderMode(env_light_shader);{
-        local_persist i32 gi_data_loc = get_shader_location(env_light_shader, "u_gi_data");
-        set_shader_value_tex(env_light_shader, gi_data_loc, global_illumination_rt.texture);
-        
+    if (debug.view_only_lightmaps){
+        BeginMode2D(current_level_context->cam.cam2D);
+        for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
+            Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
+            RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
+    
+            draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+        }
+        EndMode2D();
+    } else if (debug.full_light){
         draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
-    } EndShaderMode();
+    } else{
+        BeginShaderMode(env_light_shader);{
+            local_persist i32 gi_data_loc = get_shader_location(env_light_shader, "u_gi_data");
+            set_shader_value_tex(env_light_shader, gi_data_loc, global_illumination_rt.texture);
+            
+            draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
+        } EndShaderMode();
+    }
 
     // BeginMode2D(current_level_context->cam.cam2D);
     // for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
