@@ -11738,7 +11738,9 @@ void new_render(){
     BeginTextureMode(render.main_render_texture);
     BeginMode2D(current_level_context->cam.cam2D);
     
-    ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : GRAY);
+    Color base_background_color = debug.full_light ? ColorBrightness(GRAY, 0.1f) : Fade(WHITE, 0);
+    
+    ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : base_background_color);
     
     drawing_state = CAMERA_DRAWING;
     draw_entities();
@@ -12026,12 +12028,15 @@ void new_render(){
     } else if (debug.full_light){
         draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
     } else{
+        ClearBackground(Fade(BLACK, 0));
+        BeginBlendMode(BLEND_ADDITIVE);
         BeginShaderMode(env_light_shader);{
             local_persist i32 gi_data_loc = get_shader_location(env_light_shader, "u_gi_data");
             set_shader_value_tex(env_light_shader, gi_data_loc, global_illumination_rt.texture);
             
             draw_render_texture(render.main_render_texture.texture, {1, 1}, WHITE);
         } EndShaderMode();
+        EndBlendMode();
     }
 
     // BeginMode2D(current_level_context->cam.cam2D);

@@ -45,12 +45,10 @@ void main()
     
     // finalColor = current_color * color;
     // finalColor.rgb = pow(current_color + color, 2.2);
-    finalColor = (current_color * light_intencity) + color * current_color;
+    finalColor = (current_color * light_intencity * current_color.a) + color * current_color;
     finalColor.a = 1;
     
     // finalColor = current_color * color;
     // finalColor = mix(finalColor, finalColor * 2, color.a);
     // finalColor.a = 1;
-    
-    
 }

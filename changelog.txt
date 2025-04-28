@@ -1,3 +1,6 @@
+28.04.2025:
+    - Fixed blending issue. Now lightmaps look as they should.
+
 27.04.2025:
     - Light work, finally added ability to control light intencity by changing light opacity.
     - Debug options for full light and view only lightmaps.
