@@ -2469,6 +2469,17 @@ void debug_toggle_full_light(){
     console.str += text_format("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled");
 }
 
+void debug_toggle_lightmap_view(){
+    if (debug.full_light){
+        debug.full_light = false;
+        debug.view_only_lightmaps = true;
+    } else if (debug.view_only_lightmaps){
+        debug.view_only_lightmaps = false;
+    } else{
+        debug.full_light = true;
+    }
+}
+
 void debug_toggle_collision_grid(){
     debug.draw_collision_grid = !debug.draw_collision_grid;
     console.str += text_format("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled");
@@ -11585,7 +11596,8 @@ void bake_lightmaps_if_need(){
         BeginBlendMode(BLEND_ADDITIVE);
             ForEntities(entity, LIGHT){   
                 u64 static_light_source_flags = LIGHT | DUMMY;              
-                if (entity->flags & LIGHT && entity->flags & DUMMY){
+                b32 allowed_additional_flags = DUMMY | GROUND;
+                if (entity->flags & LIGHT && entity->flags & allowed_additional_flags){
                     Light *light = current_level_context->lights.get_ptr(entity->light_index);
                     draw_game_triangle_strip(entity, Fade(light->color, sqrtf(light->opacity)));
                     // draw_game_triangle_strip(entity, light->color);
@@ -12009,12 +12021,9 @@ void new_render(){
     // it instead, because there's no way we want to blur whole global illumination including lightmaps.
 
     if (IsKeyPressed(KEY_F1)){
-        debug_toggle_full_light();    
+        debug_toggle_lightmap_view();
     }
-    if (IsKeyPressed(KEY_F2)){
-        debug_toggle_view_only_lightmaps();
-    }
-
+    
     drawing_state = CAMERA_DRAWING;
     if (debug.view_only_lightmaps){
         BeginMode2D(current_level_context->cam.cam2D);
