@@ -1,3 +1,7 @@
+[ ] Reducing physics aspect for increasing control:
+    [X] Little max vertical downward velocity. I think that will be good for controlling character. Of course need more tuning.
+    [ ] Limiting max horizontal velocity but increasing acceleration.
+    [ ] More sticking to ground.
 [ ] Light stuff:
     [ ] Resizable lightmaps.
     [X] Debug options for disabling lightmap view.

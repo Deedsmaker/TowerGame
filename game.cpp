@@ -6687,21 +6687,66 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
 }
 
 void player_ground_move(Entity *entity, f32 dt){
-    f32 max_move_speed = player_data->base_move_speed;
+    f32 walk_speed = 70;
+    Vector2 input_direction = input.sum_direction;
     
-    player_apply_friction(entity, max_move_speed, dt);
+    b32 spin_affecting_movement = player_data->sword_spin_progress > 0.3f;
     
-    f32 acceleration = player_data->ground_acceleration;
-    if (dot(player_data->velocity, input.sum_direction) <= 0){
-        acceleration = player_data->ground_deceleration;
-        if (input.sum_direction.y < 0){
-            acceleration *= 0.3f;
-        }
+    if (spin_affecting_movement){
+        Vector2 plane = get_rotated_vector_90(player_data->ground_normal, -player_data->sword_spin_direction);
+        
+        // f32 spin_t = player_data->sword_spin_progress;
+        // f32 blood_t = player_data->blood_progress;
+        
+        f32 spin_acceleration = 400;
+        
+        // player_data->velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
+        walk_speed = 200;
     }
     
-    f32 wish_speed = sqr_magnitude(input.sum_direction) * max_move_speed;
+    b32 wanna_stop = input_direction.x == 0 || (spin_affecting_movement && input_direction.x * player_data->sword_spin_direction < 0);
     
-    player_accelerate(entity, input.sum_direction, wish_speed, acceleration, dt);
+    Vector2 wish_walking_plane = get_rotated_vector_90(player_data->ground_normal, -input_direction.x);
+    
+    if (wanna_stop){
+        Vector2 deceleration_plane = get_rotated_vector_90(player_data->ground_normal, player_data->velocity.x);
+        wish_walking_plane = deceleration_plane;
+    }
+    
+    Vector2 wish_velocity = wish_walking_plane * walk_speed;
+    
+    f32 walking_acceleration = 400;
+    f32 stopping_deceleration = 250;
+    
+    // b32 walking_same_direction = input_direction.x != 0 && dot(wish_walking_plane, player_data->velocity_plane) > 0;
+    
+    f32 speed_in_wish_plane = dot(wish_walking_plane, player_data->velocity);
+    
+    if (speed_in_wish_plane >= walk_speed && input_direction.x * player_data->velocity.x > 0){
+        return;
+    }
+    
+    f32 acceleration = wanna_stop ? stopping_deceleration : walking_acceleration;
+    
+    f32 max_allowed_speed_difference = walk_speed - speed_in_wish_plane;
+    
+    f32 speed_change = fminf(acceleration * dt, max_allowed_speed_difference);
+    
+    player_data->velocity += wish_walking_plane * speed_change;
+    
+    // player_apply_friction(entity, max_move_speed, dt);
+    
+    // f32 acceleration = player_data->ground_acceleration;
+    // if (dot(player_data->velocity, input.sum_direction) <= 0){
+    //     acceleration = player_data->ground_deceleration;
+    //     if (input.sum_direction.y < 0){
+    //         acceleration *= 0.3f;
+    //     }
+    // }
+    
+    // f32 wish_speed = sqr_magnitude(input.sum_direction) * max_move_speed;
+    
+    // player_accelerate(entity, input.sum_direction, wish_speed, acceleration, dt);
 }
 
 void player_air_move(Entity *entity, f32 dt){
@@ -7360,34 +7405,37 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
         player_ground_move(player_entity, dt);
         
-        player_data->plane_vector = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
-        player_data->velocity = player_data->plane_vector * magnitude(player_data->velocity);
+        player_data->velocity_plane = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
+        player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
         
         player_entity->position.y -= dt;
         player_data->velocity -= player_data->ground_normal * dt;
         
-        if (player_data->sword_spin_progress > 0.3f){
-            Vector2 plane = get_rotated_vector_90(player_data->ground_normal, -player_data->sword_spin_direction);
+        // if (player_data->sword_spin_progress > 0.3f){
+        //     Vector2 plane = get_rotated_vector_90(player_data->ground_normal, -player_data->sword_spin_direction);
             
-            f32 spin_t = player_data->sword_spin_progress;
-            f32 blood_t = player_data->blood_progress;
+        //     f32 spin_t = player_data->sword_spin_progress;
+        //     f32 blood_t = player_data->blood_progress;
             
-            f32 spin_acceleration = 400;
-            if (IsKeyDown(KEY_LEFT_SHIFT)){
-                spin_acceleration *= 3;
-            }
-            player_data->velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
-        }
+        //     f32 spin_acceleration = 400;
+        //     if (IsKeyDown(KEY_LEFT_SHIFT)){
+        //         spin_acceleration *= 3;
+        //     }
+        //     player_data->velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
+        // }
         
         player_data->timers.since_airborn_timer = 0;
     } else/* if (!in_climbing_state)*/{
+        f32 max_downwards_speed = -75;
+    
         if (player_data->velocity.y > 0 && player_data->timers.since_jump_timer <= 0.3f){ //so we make jump gravity
             f32 max_height_jump_time = 0.2f;
             f32 jump_t = clamp01(player_data->timers.since_jump_timer / max_height_jump_time);
             player_data->gravity_mult = lerp(3.0f, 1.0f, jump_t * jump_t * jump_t);
         } else{
             if (input.sum_direction.y < 0 && !player_data->in_stun){
-                player_data->gravity_mult = 5;
+                player_data->gravity_mult = 6;
+                max_downwards_speed = -150;
             } else{
                 player_data->gravity_mult = lerp(1.0f, 0.5f, player_data->sword_spin_progress * player_data->sword_spin_progress);
                 if (player_data->velocity.y > 0){
@@ -7400,12 +7448,13 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         
         if (!player_data->in_stun){
             player_air_move(player_entity, dt);
-            
         }
         player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
         
-        clamp(&player_data->velocity.y, -500, 500);
-        
+        if (player_data->velocity.y < max_downwards_speed){
+            player_data->velocity.y = lerp(player_data->velocity.y, max_downwards_speed, 30 * dt);
+        }
+         
         player_data->timers.since_airborn_timer += dt;
         
         if (player_data->sword_spin_progress > 0.3f){
@@ -7632,8 +7681,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->ground_point = col.point;
             
             if (!player_data->grounded && !just_grounded){
-                player_data->plane_vector = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
-                player_data->velocity = player_data->plane_vector * magnitude(player_data->velocity);
+                player_data->velocity_plane = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
+                player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
                 just_grounded = true;
                 
                 //heavy landing
@@ -11590,21 +11639,25 @@ void bake_lightmaps_if_need(){
         current_level_context->cam.view_position = lightmap_data->position;
         current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
         
+        drawing_state= LIGHTING_DRAWING;
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(Fade(BLACK, 0));
         BeginBlendMode(BLEND_ADDITIVE);
             ForEntities(entity, LIGHT){   
-                u64 static_light_source_flags = LIGHT | DUMMY;              
-                b32 allowed_additional_flags = DUMMY | GROUND;
-                if (entity->flags & LIGHT && entity->flags & allowed_additional_flags){
+                if (entity->flags & LIGHT){
                     Light *light = current_level_context->lights.get_ptr(entity->light_index);
-                    draw_game_triangle_strip(entity, Fade(light->color, sqrtf(light->opacity)));
-                    // draw_game_triangle_strip(entity, light->color);
+                    if (light->bake_shadows){
+                        if (entity->flags & TEXTURE){
+                            draw_game_texture(entity->texture, entity->position, entity->scale, entity->pivot, entity->rotation, Fade(light->color, sqrtf(light->opacity)));
+                        } else{
+                            draw_game_triangle_strip(entity, Fade(light->color, sqrtf(light->opacity)));
+                        }
+                    }
                 }
             }
             ForEntities(entity2, GROUND){   
-                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT){
+                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT || entity2->flags & LIGHT){
                     continue;
                 }
                 

@@ -626,12 +626,12 @@ struct Player{
     
     f32 max_ground_angle = 60;
     
-    f32 base_move_speed = 30.0f;  
-    f32 ground_acceleration = 30;
-    f32 ground_deceleration = 3;
-    f32 air_acceleration    = 15;
-    f32 air_deceleration    = 3;
-    f32 friction = 30;
+    f32 base_move_speed = 60.0f;  
+    f32 ground_acceleration = 60;
+    f32 ground_deceleration = 5;
+    f32 air_acceleration    = 45;
+    f32 air_deceleration    = 10;
+    f32 friction = 100;
     f32 jump_force = 80;
     f32 gravity = 100;
     f32 gravity_mult = 1;
@@ -649,7 +649,7 @@ struct Player{
     f32 blood_amount = 0;
     f32 blood_progress = 0;
     
-    Vector2 plane_vector = {0, 1};
+    Vector2 velocity_plane = {0, 1};
     Vector2 ground_normal = {0, 1};
     Vector2 ground_point = {0, 0};
     b32 grounded = false;
