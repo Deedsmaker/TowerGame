@@ -626,12 +626,13 @@ struct Player{
     
     f32 max_ground_angle = 60;
     
-    f32 base_move_speed = 60.0f;  
-    f32 ground_acceleration = 60;
-    f32 ground_deceleration = 5;
-    f32 air_acceleration    = 45;
-    f32 air_deceleration    = 10;
-    f32 friction = 100;
+    f32 walk_speed = 150.0f;  
+    f32 big_sword_walk_speed = 75;
+    f32 ground_acceleration = 400;
+    f32 ground_deceleration = 350;
+    f32 air_acceleration    = 400;
+    f32 air_deceleration    = 350;
+    // f32 friction = 100;
     f32 jump_force = 80;
     f32 gravity = 100;
     f32 gravity_mult = 1;

@@ -6654,19 +6654,19 @@ void rotate(Entity *entity, f32 rotation){
     rotate_to(entity, entity->rotation + rotation);
 }
 
-void player_apply_friction(Entity *entity, f32 max_move_speed, f32 dt){
-    f32 friction = player_data->friction;
-    if (input.sum_direction.y < 0){
-        friction *= 10;
-    }
+// void player_apply_friction(Entity *entity, f32 max_move_speed, f32 dt){
+//     f32 friction = player_data->friction;
+//     if (input.sum_direction.y < 0){
+//         friction *= 10;
+//     }
     
-    if (abs(player_data->velocity.x) > max_move_speed){
-        friction *= 2 + abs(player_data->velocity.x) / max_move_speed;
-    }
+//     if (abs(player_data->velocity.x) > max_move_speed){
+//         friction *= 2 + abs(player_data->velocity.x) / max_move_speed;
+//     }
     
-    f32 friction_force = friction * -normalized (player_data->velocity.x) * dt;
-    player_data->velocity.x += friction_force;
-}
+//     f32 friction_force = friction * -normalized (player_data->velocity.x) * dt;
+//     player_data->velocity.x += friction_force;
+// }
 
 void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 acceleration, f32 dt){
     f32 speed_in_wish_direction = dot(player_data->velocity, dir);
@@ -6687,76 +6687,90 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
 }
 
 void player_ground_move(Entity *entity, f32 dt){
-    f32 walk_speed = 70;
+    f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_walk_speed : player_data->walk_speed;
     Vector2 input_direction = input.sum_direction;
     
-    b32 spin_affecting_movement = player_data->sword_spin_progress > 0.3f;
-    
-    if (spin_affecting_movement){
-        Vector2 plane = get_rotated_vector_90(player_data->ground_normal, -player_data->sword_spin_direction);
-        
-        // f32 spin_t = player_data->sword_spin_progress;
-        // f32 blood_t = player_data->blood_progress;
-        
-        f32 spin_acceleration = 400;
-        
-        // player_data->velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
-        walk_speed = 200;
-    }
-    
-    b32 wanna_stop = input_direction.x == 0 || (spin_affecting_movement && input_direction.x * player_data->sword_spin_direction < 0);
+    b32 wanna_stop = input_direction.x == 0;
     
     Vector2 wish_walking_plane = get_rotated_vector_90(player_data->ground_normal, -input_direction.x);
     
     if (wanna_stop){
-        Vector2 deceleration_plane = get_rotated_vector_90(player_data->ground_normal, player_data->velocity.x);
-        wish_walking_plane = deceleration_plane;
+        f32 stopping_deceleration = player_data->ground_deceleration;
+        
+        Vector2 deceleration_plane = get_rotated_vector_90(player_data->ground_normal, normalized(player_data->velocity.x));
+        // wish_walking_plane = deceleration_plane;
+        
+        f32 speed_in_wish_plane = dot(deceleration_plane, player_data->velocity);
+        // f32 max_allowed_speed_difference = speed_in_
+        f32 speed_change = fminf(stopping_deceleration * dt, -speed_in_wish_plane);
+        player_data->velocity += deceleration_plane * speed_change;
+    } else{
+        // Vector2 wish_velocity = wish_walking_plane * walk_speed;
+        
+        f32 walking_acceleration = player_data->ground_acceleration;
+        
+        b32 walking_same_direction = input_direction.x != 0 && dot(wish_walking_plane, player_data->velocity_plane) > 0;
+        if (!walking_same_direction){
+            walking_acceleration *= 3;
+        }
+        
+        f32 speed_in_wish_plane = dot(wish_walking_plane, player_data->velocity);
+        
+        b32 speed_is_over_the_top = false;
+        if (speed_in_wish_plane >= walk_speed && input_direction.x * player_data->velocity.x > 0){
+            // walking_acceleration *= 0.01f;
+            speed_is_over_the_top = true;
+            // return;
+        }
+        
+        f32 max_allowed_speed_difference = walk_speed - speed_in_wish_plane;
+        
+        f32 speed_change = fminf(walking_acceleration * dt, max_allowed_speed_difference);
+        
+        player_data->velocity += wish_walking_plane * speed_change;
     }
-    
-    Vector2 wish_velocity = wish_walking_plane * walk_speed;
-    
-    f32 walking_acceleration = 400;
-    f32 stopping_deceleration = 250;
-    
-    // b32 walking_same_direction = input_direction.x != 0 && dot(wish_walking_plane, player_data->velocity_plane) > 0;
-    
-    f32 speed_in_wish_plane = dot(wish_walking_plane, player_data->velocity);
-    
-    if (speed_in_wish_plane >= walk_speed && input_direction.x * player_data->velocity.x > 0){
-        return;
-    }
-    
-    f32 acceleration = wanna_stop ? stopping_deceleration : walking_acceleration;
-    
-    f32 max_allowed_speed_difference = walk_speed - speed_in_wish_plane;
-    
-    f32 speed_change = fminf(acceleration * dt, max_allowed_speed_difference);
-    
-    player_data->velocity += wish_walking_plane * speed_change;
-    
-    // player_apply_friction(entity, max_move_speed, dt);
-    
-    // f32 acceleration = player_data->ground_acceleration;
-    // if (dot(player_data->velocity, input.sum_direction) <= 0){
-    //     acceleration = player_data->ground_deceleration;
-    //     if (input.sum_direction.y < 0){
-    //         acceleration *= 0.3f;
-    //     }
-    // }
-    
-    // f32 wish_speed = sqr_magnitude(input.sum_direction) * max_move_speed;
-    
-    // player_accelerate(entity, input.sum_direction, wish_speed, acceleration, dt);
 }
 
 void player_air_move(Entity *entity, f32 dt){
-    f32 max_move_speed = player_data->base_move_speed;
+    f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_walk_speed : player_data->walk_speed;
+    Vector2 input_direction = input.sum_direction;
     
-    f32 acceleration = dot(player_data->velocity, input.sum_direction) > 0 ? player_data->air_acceleration : player_data->air_deceleration;
+    b32 wanna_stop = input_direction.x == 0;
     
-    f32 wish_speed = sqr_magnitude(input.sum_direction) * max_move_speed;
+    f32 wish_direction = input_direction.x;
     
-    player_accelerate(entity, input.sum_direction, wish_speed, acceleration, dt);
+    if (wanna_stop){
+        f32 stopping_deceleration = player_data->air_deceleration;
+        
+        f32 deceleration_direction = -normalized(player_data->velocity.x);
+        
+        f32 speed_in_wish_direction = deceleration_direction * player_data->velocity.x;
+        // f32 max_allowed_speed_difference = speed_in_
+        f32 speed_change = fminf(stopping_deceleration * dt, -speed_in_wish_direction);
+        player_data->velocity.x += deceleration_direction * speed_change;
+    } else{
+        f32 walking_acceleration = player_data->air_acceleration;
+        
+        b32 walking_same_direction = input_direction.x != 0 && (wish_direction * player_data->velocity.x) > 0;
+        if (!walking_same_direction){
+            walking_acceleration *= 3;
+        }
+        
+        f32 speed_in_wish_direction = wish_direction * player_data->velocity.x;
+        
+        b32 speed_is_over_the_top = false;
+        if (speed_in_wish_direction >= walk_speed && input_direction.x * player_data->velocity.x > 0){
+            // walking_acceleration *= 0.01f;
+            speed_is_over_the_top = true;
+            // return;
+        }
+        
+        f32 max_allowed_speed_difference = walk_speed - speed_in_wish_direction;
+        
+        f32 speed_change = fminf(walking_acceleration * dt, max_allowed_speed_difference);
+        
+        player_data->velocity.x += wish_direction * speed_change;
+    }
 }
 
 void add_hitstop(f32 added, b32 can_go_over_limit){
@@ -7410,19 +7424,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         
         player_entity->position.y -= dt;
         player_data->velocity -= player_data->ground_normal * dt;
-        
-        // if (player_data->sword_spin_progress > 0.3f){
-        //     Vector2 plane = get_rotated_vector_90(player_data->ground_normal, -player_data->sword_spin_direction);
-            
-        //     f32 spin_t = player_data->sword_spin_progress;
-        //     f32 blood_t = player_data->blood_progress;
-            
-        //     f32 spin_acceleration = 400;
-        //     if (IsKeyDown(KEY_LEFT_SHIFT)){
-        //         spin_acceleration *= 3;
-        //     }
-        //     player_data->velocity += plane * lerp(0.0f, spin_acceleration, spin_t * spin_t) * dt;
-        // }
         
         player_data->timers.since_airborn_timer = 0;
     } else/* if (!in_climbing_state)*/{

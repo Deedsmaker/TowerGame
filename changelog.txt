@@ -1,3 +1,6 @@
+03.05.2025:
+    - Movement almost reworked.
+
 29.04.2025:
     - Lightmap debug view control improvements.
     - Added ability to have ground blocks as light on lightmap.
