@@ -89,6 +89,16 @@ Player death_player_data = {};
 
 Cam global_cam_data = {};
 
+void log_short(const char *str){
+    Log_Message *new_log = debug.log_messages_short.add({});
+    str_copy(new_log->data, str);
+    new_log->birth_time = core.time.app_time;
+}
+
+inline void log_short(f32 value){
+    log_short(text_format("%f", value));
+}
+
 void setup_context_cam(Level_Context *level_context){
     level_context->cam.width = global_cam_data.width;
     level_context->cam.height = global_cam_data.height;
@@ -7422,15 +7432,9 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     //player movement
     if (player_data->grounded && !player_data->in_stun && !player_data->on_propeller){
-        // if (input.hold_flags & DOWN){
-        //     in_climbing_state = true;
-        // }
-    
         player_ground_move(player_entity, dt);
         
         player_snap_to_plane(player_data->ground_normal);
-        // player_data->velocity_plane = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
-        // player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
         
         player_entity->position.y -= dt;
         player_data->velocity -= player_data->ground_normal * dt;
@@ -7871,9 +7875,9 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     b32 just_lost_ground_below_my_feet = player_data->grounded && !found_ground && player_data->timers.since_jump_timer >= 0.5f;
     if (just_lost_ground_below_my_feet && !on_propeller){
         Collision col = raycast(player_entity->position, Vector2_up * -1, player_entity->scale.y + ground_checker->scale.y * 2, player_ground_collision_flags, 0.2f, player_entity->id);
-        if (col.collided && dot(col.normal, player_data->ground_normal) >= 0.7f){
+        f32 old_new_normal_dot = dot(col.normal, player_data->ground_normal);
+        if (col.collided && col.normal != player_data->ground_normal && old_new_normal_dot >= 0.7f){
             found_ground = true;
-            // player_entity->position = col.point + col.normal * (player_entity->scale.y + ground_checker->scale.y);
             player_snap_to_plane(col.normal);
             player_data->velocity -= col.normal;
         }
@@ -11223,6 +11227,26 @@ void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 seg
     render.ring_lines_to_draw.add(ring);
 }
 
+void draw_debug_info(){
+    f32 add_vertical_position = screen_height * 0.03f;
+    f32 v = screen_height * 0.05f;
+    f32 h = screen_width * 0.35f;
+    for (i32 i = 0; i < debug.log_messages_short.count; i++){
+        Log_Message *log = debug.log_messages_short.get_ptr(i);
+        
+        f32 lifetime = core.time.app_time - log->birth_time;
+        
+        if (lifetime >= 3.0f){
+            debug.log_messages_short.remove(i);
+            i--;
+            continue;
+        }
+        
+        draw_text(log->data, {h, v}, 26, ColorBrightness(BROWN, 0.3f));
+        v += add_vertical_position;
+    }
+}
+
 void draw_immediate_stuff(){
     for (i32 i = 0; i < render.lines_to_draw.count; i++){
         Line line = render.lines_to_draw.get(i);
@@ -12147,6 +12171,8 @@ void draw_game(){
         }
         draw_immediate_stuff();
     } EndMode2D();
+    
+    draw_debug_info();
     
     if (state_context.we_got_a_winner){
         make_ui_text("Finale for now!\nNow you can try speedruns.\nOpen console with \"/\" (slash) button and type help.\ngame_speedrun for full game speedrun.\nlevel_speedrun for current level speedrun.\nfirst for loading first level\nnext for loading next level", {screen_width * 0.3f, screen_height * 0.2f}, 20, GREEN, "win_speedrun_text");

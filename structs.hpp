@@ -1296,6 +1296,11 @@ struct Editor{
     b32 draw_light_settings = false;
 };
 
+struct Log_Message{
+    char data[256] = "\0";  
+    f32 birth_time = -12;
+};
+
 struct Debug{
     f32 last_zoom = 0.35f;
 
@@ -1328,6 +1333,8 @@ struct Debug{
     b32 view_only_lightmaps = false;
     
     b32 dragging_player = false;
+    
+    Dynamic_Array<Log_Message> log_messages_short = Dynamic_Array<Log_Message>(32);
 };
 
 struct Console_Command{
