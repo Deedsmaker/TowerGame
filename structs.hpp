@@ -607,8 +607,8 @@ struct Player{
     
     struct Timers{
         f32 died_time = -12;
-        f32 jump_press_time = -12;
         f32 air_jump_press_time = -12;
+        f32 jump_press_time = -12;
         f32 wall_jump_time = -12;
         f32 since_jump_timer = 0;
         f32 since_airborn_timer = 0;
@@ -626,8 +626,11 @@ struct Player{
     
     f32 max_ground_angle = 60;
     
-    f32 walk_speed = 150.0f;  
-    f32 big_sword_walk_speed = 75;
+    // f32 max_speed_multiplier = 1.0f;
+    f32 ground_walk_speed = 225.0f;  
+    f32 air_walk_speed = 150.0f;  
+    f32 big_sword_ground_walk_speed = 300.0f;
+    f32 big_sword_air_walk_speed = 250.0f;
     f32 ground_acceleration = 400;
     f32 ground_deceleration = 350;
     f32 air_acceleration    = 400;
@@ -646,7 +649,10 @@ struct Player{
     Vector2 heavy_collision_velocity = Vector2_zero;
     
     Vector2 sword_start_scale = {1.5f, 6};
+    
     b32 is_sword_big = false;
+    f32 big_sword_start_time = -12;
+    
     f32 blood_amount = 0;
     f32 blood_progress = 0;
     

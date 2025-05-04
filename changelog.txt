@@ -1,3 +1,7 @@
+04.05.2025:
+    - Movement reworked, big sword now enables for time on mouse button and gives speed boost. Need to make levels to see how that really should work.
+    - Removed wall climbing for now. We'll see what we could add for vertical movement.
+
 03.05.2025:
     - Movement almost reworked.
 
