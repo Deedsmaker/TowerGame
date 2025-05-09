@@ -1,6 +1,7 @@
 09.05.2025:
     - Movements improvements. Speed limits for more control and for cooler big sword activation.
     - Wall vertical boost for nicer movement.
+    - Propellers reworked. Now they just keep player in claws (without spin requirement) before propeller ends. That at least gives us options to test some level ideas, whereas if player could leave them - that's just nothing new, because player will be able to gain vertical places (for example) with different things.
 
 04.05.2025:
     - Movement reworked, big sword now enables for time on mouse button and gives speed boost. Need to make levels to see how that really should work.

@@ -7508,16 +7508,18 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     local_persist f32 timer_since_on_wall = 0;
     f32 allowed_time_on_wall_without_pushing_back = 0.5f;
     
+    // We're giving a vertical boost on entering wall collision for nicer movement. 
+    // After some time on wall we're starting to push player away from wall because with current movement player could just climb
+    // any inclined wall without that.
+    
     // player left wall
     fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
     for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
         Collision col = collisions_buffer.get(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)){
-            // f32 allowed_boost = clamp(wall_vertical_boost - player_data->velocity.y, 0, wall_vertical_boost);
             player_data->velocity.y = wall_vertical_boost;
             player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
-            log_short("GIGING THAT");
         } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
             player_data->velocity += col.normal - Vector2_up;
         }
@@ -7531,10 +7533,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         Collision col = collisions_buffer.get(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)){
-            // f32 allowed_boost = clamp(wall_vertical_boost - player_data->velocity.y, 0, wall_vertical_boost);
             player_data->velocity.y = wall_vertical_boost;
             player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
-            log_short("GIGING THAT");
         } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
             player_data->velocity += col.normal - Vector2_up;
         }
@@ -7698,36 +7698,19 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         //triggers
         if (other->flags & PROPELLER){
             // update propeller
-            if (player_data->sword_spin_progress > EPSILON){
-                on_propeller = true;
-                Vector2 acceleration_dir = other->up;
-                Vector2 deceleration_plane = other->right;
-                
-                f32 power_t = player_data->sword_spin_progress;
-                
-                Vector2 to_player = player_entity->position - other->position;
-                
-                f32 power_progress = power_t * power_t * power_t;
-                if (other->propeller.spin_sensitive){
-                    power_progress = sqrtf(power_t);
-                }
-                
-                f32 deceleration_power = lerp(0.0f, 300.0f, power_progress);
-                f32 acceleration_power = lerp(0.0f, other->propeller.power, power_progress);
-                
-                f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
-                
-                f32 damping_factor = lerp(0.0f, 10.0f, power_progress);
-                
-                player_data->velocity += deceleration_plane * deceleration_power * deceleration_sign * dt;
-                player_data->velocity *= 1.0f - (damping_factor * dt);
-                player_data->velocity += acceleration_dir * acceleration_power * dt;
-                
-                f32 new_dot = dot(deceleration_plane, player_data->velocity);
-                if (new_dot * deceleration_sign < 0){
-                    player_data->velocity += deceleration_plane * deceleration_sign * -1.0f * new_dot * dt;
-                }
-            }
+            
+            // We're keeping propellers to push player and keeping him in claws before propeller end for now, because that
+            // gives us some room for some things to *make* player do and if player can just leave propeller - this thing literally 
+            // don't do anything interesting.
+            on_propeller = true;
+            Vector2 acceleration_dir = other->up;
+            Vector2 deceleration_plane = other->right;
+            
+            Vector2 to_player = player_entity->position - other->position;
+            
+            f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
+            
+            player_data->velocity = lerp(player_data->velocity, (other->up + deceleration_plane * deceleration_sign * 0.1f) * other->propeller.power, dt * 100);
             continue; 
         }
 
