@@ -616,6 +616,7 @@ struct Player{
         f32 rifle_activate_time = 0;
         f32 rifle_shoot_time = 0;
         f32 last_bullet_shot_time = -12;
+        f32 wall_enter_vertical_boost_time = -12;
     };
     
     Timers timers = {};
@@ -630,7 +631,7 @@ struct Player{
     f32 ground_walk_speed = 225.0f;  
     f32 air_walk_speed = 150.0f;  
     f32 big_sword_ground_walk_speed = 300.0f;
-    f32 big_sword_air_walk_speed = 250.0f;
+    f32 big_sword_air_walk_speed = 300.0f;
     f32 ground_acceleration = 400;
     f32 ground_deceleration = 350;
     f32 air_acceleration    = 400;
@@ -648,7 +649,8 @@ struct Player{
     f32 heavy_collision_time = 0;
     Vector2 heavy_collision_velocity = Vector2_zero;
     
-    Vector2 sword_start_scale = {1.5f, 6};
+    Vector2 sword_start_scale = {3.0f, 12.0f};
+    Vector2 big_sword_scale = {9.0f, 36.0f};
     
     b32 is_sword_big = false;
     f32 big_sword_start_time = -12;

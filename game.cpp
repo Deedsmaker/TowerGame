@@ -3066,12 +3066,12 @@ Entity *add_player_entity(Player *data){
     ground_checker->color = Fade(PURPLE, 0.8f);
     ground_checker->draw_order = 31;
     
-    Entity *left_wall_checker = add_entity(new_player_entity->position - new_player_entity->right * new_player_entity->scale.x * 0.5f, {new_player_entity->scale.x * 0.9f, new_player_entity->scale.y * 0.9f}, {0.5f, 0.5f}, 0, 0); 
+    Entity *left_wall_checker = add_entity(new_player_entity->position - new_player_entity->right * new_player_entity->scale.x * 0.5f + Vector2_up * new_player_entity->scale.y * 0.65f, {new_player_entity->scale.x * 0.6f, new_player_entity->scale.y * 0.1f}, {0.5f, 0.5f}, 0, 0); 
     left_wall_checker->collision_flags = GROUND;
     left_wall_checker->color = Fade(PURPLE, 0.8f);
     left_wall_checker->draw_order = 31;
     
-    Entity *right_wall_checker = add_entity(new_player_entity->position + new_player_entity->right * new_player_entity->scale.x * 0.5f, {new_player_entity->scale.x * 0.9f, new_player_entity->scale.y * 0.9f}, {0.5f, 0.5f}, 0, 0); 
+    Entity *right_wall_checker = add_entity(new_player_entity->position + new_player_entity->right * new_player_entity->scale.x * 0.5f + Vector2_up * new_player_entity->scale.y * 0.65f, {new_player_entity->scale.x * 0.6f, new_player_entity->scale.y * 0.1f}, {0.5f, 0.5f}, 0, 0); 
     right_wall_checker->collision_flags = GROUND;
     right_wall_checker->color = Fade(PURPLE, 0.8f);
     right_wall_checker->draw_order = 31;
@@ -6758,7 +6758,10 @@ void player_air_move(Entity *entity, f32 dt){
         if (speed_in_wish_direction >= walk_speed && input_direction.x * player_data->velocity.x > 0){
             max_allowed_speed_difference = speed_in_wish_direction - walk_speed;
             wish_direction *= -1;
-            walking_acceleration *= 0.01f;
+            
+            f32 overspeed = speed_in_wish_direction - walk_speed;
+            f32 overspeed_t = clamp01(overspeed / 100.0f);
+            walking_acceleration = lerp(walking_acceleration * 0.01f, walking_acceleration, overspeed_t);
         }
         
         
@@ -7047,8 +7050,8 @@ inline void update_player_connected_entities_positions(Entity *player_entity){
     Entity *sword          = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.sword_entity_id);
     
     ground_checker->position     = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
-    left_wall_checker->position  = player_entity->position - player_entity->right * player_entity->scale.x * 1.5f;
-    right_wall_checker->position = player_entity->position + player_entity->right * player_entity->scale.x * 1.5f;
+    left_wall_checker->position  = player_entity->position - player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
+    right_wall_checker->position = player_entity->position + player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
     sword->position = player_entity->position;
 }
 
@@ -7074,7 +7077,9 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     f32 in_big_sword_time = core.time.game_time - player_data->big_sword_start_time;
     
-    if (in_big_sword_time > 1.0f){
+    f32 big_sword_max_time = 0.7f;
+    
+    if (in_big_sword_time > big_sword_max_time){
         if (input.press_flags & SPIN){
             player_data->big_sword_start_time = core.time.game_time;    
             // player_data->max_speed_multiplier = 2.0f;
@@ -7086,12 +7091,11 @@ void update_player(Entity *player_entity, f32 dt, Input input){
                 play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
             }
             player_data->is_sword_big = false;
-            
         }
                 
     }
     
-    if (in_big_sword_time <= 1.0f){
+    if (in_big_sword_time <= big_sword_max_time){
            
     } else{
     }
@@ -7103,7 +7107,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     player_data->in_stun = (/*in_strong_stun_time <= max_strong_stun_time || */in_weak_stun_time <= max_weak_stun_time);
     // player_data->in_stun = false;
     
-    Vector2 sword_target_size = player_data->sword_start_scale * (player_data->is_sword_big ? 6 : 1);
+    Vector2 sword_target_size = player_data->is_sword_big ? player_data->big_sword_scale : player_data->sword_start_scale;
     
     change_scale(sword, lerp(sword->scale, sword_target_size, dt * 5));
     
@@ -7127,28 +7131,18 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         chainsaw_emitter->enabled = false;
     }
     
-    f32 max_big_sword_speed = 3500;
-    f32 max_small_sword_speed = 5000;
+    f32 max_big_sword_speed = 8000;
+    f32 max_small_sword_speed = 2500;
     
-    // f32 spin_damping_factor = 0.8f;
-    // if (player_data->is_sword_big){
-    //     // We want damping be max when angular velocity is in boundaries, but if player manages to speed up big sword beyond - 
-    //     // we probably want to keep it a little bit.
-    //     f32 damping_t = clamp01((abs(player_data->sword_angular_velocity) - max_big_sword_speed) / max_small_sword_speed);
-    //     spin_damping_factor = lerp(20.0f, 5.0f, sqrtf(damping_t));
-    // }
-    // player_data->sword_angular_velocity *= 1.0f - (dt * spin_damping_factor);
-    
-    b32 can_sword_spin = !player_data->rifle_active && !player_data->in_stun;
+    Vector2 input_direction = input.sum_direction;
     
     f32 sword_max_spin_speed = player_data->is_sword_big ? max_big_sword_speed : max_small_sword_speed;
-    // was 5000
+    
+    b32 can_sword_spin = !player_data->rifle_active && !player_data->in_stun;
     if (can_sword_spin){
         f32 sword_spin_sense = player_data->is_sword_big ? 40 : 10; 
-        Vector2 input_direction = input.sum_direction;
         
         f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
-        // player_data->sword_angular_velocity += input_direction.x * sword_spin_sense * dt;
         
         player_data->sword_angular_velocity = lerp(player_data->sword_angular_velocity, wish_angular_velocity, dt * sword_spin_sense);
     }
@@ -7506,96 +7500,50 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     f32 time_since_wall_jump = core.time.game_time - player_data->timers.wall_jump_time;
     f32 player_speed = magnitude(player_data->velocity);
     
-    // Collision ceiling_collision = raycast(player_entity->position, Vector2_up, 4, GROUND, player_entity->id);
+    f32 time_since_wall_vertical_boost = core.time.game_time - player_data->timers.wall_enter_vertical_boost_time;
+    b32 hit_a_wall = false;
     
-    if (1/* || !ceiling_collision.collided*/){
-        // player left wall
-        fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-        for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
-            Collision col = collisions_buffer.get(i);
-            player_data->velocity += col.normal - Vector2_up;
-            break;
-            /*
-            Entity *other = col.other_entity;
-            assert(col.collided);
-            
-            if (time_since_air_jump_press <= player_data->wall_jump_buffer_time && time_since_wall_jump > 0.4f){
-                player_data->velocity += col.normal * player_data->jump_force;
-                player_data->timers.wall_jump_time = core.time.game_time;
-            }
-            
-            if (player_data->sword_spin_direction > 0){
-                break;
-            }
-            
-            if (other->flags & PLATFORM && dot(player_data->velocity, other->up) > 0){
-                continue;
-            }
-            
-            Vector2 plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -95);
-            f32 spin_t = player_data->sword_spin_progress;
-            
-            f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
-            if (player_speed <= 5){
-                acceleration *= 10;
-            }
-            
-            if (other->flags & PHYSICS_OBJECT){
-                other->physics_object.velocity -= (plane * acceleration * dt) / other->physics_object.mass;
-            }
-            
-            if (dot(plane, player_data->velocity) < 0){
-                acceleration *= 4;
-            }
-            
-            player_data->velocity += plane * acceleration * dt;
-            */
-        }
-        
-        // player right wall
-        fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-        for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
-            Collision col = collisions_buffer.get(i);
-            player_data->velocity += col.normal - Vector2_up;
-            break;
-            /*
-            Entity *other = col.other_entity;
-            assert(col.collided);
-            
-            if (time_since_air_jump_press <= player_data->wall_jump_buffer_time && time_since_wall_jump > 0.4f){
-                player_data->velocity += col.normal * player_data->jump_force;
-                player_data->timers.wall_jump_time = core.time.game_time;
-            }
-            
-            if (player_data->sword_spin_direction < 0){
-                break;
-            }
-            
-            if (other->flags & PLATFORM && dot(player_data->velocity, other->up) > 0){
-                continue;
-            }
-            
-            Vector2 plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -95);
-            f32 spin_t = player_data->sword_spin_progress;
-            
-            f32 acceleration = lerp(0.0f, wall_acceleration, spin_t * spin_t);
-            if (player_speed <= 5){
-                acceleration *= 10;
-            }
-            
-            if (other->flags & PHYSICS_OBJECT){
-                other->physics_object.velocity -= (plane * acceleration * dt) / other->physics_object.mass;
-            }
-            
-            if (dot(plane, player_data->velocity) < 0){
-                acceleration *= 4;
-            }
+    f32 wall_vertical_boost = 100;
     
-            player_data->velocity += plane * acceleration * dt;
-            */
-        }
+    local_persist f32 timer_since_on_wall = 0;
+    f32 allowed_time_on_wall_without_pushing_back = 0.5f;
+    
+    // player left wall
+    fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+    for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
+        Collision col = collisions_buffer.get(i);
         
+        if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)){
+            // f32 allowed_boost = clamp(wall_vertical_boost - player_data->velocity.y, 0, wall_vertical_boost);
+            player_data->velocity.y = wall_vertical_boost;
+            player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
+            log_short("GIGING THAT");
+        } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
+            player_data->velocity += col.normal - Vector2_up;
+        }
+        hit_a_wall = true;
+        break;
     }
+    
+    // player right wall
+    fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+    for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
+        Collision col = collisions_buffer.get(i);
+        
+        if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)){
+            // f32 allowed_boost = clamp(wall_vertical_boost - player_data->velocity.y, 0, wall_vertical_boost);
+            player_data->velocity.y = wall_vertical_boost;
+            player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
+            log_short("GIGING THAT");
+        } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
+            player_data->velocity += col.normal - Vector2_up;
+        }
+        hit_a_wall = true;
+        break;
+    }
+    
+    f32 wall_timer_modifier = hit_a_wall ? 1 : -1;
+    timer_since_on_wall = clamp(timer_since_on_wall + dt * wall_timer_modifier, 0.0f, allowed_time_on_wall_without_pushing_back);
     
     Vector2 last_collision_point = Vector2_zero;
     Vector2 last_collision_normal = Vector2_one;
@@ -11231,14 +11179,14 @@ void draw_debug_info(){
     f32 add_vertical_position = screen_height * 0.03f;
     f32 v = screen_height * 0.05f;
     f32 h = screen_width * 0.35f;
-    for (i32 i = 0; i < debug.log_messages_short.count; i++){
+    for (i32 i = debug.log_messages_short.count - 1; i >= 0; i--){
         Log_Message *log = debug.log_messages_short.get_ptr(i);
         
         f32 lifetime = core.time.app_time - log->birth_time;
         
         if (lifetime >= 3.0f){
             debug.log_messages_short.remove(i);
-            i--;
+            // i++;
             continue;
         }
         
