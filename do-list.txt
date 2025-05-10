@@ -1,4 +1,6 @@
-[ ] Think about how we'll control shooting and DO WE NEED IT ATALL.
+[ ] Death instinct cooldown broken again. Cooldown won't start when just duration ends without threat dies.
+[ ] We could not see anything behind blocks on lightmap, because it's all black. Not really sure how we should solve this, maybe it's just that we need glowing particles.
+[X] Think about how we'll control shooting and DO WE NEED IT ATALL.
 [X] Game logging.
 [ ] Think about how we can make centipede scraping easier. We could change velocity to go along segments for example.
 [ ] Should add something for traversing vertical and other spaces by attacking. Because I removed wall climibing, we'll see how it goes.
@@ -7,7 +9,7 @@
     [ ] Grid moving objects.
     [ ] Grid resizing objects.
     [ ] Returning vertices to base values.
-[ ] Reducing physics aspect for increasing control:
+[X] Reducing physics aspect for increasing control:
     [X] Little max vertical downward velocity. I think that will be good for controlling character. Of course need more tuning.
     [X] Limiting max horizontal velocity but increasing acceleration.
     [X] More sticking to ground. Maybe it's good enough, but we'll refine it later. After levels of course.

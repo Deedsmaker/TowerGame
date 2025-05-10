@@ -19,6 +19,7 @@ global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Arra
 // #define ForEntities(entityext_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+0))
 
 #define ForEntities(entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(current_level_context, 0, &entity, flags); index < current_level_context->entities.max_count && entity; index = next_entity_avaliable(current_level_context, index+1, &entity, flags)) 
+
 #define ForEntitiesInContext(context, entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(context, 0, &entity, flags); index < current_level_context->entities.max_count && entity; index = next_entity_avaliable(context, index+1, &entity, flags)) 
 
 #define ArrayOfStructsToDefaultValues(arr) for (i32 arr_index = 0; arr_index < arr.max_count; arr_index++){ (*arr.get_ptr(arr_index)) = {};}
@@ -2099,6 +2100,7 @@ void init_entity(Entity *entity){
         entity->enemy.sword_required_sticky_id = sticky_entity->id;
     }
     
+    // init propeller
     if (entity->flags & PROPELLER){
         // entity->emitters.clear();
         free_entity_particle_emitters(entity);
@@ -2109,8 +2111,8 @@ void init_entity(Entity *entity){
         if (air_emitter){
             air_emitter->position = entity->position;
             enable_emitter(air_emitter);
-            air_emitter->speed_multiplier    = entity->propeller.power / 50.0f;
-            air_emitter->count_multiplier    = entity->propeller.power / 50.0f;
+            air_emitter->speed_multiplier    = entity->propeller.power / 5.0f;
+            air_emitter->count_multiplier    = entity->propeller.power / 5.0f;
             air_emitter->lifetime_multiplier = (1.8f * (entity->scale.y / 120.0f)) / air_emitter->speed_multiplier;
             // air_emitter->spawn_radius        = entity->scale.x * 0.5f;
             air_emitter->spawn_offset = entity->up * entity->scale.y * 0.125f;
@@ -6682,7 +6684,10 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
 
 void player_ground_move(Entity *entity, f32 dt){
     f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
-    // walk_speed *= player_data->max_speed_multiplier;
+    
+    if (player_data->rifle_active){
+        walk_speed *= 0.5f;
+    }
     Vector2 input_direction = input.sum_direction;
     
     b32 wanna_stop = input_direction.x == 0;
@@ -6693,15 +6698,11 @@ void player_ground_move(Entity *entity, f32 dt){
         f32 stopping_deceleration = player_data->ground_deceleration;
         
         Vector2 deceleration_plane = get_rotated_vector_90(player_data->ground_normal, normalized(player_data->velocity.x));
-        // wish_walking_plane = deceleration_plane;
         
         f32 speed_in_wish_plane = dot(deceleration_plane, player_data->velocity);
-        // f32 max_allowed_speed_difference = speed_in_
         f32 speed_change = fminf(stopping_deceleration * dt, -speed_in_wish_plane);
         player_data->velocity += deceleration_plane * speed_change;
     } else{
-        // Vector2 wish_velocity = wish_walking_plane * walk_speed;
-        
         f32 walking_acceleration = player_data->ground_acceleration;
         
         b32 walking_same_direction = input_direction.x != 0 && dot(wish_walking_plane, player_data->velocity_plane) > 0;
@@ -6728,7 +6729,10 @@ void player_ground_move(Entity *entity, f32 dt){
 
 void player_air_move(Entity *entity, f32 dt){
     f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
-    // walk_speed *= player_data->max_speed_multiplier;
+    if (player_data->rifle_active){
+        walk_speed *= 0.5f;
+    }
+
     Vector2 input_direction = input.sum_direction;
     
     b32 wanna_stop = input_direction.x == 0;
@@ -6741,7 +6745,6 @@ void player_air_move(Entity *entity, f32 dt){
         f32 deceleration_direction = -normalized(player_data->velocity.x);
         
         f32 speed_in_wish_direction = deceleration_direction * player_data->velocity.x;
-        // f32 max_allowed_speed_difference = speed_in_
         f32 speed_change = fminf(stopping_deceleration * dt, -speed_in_wish_direction);
         player_data->velocity.x += deceleration_direction * speed_change;
     } else{
@@ -6763,7 +6766,6 @@ void player_air_move(Entity *entity, f32 dt){
             f32 overspeed_t = clamp01(overspeed / 100.0f);
             walking_acceleration = lerp(walking_acceleration * 0.01f, walking_acceleration, overspeed_t);
         }
-        
         
         f32 speed_change = fminf(walking_acceleration * dt, max_allowed_speed_difference);
         
@@ -7079,6 +7081,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     f32 big_sword_max_time = 0.7f;
     
+    // big sword
     if (in_big_sword_time > big_sword_max_time){
         if (input.press_flags & SPIN){
             player_data->big_sword_start_time = core.time.game_time;    
@@ -7093,11 +7096,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->is_sword_big = false;
         }
                 
-    }
-    
-    if (in_big_sword_time <= big_sword_max_time){
-           
-    } else{
     }
     
     f32 max_strong_stun_time = 2.0f;
@@ -7116,7 +7114,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     Vector2 vec_to_mouse = input.mouse_position - player_entity->position;
     Vector2 dir_to_mouse = normalized(vec_to_mouse);
     
-    if (input.press_flags & SPIN){
+    if (input.press_flags & (SPIN | SWORD_BIG)){
         player_data->rifle_active = false;
     }
     
@@ -7278,7 +7276,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     //rifle activate
     b32 spin_enough_for_shoot = 1 || player_data->sword_spin_progress >= 0.1f;
     b32 can_activate_rifle = !player_data->rifle_active && !can_shoot_rifle && spin_enough_for_shoot && player_data->can_shoot;
-    if (can_activate_rifle && input.press_flags & SHOOT){
+    if (can_activate_rifle && input.press_flags & (SHOOT )){
         player_data->rifle_active = true;
         
         add_explosion_light(player_entity->position, 50, 0.02f, 0.06f, ColorBrightness(GREEN, 0.3f));
@@ -7710,7 +7708,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             
             f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
             
-            player_data->velocity = lerp(player_data->velocity, (other->up + deceleration_plane * deceleration_sign * 0.1f) * other->propeller.power, dt * 100);
+            player_data->velocity = lerp(player_data->velocity, (other->up + deceleration_plane * deceleration_sign * 0.1f) * other->propeller.power, dt * 40);
             continue; 
         }
 

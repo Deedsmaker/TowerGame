@@ -1,3 +1,6 @@
+10.05.2025:
+    - Rifle controlling. We could move with that for now.
+
 09.05.2025:
     - Movements improvements. Speed limits for more control and for cooler big sword activation.
     - Wall vertical boost for nicer movement.

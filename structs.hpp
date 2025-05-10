@@ -650,7 +650,7 @@ struct Player{
     Vector2 heavy_collision_velocity = Vector2_zero;
     
     Vector2 sword_start_scale = {3.0f, 12.0f};
-    Vector2 big_sword_scale = {9.0f, 36.0f};
+    Vector2 big_sword_scale = {9.0f, 46.0f};
     
     b32 is_sword_big = false;
     f32 big_sword_start_time = -12;
@@ -1172,7 +1172,7 @@ enum Press_Flags{
     SPIN           = 1 << 3,
     SPIN_RELEASED  = 1 << 4,
     SWORD_BIG      = 1 << 5,
-    SHOOT_RELEASED = 1 << 6  
+    SHOOT_RELEASED = 1 << 6
 };
 
 struct Input{
