@@ -7057,9 +7057,13 @@ inline void update_player_connected_entities_positions(Entity *player_entity){
     sword->position = player_entity->position;
 }
 
+inline Vector2 get_move_plane(Vector2 normal, f32 move_dir){
+    return get_rotated_vector_90(normal, -normalized(move_dir));
+}
+
 inline void player_snap_to_plane(Vector2 normal){
     player_data->ground_normal = normal;
-    player_data->velocity_plane = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
+    player_data->velocity_plane = get_move_plane(player_data->ground_normal, player_data->velocity.x);
     player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
 }
 
@@ -7785,10 +7789,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         }
     } // end player body collisions
     
-    // player_data->on_propeller = on_propeller;
-    // if (on_propeller){
     player_data->on_propeller = on_propeller;
-    // }
     
     if (is_body_huge_collision_speed || is_ground_huge_collision_speed){
         if (tires_emitter){
@@ -7804,8 +7805,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     b32 just_lost_ground_below_my_feet = player_data->grounded && !found_ground && player_data->timers.since_jump_timer >= 0.5f;
     if (just_lost_ground_below_my_feet && !on_propeller){
         Collision col = raycast(player_entity->position, Vector2_up * -1, player_entity->scale.y + ground_checker->scale.y * 2, player_ground_collision_flags, 0.2f, player_entity->id);
-        f32 old_new_normal_dot = dot(col.normal, player_data->ground_normal);
-        if (col.collided && col.normal != player_data->ground_normal && old_new_normal_dot >= 0.7f){
+        // f32 old_new_normal_dot = dot(col.normal, player_data->ground_normal);
+        Vector2 next_velocity_plane = get_move_plane(col.normal, player_data->velocity.x);
+        f32 old_new_velocity_plane_dot = dot(next_velocity_plane, player_data->velocity_plane);
+        if (col.collided && col.normal != player_data->ground_normal && old_new_velocity_plane_dot >= 0.9f){
             found_ground = true;
             player_snap_to_plane(col.normal);
             player_data->velocity -= col.normal;

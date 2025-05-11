@@ -73,9 +73,30 @@ void get_surface(vec4 surface_color, out float emissive, out vec3 colour)
     // colour = vec3(1, 0, 0);
 }
 
+vec2 reflected_vector(vec2 vec, vec2 normal){
+    vec2 result = vec2(0);
+
+    float dot_product = dot(vec, normal);//(v.x*normal.x + v.y*normal.y); // Dot product
+
+    result.x = vec.x - (2.0f*normal.x)*dot_product;
+    result.y = vec.y - (2.0f*normal.y)*dot_product;
+
+    return result;
+}
+
+float sign(float num){
+    if (num > 0){
+        return 1;
+    }
+    return -1;
+}
+
 bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out vec3 mat_colour)
 {
     float current_dist = 0.0;
+    int bounce_count = 0;
+    mat_emissive = 0;    
+    mat_colour = vec3(0);
    
     for (int i = 0; i < u_max_raymarch_steps; i++){
         vec2 sample_point = origin + dir * current_dist;
@@ -93,7 +114,18 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
 
         if (distance_data.a == 0){
             // hit_pos = sample_point;
-            get_surface(emitters_occluders_data, mat_emissive, mat_colour);
+            float emissive = 0;
+            vec3 color = vec3(0);
+            get_surface(emitters_occluders_data, emissive, color);
+            
+            bounce_count += 1;
+            
+            emissive /= bounce_count;
+            color /= bounce_count;
+            
+            mat_emissive += emissive;
+            mat_colour   += color;
+            
             return true;
         }
 
@@ -112,7 +144,7 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
         current_dist += dist_to_surface;
    }
    
-   return false;
+   return bounce_count > 0;
 }
 
 

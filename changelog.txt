@@ -1,3 +1,6 @@
+11.05.2025:
+    - Movement improvements. Increased acceleration and made snapping to ground better.
+
 10.05.2025:
     - Rifle controlling. We could move with that for now.
 

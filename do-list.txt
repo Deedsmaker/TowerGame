@@ -1,3 +1,4 @@
+[ ] Make rifle to be separate entity from sword so that we really could not move without spinning. That could add more interesting things that we could do. 
 [ ] Death instinct cooldown broken again. Cooldown won't start when just duration ends without threat dies.
 [ ] We could not see anything behind blocks on lightmap, because it's all black. Not really sure how we should solve this, maybe it's just that we need glowing particles.
 [X] Think about how we'll control shooting and DO WE NEED IT ATALL.

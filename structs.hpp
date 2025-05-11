@@ -632,10 +632,10 @@ struct Player{
     f32 air_walk_speed = 150.0f;  
     f32 big_sword_ground_walk_speed = 300.0f;
     f32 big_sword_air_walk_speed = 300.0f;
-    f32 ground_acceleration = 400;
-    f32 ground_deceleration = 350;
-    f32 air_acceleration    = 400;
-    f32 air_deceleration    = 350;
+    f32 ground_acceleration = 600;
+    f32 ground_deceleration = 450;
+    f32 air_acceleration    = 600;
+    f32 air_deceleration    = 450;
     // f32 friction = 100;
     f32 jump_force = 80;
     f32 gravity = 100;
