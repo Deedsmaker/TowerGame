@@ -6693,9 +6693,6 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
 void player_ground_move(Entity *entity, f32 dt){
     f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
     
-    if (player_data->rifle_active){
-        walk_speed *= 0.5f;
-    }
     Vector2 input_direction = input.sum_direction;
     
     b32 wanna_stop = input_direction.x == 0;
@@ -6737,10 +6734,7 @@ void player_ground_move(Entity *entity, f32 dt){
 
 void player_air_move(Entity *entity, f32 dt){
     f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
-    if (player_data->rifle_active){
-        walk_speed *= 0.5f;
-    }
-
+    
     Vector2 input_direction = input.sum_direction;
     
     b32 wanna_stop = input_direction.x == 0;
@@ -7064,7 +7058,7 @@ inline void update_player_connected_entities_positions(Entity *player_entity){
     left_wall_checker->position  = player_entity->position - player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
     right_wall_checker->position = player_entity->position + player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
     sword->position = player_entity->position;
-    rifle->position = player_entity->position;
+    rifle->position = sword->position + sword->up * sword->scale.y;
 }
 
 inline Vector2 get_move_plane(Vector2 normal, f32 move_dir){
@@ -7126,12 +7120,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
     
-    Vector2 vec_to_mouse = input.mouse_position - player_entity->position;
+    Vector2 vec_to_mouse = input.mouse_position - rifle->position;
     Vector2 dir_to_mouse = normalized(vec_to_mouse);
-    
-    if (input.press_flags & (SPIN | SWORD_BIG)){
-        player_data->rifle_active = false;
-    }
     
     Particle_Emitter *chainsaw_emitter = get_particle_emitter(chainsaw_emitter_index);
     
@@ -7151,7 +7141,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     f32 sword_max_spin_speed = player_data->is_sword_big ? max_big_sword_speed : max_small_sword_speed;
     
-    b32 can_sword_spin = !player_data->rifle_active && !player_data->in_stun;
+    b32 can_sword_spin = !player_data->in_stun;
     if (can_sword_spin){
         f32 sword_spin_sense = player_data->is_sword_big ? 40 : 10; 
         
@@ -7174,7 +7164,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     i32 shoots_queued = 0;
     local_persist f32 shoot_press_time = -12;
     local_persist f32 rifle_in_machinegun_mode = false;
-    if (input.press_flags & SHOOT && player_data->rifle_active){
+    if (input.press_flags & SHOOT){
         shoot_press_time = core.time.game_time;
         shoots_queued += 1;
     }
@@ -7209,11 +7199,18 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     // player shoot
-    b32 can_shoot_rifle = player_data->rifle_active && (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
+    b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
     
     while (shoots_queued > 0){
+        if ((player_data->ammo_count <= 0 && !debug.infinite_ammo)){
+            play_sound("FailedRifleActivation", 0.4f);
+        }
+        
+        player_data->timers.rifle_shake_start_time = core.time.game_time;
+        emit_particles(&gunpowder_emitter, sword_tip, sword->up);
+    
         if (can_shoot_rifle){
-            Vector2 shoot_direction = sword->up;
+            Vector2 shoot_direction = rifle->up;
             
             if (rifle_in_machinegun_mode){
                 f32 max_spread = 20;
@@ -7275,11 +7272,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         shoots_queued -= 1;
     }
     
-    if (player_data->rifle_active){
-        change_up(sword, move_towards(sword->up, dir_to_mouse, 100, dt));        
-    } else{
-        player_data->rifle_perfect_shots_made = 0;
-    }
+    change_up(rifle, dir_to_mouse);        
     
     f32 time_since_shoot = core.time.game_time - player_data->timers.rifle_shoot_time;
     
@@ -7289,24 +7282,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     //rifle activate
-    b32 spin_enough_for_shoot = 1 || player_data->sword_spin_progress >= 0.1f;
-    b32 can_activate_rifle = !player_data->rifle_active && !can_shoot_rifle && spin_enough_for_shoot && player_data->can_shoot;
-    if (can_activate_rifle && input.press_flags & (SHOOT )){
-        player_data->rifle_active = true;
-        
-        add_explosion_light(player_entity->position, 50, 0.02f, 0.06f, ColorBrightness(GREEN, 0.3f));
-        
-        player_data->sword_angular_velocity = 0;
-        player_data->timers.rifle_activate_time = core.time.game_time;
-        
-        play_sound("RifleSwitch", 0.4f, 0.7f, 0.1f);
-    } else if (input.press_flags & SHOOT){
+    if (input.press_flags & SHOOT){
         // Failed to activate rifle.
-        if (!player_data->rifle_active || (player_data->ammo_count <= 0 && !debug.infinite_ammo)){
-            play_sound("FailedRifleActivation", 0.4f);
-        }
-        player_data->timers.rifle_shake_start_time = core.time.game_time;
-        emit_particles(&gunpowder_emitter, sword_tip, sword->up);
     }
     
     // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
@@ -10115,10 +10092,6 @@ inline void draw_sword(Entity *entity){
     draw_game_line(visual_entity.position, handle_end, visual_entity.scale.x * 0.2f, BLACK);
     
     draw_game_triangle_strip(&visual_entity);
-    
-    if (player_data->rifle_active){
-        draw_game_line_strip(&visual_entity, WHITE);
-    }
 }
 
 inline void draw_rifle(Entity *entity){
@@ -10138,9 +10111,7 @@ inline void draw_rifle(Entity *entity){
     
     draw_game_triangle_strip(&visual_entity);
     
-    if (player_data->rifle_active){
-        draw_game_line_strip(&visual_entity, WHITE);
-    }
+    draw_game_line_strip(&visual_entity, WHITE);
 }
 
 void draw_enemy(Entity *entity){
@@ -10595,7 +10566,7 @@ void draw_entity(Entity *e){
     }
     
     if (e->flags & RIFLE){
-        draw_rifle(e);
+        // draw_rifle(e);
     }
     
     if (e->flags & SHOOT_STOPER){
@@ -12213,13 +12184,9 @@ void draw_game(){
     
     // draw cursor
     if (game_state == GAME){
-        if (player_data->rifle_active){
-            draw_line(input.screen_mouse_position - Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position + Vector2_right * 10 + Vector2_up * 10, WHITE);
-            draw_line(input.screen_mouse_position + Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position - Vector2_right * 10 + Vector2_up * 10, WHITE);
-            draw_rect({input.screen_mouse_position.x - 2.5f, input.screen_mouse_position.y - 2.5f}, {5, 5}, GREEN);
-        } else{
-            draw_rect({input.screen_mouse_position.x - 5, input.screen_mouse_position.y - 5}, {10, 10}, RED);
-        }
+        draw_line(input.screen_mouse_position - Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position + Vector2_right * 10 + Vector2_up * 10, WHITE);
+        draw_line(input.screen_mouse_position + Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position - Vector2_right * 10 + Vector2_up * 10, WHITE);
+        draw_rect({input.screen_mouse_position.x - 2.5f, input.screen_mouse_position.y - 2.5f}, {5, 5}, GREEN);
     } else{
         draw_circle({input.screen_mouse_position.x, input.screen_mouse_position.y}, 20, Fade(RED, 0.1f));
         draw_rect({input.screen_mouse_position.x - 5, input.screen_mouse_position.y - 5}, {10, 10}, WHITE);

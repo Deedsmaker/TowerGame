@@ -1,5 +1,6 @@
 12.05.2025:
     - Made that in big sword boost vertical velocity goes go zero, so we move horizontally.
+    - Remade rifle. Now we don't need to go into rifle mode - we can just shoot from sword tip.
 
 11.05.2025:
     - Movement improvements. Increased acceleration and made snapping to ground better.
