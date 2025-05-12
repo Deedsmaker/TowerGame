@@ -256,7 +256,8 @@ enum Flags : u64{
     REPLAY_PLAYER       = 1 << 31
 };
 
-#define LONG_SPIN 1 << 32
+#define LONG_SPIN ((u64)1 << 32)
+#define RIFLE     ((u64)1 << 33)
 
 struct Physics_Object{
     b32 simulating = true;
@@ -627,6 +628,7 @@ struct Player{
     
     f32 max_ground_angle = 60;
     
+    
     // f32 max_speed_multiplier = 1.0f;
     f32 ground_walk_speed = 225.0f;  
     f32 air_walk_speed = 150.0f;  
@@ -662,6 +664,7 @@ struct Player{
     Vector2 ground_normal = {0, 1};
     Vector2 ground_point = {0, 0};
     b32 grounded = false;
+    b32 on_wall = false;
     
     b32 on_moving_object = false;
     Vector2 moving_object_velocity = Vector2_zero;
@@ -671,6 +674,7 @@ struct Player{
         i32 left_wall_checker_id = -1;
         i32 right_wall_checker_id = -1;
         i32 sword_entity_id = -1;
+        i32 rifle_entity_id = -1;
     };
     Connected_Entities_Ids connected_entities_ids = {};
     
@@ -690,7 +694,7 @@ struct Player{
     b32 sword_hit_ground = false;
     
     //Rifle
-    b32 rifle_active = false;
+    // b32 rifle_active = false;
     b32 rifle_perfect_shot_avaliable = false;
     f32 rifle_weak_speed = 800;
     f32 rifle_strong_speed = 1400;

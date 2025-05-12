@@ -264,7 +264,7 @@ void pick_vertices(Entity *entity){
     if (entity->flags & (SWORD)){
         add_sword_vertices(&entity->vertices, entity->pivot);
         add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
-    } else if (entity->flags & (BIRD_ENEMY | CENTIPEDE | PROJECTILE)){
+    } else if (entity->flags & (BIRD_ENEMY | CENTIPEDE | PROJECTILE | RIFLE)){
         add_prism_shaped_vertices(&entity->vertices, entity->pivot);
         add_prism_shaped_vertices(&entity->unscaled_vertices, entity->pivot);
     } else if (entity->flags & (JUMP_SHOOTER)){
@@ -3024,9 +3024,11 @@ void destroy_player(){
     player_entity->enabled   = false;
     
     assert(current_level_context->entities.has_key(player_data->connected_entities_ids.ground_checker_id));
-    current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.ground_checker_id)->destroyed = true;
+    get_entity_by_id(player_data->connected_entities_ids.ground_checker_id)->destroyed = true;
     assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
-    current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.sword_entity_id)->destroyed = true;
+    get_entity_by_id(player_data->connected_entities_ids.sword_entity_id)->destroyed = true;
+    assert(current_level_context->entities.has_key(player_data->connected_entities_ids.rifle_entity_id));
+    get_entity_by_id(player_data->connected_entities_ids.rifle_entity_id)->destroyed = true;
     
     player_entity = NULL;
 }
@@ -3084,10 +3086,16 @@ Entity *add_player_entity(Player *data){
     sword_entity->draw_order = 25;
     str_copy(sword_entity->name, "Player_Sword");
     
+    Entity *rifle_entity = add_entity(current_level_context->player_spawn_point, data->sword_start_scale * 0.5f, {0.5f, 1.0f}, 0, PURPLE, RIFLE);
+    rifle_entity->color   = PURPLE;
+    rifle_entity->draw_order = 24;
+    str_copy(rifle_entity->name, "Player_Rifle");
+    
     data->connected_entities_ids.ground_checker_id = ground_checker->id;
     data->connected_entities_ids.left_wall_checker_id = left_wall_checker->id;
     data->connected_entities_ids.right_wall_checker_id = right_wall_checker->id;
     data->connected_entities_ids.sword_entity_id = sword_entity->id;
+    data->connected_entities_ids.rifle_entity_id = rifle_entity->id;
     data->dead_man = false;
     
     data->timers = {};
@@ -7046,15 +7054,17 @@ void resolve_physics_collision(Vector2 *my_velocity, f32 my_mass, Vector2 *their
 }
 
 inline void update_player_connected_entities_positions(Entity *player_entity){
-    Entity *ground_checker = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.ground_checker_id);
-    Entity *left_wall_checker = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.left_wall_checker_id);
-    Entity *right_wall_checker = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.right_wall_checker_id);
-    Entity *sword          = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.sword_entity_id);
+    Entity *ground_checker     = get_entity_by_id(player_data->connected_entities_ids.ground_checker_id);
+    Entity *left_wall_checker  = get_entity_by_id(player_data->connected_entities_ids.left_wall_checker_id);
+    Entity *right_wall_checker = get_entity_by_id(player_data->connected_entities_ids.right_wall_checker_id);
+    Entity *sword              = get_entity_by_id(player_data->connected_entities_ids.sword_entity_id);
+    Entity *rifle              = get_entity_by_id(player_data->connected_entities_ids.rifle_entity_id);
     
     ground_checker->position     = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
     left_wall_checker->position  = player_entity->position - player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
     right_wall_checker->position = player_entity->position + player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
     sword->position = player_entity->position;
+    rifle->position = player_entity->position;
 }
 
 inline Vector2 get_move_plane(Vector2 normal, f32 move_dir){
@@ -7074,10 +7084,11 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         return;
     }
     
-    Entity *ground_checker = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.ground_checker_id);
-    Entity *left_wall_checker = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.left_wall_checker_id);
-    Entity *right_wall_checker = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.right_wall_checker_id);
-    Entity *sword          = current_level_context->entities.get_by_key_ptr(player_data->connected_entities_ids.sword_entity_id);
+    Entity *ground_checker     = get_entity_by_id(player_data->connected_entities_ids.ground_checker_id);
+    Entity *left_wall_checker  = get_entity_by_id(player_data->connected_entities_ids.left_wall_checker_id);
+    Entity *right_wall_checker = get_entity_by_id(player_data->connected_entities_ids.right_wall_checker_id);
+    Entity *sword              = get_entity_by_id(player_data->connected_entities_ids.sword_entity_id);
+    Entity *rifle              = get_entity_by_id(player_data->connected_entities_ids.rifle_entity_id);
     
     update_player_connected_entities_positions(player_entity);    
     
@@ -7460,7 +7471,14 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         if (!player_data->in_stun){
             player_air_move(player_entity, dt);
         }
-        player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
+        
+        // In air and in big sword mode we keeping velocity mostly horizontal for more control.
+        // This on wall check needs so that our wall boost system worked nice.
+        if (player_data->is_sword_big && !player_data->on_wall){
+            player_data->velocity.y = lerp(player_data->velocity.y, 0.0f, dt * 10);            
+        } else{
+            player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
+        }
         
         if (player_data->velocity.y < max_downwards_speed){
             player_data->velocity.y = lerp(player_data->velocity.y, max_downwards_speed, 30 * dt);
@@ -7543,6 +7561,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         hit_a_wall = true;
         break;
     }
+    
+    player_data->on_wall = hit_a_wall;
     
     f32 wall_timer_modifier = hit_a_wall ? 1 : -1;
     timer_since_on_wall = clamp(timer_since_on_wall + dt * wall_timer_modifier, 0.0f, allowed_time_on_wall_without_pushing_back);
@@ -10055,7 +10075,7 @@ Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt){
     return current;
 }
 
-void draw_player(Entity *entity){
+inline void draw_player(Entity *entity){
     assert(entity->flags & PLAYER);
     
     if (player_data->dead_man){
@@ -10086,32 +10106,35 @@ inline Vector2 get_perlin_in_circle(f32 speed, f32 seed1, f32 seed2){
     return {perlin_noise3_seed(core.time.game_time * speed, seed1, seed2, rnd(0, 10000)), perlin_noise3_seed(seed2, core.time.game_time * speed, seed1, rnd(0, 10000))};
 }
 
-void draw_sword(Entity *entity){
+inline void draw_sword(Entity *entity){
     assert(entity->flags & SWORD);
     
     Entity visual_entity = *entity;
     
+    Vector2 handle_end = visual_entity.position + visual_entity.up * visual_entity.scale.y * 0.2f;
+    draw_game_line(visual_entity.position, handle_end, visual_entity.scale.x * 0.2f, BLACK);
+    
+    draw_game_triangle_strip(&visual_entity);
+    
+    if (player_data->rifle_active){
+        draw_game_line_strip(&visual_entity, WHITE);
+    }
+}
+
+inline void draw_rifle(Entity *entity){
+    Entity visual_entity = *entity;
+    
     f32 time_since_shake = core.time.game_time - player_data->timers.rifle_shake_start_time;
     
-    if (0 && player_data->rifle_active){
-        f32 activated_time = core.time.game_time - player_data->timers.rifle_activate_time;
-        f32 activate_t = clamp01(activated_time / player_data->rifle_max_active_time);
-        
-        Vector2 perlin_rnd = {perlin_noise3(core.time.game_time * 30, 1, 2), perlin_noise3(1, core.time.game_time * 30, 3)};
-        
-        //visual_entity.position += rnd_in_circle() * lerp(0.2f, 1.3f, activate_t * activate_t);
-        visual_entity.position += perlin_rnd * lerp(0.2f, 1.3f, activate_t * activate_t);
-    } else if (time_since_shake <= 0.2f){
+    if (time_since_shake <= 0.2f){
         Vector2 perlin_rnd = {perlin_noise3(core.time.game_time * 30, 1, 2), perlin_noise3(1, core.time.game_time * 30, 3)};
         visual_entity.position += perlin_rnd * 1.8f;
     }
     
-    if (player_data->rifle_active){
-        visual_entity.color = ColorBrightness(GREEN, 0.3f);
-    }
+    visual_entity.color = ColorBrightness(GREEN, 0.3f);
     
-    Vector2 handle_end = visual_entity.position + visual_entity.up * visual_entity.scale.y * 0.2f;
-    draw_game_line(visual_entity.position, handle_end, visual_entity.scale.x * 0.2f, BLACK);
+    // Vector2 handle_end = visual_entity.position + visual_entity.up * visual_entity.scale.y * 0.2f;
+    // draw_game_line(visual_entity.position, handle_end, visual_entity.scale.x * 0.2f, BLACK);
     
     draw_game_triangle_strip(&visual_entity);
     
@@ -10569,6 +10592,10 @@ void draw_entity(Entity *e){
     if (e->flags & SWORD){
         // draw sword
         draw_sword(e);
+    }
+    
+    if (e->flags & RIFLE){
+        draw_rifle(e);
     }
     
     if (e->flags & SHOOT_STOPER){
