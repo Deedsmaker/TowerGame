@@ -7135,7 +7135,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     f32 max_big_sword_speed = 8000;
-    f32 max_small_sword_speed = 2500;
+    f32 max_small_sword_speed = 3000;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -7147,6 +7147,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         
         f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
         
+        if (core.time.time_scale < 1){
+            sword_spin_sense /= core.time.time_scale;
+            sword_spin_sense = fminf(sword_spin_sense, 60);
+        }
         player_data->sword_angular_velocity = lerp(player_data->sword_angular_velocity, wish_angular_velocity, dt * sword_spin_sense);
     }
     
@@ -7198,17 +7202,19 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         add_player_ammo(1, true);
     }
     
-    // player shoot
-    b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
-    
-    while (shoots_queued > 0){
+    if (input.press_flags & SHOOT){
         if ((player_data->ammo_count <= 0 && !debug.infinite_ammo)){
             play_sound("FailedRifleActivation", 0.4f);
         }
         
         player_data->timers.rifle_shake_start_time = core.time.game_time;
         emit_particles(&gunpowder_emitter, sword_tip, sword->up);
+    }
     
+    // player shoot
+    b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
+    
+    while (shoots_queued > 0){
         if (can_shoot_rifle){
             Vector2 shoot_direction = rifle->up;
             
@@ -7694,11 +7700,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             continue;
         }
         
-        //triggers
         if (other->flags & PROPELLER){
             // update propeller
             
-            // We're keeping propellers to push player and keeping him in claws before propeller end for now, because that
+            // We're keeping propellers to push player and keeping him in claws for now, because that
             // gives us some room for some things to *make* player do and if player can just leave propeller - this thing literally 
             // don't do anything interesting.
             on_propeller = true;
