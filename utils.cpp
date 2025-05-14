@@ -252,6 +252,11 @@ void fill_i32_from_string(u64 *int_ptr, char *str_data){
     *int_ptr = to_i32(str_data);
 }    
 
+void fill_u64_from_string(u64 *int_ptr, char *str_data){
+    assert(is_digit_or_minus(*str_data));
+    *int_ptr = to_u64(str_data);
+}
+
 void fill_b32_from_string(b32 *b32_ptr, char *str_data){
     assert(is_digit_or_minus(*str_data));
     *b32_ptr = to_i32(str_data);

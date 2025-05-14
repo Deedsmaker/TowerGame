@@ -249,10 +249,10 @@ void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
     vertices->get_ptr(3)->y += 0.15f;
 }
 
-void add_prism_shaped_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+void add_prism_shaped_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot, f32 narrowing = 0.3f){
     add_rect_vertices(vertices, pivot);
-    vertices->get_ptr(0)->x *= 0.3f;
-    vertices->get_ptr(1)->x *= 0.3f;
+    vertices->get_ptr(0)->x *= narrowing;
+    vertices->get_ptr(1)->x *= narrowing;
 }
 
 void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
@@ -264,9 +264,13 @@ void pick_vertices(Entity *entity){
     if (entity->flags & (SWORD)){
         add_sword_vertices(&entity->vertices, entity->pivot);
         add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
-    } else if (entity->flags & (BIRD_ENEMY | CENTIPEDE | PROJECTILE | RIFLE)){
-        add_prism_shaped_vertices(&entity->vertices, entity->pivot);
-        add_prism_shaped_vertices(&entity->unscaled_vertices, entity->pivot);
+    } else if (entity->flags & (BIRD_ENEMY | CENTIPEDE | PROJECTILE | RIFLE | HIT_BOOSTER)){
+        f32 narrowing = 0.3f;
+        if (entity->flags & HIT_BOOSTER){
+            narrowing = 0.1f;
+        }
+        add_prism_shaped_vertices(&entity->vertices, entity->pivot, narrowing);
+        add_prism_shaped_vertices(&entity->unscaled_vertices, entity->pivot, narrowing);
     } else if (entity->flags & (JUMP_SHOOTER)){
         add_upsidedown_vertices(&entity->vertices, entity->pivot);
         add_upsidedown_vertices(&entity->unscaled_vertices, entity->pivot);
@@ -1086,7 +1090,7 @@ b32 load_level(const char *level_name){
                 i += 4;
                 continue;
             } else if (str_equal(splitted_line.get(i).data, "flags")){
-                fill_i32_from_string(&entity_to_fill.flags, splitted_line.get(i+1).data);
+                fill_u64_from_string(&entity_to_fill.flags, splitted_line.get(i+1).data);
                 i++;
                 
                 if (entity_to_fill.flags & LIGHT){
@@ -1736,6 +1740,16 @@ void init_spawn_objects(){
     copy_entity(&shoot_stoper_object.entity, &shoot_stoper_entity);
     str_copy(shoot_stoper_object.name, shoot_stoper_entity.name);
     spawn_objects.add(shoot_stoper_object);
+    
+    Entity hit_booster_entity = Entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
+    hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
+    str_copy(hit_booster_entity.name, "hit_booster"); 
+    setup_color_changer(&hit_booster_entity);
+    
+    Spawn_Object hit_booster_object;
+    copy_entity(&hit_booster_object.entity, &hit_booster_entity);
+    str_copy(hit_booster_object.name, hit_booster_entity.name);
+    spawn_objects.add(hit_booster_object);
     
     // we use move sequence on jump shooter only to set jump points
     Entity jump_shooter_entity = Entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
@@ -6836,7 +6850,8 @@ void add_player_ammo(i32 amount, b32 full_ammo){
 }
 
 inline b32 is_sword_can_damage(){
-    return player_data->sword_spin_progress >= 0.12f;
+    // return player_data->sword_spin_progress >= 0.12f;
+    return true;
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity){
@@ -6894,6 +6909,12 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
     }
 
     if (is_sword_can_damage() && !player_data->in_stun && is_enemy_can_take_damage(enemy_entity)){
+        if (enemy_entity->flags & HIT_BOOSTER){
+            player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
+            player_data->timers.hit_booster_time = core.time.game_time;
+            return; 
+        }
+    
         if (!(enemy_entity->flags & TRIGGER) && enemy_entity->enemy.gives_ammo && !enemy_entity->enemy.dead_man){
             add_player_ammo(1, enemy_entity->enemy.gives_full_ammo);
             add_blood_amount(player_data, 10);
@@ -6915,7 +6936,7 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
         }
         
-        player_data->sword_angular_velocity += player_data->sword_spin_direction * 1400;
+        // player_data->sword_angular_velocity += player_data->sword_spin_direction * 1400;
         
         f32 max_speed_boost = 6 * player_data->sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
         f32 max_vertical_speed_boost = player_data->grounded ? 0 : 20;
@@ -6923,8 +6944,7 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             max_vertical_speed_boost *= 0.3f;   
         }
         f32 spin_t = player_data->sword_spin_progress;
-        player_data->velocity += Vector2_up   * lerp(0.0f, max_vertical_speed_boost, spin_t * spin_t)
-                         + Vector2_right * lerp(0.0f, max_speed_boost, spin_t * spin_t); 
+        player_data->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
                          
         if (was_alive_before_hit){
             add_hitstop(0.01f + hitstop_add);
@@ -7341,7 +7361,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
     
-    if (abs(player_data->sword_angular_velocity) > 10){ 
+    if (1 || abs(player_data->sword_angular_velocity) > 10){ 
         // Someone could enter sword on previous frame after this update so we'll check for that.
         
         rotate(sword, -1.0f * 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
@@ -7420,8 +7440,12 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         enable_emitter(player_data->stun_emitter_index);
     }
     
+    f32 since_hit_booster = core.time.game_time - player_data->timers.hit_booster_time;
+    
     //player movement
-    if (player_data->grounded && !player_data->in_stun && !player_data->on_propeller){
+    if (since_hit_booster <= 0.4f){
+        
+    } else if (player_data->grounded && !player_data->in_stun && !player_data->on_propeller){
         player_ground_move(player_entity, dt);
         
         player_snap_to_plane(player_data->ground_normal);
@@ -7433,10 +7457,12 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     } else/* if (!in_climbing_state)*/{
         f32 max_downwards_speed = -75;
     
-        if (player_data->velocity.y > 0 && player_data->timers.since_jump_timer <= 0.3f){ //so we make jump gravity
-            f32 max_height_jump_time = 0.2f;
-            f32 jump_t = clamp01(player_data->timers.since_jump_timer / max_height_jump_time);
-            player_data->gravity_mult = lerp(3.0f, 1.0f, jump_t * jump_t * jump_t);
+        if (player_data->velocity.y > 10/* && player_data->timers.since_jump_timer <= 0.3f*/){ //so we make jump gravity
+            // f32 max_height_jump_time = 0.2f;
+            // f32 jump_t = clamp01(player_data->timers.since_airborn_timer / max_height_jump_time);
+            // player_data->gravity_mult = lerp(3.0f, 1.0f, jump_t * jump_t * jump_t);
+            f32 t = player_data->velocity.y / 100.0f;
+            player_data->gravity_mult = lerp(1.0f, 3.0f, sqrtf(t));
         } else{
             if (input.sum_direction.y < 0 && !player_data->in_stun){
                 player_data->gravity_mult = 6;

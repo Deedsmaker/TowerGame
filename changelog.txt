@@ -1,4 +1,8 @@
-
+14.05.2025:
+    - Added hit boosters.
+    - Changed gravity multiplier while velocity.y is greater than 10 so we don't fly that high.
+    - Trying out that sword will always damage enemies, regardless of spin speed.
+    - Fixed bug when we saved entity flags as u64, but loading as i32. Added to_u64 to my_libs.
 
 12.05.2025:
     - Made that in big sword boost vertical velocity goes go zero, so we move horizontally.

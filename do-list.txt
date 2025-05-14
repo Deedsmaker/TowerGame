@@ -1,10 +1,12 @@
-[ ] Make rifle to be separate entity from sword so that we really could not move without spinning. That could add more interesting things that we could do. 
+[ ] Big sword charges, charges reload and blocks that give charges.
+[ ] We could make a win block to require spin on for some time.
+[X] Make rifle to be separate entity from sword so that we really could not move without spinning. That could add more interesting things that we could do. 
 [ ] Death instinct cooldown broken again. Cooldown won't start when just duration ends without threat dies.
 [ ] We could not see anything behind blocks on lightmap, because it's all black. Not really sure how we should solve this, maybe it's just that we need glowing particles.
 [X] Think about how we'll control shooting and DO WE NEED IT ATALL.
 [X] Game logging.
 [ ] Think about how we can make centipede scraping easier. We could change velocity to go along segments for example.
-[ ] Should add something for traversing vertical and other spaces by attacking. Because I removed wall climibing, we'll see how it goes.
+![ ] Should add something for traversing vertical and other spaces by attacking. Because I removed wall climibing, we'll see how it goes.
 [ ] Change jump shooter (or make new one) to not fly around, but really move by points and spam projectiles.
 [ ] Level editor:
     [ ] Grid moving objects.
@@ -49,7 +51,7 @@ There has been change in the game ideas during May of 2025, so next tasks may be
 [ ] Long spin modifier for enemies and make that in spin turorial so we REALLY and FOR SURE knew that player understood how to SPIN.
 [X] Don't allow shoot on first levels.
 [X] Multiselect. 
-[ ] Loading multiple levels and switching between. IMPORTANT to think about how we will copy entities from one level to another, because we can't allow them to keep their id. Also we need to think about multiselect and simplest problem that i can think of - when we will copy trigger he may be connected to other entities so if he was copied alone - we need to clear things that he cannot find, BUT when we copy him with multiselect - his connected entities will change their ids. If we know every such case - that should not be a big problem, but i don't know how much such things will occur.
+[X] Loading multiple levels and switching between. IMPORTANT to think about how we will copy entities from one level to another, because we can't allow them to keep their id. Also we need to think about multiselect and simplest problem that i can think of - when we will copy trigger he may be connected to other entities so if he was copied alone - we need to clear things that he cannot find, BUT when we copy him with multiselect - his connected entities will change their ids. If we know every such case - that should not be a big problem, but i don't know how much such things will occur.
 [ ] Link for triggers. So one triggers could fully copy other one and update it's settings accordingly. That will help for example in places where player could return to previous room and enter cam rails mode with proper points (and original trigger is in the beginning of that room). Also when we'll do cam blockers system - that trigger linking will be extremely important.
 [ ] Think about something that will make it bad in the moment to spin and player will be thinking of how he can dodge without insane speed or with accurate shots. Here may help this mechanic with spinning platforms that will depend on player sword spin. Actually many things from list in battle ideas and long terms will help with that. 
 [X] Jump shooters grow their particle emit rate constantly. Also jump shooters should die if they literally goes crashed by physics object. (Crushing by physics block maybe fixed, but dunno what about particle emit).
