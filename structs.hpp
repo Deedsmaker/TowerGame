@@ -625,7 +625,10 @@ struct Player{
         f32 last_bullet_shot_time = -12;
         f32 wall_enter_vertical_boost_time = -12;
         f32 hit_booster_time = -12;
+        f32 slowmo_timer = 0;
     };
+    
+    b32 in_slowmo = false;
     
     Timers timers = {};
     

@@ -3059,9 +3059,6 @@ void clean_up_scene(){
     state_context = {};
     checkpoint_trigger_id = -1;
     
-    //nockeckin do we need it?
-    // player_data = {};
-    
     session_context.speedrun_timer.paused = false;
     if (!session_context.speedrun_timer.game_timer_active){
         session_context.speedrun_timer.time = 0;        
@@ -3439,7 +3436,12 @@ void fixed_game_update(f32 dt){
     if (!is_in_death_instinct() || !is_death_instinct_threat_active()){
         f32 zoom_speed = game_state == GAME ? 3 : 10;
         Cam *cam = &current_level_context->cam;
-        cam->cam2D.zoom = lerp(cam->cam2D.zoom, cam->target_zoom, dt * zoom_speed);
+        
+        f32 zoom = cam->target_zoom;
+        if (core.time.time_scale <= 0.5f){
+            zoom *= 1.2f;
+        }
+        cam->cam2D.zoom = lerp(cam->cam2D.zoom, zoom, dt * zoom_speed);
         
         if (core.time.real_dt >= 0.4){
             cam->cam2D.zoom = cam->target_zoom;
@@ -3779,13 +3781,13 @@ void update_game(){
             f32 t = EaseOutQuint(distance_t);
             core.time.target_time_scale = lerp(0.6f, 0.02f, t * t);
             current_level_context->cam.position        = lerp(current_level_context->cam.position, lerp(current_level_context->cam.target, cam_position, t * t), core.time.real_dt * t * 5);
-            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t * t), core.time.real_dt * t * 5);;
+            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t * t), core.time.real_dt * t * 5);
         } else if (state_context.death_instinct.last_reason == SWORD_WILL_EXPLODE){
             f32 distance_t = (1.0f - clamp01(state_context.death_instinct.angle_till_explode / 150.0f));
             f32 t = EaseOutQuint(distance_t);
             core.time.target_time_scale = lerp(0.6f, 0.015f, t);
             current_level_context->cam.position        = lerp(current_level_context->cam.position, lerp(current_level_context->cam.target, cam_position, t), core.time.real_dt * t * 5);
-            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t), core.time.real_dt * t * 5);;
+            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t), core.time.real_dt * t * 5);
         } else{
             current_level_context->cam.position        = lerp(current_level_context->cam.position, cam_position, clamp01(core.time.real_dt * 5));
             current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, 0.55f, clamp01(core.time.real_dt * 5));
@@ -3823,7 +3825,15 @@ void update_game(){
         } 
         
         if (core.time.hitstop <= 0){
-            core.time.time_scale = core.time.target_time_scale;
+            if (IsKeyDown(KEY_LEFT_SHIFT) && core.time.target_time_scale > 0.4f){
+                core.time.time_scale = 0.25f;
+                player_data->timers.slowmo_timer = fminf(player_data->timers.slowmo_timer + core.time.real_dt, 10.0f);
+                player_data->in_slowmo = true;
+            } else{
+                core.time.time_scale = core.time.target_time_scale;
+                player_data->timers.slowmo_timer = fmaxf(player_data->timers.slowmo_timer - core.time.real_dt, 0);
+                player_data->in_slowmo = false;
+            }
         }
         
         if (core.time.debug_target_time_scale != 1 && (core.time.debug_target_time_scale < core.time.target_time_scale || core.time.hitstop <= 0)){
@@ -7141,8 +7151,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         chainsaw_emitter->enabled = false;
     }
     
-    f32 max_big_sword_speed = 8000;
-    f32 max_small_sword_speed = 2500;
+    f32 max_big_sword_speed = 4500;
+    f32 max_small_sword_speed = 2200;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -7407,10 +7417,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
                 if (ray_collision.collided){
                     continue;
                 }
-                if (start_death_instinct(collisions_buffer.get(0).other_entity, SWORD_WILL_EXPLODE)){
-                    // core.time.time_scale = 0.2f;
-                    // player_data->sword_angular_velocity *= 0.5f;
-                }
+                // if (start_death_instinct(collisions_buffer.get(0).other_entity, SWORD_WILL_EXPLODE)){
+                //     // core.time.time_scale = 0.2f;
+                //     // player_data->sword_angular_velocity *= 0.5f;
+                // }
                 
                 state_context.death_instinct.angle_till_explode = checked - instinct_step;
                 found_explosive = true;
@@ -7842,7 +7852,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     if (player_data->sword_hit_ground){
         enable_emitter(sword_tip_ground_emitter);
         f32 t = blood_t * spin_t;
-        sword_tip_ground_emitter->speed_multiplier = lerp(0.7f, 4.0f, t * t * t);;
+        sword_tip_ground_emitter->speed_multiplier = lerp(0.7f, 4.0f, t * t * t);
         sword_tip_ground_emitter->count_multiplier = lerp(0.45f, 1.0f, t * t * t);
     } else{
         sword_tip_ground_emitter->enabled = false;
@@ -8764,6 +8774,8 @@ void stop_death_instinct(){
 }
 
 b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards){
+    return false;
+
     b32 flying_towards = true;
     // @TODO: We definetely want to better check if enemy is flying towards. For example we can just simulate enemy some steps forward.
     if (check_if_flying_towards){
@@ -9986,7 +9998,7 @@ inline b32 update_entity(Entity *e, f32 dt){
         if (trail_emitter){
             trail_emitter->position = e->position - e->up * e->scale.y * 0.5f;
             if (!shooter->states.picking_point && shooter->velocity != Vector2_zero){
-                trail_emitter->direction = normalized(shooter->velocity * -1);;
+                trail_emitter->direction = normalized(shooter->velocity * -1);
             }
         }
         
@@ -9994,7 +10006,7 @@ inline b32 update_entity(Entity *e, f32 dt){
             if (flying_emitter){
                 flying_emitter->position  = e->position - e->up * e->scale.y * 0.5f;
                 if (shooter->velocity != Vector2_zero){
-                    flying_emitter->direction = normalized(shooter->velocity * -1);;
+                    flying_emitter->direction = normalized(shooter->velocity * -1);
                 }
             }
         }                
@@ -10982,13 +10994,16 @@ void draw_particles(){
 void draw_ui(const char *tag){
     // draw spin bar
     if (game_state == GAME){
-        f32 width = player_data->sword_spin_progress * screen_width * 0.5f;
-        f32 height = screen_height * 0.01f;
-        f32 opacity = lerp(0.2f, 0.8f, player_data->sword_spin_progress * player_data->sword_spin_progress);
-        if (player_data->sword_spin_direction > 0){
-            draw_rect({screen_width * 0.5f, 0}, {width, height}, {0, 0}, 0, Fade(SKYBLUE, opacity));
-        } else{
-            draw_rect({screen_width * 0.5f, 0}, {width, height}, {1, 0}, 0, Fade(PURPLE, opacity));
+        if (player_data->timers.slowmo_timer > 0){
+            f32 t = player_data->timers.slowmo_timer / 6.0f;
+            f32 opacity = lerp(0.0f, 1.0f, t * t);
+            f32 width = screen_width * 0.1f;
+            
+            Texture vignette = get_texture("SlowmoVignette");
+            Vector2 size = {(f32)screen_width / vignette.width, (f32)screen_height / vignette.height};
+            BeginBlendMode(BLEND_ADDITIVE);
+            draw_texture(vignette, {0, 0}, size, {0, 0}, 0, Fade(SKYBLUE, opacity));
+            EndBlendMode();
         }
     }
 
