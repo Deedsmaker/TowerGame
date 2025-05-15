@@ -658,7 +658,7 @@ struct Player{
     f32 heavy_collision_time = 0;
     Vector2 heavy_collision_velocity = Vector2_zero;
     
-    Vector2 sword_start_scale = {3.0f, 12.0f};
+    Vector2 sword_start_scale = {3.0f, 18.0f};
     Vector2 big_sword_scale = {9.0f, 46.0f};
     
     b32 is_sword_big = false;

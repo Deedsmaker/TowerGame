@@ -6850,8 +6850,7 @@ void add_player_ammo(i32 amount, b32 full_ammo){
 }
 
 inline b32 is_sword_can_damage(){
-    // return player_data->sword_spin_progress >= 0.12f;
-    return true;
+    return player_data->sword_spin_progress >= 0.05f;
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity){
@@ -6909,13 +6908,14 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
     }
 
     if (is_sword_can_damage() && !player_data->in_stun && is_enemy_can_take_damage(enemy_entity)){
+        b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
         if (enemy_entity->flags & HIT_BOOSTER){
             player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
             player_data->timers.hit_booster_time = core.time.game_time;
-            return; 
+            // return; 
         }
     
-        if (!(enemy_entity->flags & TRIGGER) && enemy_entity->enemy.gives_ammo && !enemy_entity->enemy.dead_man){
+        if (!(is_it_utility_enemy) && enemy_entity->enemy.gives_ammo && !enemy_entity->enemy.dead_man){
             add_player_ammo(1, enemy_entity->enemy.gives_full_ammo);
             add_blood_amount(player_data, 10);
         }
@@ -7140,8 +7140,11 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
     
-    Vector2 vec_to_mouse = input.mouse_position - rifle->position;
-    Vector2 dir_to_mouse = normalized(vec_to_mouse);
+    Vector2 rifle_tip_vec_to_mouse = input.mouse_position - rifle->position;
+    Vector2 rifle_tip_to_mouse = normalized(rifle_tip_vec_to_mouse);
+    
+    Vector2 sword_vec_to_mouse = input.mouse_position - sword->position;
+    Vector2 sword_to_mouse = normalized(sword_vec_to_mouse);
     
     Particle_Emitter *chainsaw_emitter = get_particle_emitter(chainsaw_emitter_index);
     
@@ -7155,7 +7158,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     f32 max_big_sword_speed = 8000;
-    f32 max_small_sword_speed = 3000;
+    f32 max_small_sword_speed = 2500;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -7231,6 +7234,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         emit_particles(&gunpowder_emitter, sword_tip, sword->up);
     }
     
+    change_up(rifle, rifle_tip_to_mouse);        
+
     // player shoot
     b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
     
@@ -7257,6 +7262,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->timers.rifle_shoot_time = core.time.game_time;
             
             enable_emitter(player_data->rifle_trail_emitter_index);
+            
+            if (player_data->sword_spin_progress < 0.5f){
+                change_up(sword, sword_to_mouse);
+            }
         } else if (input.press_flags & SHOOT){
             player_data->timers.rifle_shake_start_time = core.time.game_time;
             emit_particles(&gunpowder_emitter, sword_tip, sword->up);
@@ -7297,8 +7306,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         }
         shoots_queued -= 1;
     }
-    
-    change_up(rifle, dir_to_mouse);        
     
     f32 time_since_shoot = core.time.game_time - player_data->timers.rifle_shoot_time;
     
@@ -7700,10 +7707,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     Particle_Emitter *tires_emitter = get_particle_emitter(player_data->tires_emitter_index);
     if (is_ground_huge_collision_speed){
-        tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 2.0f);
+        tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 6.0f);
         SetMusicVolume(tires_theme, tires_volume);
     } else{
-        tires_volume = lerp(tires_volume, 0.0f, core.time.real_dt * 5.0f);
+        tires_volume = lerp(tires_volume, 0.0f, core.time.real_dt * 15.0f);
         SetMusicVolume(tires_theme, tires_volume);
     }
     
