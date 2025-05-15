@@ -99,6 +99,9 @@ void log_short(const char *str){
 inline void log_short(f32 value){
     log_short(text_format("%f", value));
 }
+inline void log_short(Vector2 value){
+    log_short(text_format("{%f, %f}", value.x, value.y));
+}
 
 void setup_context_cam(Level_Context *level_context){
     level_context->cam.width = global_cam_data.width;
@@ -1784,7 +1787,6 @@ void add_spawn_object_from_texture(Texture texture, char *name){
     spawn_objects.add(texture_object);
 }
 
-// manual textures 
 Texture spiral_clockwise_texture;
 Texture spiral_counterclockwise_texture;
 Texture hitmark_small_texture;
@@ -1841,10 +1843,10 @@ void load_textures(){
     }
     UnloadDirectoryFiles(textures);
     
-    missing_texture = get_texture("MissingTexture");
-    spiral_clockwise_texture = get_texture("vpravo");
+    missing_texture                 = get_texture("MissingTexture");
+    spiral_clockwise_texture        = get_texture("vpravo");
     spiral_counterclockwise_texture = get_texture("levo");
-    hitmark_small_texture = get_texture("hitmark_small");
+    hitmark_small_texture           = get_texture("hitmark_small");
 }
 
 inline void loop_entities(void (func)(Entity*)){
@@ -6911,12 +6913,7 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
 
     if (is_sword_can_damage() && !player_data->in_stun && is_enemy_can_take_damage(enemy_entity)){
         b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
-        if (enemy_entity->flags & HIT_BOOSTER){
-            player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
-            player_data->timers.hit_booster_time = core.time.game_time;
-            // return; 
-        }
-    
+        
         if (!(is_it_utility_enemy) && enemy_entity->enemy.gives_ammo && !enemy_entity->enemy.dead_man){
             add_player_ammo(1, enemy_entity->enemy.gives_full_ammo);
             add_blood_amount(player_data, 10);
@@ -6934,6 +6931,10 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
         } else if (enemy_entity->flags & JUMP_SHOOTER){
             sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
+        } else if (enemy_entity->flags & HIT_BOOSTER){
+            player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
+            player_data->timers.hit_booster_time = core.time.game_time;
+            enemy_entity->enemy.last_hit_time = core.time.game_time;
         } else{
             kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
         }
@@ -6959,6 +6960,29 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             play_sound("SwordHit2222", hit_position, 0.5f, 0.7f, 0.1f);
         } else{
             play_sound("SwordKill", hit_position, 0.5f);
+        }
+        
+        // sword hitmarks
+        {
+            Color hitmark_color = WHITE;
+            f32 hitmark_scale = 1;
+            b32 is_hitmark_follow = false;
+            
+            if (enemy_entity->flags & (CENTIPEDE_SEGMENT | TRIGGER | BIRD_ENEMY)){
+                is_hitmark_follow = true;
+            }
+            
+            if (enemy_entity->flags & EXPLOSIVE){
+                hitmark_scale += 2;
+                hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
+            }
+            
+            if (enemy_entity->flags & HIT_BOOSTER){
+                hitmark_scale += 1.5f;
+                hitmark_color = ColorBrightness(RED, 0.3f);
+            }
+            
+            add_hitmark(enemy_entity, is_hitmark_follow, hitmark_scale, hitmark_color); 
         }
     }
 }
@@ -8391,9 +8415,6 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 can_wait, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
     
-    f32 hitmark_scale = 1;
-    Color hitmark_color = WHITE;
-    
     if (!enemy_entity->enemy.dead_man){
         if (can_wait){
             if (enemy_entity->flags & EXPLOSIVE && core.time.app_time - state_context.timers.last_explosion_app_time < 0.01f){
@@ -8422,8 +8443,6 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         // explosive kill explosive
         if (enemy_entity->flags & EXPLOSIVE){
             state_context.timers.last_explosion_app_time = core.time.app_time;
-            hitmark_scale += 4;
-            hitmark_color = Fade(ColorBrightness(ORANGE, 0.3f), 0.8f);
             f32 explosion_radius = get_explosion_radius(enemy_entity);
             
             Particle_Emitter *explosion_emitter = &explosion_emitter_copy;
@@ -8507,14 +8526,6 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
             }
         } // kill explosive end
-        
-        b32 is_hitmark_follow = false;
-        
-        if (enemy_entity->flags & (CENTIPEDE_SEGMENT | TRIGGER)){
-            is_hitmark_follow = true;
-        }
-        
-        add_hitmark(enemy_entity, is_hitmark_follow, hitmark_scale, hitmark_color); 
     }
 }
 
@@ -8662,7 +8673,7 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale){
 }
 
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color tint){
-    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {10 * scale_multiplier, 10 * scale_multiplier}), {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
+    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
     hitmark->need_to_save = false;
     init_entity(hitmark);    
     change_color(hitmark, tint);
@@ -8675,6 +8686,7 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     hitmark->sticky_texture.birth_time       = core.time.game_time;
     hitmark->sticky_texture.should_draw_until_expires = true;
     hitmark->sticky_texture.max_distance     = 1000;
+    hitmark->sticky_texture.base_size = hitmark->scale;
 }
 
 Vector2 get_entity_velocity(Entity *entity){
@@ -10513,7 +10525,7 @@ void draw_entity(Entity *e){
             // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE){
                 if (e->sticky_texture.should_draw_texture){
-                    e->scale = (e->sticky_texture.base_size) / fminf(current_level_context->cam.cam2D.zoom, 0.35f); 
+                    change_scale(e, (e->sticky_texture.base_size) / fminf(current_level_context->cam.cam2D.zoom, 0.35f)); 
                     make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture.alpha));
                 }
             } else{

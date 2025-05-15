@@ -1,7 +1,9 @@
 15.05.2025:
     - Removed rifle entity. Now shooting works just through sword.
     - Now sword rotates to shoot direction.
-    - Made a infinite slowmo on shift key.
+    - Made infinite slowmo on shift key.
+    - Fixed hitmark scale bug.
+    - Now hit boosters don't die on hit again.
 
 14.05.2025:
     - Added hit boosters.
