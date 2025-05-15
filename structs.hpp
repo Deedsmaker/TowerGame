@@ -257,7 +257,6 @@ enum Flags : u64{
 };
 
 #define LONG_SPIN   ((u64)1 << 32)
-#define RIFLE       ((u64)1 << 33)
 #define HIT_BOOSTER ((u64)1 << 34)
 
 struct Physics_Object{
@@ -681,7 +680,6 @@ struct Player{
         i32 left_wall_checker_id = -1;
         i32 right_wall_checker_id = -1;
         i32 sword_entity_id = -1;
-        i32 rifle_entity_id = -1;
     };
     Connected_Entities_Ids connected_entities_ids = {};
     

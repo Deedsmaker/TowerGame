@@ -264,7 +264,7 @@ void pick_vertices(Entity *entity){
     if (entity->flags & (SWORD)){
         add_sword_vertices(&entity->vertices, entity->pivot);
         add_sword_vertices(&entity->unscaled_vertices, entity->pivot);
-    } else if (entity->flags & (BIRD_ENEMY | CENTIPEDE | PROJECTILE | RIFLE | HIT_BOOSTER)){
+    } else if (entity->flags & (BIRD_ENEMY | CENTIPEDE | PROJECTILE | HIT_BOOSTER)){
         f32 narrowing = 0.3f;
         if (entity->flags & HIT_BOOSTER){
             narrowing = 0.1f;
@@ -3041,8 +3041,6 @@ void destroy_player(){
     get_entity_by_id(player_data->connected_entities_ids.ground_checker_id)->destroyed = true;
     assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
     get_entity_by_id(player_data->connected_entities_ids.sword_entity_id)->destroyed = true;
-    assert(current_level_context->entities.has_key(player_data->connected_entities_ids.rifle_entity_id));
-    get_entity_by_id(player_data->connected_entities_ids.rifle_entity_id)->destroyed = true;
     
     player_entity = NULL;
 }
@@ -3100,16 +3098,10 @@ Entity *add_player_entity(Player *data){
     sword_entity->draw_order = 25;
     str_copy(sword_entity->name, "Player_Sword");
     
-    Entity *rifle_entity = add_entity(current_level_context->player_spawn_point, data->sword_start_scale * 0.5f, {0.5f, 1.0f}, 0, PURPLE, RIFLE);
-    rifle_entity->color   = PURPLE;
-    rifle_entity->draw_order = 24;
-    str_copy(rifle_entity->name, "Player_Rifle");
-    
     data->connected_entities_ids.ground_checker_id = ground_checker->id;
     data->connected_entities_ids.left_wall_checker_id = left_wall_checker->id;
     data->connected_entities_ids.right_wall_checker_id = right_wall_checker->id;
     data->connected_entities_ids.sword_entity_id = sword_entity->id;
-    data->connected_entities_ids.rifle_entity_id = rifle_entity->id;
     data->dead_man = false;
     
     data->timers = {};
@@ -7072,13 +7064,12 @@ inline void update_player_connected_entities_positions(Entity *player_entity){
     Entity *left_wall_checker  = get_entity_by_id(player_data->connected_entities_ids.left_wall_checker_id);
     Entity *right_wall_checker = get_entity_by_id(player_data->connected_entities_ids.right_wall_checker_id);
     Entity *sword              = get_entity_by_id(player_data->connected_entities_ids.sword_entity_id);
-    Entity *rifle              = get_entity_by_id(player_data->connected_entities_ids.rifle_entity_id);
     
     ground_checker->position     = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
     left_wall_checker->position  = player_entity->position - player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
     right_wall_checker->position = player_entity->position + player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
     sword->position = player_entity->position;
-    rifle->position = sword->position + sword->up * sword->scale.y;
+    // rifle->position = sword->position + sword->up * sword->scale.y;
 }
 
 inline Vector2 get_move_plane(Vector2 normal, f32 move_dir){
@@ -7102,7 +7093,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     Entity *left_wall_checker  = get_entity_by_id(player_data->connected_entities_ids.left_wall_checker_id);
     Entity *right_wall_checker = get_entity_by_id(player_data->connected_entities_ids.right_wall_checker_id);
     Entity *sword              = get_entity_by_id(player_data->connected_entities_ids.sword_entity_id);
-    Entity *rifle              = get_entity_by_id(player_data->connected_entities_ids.rifle_entity_id);
     
     update_player_connected_entities_positions(player_entity);    
     
@@ -7139,12 +7129,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     change_scale(sword, lerp(sword->scale, sword_target_size, dt * 5));
     
     Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
-    
-    Vector2 rifle_tip_vec_to_mouse = input.mouse_position - rifle->position;
-    Vector2 rifle_tip_to_mouse = normalized(rifle_tip_vec_to_mouse);
-    
-    Vector2 sword_vec_to_mouse = input.mouse_position - sword->position;
-    Vector2 sword_to_mouse = normalized(sword_vec_to_mouse);
     
     Particle_Emitter *chainsaw_emitter = get_particle_emitter(chainsaw_emitter_index);
     
@@ -7234,14 +7218,21 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         emit_particles(&gunpowder_emitter, sword_tip, sword->up);
     }
     
-    change_up(rifle, rifle_tip_to_mouse);        
-
     // player shoot
     b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
     
     while (shoots_queued > 0){
         if (can_shoot_rifle){
-            Vector2 shoot_direction = rifle->up;
+            Vector2 sword_vec_to_mouse = input.mouse_position - sword->position;
+            Vector2 sword_to_mouse = normalized(sword_vec_to_mouse);
+            change_up(sword, sword_to_mouse);
+            sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
+            
+            Vector2 sword_tip_vec_to_mouse = input.mouse_position - sword->position;
+            Vector2 sword_tip_to_mouse = normalized(sword_tip_vec_to_mouse);
+            
+            
+            Vector2 shoot_direction = sword_tip_to_mouse;
             
             if (rifle_in_machinegun_mode){
                 f32 max_spread = 20;
@@ -7263,9 +7254,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             
             enable_emitter(player_data->rifle_trail_emitter_index);
             
-            if (player_data->sword_spin_progress < 0.5f){
-                change_up(sword, sword_to_mouse);
-            }
         } else if (input.press_flags & SHOOT){
             player_data->timers.rifle_shake_start_time = core.time.game_time;
             emit_particles(&gunpowder_emitter, sword_tip, sword->up);
@@ -10601,10 +10589,6 @@ void draw_entity(Entity *e){
     if (e->flags & SWORD){
         // draw sword
         draw_sword(e);
-    }
-    
-    if (e->flags & RIFLE){
-        // draw_rifle(e);
     }
     
     if (e->flags & SHOOT_STOPER){
