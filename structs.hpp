@@ -256,9 +256,10 @@ enum Flags : u64{
     REPLAY_PLAYER       = 1 << 31
 };
 
-#define LONG_SPIN     ((u64)1 << 32)
-#define NO_MOVE_BLOCK ((u64)1 << 33)
-#define HIT_BOOSTER   ((u64)1 << 34)
+#define LONG_SPIN     (static_cast<u64>(1) << 32)
+#define NO_MOVE_BLOCK (static_cast<u64>(1) << 33)
+#define HIT_BOOSTER   (static_cast<u64>(1) << 34)
+#define MULTIPLE_HITS (static_cast<u64>(1) << 35)
 
 struct Physics_Object{
     b32 simulating = true;
@@ -287,6 +288,13 @@ struct Move_Point{
 
 struct Hit_Booster{
     f32 boost = 175;  
+};
+
+struct Multiple_Hits{
+    i32 made_hits = 0;
+    i32 required_hits = 10;
+    f32 seconds_to_regen = 5.0f;
+    f32 timer = 0;
 };
 
 struct Enemy{
@@ -334,9 +342,7 @@ struct Enemy{
     i32 alarm_emitter_index = -1;
     
     Hit_Booster hit_booster = {};
-    
-    // Sound_Handler *explosion_sound = NULL;
-    // Sound_Handler *big_explosion_sound = NULL;
+    Multiple_Hits multiple_hits = {};
 };
 
 struct Jump_Shooter{

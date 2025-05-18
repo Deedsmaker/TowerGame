@@ -4718,6 +4718,7 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
     #define INSPECTOR_UI_TOGGLE_FLAGS(text, tag, flags, flag, additional_action) { \
         make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
         if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, flags & flag, tag)){ \
+            log_short(flags); \
             flags ^= flag; \
             additional_action; \
         } \
@@ -4886,6 +4887,7 @@ void update_editor_ui(){
                 h_pos = 5;
             }
             
+            INSPECTOR_UI_TOGGLE_FLAGS("No move block: ", "no_move_block", selected->flags, NO_MOVE_BLOCK, ); 
             INSPECTOR_UI_TOGGLE_FLAGS("Move sequence: ", "entity_move_sequence", selected->flags, MOVE_SEQUENCE, );
             
             // move sequence inspector ui
@@ -5129,7 +5131,6 @@ void update_editor_ui(){
                 }
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Shoot blocker: ", "enemy_shoot_blocker", selected->flags, SHOOT_BLOCKER, init_entity(selected)); 
-                
                 if (selected->flags & SHOOT_BLOCKER){
                     h_pos = 25;
                     INSPECTOR_UI_TOGGLE("Shoot blocker immortal: ", "shoot_blocker_immortal", selected->enemy.shoot_blocker_immortal, init_entity(selected));
@@ -5137,13 +5138,14 @@ void update_editor_ui(){
                 }
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Sword size required: ", "enemy_sword_size_required", selected->flags, SWORD_SIZE_REQUIRED, init_entity(selected)); 
-
                 if (selected->flags & SWORD_SIZE_REQUIRED){
                     h_pos = 25;
                     INSPECTOR_UI_TOGGLE("Big (1) or small (0) killable: ", "enemy_big_or_small_killable", selected->enemy.big_sword_killable, init_entity(selected));
                 
                     h_pos = 5;
                 }
+                
+                INSPECTOR_UI_TOGGLE_FLAGS("Multiple hits: ", "enemy_multiple_hits", selected->flags, MULTIPLE_HITS, init_entity(selected)); 
             }
         
             make_ui_text(text_format("Ctrl+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
@@ -6682,20 +6684,6 @@ void rotate(Entity *entity, f32 rotation){
     rotate_to(entity, entity->rotation + rotation);
 }
 
-// void player_apply_friction(Entity *entity, f32 max_move_speed, f32 dt){
-//     f32 friction = player_data->friction;
-//     if (input.sum_direction.y < 0){
-//         friction *= 10;
-//     }
-    
-//     if (abs(player_data->velocity.x) > max_move_speed){
-//         friction *= 2 + abs(player_data->velocity.x) / max_move_speed;
-//     }
-    
-//     f32 friction_force = friction * -normalized (player_data->velocity.x) * dt;
-//     player_data->velocity.x += friction_force;
-// }
-
 void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 acceleration, f32 dt){
     f32 speed_in_wish_direction = dot(player_data->velocity, dir);
     
@@ -6729,8 +6717,8 @@ void player_ground_move(Entity *entity, f32 dt){
         Vector2 deceleration_plane = get_rotated_vector_90(player_data->ground_normal, normalized(player_data->velocity.x));
         
         f32 speed_in_wish_plane = dot(deceleration_plane, player_data->velocity);
-        f32 speed_change = fminf(stopping_deceleration * dt, -speed_in_wish_plane);
-        player_data->velocity += deceleration_plane * speed_change;
+        f32 speed_change        = fminf(stopping_deceleration * dt, -speed_in_wish_plane);
+        player_data->velocity  += deceleration_plane * speed_change;
     } else{
         f32 walking_acceleration = player_data->ground_acceleration;
         
@@ -6936,17 +6924,34 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         if (enemy_entity->flags & HIT_BOOSTER){
             player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
             player_data->timers.hit_booster_time = core.time.game_time;
-            enemy_entity->enemy.last_hit_time = core.time.game_time;
         }
         
-        if (enemy_entity->flags & BIRD_ENEMY){
-            sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
-        } else if (enemy_entity->flags & JUMP_SHOOTER){
-            sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
-        } else{
-            kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
+        // We also set this last hit variable in kill_enemy and stun_enemy, but as we see now we don't want to kill or stun 
+        // every enemy that take hit, so it have sense to set it where actual hit is delivered.
+        enemy_entity->enemy.last_hit_time = core.time.game_time;
+        
+        b32 can_kill = true;
+        
+        if (enemy_entity->flags & MULTIPLE_HITS){
+            Multiple_Hits *mod = &enemy_entity->enemy.multiple_hits;
+            mod->made_hits += 1;
+            // So he do not regen immediately after hit.
+            mod->timer = 0;
+            
+            if (mod->made_hits < mod->required_hits){
+                can_kill = false;
+            }
         }
         
+        if (can_kill){
+            if (enemy_entity->flags & BIRD_ENEMY){
+                sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
+            } else if (enemy_entity->flags & JUMP_SHOOTER){
+                sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
+            } else{
+                kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
+            }
+        }
         // player_data->sword_angular_velocity += player_data->sword_spin_direction * 1400;
         
         f32 max_speed_boost = 6 * player_data->sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
@@ -7618,7 +7623,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     b32 moving_object_detected = false;
     // player ground checker
-    FLAGS player_ground_collision_flags = GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PLATFORM | CENTIPEDE_SEGMENT;
+    FLAGS player_ground_collision_flags = GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK;
     fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
     b32 is_ground_huge_collision_speed = false;
     b32 found_no_move_block = false;
@@ -7752,7 +7757,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     // player body collision
-    fill_collisions(player_entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM);
+    fill_collisions(player_entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK);
     
     b32 is_body_huge_collision_speed = false;
     b32 on_propeller = false;
@@ -8567,7 +8572,9 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
     if (!check_for_last_hit_time){
         return true;
     }
-    b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= 0.2f;
+    
+    f32 immune_time = 0.2f;
+    b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= immune_time;
     return !recently_got_hit;
 }
 
@@ -8644,15 +8651,11 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         agro_enemy(enemy_entity);
     
         enemy->stun_start_time = core.time.game_time;
-        enemy->last_hit_time = core.time.game_time;
+        enemy->last_hit_time   = core.time.game_time;
         enemy->hits_taken++;
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
         
         if ((enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit) && !enemy->dead_man){
-            // f32 area_multiplier = serious ? 3 : 1;
-            // f32 count = serious ? 3 : 1;
-            // f32 speed = serious ? 3 : 1;
-            
             emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, 1, 1);
         
             enemy->dead_man = true;
@@ -9626,6 +9629,21 @@ inline b32 update_entity(Entity *e, f32 dt){
         update_bird_enemy(e, dt);
     }
     
+    // update multiple hits
+    if (e->flags & MULTIPLE_HITS){
+        Multiple_Hits *mod = &e->enemy.multiple_hits;
+        assert(mod->made_hits <= mod->required_hits && mod->made_hits >= 0);
+        if (mod->made_hits > 0 && mod->seconds_to_regen > 0){    
+            mod->timer += dt;
+            if (mod->timer >= mod->seconds_to_regen){
+                mod->timer -= mod->seconds_to_regen;              
+                mod->made_hits -= 1;
+            }
+        } else{
+            mod->timer = 0;
+        }
+    }
+    
     // update projectile
     if (e->flags & PROJECTILE){
         update_projectile(e, dt);
@@ -10321,6 +10339,18 @@ void fill_entities_draw_queue(){
                 
                 make_line(entity->position, target_position, attack_line_width, attack_line_color);
             }
+        }
+        
+        // always draw multiple hits
+        if (entity->flags & MULTIPLE_HITS){
+            f32 width = fmaxf(entity->scale.x * 0.5f, 10.0f);
+            f32 height = 5;
+            Vector2 position = entity->position - Vector2_up * 5 - Vector2_right * width * 0.5f;
+            draw_game_rect(position, {width, height}, {0, 0}, 0, Fade(BROWN, 0.9f));
+            
+            f32 progress = (f32)entity->enemy.multiple_hits.made_hits / (f32)entity->enemy.multiple_hits.required_hits;
+            width *= progress;
+            draw_game_rect(position, {width, height}, {0, 0}, 0, PINK);
         }
         
         // always draw move sequence
