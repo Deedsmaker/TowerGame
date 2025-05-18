@@ -1,3 +1,11 @@
+18.05.2025:
+    - No move block.
+    - Cleanups for light. Actually probably will rewrite how we init and store light, but there will be better time for that. When we'll rewrite entity system for examle.
+
+16.05.2025:
+    - Fixed bug that hit booster could be killed with player projectile.
+    - Also there was separate bug that killed booster by explosion.
+
 15.05.2025:
     - Removed rifle entity. Now shooting works just through sword.
     - Now sword rotates to shoot direction.

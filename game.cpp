@@ -483,10 +483,8 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
     }
     
     if (copy->light_index != -1){
-        // if (!keep_id){
         light_index = -1;
         init_entity_light(this, copy_level_context->lights.get_ptr(copy->light_index));        
-        // }
     }
     
     if (should_init_entity){
@@ -1569,6 +1567,16 @@ void init_spawn_objects(){
     str_copy(block_base_object.name, block_base_entity.name);
     spawn_objects.add(block_base_object);
     
+    Entity no_move_block_entity = Entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
+    no_move_block_entity.color = PURPLE;
+    str_copy(no_move_block_entity.name, "no_move_block"); 
+    setup_color_changer(&no_move_block_entity);
+    
+    Spawn_Object no_move_block_object;
+    copy_entity(&no_move_block_object.entity, &no_move_block_entity);
+    str_copy(no_move_block_object.name, no_move_block_entity.name);
+    spawn_objects.add(no_move_block_object);
+    
     Entity note_entity = Entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
     note_entity.color = Fade(WHITE, 0.7f);
     str_copy(note_entity.name, "note"); 
@@ -1963,21 +1971,15 @@ void copy_light(Light *dest, Light *src){
     dest->backshadows_rt = original_dest.backshadows_rt;
 }
 
-i32 init_entity_light(Entity *entity, Light *light_copy, b32 free_light){
+Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light){
     Light *new_light = NULL;
     
     //Means we will copy ourselves, maybe someone changed size or any other shit
     if (!light_copy && entity->light_index > -1){
         light_copy = current_level_context->lights.get_ptr(entity->light_index);
     } else if (!light_copy){
-        //lol
-        // *light_copy = {};
     }
     
-    // if (entity->light_index > -1 && current_level_context->lights.get(entity->light_index).exists){
-    //     return entity->light_index;
-    // }
-        
     if (free_light){
         free_entity_light(entity);
     }
@@ -1988,18 +1990,10 @@ i32 init_entity_light(Entity *entity, Light *light_copy, b32 free_light){
             entity->light_index = i;
             break;
         } else{
-            // assert(current_level_context->lights.get_ptr(i)->connected_entity_id != entity->id);
         }
     }
     if (new_light){
         if (light_copy){
-            // new_light->radius                 = light_copy->radius;            
-            // new_light->make_shadows           = light_copy->make_shadows;
-            // new_light->make_backshadows       = light_copy->make_backshadows;
-            // new_light->bake_shadows           = light_copy->bake_shadows;
-            // new_light->shadows_size_flags     = light_copy->shadows_size_flags;
-            // new_light->backshadows_size_flags = light_copy->backshadows_size_flags;
-            // *new_light = *light_copy;
             copy_light(new_light, light_copy);
         } else{
             *new_light = {};
@@ -2015,7 +2009,7 @@ i32 init_entity_light(Entity *entity, Light *light_copy, b32 free_light){
         print("WARNING: Could not found light to init new, everyting was consumed");
     }
     
-    return new_light ? entity->light_index : -1;
+    return new_light;
 }
 
 void init_entity(Entity *entity){
@@ -2051,11 +2045,23 @@ void init_entity(Entity *entity){
             explosive_light.make_shadows     = false;
             explosive_light.make_backshadows = false;
         }
-        init_entity_light(entity, &explosive_light, true);
-        Light *new_light = current_level_context->lights.get_ptr(entity->light_index);
-        new_light->radius = 120;
-        new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 1.0f);
-        new_light->power = 1.0f;
+        
+        Light *new_light = init_entity_light(entity, &explosive_light, true);
+        if (new_light){
+            new_light->radius = 120;
+            new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 1.0f);
+            new_light->power = 1.0f;
+        }
+    }
+    
+    // init no move block
+    if (entity->flags & NO_MOVE_BLOCK){
+        Light *new_light = init_entity_light(entity);
+        if (new_light){
+            new_light->color = entity->color;
+            new_light->bake_shadows = true;
+            new_light->opacity = 0.5f;
+        }
     }
     
     if (entity->flags & BLOCKER && game_state == GAME){
@@ -3439,13 +3445,13 @@ void fixed_game_update(f32 dt){
         f32 zoom_speed = game_state == GAME ? 3 : 10;
         Cam *cam = &current_level_context->cam;
         
-        f32 zoom = cam->target_zoom;
-        if (core.time.time_scale <= 0.5f){
-            zoom *= 1.2f;
+        f32 target_zoom = cam->target_zoom;
+        if (game_state == GAME && player_data->in_slowmo){
+            target_zoom *= 1.2f;
         }
-        cam->cam2D.zoom = lerp(cam->cam2D.zoom, zoom, dt * zoom_speed);
+        cam->cam2D.zoom = lerp(cam->cam2D.zoom, target_zoom, dt * zoom_speed);
         
-        if (core.time.real_dt >= 0.4){
+        if (core.time.real_dt >= 0.1){
             cam->cam2D.zoom = cam->target_zoom;
         }
     }
@@ -4736,10 +4742,10 @@ void update_editor_ui(){
     
     // move entity points hint
     if (editor.selected_entity || editor.multiselected_entities.count > 0){
-        if (IsKeyPressed(KEY_F10)){
+        if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_F3)){
             editor.move_entity_points = !editor.move_entity_points;
         }
-        make_ui_text(text_format("F10:\nMove entity points: %s", editor.move_entity_points ? "YES" : "NO"), {10, screen_height * 0.5f}, 30, Fade(GREEN, 0.6f), "move_entity_points_hint");
+        make_ui_text(text_format("Ctrl+F3:\nMove entity points: %s", editor.move_entity_points ? "YES" : "NO"), {10, screen_height * 0.5f}, 30, Fade(GREEN, 0.6f), "move_entity_points_hint");
     }
     
     Entity *selected = editor.selected_entity;
@@ -6713,7 +6719,7 @@ void player_ground_move(Entity *entity, f32 dt){
     
     Vector2 input_direction = input.sum_direction;
     
-    b32 wanna_stop = input_direction.x == 0;
+    b32 wanna_stop = input_direction.x == 0 || player_data->on_no_move_block;
     
     Vector2 wish_walking_plane = get_rotated_vector_90(player_data->ground_normal, -input_direction.x);
     
@@ -6927,14 +6933,16 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             particles_direction = get_particle_emitter(sword_tip_ground_emitter_index)->direction;
         }
         
+        if (enemy_entity->flags & HIT_BOOSTER){
+            player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
+            player_data->timers.hit_booster_time = core.time.game_time;
+            enemy_entity->enemy.last_hit_time = core.time.game_time;
+        }
+        
         if (enemy_entity->flags & BIRD_ENEMY){
             sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
         } else if (enemy_entity->flags & JUMP_SHOOTER){
             sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
-        } else if (enemy_entity->flags & HIT_BOOSTER){
-            player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
-            player_data->timers.hit_booster_time = core.time.game_time;
-            enemy_entity->enemy.last_hit_time = core.time.game_time;
         } else{
             kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
         }
@@ -7613,6 +7621,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     FLAGS player_ground_collision_flags = GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PLATFORM | CENTIPEDE_SEGMENT;
     fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
     b32 is_ground_huge_collision_speed = false;
+    b32 found_no_move_block = false;
     for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
@@ -7639,6 +7648,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)){
             try_sword_damage_enemy(other, col.point);
             continue;
+        }
+        
+        if (other->flags & NO_MOVE_BLOCK){
+            found_no_move_block = true;
         }
         
         if (other->flags & CENTIPEDE_SEGMENT){
@@ -7717,7 +7730,9 @@ void update_player(Entity *player_entity, f32 dt, Input input){
                 }
             }
         }
-    }
+    } // player ground checker end
+    
+    player_data->on_no_move_block = found_no_move_block;
     
     if (!moving_object_detected && player_data->on_moving_object){
         if (dot(player_data->moving_object_velocity, player_data->velocity) > magnitude(player_data->velocity)){
@@ -8412,8 +8427,21 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     }
 }
 
+inline b32 enemy_should_not_be_destroyed(Entity *entity){
+    u64 unkillable = entity->flags & HIT_BOOSTER;
+    if (unkillable){
+        return true;
+    }
+    
+    return false;
+}
+
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 can_wait, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
+    
+    if (enemy_should_not_be_destroyed(enemy_entity)){
+        return;
+    }
     
     if (!enemy_entity->enemy.dead_man){
         if (can_wait){
@@ -8558,6 +8586,10 @@ void agro_enemy(Entity *entity){
 }
 
 void destroy_enemy(Entity *entity){
+    if (enemy_should_not_be_destroyed(entity)){
+        return;
+    }
+
     entity->destroyed = true;
     
     if (entity->flags & SHOOT_STOPER){
@@ -8571,9 +8603,8 @@ void destroy_enemy(Entity *entity){
 }
 
 void add_fire_light_to_entity(Entity *entity){
-    i32 new_light_index = init_entity_light(entity, NULL, true);
-    if (new_light_index != -1){
-        Light *new_fire_light = current_level_context->lights.get_ptr(new_light_index);
+    Light *new_fire_light = init_entity_light(entity, NULL, true);
+    if (new_fire_light){
         new_fire_light->make_shadows = false;
         new_fire_light->make_backshadows = false;
         new_fire_light->shadows_size_flags = MEDIUM;

@@ -256,8 +256,9 @@ enum Flags : u64{
     REPLAY_PLAYER       = 1 << 31
 };
 
-#define LONG_SPIN   ((u64)1 << 32)
-#define HIT_BOOSTER ((u64)1 << 34)
+#define LONG_SPIN     ((u64)1 << 32)
+#define NO_MOVE_BLOCK ((u64)1 << 33)
+#define HIT_BOOSTER   ((u64)1 << 34)
 
 struct Physics_Object{
     b32 simulating = true;
@@ -672,8 +673,10 @@ struct Player{
     Vector2 velocity_plane = {0, 1};
     Vector2 ground_normal = {0, 1};
     Vector2 ground_point = {0, 0};
+    
     b32 grounded = false;
     b32 on_wall = false;
+    b32 on_no_move_block = false;
     
     b32 on_moving_object = false;
     Vector2 moving_object_velocity = Vector2_zero;

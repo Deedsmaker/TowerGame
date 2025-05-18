@@ -187,7 +187,7 @@ inline void free_entity_particle_emitters(Entity *entity);
 i32 add_note(const char *content);
 
 void init_light(Light *light);
-i32 init_entity_light(Entity *entity, Light *copy_light = NULL, b32 free_light = false);
+Light *init_entity_light(Entity *entity, Light *copy_light = NULL, b32 free_light = false);
 
 inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);

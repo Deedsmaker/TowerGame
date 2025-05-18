@@ -149,13 +149,13 @@ void print(const char *str){
     printf("%s; %.4f\n", str, core.time.app_time);
 }
 
-void print(b32 num){
-    if (num){
-        printf("true; %.4f\n", core.time.app_time);
-    } else{
-        printf("false; %.4f\n", core.time.app_time);
-    }
-}
+// void print(b32 num){
+//     if (num){
+//         printf("true; %.4f\n", core.time.app_time);
+//     } else{
+//         printf("false; %.4f\n", core.time.app_time);
+//     }
+// }
 
 void print(Dynamic_Array<Vector2> *arr){
     printf("[");
