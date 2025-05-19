@@ -1,3 +1,7 @@
+19.05.2025:
+    - Fixed bug with standing on enemies. There was a problem because we have code that disables collisions with enemies when we can hit them - because before we killed every enemy on hit and don't want to stamp upon him.
+    - Fixed bug with constantly spawning lights on hit to MULTIPLE_HITS. That was because we was drawing lights on every sticky entity that followed blocker or SWORD_SIZE_REQUIRED. Now we check for sticky texture to be immortal - then we make light.
+
 18.05.2025:
     - No move block.
     - Cleanups for light. Actually probably will rewrite how we init and store light, but there will be better time for that. When we'll rewrite entity system for examle.

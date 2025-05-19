@@ -6900,11 +6900,12 @@ b32 is_type(Entity *entity, FLAGS flags){
     return entity->flags & flags;
 }
 
-void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
+b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
     if (!can_sword_damage_enemy(enemy_entity)){
-        return;
+        return false;
     }
 
+    b32 killed_enemy = false;
     if (is_sword_can_damage() && !player_data->in_stun && is_enemy_can_take_damage(enemy_entity)){
         b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
         
@@ -6951,6 +6952,8 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             } else{
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
             }
+            
+            killed_enemy = true;
         }
         // player_data->sword_angular_velocity += player_data->sword_spin_direction * 1400;
         
@@ -6959,7 +6962,6 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         if (player_data->velocity.y > 0){
             max_vertical_speed_boost *= 0.3f;   
         }
-        f32 spin_t = player_data->sword_spin_progress;
         player_data->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
                          
         if (was_alive_before_hit){
@@ -6998,6 +7000,8 @@ void try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             add_hitmark(enemy_entity, is_hitmark_follow, hitmark_scale, hitmark_color); 
         }
     }
+    
+    return killed_enemy;
 }
 
 inline void cut_rope(Entity *entity, Vector2 point = Vector2_zero){
@@ -7651,8 +7655,9 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         }
         
         if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)){
-            try_sword_damage_enemy(other, col.point);
-            continue;
+            if (try_sword_damage_enemy(other, col.point)){
+                continue;
+            }
         }
         
         if (other->flags & NO_MOVE_BLOCK){
@@ -8457,9 +8462,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         }
     
         enemy_entity->enemy.stun_start_time = core.time.game_time;
-        enemy_entity->enemy.last_hit_time   = core.time.game_time;
-        // f32 count = player_data->is_sword_big ? 3 : 1;
-        // f32 area = player_data->is_sword_big ? 3 : 1;
+        // enemy_entity->enemy.last_hit_time   = core.time.game_time;
         emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, particles_speed_modifier, 1);
     
         enemy_entity->enemy.dead_man = true;
@@ -10474,7 +10477,9 @@ void fill_entities_draw_queue(){
         if (entity->flags & STICKY_TEXTURE){
             Sticky_Texture *st = &entity->sticky_texture;
             Entity *follow_entity = get_entity_by_id(entity->sticky_texture.follow_id);
-            if (follow_entity){
+            
+            // We make lights only for immortal sticky textures - like blocker sign.
+            if (follow_entity && st->max_lifetime <= 0){
                 if (follow_entity->flags & BLOCKER && st->should_draw_texture){
                     make_light(follow_entity->position, 75, 1, 1.0f, WHITE);
                 }
@@ -10484,23 +10489,23 @@ void fill_entities_draw_queue(){
                 }
             }
             
-            f32 lifetime = core.time.game_time - entity->sticky_texture.birth_time;
+            f32 lifetime = core.time.game_time - st->birth_time;
             f32 lifetime_t = 0.5f;
-            if (entity->sticky_texture.max_lifetime > EPSILON){
-                lifetime_t = lifetime / entity->sticky_texture.max_lifetime;
+            if (st->max_lifetime > EPSILON){
+                lifetime_t = lifetime / st->max_lifetime;
             }
         
-            if (entity->sticky_texture.draw_line && entity->sticky_texture.need_to_follow && player_entity){
-                Entity *follow_entity = current_level_context->entities.get_by_key_ptr(entity->sticky_texture.follow_id);
-                Color line_color = entity->sticky_texture.line_color;
-                if (follow_entity && follow_entity->flags & ENEMY && entity->sticky_texture.max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
+            if (st->draw_line && st->need_to_follow && player_entity){
+                Entity *follow_entity = current_level_context->entities.get_by_key_ptr(st->follow_id);
+                Color line_color = st->line_color;
+                if (follow_entity && follow_entity->flags & ENEMY && st->max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)){
                     line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
                 }
     
                 Vector2 vec_to_follow = entity->position - player_entity->position;
                 f32 len = magnitude(vec_to_follow);
-                if (len <= entity->sticky_texture.max_distance || entity->sticky_texture.max_distance <= 0){
-                    make_line(player_entity->position, entity->position, entity->sticky_texture.line_width, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
+                if (len <= st->max_distance || st->max_distance <= 0){
+                    make_line(player_entity->position, entity->position, st->line_width, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
                 }
             }
         }
@@ -10627,8 +10632,11 @@ void draw_entity(Entity *e){
         }
     }
     
+    if (e->flags & NO_MOVE_BLOCK){
+        make_outline(e->position, e->vertices, PURPLE);
+    }
+    
     if (e->flags & DOOR){
-        
         if (editor.selected_entity && editor.selected_entity->id == e->id){
             Vector2 previous_position = e->position;
             Vector2 target_position = e->door.is_open ? e->door.closed_position : e->door.open_position;
@@ -11581,34 +11589,6 @@ void old_render(){
             }; EndTextureMode();
         }
         
-        // if (light.make_shadows || light.make_backshadows){
-        //     BeginTextureMode(light.geometry_rt);{
-        //         ClearBackground(Fade(BLACK, 0));
-        //         current_level_context->cam = get_cam_for_resolution(light.geometry_size, light.geometry_size);
-        //         current_level_context->cam.position = light_position;
-        //         current_level_context->cam.view_position = light_position;
-        //         current_level_context->cam.cam2D.zoom = get_light_zoom(light.radius);
-        //         BeginMode2D(current_level_context->cam.cam2D);
-        //         BeginShaderMode(gaussian_blur_shader);
-        //             i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-        //             set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (light.geometry_size), (1.0f) / (light.geometry_size)});
-    
-        //             ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD){
-        //                 if (entity->hidden || should_not_draw_entity(entity, current_level_context->cam)){
-        //                     continue;
-        //                 }
-        //                 Color prev_color = entity->color;
-        //                 entity->color = BLACK;
-        //                 draw_entity(entity);
-        //                 entity->color = prev_color;
-        //             }
-        //             //draw_particles();
-        //         EndShaderMode();
-        //         EndMode2D();
-        //         current_level_context->cam = with_shake_cam;
-        //     }EndTextureMode();
-        // }
-            
         add_light_to_draw_queue(light);
     }
     
@@ -11737,11 +11717,15 @@ void bake_lightmaps_if_need(){
                 }
             }
             ForEntities(entity2, GROUND){   
-                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT || entity2->flags & LIGHT){
+                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT || entity2->flags & LIGHT || entity2->flags & MOVE_SEQUENCE){
                     continue;
                 }
                 
                 draw_game_triangle_strip(entity2, BLACK);
+                
+                if (entity2->flags & NO_MOVE_BLOCK){
+                    draw_game_line_strip(entity2->position, entity2->vertices, PURPLE);
+                }
             }
         EndBlendMode();
         EndMode2D();
@@ -12127,10 +12111,7 @@ void new_render(){
                 local_persist i32 light_texture_loc       = get_shader_location(smooth_edges_shader, "light_texture");
                 local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
                 
-                Vector4 color = ColorNormalize(Fade(light.color, light.opacity * 0.5f));
-                // color.x *= light.power;
-                // color.y *= light.power;
-                // color.z *= light.power;
+                Vector4 color = ColorNormalize(Fade(light.color, light.opacity));
                 set_shader_value_color(smooth_edges_shader, light_color_loc, color);
                 set_shader_value(smooth_edges_shader, light_power_loc, light.power);
                 set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);

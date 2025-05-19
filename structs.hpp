@@ -293,7 +293,7 @@ struct Hit_Booster{
 struct Multiple_Hits{
     i32 made_hits = 0;
     i32 required_hits = 10;
-    f32 seconds_to_regen = 5.0f;
+    f32 seconds_to_regen = 2.5f;
     f32 timer = 0;
 };
 

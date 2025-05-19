@@ -3,9 +3,9 @@
 [ ] Think about smoke that can be dispersed with sword.
 [ ] Big sword charges, charges reload and blocks that give charges.
 [X] Block where we don't move with spinning.
-    [ ] Problems stand - if we made enemy no move block and multiple hits - we somehow pass through him after hit.
+    [X] Problems stand - if we made enemy no move block and multiple hits - we somehow pass through him after hit.
 [X] We could make a win block to require spin on for some time. 
-    [ ] Problem noticed with big red thing that required small sword - it spams blue light on hit that fades with time.
+    [X] Problem noticed with big red thing that required small sword - it spams blue light on hit that fades with time.
 [X] Make rifle to be separate entity from sword so that we really could not move without spinning. That could add more interesting things that we could do. 
 [ ] Death instinct cooldown broken again. Cooldown won't start when just duration ends without threat dies.
 [ ] We could not see anything behind blocks on lightmap, because it's all black. Not really sure how we should solve this, maybe it's just that we need glowing particles.
