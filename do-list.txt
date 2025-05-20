@@ -1,3 +1,4 @@
+[ ] Bomber that drops bombs. Simplest idea with him is that he's flying left-right and below is blocks that we need to spin on.
 [ ] Enemies that on slowmo will do something like spawn smoke or speed up.
 [ ] Will need to do hub level for all levels. Levels will work as such - On each one player have exactly 5 (?) tries to 'oneshoot' it. If he do - he gets some kind of currency. If not - infinite tries, but without more rewards. Ammo pack is one for the whole game, so that thing should encourage people to spend ammo to get the reward.
 [ ] Think about smoke that can be dispersed with sword.
@@ -231,11 +232,12 @@ There has been change in the game ideas during May of 2025, so next tasks may be
 
 <Level ideas>
 ///////////////////////////////////////////////////
+[ ] Level with *multiple* MULTIPLE_HITS in a row and each one uncovers more enemies, but we chased by a wall of death.
 [X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
 [X] Big bomb in the middle and static camera. There should probably be multiple single-screen arenas or we could think about spawning bombs, but i don't think it's good. Also there should be flying blocks that will protect us.
 [X] Tutorial for gravity increase - spikes above
 [X] Cool physics rope block introduction with static camera where we need to cut it and go down
-[ ] Ascending level (spikes go from below) where in parts we need to climb centipedes (and there's no real blocks). 
+[\?] Ascending level (spikes go from below) where in parts we need to climb centipedes (and there's no real blocks). 
 [ ] One-screen survival level
 [X] Small fast centipedes with full spikes on
 [ ] Big centipedes without spikes that will act like a bridge. That may be escaping sequence, where we'll need to hop on centipedes, rope blocks etc.

@@ -1469,7 +1469,7 @@ global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dyn
 
 global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
 
-#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED)
+#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | MULTIPLE_HITS)
 
 Entity *spawn_object_by_name(const char* name, Vector2 position){
     for (i32 i = 0; i < spawn_objects.count; i++){
@@ -4718,7 +4718,6 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
     #define INSPECTOR_UI_TOGGLE_FLAGS(text, tag, flags, flag, additional_action) { \
         make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
         if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, flags & flag, tag)){ \
-            log_short(flags); \
             flags ^= flag; \
             additional_action; \
         } \
@@ -6848,7 +6847,7 @@ void add_player_ammo(i32 amount, b32 full_ammo){
 }
 
 inline b32 is_sword_can_damage(){
-    return player_data->sword_spin_progress >= 0.05f;
+    return player_data->sword_spin_progress >= 0.5f;
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity){
@@ -7026,7 +7025,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity, Player *pl
                 player->velocity = player->velocity * -0.5f;
                 emit_particles(&rifle_bullet_emitter, col.point, col.normal, 3, 5);
                 set_sword_velocity(normalized(-player->sword_angular_velocity) * 150);
-                player->weak_recoil_stun_start_time = core.time.app_time;
+                player->weak_recoil_stun_start_time = core.time.game_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
                 // changed pitch from 0.5f and changed sound from 0.4f
@@ -7171,7 +7170,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     f32 max_strong_stun_time = 2.0f;
     f32 max_weak_stun_time = 0.3f;
     // f32 in_strong_stun_time = core.time.game_time - player_data->strong_recoil_stun_start_time;
-    f32 in_weak_stun_time   = core.time.app_time - player_data->weak_recoil_stun_start_time;
+    f32 in_weak_stun_time   = core.time.game_time - player_data->weak_recoil_stun_start_time;
     player_data->in_stun = (/*in_strong_stun_time <= max_strong_stun_time || */in_weak_stun_time <= max_weak_stun_time);
     // player_data->in_stun = false;
     
@@ -7809,8 +7808,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         }
         
         if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)){
-            try_sword_damage_enemy(other, col.point);
-            continue;
+            if (try_sword_damage_enemy(other, col.point))
+            {
+                continue;
+            }
         }
         
         if (other->flags & CENTIPEDE_SEGMENT){
@@ -8577,6 +8578,9 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
     }
     
     f32 immune_time = 0.2f;
+    if (enemy_entity->flags & MULTIPLE_HITS){
+        immune_time = 0.078f;
+    }
     b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= immune_time;
     return !recently_got_hit;
 }
