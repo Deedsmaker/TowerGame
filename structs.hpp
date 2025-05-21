@@ -256,10 +256,11 @@ enum Flags : u64{
     REPLAY_PLAYER       = 1 << 31
 };
 
-#define LONG_SPIN     (static_cast<u64>(1) << 32)
-#define NO_MOVE_BLOCK (static_cast<u64>(1) << 33)
-#define HIT_BOOSTER   (static_cast<u64>(1) << 34)
-#define MULTIPLE_HITS (static_cast<u64>(1) << 35)
+#define LONG_SPIN              (static_cast<u64>(1) << 32)
+#define NO_MOVE_BLOCK          (static_cast<u64>(1) << 33)
+#define HIT_BOOSTER            (static_cast<u64>(1) << 34)
+#define MULTIPLE_HITS          (static_cast<u64>(1) << 35)
+#define GIVES_BIG_SWORD_CHARGE (static_cast<u64>(1) << 36)
 
 struct Physics_Object{
     b32 simulating = true;
@@ -670,7 +671,7 @@ struct Player{
     Vector2 sword_start_scale = {3.0f, 18.0f};
     Vector2 big_sword_scale = {9.0f, 46.0f};
     
-    b32 is_sword_big = false;
+    b32 in_big_sword = false;
     f32 big_sword_start_time = -12;
     
     f32 blood_amount = 0;
@@ -700,9 +701,10 @@ struct Player{
     b32 on_propeller = false;
     
     //Sword
-    f32 sword_rotation_speed = 5.0f;
-    
     b32 is_sword_will_hit_explosive = false;
+    
+    i32 max_big_sword_charges = 3;
+    i32 current_big_sword_charges = 3;
     
     f32 sword_spin_direction = 0;
     f32 sword_angular_velocity = 0;  
@@ -711,34 +713,15 @@ struct Player{
     b32 sword_hit_ground = false;
     
     //Rifle
-    // b32 rifle_active = false;
-    b32 rifle_perfect_shot_avaliable = false;
-    f32 rifle_weak_speed = 800;
-    f32 rifle_strong_speed = 1400;
-    f32 rifle_max_active_time = 3.0f;
-    
-    i32 rifle_perfect_shots_made = 0;
-    i32 rifle_max_perfect_shots = 3;
-    
     i32 ammo_count = 0;
-    i32 ammo_charges = 0;
-    i32 ammo_charges_for_count = 5;
+    i32 ammo_segments_collected = 0;
+    i32 ammo_segments_for_count = 5;
     
-    // f32 strong_recoil_stun_start_time = -190321;
     f32 weak_recoil_stun_start_time = -12;
     b32 in_stun = false;
     
-    f32 current_move_speed = 0;
-    
     i32 rifle_trail_emitter_index = -1;
     i32 tires_emitter_index = -1;
-    
-    // Sound_Handler *rifle_hit_sound    = NULL;
-    // Sound_Handler *player_death_sound = NULL;
-    // Sound_Handler *sword_kill_sound   = NULL;
-    // Sound_Handler *sword_block_sound  = NULL;
-    // Sound_Handler *bullet_block_sound = NULL;
-    // Sound_Handler *rifle_switch_sound = NULL;
 };
 
 enum Projectile_Flags{

@@ -237,3 +237,4 @@ void change_up(Entity *entity, Vector2 new_up);
 void change_right(Entity *entity, Vector2 new_right);
 void rotate_to(Entity *entity, f32 new_rotation);
 void rotate(Entity *entity, f32 rotation);
+void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation);

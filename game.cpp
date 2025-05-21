@@ -263,6 +263,16 @@ void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 piv
     vertices->get_ptr(2)->x *= 0.3f;
     vertices->get_ptr(3)->x *= 0.3f;
 }
+
+void add_romb_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot){
+    add_rect_vertices(vertices, pivot);
+    vertices->get_ptr(0)->x *= 1.5f;
+    vertices->get_ptr(3)->x *= 1.5f;
+    for (i32 i = 0; i < vertices->count; i++){
+        rotate_around_point(vertices->get_ptr(i), {0, 0}, -55);
+    }
+}
+
 void pick_vertices(Entity *entity){
     if (entity->flags & (SWORD)){
         add_sword_vertices(&entity->vertices, entity->pivot);
@@ -277,6 +287,9 @@ void pick_vertices(Entity *entity){
     } else if (entity->flags & (JUMP_SHOOTER)){
         add_upsidedown_vertices(&entity->vertices, entity->pivot);
         add_upsidedown_vertices(&entity->unscaled_vertices, entity->pivot);
+    } else if (entity->flags & GIVES_BIG_SWORD_CHARGE){
+        add_romb_vertices(&entity->vertices, entity->pivot);
+        add_romb_vertices(&entity->unscaled_vertices, entity->pivot);
     } else{
         add_rect_vertices(&entity->unscaled_vertices, entity->pivot);
         add_rect_vertices(&entity->vertices, entity->pivot);
@@ -1619,6 +1632,16 @@ void init_spawn_objects(){
     copy_entity(&enemy_base_object.entity, &enemy_base_entity);
     str_copy(enemy_base_object.name, enemy_base_entity.name);
     spawn_objects.add(enemy_base_object);
+    
+    Entity big_sword_charge_giver_entity = Entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
+    big_sword_charge_giver_entity.color = ColorBrightness(GREEN, 0.5f);
+    str_copy(big_sword_charge_giver_entity.name, "big_sword_charge_giver"); 
+    setup_color_changer(&big_sword_charge_giver_entity);
+    
+    Spawn_Object big_sword_charge_giver_object;
+    copy_entity(&big_sword_charge_giver_object.entity, &big_sword_charge_giver_entity);
+    str_copy(big_sword_charge_giver_object.name, big_sword_charge_giver_entity.name);
+    spawn_objects.add(big_sword_charge_giver_object);
     
     Entity bird_entity = Entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     init_bird_entity(&bird_entity);
@@ -6702,7 +6725,7 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
 }
 
 void player_ground_move(Entity *entity, f32 dt){
-    f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
+    f32 walk_speed = player_data->in_big_sword ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -6744,7 +6767,7 @@ void player_ground_move(Entity *entity, f32 dt){
 }
 
 void player_air_move(Entity *entity, f32 dt){
-    f32 walk_speed = player_data->is_sword_big ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
+    f32 walk_speed = player_data->in_big_sword ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -6827,14 +6850,14 @@ void set_sword_velocity(f32 value){
 }
 
 void add_player_ammo(i32 amount, b32 full_ammo){
-    player_data->ammo_charges++;
+    player_data->ammo_segments_collected++;
 
     if (full_ammo){
         player_data->ammo_count += amount;
-    } else if (player_data->ammo_charges >= player_data->ammo_charges_for_count){
-        while (player_data->ammo_charges >= player_data->ammo_charges_for_count){
+    } else if (player_data->ammo_segments_collected >= player_data->ammo_segments_for_count){
+        while (player_data->ammo_segments_collected >= player_data->ammo_segments_for_count){
             player_data->ammo_count += 1;
-            player_data->ammo_charges -= player_data->ammo_charges_for_count;
+            player_data->ammo_segments_collected -= player_data->ammo_segments_for_count;
         }
         
     }
@@ -6855,7 +6878,7 @@ inline b32 can_damage_blocker(Entity *blocker_entity){
 }
 
 inline b32 can_damage_sword_size_required_enemy(Entity *enemy_entity){
-    return is_sword_can_damage() && player_data->is_sword_big == enemy_entity->enemy.big_sword_killable;
+    return is_sword_can_damage() && player_data->in_big_sword == enemy_entity->enemy.big_sword_killable;
 }
 
 b32 can_sword_damage_enemy(Entity *enemy_entity){
@@ -6907,13 +6930,15 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !player_data->in_stun && is_enemy_can_take_damage(enemy_entity)){
         b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
-        
-        if (!(is_it_utility_enemy) && enemy_entity->enemy.gives_ammo && !enemy_entity->enemy.dead_man){
-            add_player_ammo(1, enemy_entity->enemy.gives_full_ammo);
+                
+        Enemy *enemy = &enemy_entity->enemy;
+                
+        if (!(is_it_utility_enemy) && enemy->gives_ammo && !enemy->dead_man){
+            add_player_ammo(1, enemy->gives_full_ammo);
             add_blood_amount(player_data, 10);
         }
     
-        b32 was_alive_before_hit = !enemy_entity->enemy.dead_man;
+        b32 was_alive_before_hit = !enemy->dead_man;
         f32 hitstop_add = 0;
         
         Vector2 particles_direction = enemy_entity->up;
@@ -6922,18 +6947,18 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         }
         
         if (enemy_entity->flags & HIT_BOOSTER){
-            player_data->velocity = enemy_entity->up * enemy_entity->enemy.hit_booster.boost;
+            player_data->velocity = enemy_entity->up * enemy->hit_booster.boost;
             player_data->timers.hit_booster_time = core.time.game_time;
         }
         
         // We also set this last hit variable in kill_enemy and stun_enemy, but as we see now we don't want to kill or stun 
         // every enemy that take hit, so it have sense to set it where actual hit is delivered.
-        enemy_entity->enemy.last_hit_time = core.time.game_time;
+        enemy->last_hit_time = core.time.game_time;
         
         b32 can_kill = true;
         
         if (enemy_entity->flags & MULTIPLE_HITS){
-            Multiple_Hits *mod = &enemy_entity->enemy.multiple_hits;
+            Multiple_Hits *mod = &enemy->multiple_hits;
             mod->made_hits += 1;
             // So he do not regen immediately after hit.
             mod->timer = 0;
@@ -6944,6 +6969,11 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         }
         
         if (can_kill){
+            if (enemy_entity->flags & GIVES_BIG_SWORD_CHARGE){
+                player_data->current_big_sword_charges += 1;                
+                clamp(&player_data->current_big_sword_charges, 0, player_data->max_big_sword_charges);
+            }
+            
             if (enemy_entity->flags & BIRD_ENEMY){
                 sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
             } else if (enemy_entity->flags & JUMP_SHOOTER){
@@ -6956,7 +6986,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         }
         // player_data->sword_angular_velocity += player_data->sword_spin_direction * 1400;
         
-        f32 max_speed_boost = 6 * player_data->sword_spin_direction * enemy_entity->enemy.sword_kill_speed_modifier;
+        f32 max_speed_boost = 6 * player_data->sword_spin_direction * enemy->sword_kill_speed_modifier;
         f32 max_vertical_speed_boost = player_data->grounded ? 0 : 20;
         if (player_data->velocity.y > 0){
             max_vertical_speed_boost *= 0.3f;   
@@ -7152,17 +7182,20 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     // big sword
     if (in_big_sword_time > big_sword_max_time){
-        if (input.press_flags & SPIN){
+        if (input.press_flags & SPIN && player_data->current_big_sword_charges > 0){
             player_data->big_sword_start_time = core.time.game_time;    
             // player_data->max_speed_multiplier = 2.0f;
-            player_data->is_sword_big = true;
+            player_data->in_big_sword = true;
             play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
+            
+            assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
+            player_data->current_big_sword_charges -= 1;
         } else{
             // player_data->max_speed_multiplier = 1.0f;
-            if (player_data->is_sword_big){
+            if (player_data->in_big_sword){
                 play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
             }
-            player_data->is_sword_big = false;
+            player_data->in_big_sword = false;
         }
                 
     }
@@ -7174,7 +7207,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     player_data->in_stun = (/*in_strong_stun_time <= max_strong_stun_time || */in_weak_stun_time <= max_weak_stun_time);
     // player_data->in_stun = false;
     
-    Vector2 sword_target_size = player_data->is_sword_big ? player_data->big_sword_scale : player_data->sword_start_scale;
+    Vector2 sword_target_size = player_data->in_big_sword ? player_data->big_sword_scale : player_data->sword_start_scale;
     
     change_scale(sword, lerp(sword->scale, sword_target_size, dt * 5));
     
@@ -7196,11 +7229,11 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     Vector2 input_direction = input.sum_direction;
     
-    f32 sword_max_spin_speed = player_data->is_sword_big ? max_big_sword_speed : max_small_sword_speed;
+    f32 sword_max_spin_speed = player_data->in_big_sword ? max_big_sword_speed : max_small_sword_speed;
     
     b32 can_sword_spin = !player_data->in_stun;
     if (can_sword_spin){
-        f32 sword_spin_sense = player_data->is_sword_big ? 40 : 10; 
+        f32 sword_spin_sense = player_data->in_big_sword ? 40 : 10; 
         
         f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
         
@@ -7291,7 +7324,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
                 shoot_direction = get_rotated_vector(shoot_direction, spread_angle);
             }
             
-            add_rifle_projectile(sword_tip, shoot_direction * player_data->rifle_strong_speed, STRONG);
+            f32 rifle_projectile_speed = 1400;
+            add_rifle_projectile(sword_tip, shoot_direction * rifle_projectile_speed, STRONG);
             add_player_ammo(-1, true);
             
             add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
@@ -7358,7 +7392,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
-    change_color(sword, player_data->is_sword_big ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
+    change_color(sword, player_data->in_big_sword ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
     
     Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
     if (sword_tip_emitter){
@@ -7380,9 +7414,9 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; 
         chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; 
         
-        chainsaw_emitter->count_multiplier = player_data->is_sword_big ? 0.1f : 1;
-        chainsaw_emitter->size_multiplier  = player_data->is_sword_big ? 5 : 1;
-        chainsaw_emitter->color            = player_data->is_sword_big ? ColorBrightness(ORANGE, 0.2f) : YELLOW;
+        chainsaw_emitter->count_multiplier = player_data->in_big_sword ? 0.1f : 1;
+        chainsaw_emitter->size_multiplier  = player_data->in_big_sword ? 5 : 1;
+        chainsaw_emitter->color            = player_data->in_big_sword ? ColorBrightness(ORANGE, 0.2f) : YELLOW;
         
         // sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
         sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 5.0f;
@@ -7400,8 +7434,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         // emit_particles(sword_tip_emitter, player_entity->position, sword->up);
         //@SOUND sound on swing could be nice, but we should not depend on actual spin and instead find a proper looping sound.
         // local_persist f32 volume = 0.1f;
-        // volume = lerp(volume, 0.1f + player_data->sword_spin_progress * 0.1f + player_data->is_sword_big ? 0.4f : 0.0f, dt * 10);
-        // play_sound("SwordSwing", volume, lerp(0.4f, player_data->is_sword_big ? 1.0f : 1.5f, player_data->sword_spin_progress), 0.1f);
+        // volume = lerp(volume, 0.1f + player_data->sword_spin_progress * 0.1f + player_data->in_big_sword ? 0.4f : 0.0f, dt * 10);
+        // play_sound("SwordSwing", volume, lerp(0.4f, player_data->in_big_sword ? 1.0f : 1.5f, player_data->sword_spin_progress), 0.1f);
     }
     
     player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
@@ -7434,7 +7468,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         f32 instinct_step = 10;
         f32 checked = 0;
         Vector2 instinct_additional_scale = {1.0f, 1.0f};
-        Vector2 sword_base_scale = player_data->is_sword_big ? sword_target_size : sword->scale;
+        Vector2 sword_base_scale = player_data->in_big_sword ? sword_target_size : sword->scale;
         // change_scale(sword, {sword_base_scale.x * instinct_additional_scale.x, sword_base_scale.y * instinct_additional_scale.y});
         while (checked <= instinct_check_angle){
             checked += instinct_step;
@@ -7528,7 +7562,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         
         // In air and in big sword mode we keeping velocity mostly horizontal for more control.
         // This on wall check needs so that our wall boost system worked nice.
-        if (player_data->is_sword_big && !player_data->on_wall){
+        if (player_data->in_big_sword && !player_data->on_wall){
             player_data->velocity.y = lerp(player_data->velocity.y, 0.0f, dt * 10);            
         } else{
             player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
@@ -11089,6 +11123,21 @@ void draw_ui(const char *tag){
             BeginBlendMode(BLEND_ADDITIVE);
             draw_texture(vignette, {0, 0}, size, {0, 0}, 0, Fade(SKYBLUE, opacity));
             EndBlendMode();
+        }
+        
+        // draw big sword charges
+        {
+            f32 horizontal = screen_width * 0.01f;
+            f32 vertical   = screen_height * 0.2f;
+            f32 width      = screen_width * 0.01f;
+            f32 height     = screen_height * 0.05f;
+            
+            f32 spacing    = width * 1.5f;
+                      
+            for (i32 i = 0; i < player_data->max_big_sword_charges; i++, horizontal += spacing){
+                Color color = i < player_data->current_big_sword_charges ? ColorBrightness(GREEN, 0.2f) : Fade(BROWN, 0.3f);
+                draw_rect({horizontal, vertical}, {width, height}, {0, 0}, 0, color);
+            }
         }
     }
 
