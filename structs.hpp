@@ -1310,7 +1310,7 @@ struct Log_Message{
 struct Debug{
     f32 last_zoom = 0.35f;
 
-    b32 full_light = true;
+    b32 full_light = false;
 
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;

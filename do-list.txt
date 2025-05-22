@@ -2,13 +2,13 @@
 [ ] Enemies that on slowmo will do something like spawn smoke or speed up.
 [ ] Will need to do hub level for all levels. Levels will work as such - On each one player have exactly 5 (?) tries to 'oneshoot' it. If he do - he gets some kind of currency. If not - infinite tries, but without more rewards. Ammo pack is one for the whole game, so that thing should encourage people to spend ammo to get the reward.
 [ ] Think about smoke that can be dispersed with sword.
-[ ] Big sword charges, charges reload and blocks that give charges.
+[X] Big sword charges, charges reload and blocks that give charges.
 [X] Block where we don't move with spinning.
     [X] Problems stand - if we made enemy no move block and multiple hits - we somehow pass through him after hit.
 [X] We could make a win block to require spin on for some time. 
     [X] Problem noticed with big red thing that required small sword - it spams blue light on hit that fades with time.
 [X] Make rifle to be separate entity from sword so that we really could not move without spinning. That could add more interesting things that we could do. 
-[ ] Death instinct cooldown broken again. Cooldown won't start when just duration ends without threat dies.
+[\] Death instinct cooldown broken again. Cooldown won't start when just duration ends without threat dies. (No death instinct anymore).
 [ ] We could not see anything behind blocks on lightmap, because it's all black. Not really sure how we should solve this, maybe it's just that we need glowing particles.
 [X] Think about how we'll control shooting and DO WE NEED IT ATALL.
 [X] Game logging.
