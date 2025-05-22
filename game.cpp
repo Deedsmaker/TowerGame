@@ -7178,7 +7178,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     f32 in_big_sword_time = core.time.game_time - player_data->big_sword_start_time;
     
-    f32 big_sword_max_time = 0.7f;
+    f32 big_sword_max_time = 1.4f;
     
     // big sword
     if (in_big_sword_time > big_sword_max_time){
@@ -7440,7 +7440,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
     
-    if (1 || abs(player_data->sword_angular_velocity) > 10){ 
+    { // sword rotation
         // Someone could enter sword on previous frame after this update so we'll check for that.
         
         rotate(sword, -1.0f * 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
@@ -7456,60 +7456,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         rotate(sword, need_to_rotate);
         calculate_sword_collisions(sword, player_entity, player_data);
     }
-    
-    // @OPTIMIZATION We actually can skip this shit when death instinct is on cooldown, but if that sword check affects performance in 
-    // any way - i want to know about it, so we'll keep it that way. Because it would create a thing that we have more fps 
-    // when insinct on cooldown. But we may do that at some point, not a big deal.
-    b32 found_explosive = false;
-    if (is_sword_can_damage()){ // sword death instinct
-        f32 previous_rotation = sword->rotation;
-        Vector2 previous_scale = sword->scale;
-        f32 instinct_check_angle = 150;
-        f32 instinct_step = 10;
-        f32 checked = 0;
-        Vector2 instinct_additional_scale = {1.0f, 1.0f};
-        Vector2 sword_base_scale = player_data->in_big_sword ? sword_target_size : sword->scale;
-        // change_scale(sword, {sword_base_scale.x * instinct_additional_scale.x, sword_base_scale.y * instinct_additional_scale.y});
-        while (checked <= instinct_check_angle){
-            checked += instinct_step;
-            rotate(sword, instinct_step * player_data->sword_spin_direction);
-            fill_collisions(sword, &collisions_buffer, EXPLOSIVE);
-            for (i32 i = 0; i < collisions_buffer.count; i++){
-                Collision col = collisions_buffer.get(i);
-                Entity *other = col.other_entity;
-                
-                if (!can_sword_damage_enemy(other)){
-                    continue;
-                }
-                
-                Vector2 vec_to_other = other->position - player_entity->position;
-                Vector2 dir_to_other = normalized(vec_to_other);
-                f32 distance_to_other = magnitude(vec_to_other);
-                Collision ray_collision = raycast(player_entity->position, dir_to_other, distance_to_other - 2, GROUND | CENTIPEDE_SEGMENT | CENTIPEDE);
-                // This means explosion won't kill player so we move on.
-                // Maybe should keep flags that block explosion for player as separate define.
-                if (ray_collision.collided){
-                    continue;
-                }
-                // if (start_death_instinct(collisions_buffer.get(0).other_entity, SWORD_WILL_EXPLODE)){
-                //     // core.time.time_scale = 0.2f;
-                //     // player_data->sword_angular_velocity *= 0.5f;
-                // }
-                
-                state_context.death_instinct.angle_till_explode = checked - instinct_step;
-                found_explosive = true;
-                break;
-            }
-            
-            if (found_explosive){
-                break;
-            }
-        }
-        rotate_to(sword, previous_rotation);
-        change_scale(sword, previous_scale);
-    }
-    
-    player_data->is_sword_will_hit_explosive = found_explosive;
     
     player_data->timers.since_jump_timer += dt;
     
@@ -11722,11 +11668,14 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
+    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
     b32 need_to_bake = ((IsKeyPressed(KEY_F9) || IsKeyPressed(KEY_F10) || IsKeyPressed(KEY_F11)) || session_context.app_frame_count == 0);
     local_persist Bake_Settings bake_settings = light_bake_settings;
+    //nocheckin
+    need_to_bake = false;
     if (need_to_bake || (last_baked_index < lightmaps.max_count && last_baked_index != -1)){
         last_baked_index += 1;
         if (last_baked_index >= lightmaps.max_count){
