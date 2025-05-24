@@ -670,9 +670,6 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         
         data.key = src->entities.data[i].key;
         if (data.key != -1){
-            // if (src->entities.get(i).flags & PLAYER){
-            //     continue;
-            // }
             data.value = Entity(&src->entities.data[i].value, true, src, should_init_entities);
             data.value.level_context = current_level_context;
         } else{
@@ -680,11 +677,10 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         }
         dest->entities.data[i] = data;
     }
-    // mem_copy(dest->entities.data, src->entities.data, sizeof(Entity) * src->entities.max_count);
+    
     dest->entities.max_count = src->entities.max_count;
     dest->entities.total_added_count = src->entities.total_added_count;
     dest->entities.last_added_key = src->entities.last_added_key;
-    // dest->entities.max_count = src->entities.max_count;
     
     for (i32 i = 0; i < src->line_trails.max_count; i++){
         dest->line_trails.data[i] = src->line_trails.get(i);
@@ -693,12 +689,6 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     switch_current_level_context(original_level_context);
     game_state = original_game_state;
 }
-
-// void copy_player(Player *dest, Player *src){
-//     *dest = *src;
-//     dest->timers = {};
-//     dest->connected_entities_ids = {};
-// }
 
 void clear_level_context(Level_Context *level_context){
     Level_Context *original_level_context = current_level_context;
@@ -722,7 +712,6 @@ void clear_level_context(Level_Context *level_context){
             free_light(level_context->lights.get_ptr(i));       
             *(level_context->lights.get_ptr(i)) = {};
         } else{ // So we in temp lights section
-            // fill_light_by_temp_light_template(level_context->lights.get_ptr(i));
         }
     }
     

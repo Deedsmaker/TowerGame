@@ -16,6 +16,8 @@
 #include "include\raymath.h"
 #include "include\rlgl.h"
 
+// #include <windows.h>
+
 // #include "include/Vulkan/vulkan/vulkan.h"
 
 #include "structs.hpp"
@@ -71,6 +73,10 @@ int main(){
         
         if (!IsWindowMinimized() && IsWindowFocused()){
             window_minimized = false;
+        }
+        
+        if (!IsWindowFocused()){
+            WaitTime(1);
         }
         
         if (IsWindowResized()){
