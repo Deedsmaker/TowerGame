@@ -1,3 +1,7 @@
+25.05.2025:
+    - Different threshold for sword can damage when it's accelerating and not. This will allow us to make enemy-walls that cannot be surpass without destroying them.
+    - Sword fixes and cleanup.
+
 19.05.2025:
     - Fixed bug with standing on enemies. There was a problem because we have code that disables collisions with enemies when we can hit them - because before we killed every enemy on hit and don't want to stamp upon him.
     - Fixed bug with constantly spawning lights on hit to MULTIPLE_HITS. That was because we was drawing lights on every sticky entity that followed blocker or SWORD_SIZE_REQUIRED. Now we check for sticky texture to be immortal - then we make light.

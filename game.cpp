@@ -6859,7 +6859,8 @@ void add_player_ammo(i32 amount, b32 full_ammo){
 }
 
 inline b32 is_sword_can_damage(){
-    return player_data->sword_spin_progress >= 0.5f;
+    f32 threshold = player_data->is_sword_accelerating ? 0.01f : 0.5f;
+    return !is_player_in_stun() && player_data->sword_spin_progress >= threshold;
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity){
@@ -6917,7 +6918,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
     }
 
     b32 killed_enemy = false;
-    if (is_sword_can_damage() && !player_data->in_stun && is_enemy_can_take_damage(enemy_entity)){
+    if (is_sword_can_damage() && !is_player_in_stun() && is_enemy_can_take_damage(enemy_entity)){
         b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
                 
         Enemy *enemy = &enemy_entity->enemy;
@@ -7031,7 +7032,7 @@ inline void cut_rope(Entity *entity, Vector2 point = Vector2_zero){
     play_sound("RopeCut", point);
 }
 
-void calculate_sword_collisions(Entity *sword, Entity *player_entity, Player *player){
+void calculate_sword_collisions(Entity *sword, Entity *player_entity){
     fill_collisions(sword, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE);
     
     for (i32 i = 0; i < collisions_buffer.count; i++){
@@ -7039,12 +7040,12 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity, Player *pl
         Entity *other = col.other_entity;
         
         // blocker block
-        if ((other->flags & BLOCKER || other->flags & SWORD_SIZE_REQUIRED) && !player->in_stun){
+        if ((other->flags & BLOCKER || other->flags & SWORD_SIZE_REQUIRED) && !is_player_in_stun()){
             if (is_sword_can_damage() && !can_sword_damage_enemy(other)){
-                player->velocity = player->velocity * -0.5f;
+                player_data->velocity = player_data->velocity * -0.5f;
                 emit_particles(&rifle_bullet_emitter, col.point, col.normal, 3, 5);
-                set_sword_velocity(normalized(-player->sword_angular_velocity) * 150);
-                player->weak_recoil_stun_start_time = core.time.game_time;
+                set_sword_velocity(normalized(-player_data->sword_angular_velocity) * 150);
+                player_data->weak_recoil_stun_start_time = core.time.game_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
                 // changed pitch from 0.5f and changed sound from 0.4f
@@ -7059,17 +7060,17 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity, Player *pl
             try_sword_damage_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y);
         }
         
-        if (other->flags & WIN_BLOCK && !player->in_stun){
+        if (other->flags & WIN_BLOCK && !is_player_in_stun()){
             win_level();
         }
         
-        if (other->flags & BLOCK_ROPE && player->sword_spin_progress >= 0.7f){
+        if (other->flags & BLOCK_ROPE && player_data->sword_spin_progress >= 0.7f){
             // cut rope
             cut_rope(other, col.point);
         }
         
         if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & PLATFORM){
-            player->sword_hit_ground = true;
+            player_data->sword_hit_ground = true;
         }
     }
 }
@@ -7151,6 +7152,12 @@ inline void player_snap_to_plane(Vector2 normal){
     player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
 }
 
+inline b32 is_player_in_stun(){
+    f32 max_weak_stun_time = 0.3f;
+    f32 in_weak_stun_time   = core.time.game_time - player_data->weak_recoil_stun_start_time;
+    return (in_weak_stun_time <= max_weak_stun_time);
+}
+
 void update_player(Entity *player_entity, f32 dt, Input input){
     assert(player_entity->flags & PLAYER);
 
@@ -7189,13 +7196,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
                 
     }
     
-    f32 max_strong_stun_time = 2.0f;
-    f32 max_weak_stun_time = 0.3f;
-    // f32 in_strong_stun_time = core.time.game_time - player_data->strong_recoil_stun_start_time;
-    f32 in_weak_stun_time   = core.time.game_time - player_data->weak_recoil_stun_start_time;
-    player_data->in_stun = (/*in_strong_stun_time <= max_strong_stun_time || */in_weak_stun_time <= max_weak_stun_time);
-    // player_data->in_stun = false;
-    
     Vector2 sword_target_size = player_data->in_big_sword ? player_data->big_sword_scale : player_data->sword_start_scale;
     
     change_scale(sword, lerp(sword->scale, sword_target_size, dt * 5));
@@ -7220,7 +7220,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     f32 sword_max_spin_speed = player_data->in_big_sword ? max_big_sword_speed : max_small_sword_speed;
     
-    b32 can_sword_spin = !player_data->in_stun;
+    b32 can_sword_spin = !is_player_in_stun();
     if (can_sword_spin){
         f32 sword_spin_sense = player_data->in_big_sword ? 40 : 10; 
         
@@ -7232,6 +7232,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         }
         player_data->sword_angular_velocity = lerp(player_data->sword_angular_velocity, wish_angular_velocity, dt * sword_spin_sense);
     }
+    player_data->is_sword_accelerating = input_direction.x != 0;
     
     player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
     
@@ -7433,22 +7434,22 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         // Someone could enter sword on previous frame after this update so we'll check for that.
         
         rotate(sword, -1.0f * 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
-        calculate_sword_collisions(sword, player_entity, player_data);
+        calculate_sword_collisions(sword, player_entity);
         
         rotate(sword, 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
-        calculate_sword_collisions(sword, player_entity, player_data);
+        calculate_sword_collisions(sword, player_entity);
         while(need_to_rotate > sword_min_rotation_amount){
             rotate(sword, sword_min_rotation_amount * player_data->sword_spin_direction);
-            calculate_sword_collisions(sword, player_entity, player_data);
+            calculate_sword_collisions(sword, player_entity);
             need_to_rotate -= sword_min_rotation_amount;
         }
         rotate(sword, need_to_rotate);
-        calculate_sword_collisions(sword, player_entity, player_data);
+        calculate_sword_collisions(sword, player_entity);
     }
     
     player_data->timers.since_jump_timer += dt;
     
-    if (!player_data->in_stun){
+    if (!is_player_in_stun()){
         disable_emitter(player_data->stun_emitter_index);
     } else{
         enable_emitter(player_data->stun_emitter_index);
@@ -7459,7 +7460,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     //player movement
     if (since_hit_booster <= 0.4f){
         
-    } else if (player_data->grounded && !player_data->in_stun && !player_data->on_propeller){
+    } else if (player_data->grounded && !is_player_in_stun() && !player_data->on_propeller){
         player_ground_move(player_entity, dt);
         
         player_snap_to_plane(player_data->ground_normal);
@@ -7478,7 +7479,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             f32 t = player_data->velocity.y / 100.0f;
             player_data->gravity_mult = lerp(1.0f, 3.0f, sqrtf(t));
         } else{
-            if (input.sum_direction.y < 0 && !player_data->in_stun){
+            if (input.sum_direction.y < 0 && !is_player_in_stun()){
                 player_data->gravity_mult = 6;
                 max_downwards_speed = -150;
             } else{
@@ -7491,7 +7492,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             }
         }
         
-        if (!player_data->in_stun){
+        if (!is_player_in_stun()){
             player_air_move(player_entity, dt);
         }
         
@@ -7557,7 +7558,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     // player left wall
     fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-    for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
+    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++){
         Collision col = collisions_buffer.get(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)){
@@ -7572,7 +7573,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     // player right wall
     fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-    for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
+    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++){
         Collision col = collisions_buffer.get(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)){
@@ -7599,7 +7600,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
     b32 is_ground_huge_collision_speed = false;
     b32 found_no_move_block = false;
-    for (i32 i = 0; i < collisions_buffer.count && !player_data->in_stun; i++){
+    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++){
         Collision col = collisions_buffer.get(i);
         Entity *other = col.other_entity;
         assert(col.collided);
@@ -7813,7 +7814,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         last_collision_point = col.point;
         last_collision_normal = col.normal;
         
-        if (player_data->in_stun){
+        if (is_player_in_stun()){
             player_data->velocity = reflected_vector(player_data->velocity * 0.5f, col.normal);
             shake_camera(0.2f);
             continue;

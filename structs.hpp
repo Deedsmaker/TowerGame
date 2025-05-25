@@ -646,6 +646,8 @@ struct Player{
     
     f32 max_ground_angle = 60;
     
+    b32 is_sword_accelerating = false;
+    
     // f32 max_speed_multiplier = 1.0f;
     f32 ground_walk_speed = 225.0f;  
     f32 air_walk_speed = 150.0f;  
@@ -718,7 +720,6 @@ struct Player{
     i32 ammo_segments_for_count = 5;
     
     f32 weak_recoil_stun_start_time = -12;
-    b32 in_stun = false;
     
     i32 rifle_trail_emitter_index = -1;
     i32 tires_emitter_index = -1;
