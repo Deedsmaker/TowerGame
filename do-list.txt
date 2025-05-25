@@ -1,3 +1,10 @@
+[ ] Remove most of PHYSICS_OBJECT code. We could left only rope stuff but without swinging part. Only ability for it to cut rope and fall.
+[ ] We should give ammo only for killing certain enemies that are just ammo-packs. That will remove possible confusion when we will spawn enemies constantly.
+[ ] Turrets.
+    [ ] Turrets should have ability to enable on some trigger that player could trigger or be active by default.
+    [ ] Turrets could die only if we kill they battery, that shoud be separated entity visibly conneted to turret.
+    [ ] Turrets that shoot into player. Probably should do projectiles homing to player.
+    [ ] Turrets that just shoot in rhytm.
 [ ] Bomber that drops bombs. Simplest idea with him is that he's flying left-right and below is blocks that we need to spin on.
 [ ] Enemies that on slowmo will do something like spawn smoke or speed up.
 [ ] Will need to do hub level for all levels. Levels will work as such - On each one player have exactly 5 (?) tries to 'oneshoot' it. If he do - he gets some kind of currency. If not - infinite tries, but without more rewards. Ammo pack is one for the whole game, so that thing should encourage people to spend ammo to get the reward.
@@ -232,6 +239,7 @@ There has been change in the game ideas during May of 2025, so next tasks may be
 
 <Level ideas>
 ///////////////////////////////////////////////////
+[ ] Wall of projectiles in the middle where you should choose or you use slowmo (that will cause harm in later stages with enemies that react to slowmo) or you use big sword charge.
 [ ] Level with *multiple* MULTIPLE_HITS in a row and each one uncovers more enemies, but we chased by a wall of death.
 [X] On centipede's first introduction should be enemy that blocks shooting so dude could learn what centipede are
 [X] Big bomb in the middle and static camera. There should probably be multiple single-screen arenas or we could think about spawning bombs, but i don't think it's good. Also there should be flying blocks that will protect us.

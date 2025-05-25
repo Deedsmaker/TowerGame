@@ -253,14 +253,20 @@ enum Flags : u64{
     ROPE_POINT          = 1 << 28,
     JUMP_SHOOTER        = 1 << 29,
     LIGHT               = 1 << 30,
-    REPLAY_PLAYER       = 1 << 31
+    REPLAY_PLAYER       = 1 << 31,
+    LONG_SPIN              = (static_cast<u64>(1) << 32),
+    NO_MOVE_BLOCK          = (static_cast<u64>(1) << 33),
+    HIT_BOOSTER            = (static_cast<u64>(1) << 34),
+    MULTIPLE_HITS          = (static_cast<u64>(1) << 35),
+    GIVES_BIG_SWORD_CHARGE = (static_cast<u64>(1) << 36),
+    AMMO_PACK  = (static_cast<u64>(1) << 37),
 };
 
-#define LONG_SPIN              (static_cast<u64>(1) << 32)
-#define NO_MOVE_BLOCK          (static_cast<u64>(1) << 33)
-#define HIT_BOOSTER            (static_cast<u64>(1) << 34)
-#define MULTIPLE_HITS          (static_cast<u64>(1) << 35)
-#define GIVES_BIG_SWORD_CHARGE (static_cast<u64>(1) << 36)
+// #define LONG_SPIN              (static_cast<u64>(1) << 32)
+// #define NO_MOVE_BLOCK          (static_cast<u64>(1) << 33)
+// #define HIT_BOOSTER            (static_cast<u64>(1) << 34)
+// #define MULTIPLE_HITS          (static_cast<u64>(1) << 35)
+// #define GIVES_BIG_SWORD_CHARGE (static_cast<u64>(1) << 36)
 
 struct Physics_Object{
     b32 simulating = true;
@@ -330,8 +336,7 @@ struct Enemy{
     b32 big_sword_killable = true;
     i32 sword_required_sticky_id = -1;
     
-    b32 gives_ammo = true;
-    b32 gives_full_ammo = false;
+    b32 gives_ammo = false;
     
     b32 should_explode = false;
     
@@ -716,8 +721,6 @@ struct Player{
     
     //Rifle
     i32 ammo_count = 0;
-    i32 ammo_segments_collected = 0;
-    i32 ammo_segments_for_count = 5;
     
     f32 weak_recoil_stun_start_time = -12;
     

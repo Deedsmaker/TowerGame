@@ -184,7 +184,11 @@ void free_entity(Entity *e){
     if (e->flags & CENTIPEDE){
         // free centipede
         for (i32 i = 0; i < e->centipede.segments_ids.count; i++){
-            Entity *segment = current_level_context->entities.get_by_key_ptr(e->centipede.segments_ids.get(i));
+            // @CLEANUP: Why we don't call free_entity on segments?
+            // Probably that doesn't matter because while game-looping we're just destroy them and when we're clearing context 
+            // we'll call it anyway, but nonetheless we should be able to just call free_entity without trouble in such case.
+            // Will see into that when will rewrite entities.
+            Entity *segment = get_entity_by_id(e->centipede.segments_ids.get(i));
             segment->destroyed = true;
             segment->enabled = false;
         }
@@ -210,6 +214,7 @@ void free_entity(Entity *e){
         }
     }
     
+    // @CLEANUP: Why exactly that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
     // if (e->flags & MOVE_SEQUENCE){
     //     e->move_sequence.points.free_arr();
     // }
@@ -921,10 +926,6 @@ i32 save_level(const char *level_name){
         
         if (e->flags & ENEMY){
             fprintf(fptr, "enemy_gives_ammo:%d: ", e->enemy.gives_ammo);
-            if (e->enemy.gives_ammo){
-                fprintf(fptr, "gives_full_ammo:%d: ", e->enemy.gives_full_ammo);
-            }
-            // fprintf(fptr, "max_hits_taken:%d: ", e->enemy.gives_full_ammo);
         }
         
         if (e->flags & EXPLOSIVE){
@@ -1150,9 +1151,6 @@ b32 load_level(const char *level_name){
                 i += 2;
             } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_immortal")){
                 fill_b32_from_string(&entity_to_fill.enemy.shoot_blocker_immortal, splitted_line.get(i+1).data);
-                i++;
-            } else if (str_equal(splitted_line.get(i).data, "gives_full_ammo")){
-                fill_b32_from_string(&entity_to_fill.enemy.gives_full_ammo, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "enemy_gives_ammo")){
                 fill_b32_from_string(&entity_to_fill.enemy.gives_ammo, splitted_line.get(i+1).data);
@@ -1547,8 +1545,6 @@ void init_bird_entity(Entity *entity){
     
     change_scale(entity, {6, 10});
 
-    entity->enemy.gives_full_ammo = true;
-    
     entity->enemy.sword_kill_speed_modifier = 4;
     
     init_bird_emitters(entity);
@@ -1612,15 +1608,15 @@ void init_spawn_objects(){
     str_copy(platform_object.name, platform_entity.name);
     spawn_objects.add(platform_object);
     
-    Entity enemy_base_entity = Entity({0, 0}, {3, 5}, {0.5f, 0.5f}, 0, ENEMY);
-    enemy_base_entity.color = RED * 0.9f;
-    str_copy(enemy_base_entity.name, "enemy_base"); 
-    setup_color_changer(&enemy_base_entity);
+    Entity enemy_ammo_pack_entity = Entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | AMMO_PACK);
+    enemy_ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
+    str_copy(enemy_ammo_pack_entity.name, "ammo_pack"); 
+    setup_color_changer(&enemy_ammo_pack_entity);
     
-    Spawn_Object enemy_base_object;
-    copy_entity(&enemy_base_object.entity, &enemy_base_entity);
-    str_copy(enemy_base_object.name, enemy_base_entity.name);
-    spawn_objects.add(enemy_base_object);
+    Spawn_Object enemy_ammo_pack_object;
+    copy_entity(&enemy_ammo_pack_object.entity, &enemy_ammo_pack_entity);
+    str_copy(enemy_ammo_pack_object.name, enemy_ammo_pack_entity.name);
+    spawn_objects.add(enemy_ammo_pack_object);
     
     Entity big_sword_charge_giver_entity = Entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
     big_sword_charge_giver_entity.color = ColorBrightness(GREEN, 0.5f);
@@ -2037,7 +2033,6 @@ void init_entity(Entity *entity){
     // init explosive
     if (entity->flags & EXPLOSIVE){
         entity->color_changer.change_time = 5.0f;
-        // entity->flags |= LIGHT;
         Light explosive_light = {};
         if (entity->light_index != -1){
             explosive_light = current_level_context->lights.get(entity->light_index);
@@ -2247,7 +2242,6 @@ void init_entity(Entity *entity){
         if (flying_emitter){
             flying_emitter->follow_entity = false;
         }
-        entity->enemy.gives_full_ammo = true;
         
         entity->enemy.sword_kill_speed_modifier = 10;
     }
@@ -2655,7 +2649,7 @@ void begin_game_speedrun(){
 
 void debug_add_100_ammo(){
     if (player_entity){
-        add_player_ammo(100, true);
+        add_player_ammo(100);
     }    
 }
 
@@ -5108,11 +5102,6 @@ void update_editor_ui(){
             
             if (editor.draw_enemy_settings){
                 INSPECTOR_UI_TOGGLE("Gives ammo: ", "enemy_gives_ammo", selected->enemy.gives_ammo, );
-                if (selected->enemy.gives_ammo){
-                    h_pos = 15;
-                    INSPECTOR_UI_TOGGLE("Gives full ammo: ", "gives_full_ammo", selected->enemy.gives_full_ammo, );
-                    h_pos = 5;
-                }
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Explosive: ", "enemy_explosive", selected->flags, EXPLOSIVE, 
                     if (!(selected->flags & EXPLOSIVE)){
@@ -5698,7 +5687,7 @@ void update_editor(){
             editor_spawn_entity("dummy_entity", input.mouse_position);
         }
         if (IsKeyPressed(KEY_THREE)){
-            editor_spawn_entity("enemy_base", input.mouse_position);
+            editor_spawn_entity("ammo_pack", input.mouse_position);
         }
         if (IsKeyPressed(KEY_FOUR)){
             editor_spawn_entity("enemy_bird", input.mouse_position);
@@ -6838,18 +6827,8 @@ void set_sword_velocity(f32 value){
     player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
 }
 
-void add_player_ammo(i32 amount, b32 full_ammo){
-    player_data->ammo_segments_collected++;
-
-    if (full_ammo){
-        player_data->ammo_count += amount;
-    } else if (player_data->ammo_segments_collected >= player_data->ammo_segments_for_count){
-        while (player_data->ammo_segments_collected >= player_data->ammo_segments_for_count){
-            player_data->ammo_count += 1;
-            player_data->ammo_segments_collected -= player_data->ammo_segments_for_count;
-        }
-        
-    }
+inline void add_player_ammo(i32 amount){
+    player_data->ammo_count += amount;
     
     player_data->ammo_count = clamp(player_data->ammo_count, 0, 3333);
     
@@ -6923,10 +6902,10 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
                 
         Enemy *enemy = &enemy_entity->enemy;
                 
-        if (!(is_it_utility_enemy) && enemy->gives_ammo && !enemy->dead_man){
-            add_player_ammo(1, enemy->gives_full_ammo);
-            add_blood_amount(player_data, 10);
+        if (enemy_entity->flags & AMMO_PACK){
+            add_player_ammo(1);
         }
+        add_blood_amount(player_data, 10);
     
         b32 was_alive_before_hit = !enemy->dead_man;
         f32 hitstop_add = 0;
@@ -6988,7 +6967,9 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             shake_camera(0.1f);
         }
         
-        if (enemy_entity->flags & BIRD_ENEMY && was_alive_before_hit){
+        if (enemy_entity->flags & AMMO_PACK){
+            play_sound("AmmoCollect", hit_position, 0.5f, 1.1f, 0.1f);  
+        } else if (enemy_entity->flags & BIRD_ENEMY && was_alive_before_hit){
             play_sound("SwordHit33", hit_position, 0.5f, 1.1f, 0.1f);
         } else if (enemy_entity->flags & JUMP_SHOOTER && was_alive_before_hit){
             play_sound("SwordHit2222", hit_position, 0.5f, 0.7f, 0.1f);
@@ -7279,7 +7260,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     if (player_data->ammo_count == 0 && core.time.game_time - player_data->timers.last_bullet_shot_time >= 3.0f){
-        add_player_ammo(1, true);
+        add_player_ammo(1);
     }
     
     if (input.press_flags & SHOOT){
@@ -7316,7 +7297,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             
             f32 rifle_projectile_speed = 1400;
             add_rifle_projectile(sword_tip, shoot_direction * rifle_projectile_speed, STRONG);
-            add_player_ammo(-1, true);
+            add_player_ammo(-1);
             
             add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
             
@@ -7432,7 +7413,6 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     { // sword rotation
         // Someone could enter sword on previous frame after this update so we'll check for that.
-        
         rotate(sword, -1.0f * 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
         calculate_sword_collisions(sword, player_entity);
         
@@ -10085,8 +10065,7 @@ void update_entities(f32 dt){
         }
         
         if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (!current_level_context->entities.has_key(e->spawned_enemy_id) || e->spawned_enemy_id == -1)){
-            Entity *spawned = spawn_object_by_name("enemy_base", e->position);
-            spawned->enemy.gives_full_ammo = true;
+            Entity *spawned = spawn_object_by_name("ammo_pack", e->position);
             e->spawned_enemy_id = spawned->id;
         }
         
