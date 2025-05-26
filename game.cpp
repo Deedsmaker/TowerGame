@@ -1628,6 +1628,17 @@ void init_spawn_objects(){
     str_copy(big_sword_charge_giver_object.name, big_sword_charge_giver_entity.name);
     spawn_objects.add(big_sword_charge_giver_object);
     
+    Entity turret_direct_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
+    turret_direct_entity.enemy.unkillable = true;
+    turret_direct_entity.color = ColorBrightness(PURPLE, 0.5f);
+    str_copy(turret_direct_entity.name, "turret_direct"); 
+    setup_color_changer(&turret_direct_entity);
+    
+    Spawn_Object turret_direct_object;
+    copy_entity(&turret_direct_object.entity, &turret_direct_entity);
+    str_copy(turret_direct_object.name, turret_direct_entity.name);
+    spawn_objects.add(turret_direct_object);
+    
     Entity bird_entity = Entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     init_bird_entity(&bird_entity);
     
@@ -2028,6 +2039,10 @@ void init_entity(Entity *entity){
     if (entity->flags & BIRD_ENEMY){
         entity->enemy.max_hits_taken = 3;
         init_bird_entity(entity);
+    }
+    
+    if (entity->flags & TURRET){
+        entity->enemy.unkillable = true;
     }
     
     // init explosive
@@ -3920,7 +3935,7 @@ void update_game(){
     // }
     // // update_particles();
     
-    if (IsKeyPressed(KEY_H) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL)){
+    if (IsKeyPressed(KEY_PAGE_UP)){
         state_context.free_cam = !state_context.free_cam;
         if (!state_context.free_cam){
             current_level_context->cam.target_zoom = debug.last_zoom;
@@ -6850,7 +6865,7 @@ inline b32 can_damage_sword_size_required_enemy(Entity *enemy_entity){
     return is_sword_can_damage() && player_data->in_big_sword == enemy_entity->enemy.big_sword_killable;
 }
 
-b32 can_sword_damage_enemy(Entity *enemy_entity){
+inline b32 can_sword_damage_enemy(Entity *enemy_entity){
     b32 sword_can_damage = is_sword_can_damage();
     b32 is_blocker_damageble = true;
     if (enemy_entity->flags & BLOCKER){
@@ -6861,7 +6876,7 @@ b32 can_sword_damage_enemy(Entity *enemy_entity){
         is_sword_size_required_damageble = can_damage_sword_size_required_enemy(enemy_entity);
     }
     
-    return sword_can_damage && ((is_blocker_damageble && is_sword_size_required_damageble) || enemy_entity->enemy.dead_man);
+    return !enemy_entity->enemy.unkillable && sword_can_damage && ((is_blocker_damageble && is_sword_size_required_damageble) || enemy_entity->enemy.dead_man);
 }
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
@@ -8828,7 +8843,6 @@ void calculate_projectile_collisions(Entity *entity){
     
     if (projectile->flags & PLAYER_RIFLE){
         fill_collisions(entity, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
-        
         // Player *player = player_data;
         
         b32 damaged_enemy = false;
@@ -8840,7 +8854,6 @@ void calculate_projectile_collisions(Entity *entity){
             if (projectile->already_hit_ids.count >= projectile->already_hit_ids.max_count || projectile->already_hit_ids.contains(other->id)){
                 continue;
             }
-            
             
             b32 need_bounce = false;
             
@@ -8951,7 +8964,7 @@ void calculate_projectile_collisions(Entity *entity){
         }
     } else if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
         fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
-        
+        // @CLEANUP We don't need JUMP_SHOOTER_PROJECTILE anymore because we don't want jump shooter.        
         Enemy *enemy = &entity->enemy;
         
         for (i32 i = 0; i < collisions_buffer.count; i++){
@@ -8978,6 +8991,23 @@ void calculate_projectile_collisions(Entity *entity){
                         kill_player();
                     }
                 }
+            }
+        }
+    } else if (projectile->flags & TURRET_DIRECT_PROJECTILE){
+        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
+        Enemy *enemy = &entity->enemy;
+        
+        for (i32 i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
+            Entity *other = col.other_entity;
+            
+            if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
+                kill_enemy(entity, col.point, col.normal);
+                emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
+            }
+            
+            if (other->flags & PLAYER && !player_data->dead_man && !enemy->dead_man){
+                kill_player();
             }
         }
     }
@@ -9029,7 +9059,6 @@ void update_projectile(Entity *entity, f32 dt){
             }
         }
     }
-
     
     if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
         if (lifetime >= 0.5f && !projectile->dying){
@@ -9508,6 +9537,51 @@ void update_all_collision_cells(){
     }
 }
 
+void shoot_projectile(Vector2 position, Vector2 direction, f32 speed, FLAGS projectile_flags, Color color){
+    FLAGS additional_flags = 0;
+    // if (explosive_indexes.contains(i)){
+    //     additional_flags |= EXPLOSIVE;        
+    // }
+    // if (shooter->shoot_sword_blockers){
+    //     additional_flags |= BLOCKER;
+    // }
+    // if (shooter->shoot_bullet_blockers){
+    //     additional_flags |= SHOOT_BLOCKER;
+    // }
+    
+    Entity *projectile_entity = add_entity(position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | additional_flags);
+    change_color(projectile_entity, color);
+    projectile_entity->projectile.birth_time = core.time.game_time;
+    projectile_entity->projectile.flags = projectile_flags;
+    projectile_entity->projectile.velocity = direction * speed;
+    projectile_entity->projectile.max_lifetime = 5;
+    
+    // if (shooter->shoot_sword_blockers){
+    //     projectile_entity->enemy.blocker_clockwise = shooter->blocker_clockwise;
+    //     projectile_entity->enemy.blocker_immortal  = shooter->shoot_sword_blockers_immortal;
+    // }
+    // if (shooter->shoot_bullet_blockers){
+    //     projectile_entity->enemy.shoot_blocker_immortal = true;
+    // }
+    
+    // add_and_enable_entity_particle_emitter(projectile_entity, &small_air_dust_trail_emitter_copy, projectile_entity->position, true);
+    projectile_entity->enemy.alarm_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &alarm_smoke_emitter_copy, projectile_entity->position, true);
+    init_entity(projectile_entity);
+}
+
+void update_turret(Entity *entity, f32 dt){
+    Turret *turret = &entity->enemy.turret;
+    f32 time_since_shot = core.time.game_time - turret->last_shot_time;
+    
+    if (time_since_shot >= turret->shot_delay){
+        Vector2 start_position = entity->position + entity->up * entity->scale.y * entity->pivot.y;
+        shoot_projectile(start_position, entity->up, turret->projectile_speed, TURRET_DIRECT_PROJECTILE, ColorBrightness(RED, 0.5f));
+        // For real consistency.
+        turret->last_shot_time = core.time.game_time - (time_since_shot - turret->shot_delay);
+    }
+}
+
+// We return false if we should stop updating entities this frame. Shoulda make result flag or something, but for now comment will do.
 inline b32 update_entity(Entity *e, f32 dt){
     update_color_changer(e, dt);            
     
@@ -9584,6 +9658,10 @@ inline b32 update_entity(Entity *e, f32 dt){
     // update bird enemy
     if (e->flags & BIRD_ENEMY && debug.enemy_ai){
         update_bird_enemy(e, dt);
+    }
+    
+    if (e->flags & TURRET && debug.enemy_ai){
+        update_turret(e, dt);
     }
     
     // update multiple hits
@@ -9872,6 +9950,8 @@ inline b32 update_entity(Entity *e, f32 dt){
                 i32 explosive_shots = 0;
                 
                 for (i32 i = 0; i < shooter->shots_count; i++){
+                    // @CLEANUP All of this is now in the shoot_projectile function. We don't use jump shooter anymore so it stays
+                    // till the time comes.
                     Vector2 direction = get_rotated_vector(dir_to_player, angle);
                     angle += angle_step;
                     f32 speed = 100;

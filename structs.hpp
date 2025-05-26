@@ -14,6 +14,11 @@ struct Level_Context;
 
 #define LINE_TRAIL_MAX_POINTS 128
 
+struct Consts{
+      
+};
+Consts consts = {};
+
 struct Line_Trail{
     b32 occupied = false;
     Array<Vector2, LINE_TRAIL_MAX_POINTS> positions = Array<Vector2, LINE_TRAIL_MAX_POINTS>();  
@@ -259,7 +264,8 @@ enum Flags : u64{
     HIT_BOOSTER            = (static_cast<u64>(1) << 34),
     MULTIPLE_HITS          = (static_cast<u64>(1) << 35),
     GIVES_BIG_SWORD_CHARGE = (static_cast<u64>(1) << 36),
-    AMMO_PACK  = (static_cast<u64>(1) << 37),
+    AMMO_PACK              = (static_cast<u64>(1) << 37),
+    TURRET                 = (static_cast<u64>(1) << 38),
 };
 
 // #define LONG_SPIN              (static_cast<u64>(1) << 32)
@@ -304,11 +310,21 @@ struct Multiple_Hits{
     f32 timer = 0;
 };
 
+struct Turret{
+    b32 activated = true;
+    b32 homing = false;  
+    f32 shot_delay = 0.2f;
+    f32 projectile_speed = 100.0f;
+    f32 last_shot_time = 0;
+};
+
 struct Enemy{
     b32 dead_man = false;  
     b32 in_agro = false;
     b32 in_stun = false;
     b32 just_awake = true;
+    
+    b32 unkillable = false;
     
     b32 was_in_stun = false;
     
@@ -349,6 +365,7 @@ struct Enemy{
     
     Hit_Booster hit_booster = {};
     Multiple_Hits multiple_hits = {};
+    Turret turret = {};
 };
 
 struct Jump_Shooter{
@@ -731,7 +748,8 @@ struct Player{
 enum Projectile_Flags{
     DEFAULT = 1 << 1,  
     PLAYER_RIFLE = 1 << 2,
-    JUMP_SHOOTER_PROJECTILE = 1 << 3
+    JUMP_SHOOTER_PROJECTILE = 1 << 3,
+    TURRET_DIRECT_PROJECTILE = 1 << 4,
 };
 
 enum Projectile_Type{  

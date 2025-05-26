@@ -1,5 +1,6 @@
 [ ] Remove most of PHYSICS_OBJECT code. We could left only rope stuff but without swinging part. Only ability for it to cut rope and fall.
-[ ] We should give ammo only for killing certain enemies that are just ammo-packs. That will remove possible confusion when we will spawn enemies constantly.
+[X] We should give ammo only for killing certain enemies that are just ammo-packs. That will remove possible confusion when we will spawn enemies constantly.
+    [ ] Made them physical. So they fall, but only down.
 [ ] Turrets.
     [ ] Turrets should have ability to enable on some trigger that player could trigger or be active by default.
     [ ] Turrets could die only if we kill they battery, that shoud be separated entity visibly conneted to turret.
