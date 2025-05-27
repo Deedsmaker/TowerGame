@@ -6876,7 +6876,7 @@ inline b32 can_sword_damage_enemy(Entity *enemy_entity){
         is_sword_size_required_damageble = can_damage_sword_size_required_enemy(enemy_entity);
     }
     
-    return !enemy_entity->enemy.unkillable && sword_can_damage && ((is_blocker_damageble && is_sword_size_required_damageble) || enemy_entity->enemy.dead_man);
+    return sword_can_damage && ((is_blocker_damageble && is_sword_size_required_damageble) || enemy_entity->enemy.dead_man);
 }
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity){
@@ -8538,6 +8538,10 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
         return false;
     }
     
+    if (enemy_entity->enemy.unkillable){
+        return false;
+    }
+    
     if (!check_for_last_hit_time){
         return true;
     }
@@ -8546,6 +8550,7 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
     if (enemy_entity->flags & MULTIPLE_HITS){
         immune_time = 0.078f;
     }
+    
     b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= immune_time;
     return !recently_got_hit;
 }

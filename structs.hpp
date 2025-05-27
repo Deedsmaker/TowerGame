@@ -314,7 +314,7 @@ struct Turret{
     b32 activated = true;
     b32 homing = false;  
     f32 shot_delay = 0.2f;
-    f32 projectile_speed = 100.0f;
+    f32 projectile_speed = 75.0f;
     f32 last_shot_time = 0;
 };
 
