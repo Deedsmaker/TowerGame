@@ -1,4 +1,4 @@
-[ ] Think about hit booster unkillability thing.
+[X] Think about hit booster unkillability thing.
 [ ] Remove most of PHYSICS_OBJECT code. We could left only rope stuff but without swinging part. Only ability for it to cut rope and fall.
 [X] We should give ammo only for killing certain enemies that are just ammo-packs. That will remove possible confusion when we will spawn enemies constantly.
     [ ] Made them physical. So they fall, but only down.

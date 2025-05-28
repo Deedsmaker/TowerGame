@@ -859,6 +859,16 @@ i32 save_level(const char *level_name){
             }
         }
         
+        if (e->flags & KILL_SWITCH){
+            if (e->enemy.kill_switch.connected.count > 0){
+                fprintf(fptr, "kill_switch_connected [ ");
+                for (i32 v = 0; v < e->enemy.kill_switch.connected.count; v++){
+                    fprintf(fptr, ":%d: ", e->enemy.kill_switch.connected.get(v)); 
+                }
+                fprintf(fptr, "] "); 
+            }
+        }
+        
         if (e->flags & MOVE_SEQUENCE){
             if (e->move_sequence.points.count > 0){
                 fprintf(fptr, "move_sequence_points [ ");
@@ -1126,6 +1136,8 @@ b32 load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "trigger_connected")){
                 fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
+            } else if (str_equal(splitted_line.get(i).data, "kill_switch_connected")){
+                fill_int_array_from_string(&entity_to_fill.enemy.kill_switch.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get(i).data, "trigger_tracking")){
                 fill_int_array_from_string(&entity_to_fill.trigger.tracking, splitted_line, &i);
             } else if (str_equal(splitted_line.get(i).data, "enemy_big_or_small_killable")){
@@ -1693,7 +1705,6 @@ void init_spawn_objects(){
     spawn_objects.add(kill_trigger_object);
     
     Entity kill_switch_entity = Entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
-    kill_switch_entity.enemy.max_hits_taken = 5;
     kill_switch_entity.color = ColorBrightness(RED, 0.3f);
     str_copy(kill_switch_entity.name, "kill_switch"); 
     setup_color_changer(&kill_switch_entity);
@@ -1784,7 +1795,7 @@ void init_spawn_objects(){
     
     Entity hit_booster_entity = Entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
-    hit_booster_entity.enemy.unkillable = true;
+    hit_booster_entity.enemy.max_hits_taken = -1;
     str_copy(hit_booster_entity.name, "hit_booster"); 
     setup_color_changer(&hit_booster_entity);
     
@@ -2053,8 +2064,12 @@ void init_entity(Entity *entity){
         init_bird_entity(entity);
     }
     
+    if (entity->flags & KILL_SWITCH){
+        entity->enemy.max_hits_taken = 5;
+    }
+    
     if (entity->flags & HIT_BOOSTER){
-        entity->enemy.unkillable = true;
+        entity->enemy.max_hits_taken = -1;
     }
     
     if (entity->flags & TURRET){
@@ -7009,6 +7024,9 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
                 can_kill = false;
             }
         }
+        if (enemy->max_hits_taken <= -1){
+            can_kill = false;
+        }
         
         if (can_kill){
             if (enemy_entity->flags & GIVES_BIG_SWORD_CHARGE){
@@ -8951,6 +8969,8 @@ void calculate_projectile_collisions(Entity *entity){
                     projectile->type = WEAK;
                     projectile->birth_time = core.time.game_time;
                     stun_enemy(other, entity->position, col.normal);    
+                } else if (enemy->max_hits_taken <= -1){
+                    
                 } else if (can_damage){
                     kill_enemy(other, entity->position, col.normal, false);
                     killed = true;
@@ -10568,12 +10588,13 @@ void fill_entities_draw_queue(){
                     continue;
                 }
                 
-                f32 width = 4.0f;
+                f32 width = 3.0f;
                 Vector2 first = entity->position;
                 Vector2 second = {connected->position.x, entity->position.y};
                 Vector2 third = connected->position;
-                draw_game_line(first, second, width, YELLOW);
-                draw_game_line(second, third, width, YELLOW);
+                Color color = Fade(YELLOW, 0.7f);
+                draw_game_line(first, second, width, color);
+                draw_game_line(second, third, width, color);
             }
         }
         
