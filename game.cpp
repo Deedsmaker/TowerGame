@@ -1692,6 +1692,17 @@ void init_spawn_objects(){
     str_copy(kill_trigger_object.name, kill_trigger_entity.name);
     spawn_objects.add(kill_trigger_object);
     
+    Entity kill_switch_entity = Entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
+    kill_switch_entity.enemy.max_hits_taken = 5;
+    kill_switch_entity.color = ColorBrightness(RED, 0.3f);
+    str_copy(kill_switch_entity.name, "kill_switch"); 
+    setup_color_changer(&kill_switch_entity);
+    
+    Spawn_Object kill_switch_object;
+    copy_entity(&kill_switch_object.entity, &kill_switch_entity);
+    str_copy(kill_switch_object.name, kill_switch_entity.name);
+    spawn_objects.add(kill_switch_object);
+    
     Entity spikes_entity = Entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
     spikes_entity.trigger.kill_player = true;
     spikes_entity.color = Fade(RED, 0.9f);
@@ -1773,6 +1784,7 @@ void init_spawn_objects(){
     
     Entity hit_booster_entity = Entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
+    hit_booster_entity.enemy.unkillable = true;
     str_copy(hit_booster_entity.name, "hit_booster"); 
     setup_color_changer(&hit_booster_entity);
     
@@ -2039,6 +2051,10 @@ void init_entity(Entity *entity){
     if (entity->flags & BIRD_ENEMY){
         entity->enemy.max_hits_taken = 3;
         init_bird_entity(entity);
+    }
+    
+    if (entity->flags & HIT_BOOSTER){
+        entity->enemy.unkillable = true;
     }
     
     if (entity->flags & TURRET){
@@ -5108,6 +5124,19 @@ void update_editor_ui(){
             type_info_v_pos += type_font_size;
         }
         
+        if (selected->flags & KILL_SWITCH){
+            make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_clear");
+            type_info_v_pos += type_font_size;
+            make_ui_text("Remove selected: Ctrl+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_remove");
+            type_info_v_pos += type_font_size;
+            make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_assign");
+            type_info_v_pos += type_font_size;
+            make_ui_text(text_format("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "kill_switch_connected_count");
+            type_info_v_pos += type_font_size;
+            make_ui_text("Kill switch settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "kill_switch_settings");
+            type_info_v_pos += type_font_size;
+        }
+        
         // enemy inspector
         if (selected->flags & ENEMY){
             if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Enemy settings", "enemy_settings")){
@@ -6322,6 +6351,35 @@ void update_editor(){
             }
             if (wanna_clear_cam_rails_points){
                 selected->trigger.cam_rails_points.clear();
+            }
+        }
+        
+        if (selected->flags & KILL_SWITCH){
+            b32 wanna_assign = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_A);
+            b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_D);
+            
+            Kill_Switch *kill_switch = &selected->enemy.kill_switch;
+            //kill switch assign or remove
+            if (wanna_assign || wanna_remove){
+                fill_collisions(&mouse_entity, &collisions_buffer, ENEMY);
+                for (i32 i = 0; i < collisions_buffer.count; i++){
+                    Collision col = collisions_buffer.get(i);
+                    
+                    if (wanna_assign && !wanna_remove && !kill_switch->connected.contains(col.other_entity->id)){
+                        kill_switch->connected.add(col.other_entity->id);
+                        break;
+                    } else if (wanna_remove && !wanna_assign){
+                        if (kill_switch->connected.contains(col.other_entity->id)){
+                            kill_switch->connected.remove(kill_switch->connected.find(col.other_entity->id));
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            //kill switch clear
+            if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L)){
+                kill_switch->connected.clear();
             }
         }
         
@@ -8164,7 +8222,7 @@ void update_bird_enemy(Entity *entity, f32 dt){
         
         f32 since_died_time = core.time.game_time - enemy->died_time;
         if (since_died_time >= 15 && sqr_magnitude(entity->position - player_entity->position) >= 50000){
-            destroy_enemy(entity);
+            kill_enemy(entity, entity->position, entity->up);
         }
         return;
     }
@@ -8403,39 +8461,49 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     }
 }
 
-inline b32 enemy_should_not_be_destroyed(Entity *entity){
-    u64 unkillable = entity->flags & HIT_BOOSTER;
-    if (unkillable){
-        return true;
-    }
-    
-    return false;
-}
-
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 can_wait, f32 particles_speed_modifier){
     assert(enemy_entity->flags & ENEMY);
     
-    if (enemy_should_not_be_destroyed(enemy_entity)){
-        return;
-    }
-    
-    if (!enemy_entity->enemy.dead_man){
+    Enemy *enemy = &enemy_entity->enemy;
+    if (1 || !enemy->dead_man){
         if (can_wait){
             if (enemy_entity->flags & EXPLOSIVE && core.time.app_time - state_context.timers.last_explosion_app_time < 0.01f){
-                enemy_entity->enemy.should_explode = true;
+                enemy->should_explode = true;
                 return;
             }
         }
     
-        enemy_entity->enemy.stun_start_time = core.time.game_time;
-        // enemy_entity->enemy.last_hit_time   = core.time.game_time;
+        enemy->stun_start_time = core.time.game_time;
         emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, particles_speed_modifier, 1);
     
-        enemy_entity->enemy.dead_man = true;
-        enemy_entity->enemy.died_time = core.time.game_time;
-        if (!(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT))){
+        enemy->dead_man = true;
+        enemy->died_time = core.time.game_time;
+        b32 should_not_be_destroyed = (enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT));
+        if (!should_not_be_destroyed){
             enemy_entity->enabled = false;
-            destroy_enemy(enemy_entity);
+            enemy_entity->destroyed = true;
+    
+            if (enemy_entity->flags & SHOOT_STOPER){
+                // assert(state_context.shoot_stopers_count >= 0);
+                if (state_context.shoot_stopers_count > 0){
+                    state_context.shoot_stopers_count--;
+                } else{
+                    print("WARNING: Shoot stopers count could go below zero. That may be because we skipped trigger and kill it, so no assertion, just warning");            
+                }
+            }
+        }
+        
+        // kill switch death
+        if (enemy_entity->flags & KILL_SWITCH){
+            Kill_Switch *kill_switch = &enemy->kill_switch;
+            for (i32 i = 0; i < kill_switch->connected.count; i++){
+                Entity *connected = get_entity_by_id(kill_switch->connected.get(i));
+                if (!connected){
+                    continue;
+                }
+                
+                kill_enemy(connected, connected->position, connected->up);
+            }
         }
         
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)){
@@ -8448,7 +8516,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             f32 explosion_radius = get_explosion_radius(enemy_entity);
             
             Particle_Emitter *explosion_emitter = &explosion_emitter_copy;
-            if (enemy_entity->enemy.explosive_radius_multiplier > 1.5f){
+            if (enemy->explosive_radius_multiplier > 1.5f){
                 explosion_emitter = &big_explosion_emitter_copy;
             }
             
@@ -8457,7 +8525,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             
             i32 light_size_flag = SMALL_LIGHT;
             if (enemy_entity->light_index != -1) light_size_flag = current_level_context->lights.get(enemy_entity->light_index).shadows_size_flags;
-            add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy_entity->enemy.explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f), light_size_flag);
+            add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy->explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f), light_size_flag);
             
             f32 explosion_add_speed = 80;
             i32 spawned_particles_count = 0;
@@ -8508,8 +8576,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
             }
             
-            add_hitstop(0.1f * fmaxf(1.0f, enemy_entity->enemy.explosive_radius_multiplier * 0.5f), true);
-            shake_camera(0.5f * fmaxf(1.0f, enemy_entity->enemy.explosive_radius_multiplier * 0.5f));
+            add_hitstop(0.1f * fmaxf(1.0f, enemy->explosive_radius_multiplier * 0.5f), true);
+            shake_camera(0.5f * fmaxf(1.0f, enemy->explosive_radius_multiplier * 0.5f));
             
             // centipede explode segments
             if (enemy_entity->flags & CENTIPEDE_SEGMENT){
@@ -8569,23 +8637,6 @@ void agro_enemy(Entity *entity){
     }
 }
 
-void destroy_enemy(Entity *entity){
-    if (enemy_should_not_be_destroyed(entity)){
-        return;
-    }
-
-    entity->destroyed = true;
-    
-    if (entity->flags & SHOOT_STOPER){
-        // assert(state_context.shoot_stopers_count >= 0);
-        if (state_context.shoot_stopers_count > 0){
-            state_context.shoot_stopers_count--;
-        } else{
-            print("WARNING: Shoot stopers count could go below zero. That may be because we skipped trigger and kill it, so no assertion, just warning");            
-        }
-    }
-}
-
 void add_fire_light_to_entity(Entity *entity){
     Light *new_fire_light = init_entity_light(entity, NULL, true);
     if (new_fire_light){
@@ -8637,7 +8688,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         
             enemy->dead_man = true;
             enemy->died_time = core.time.game_time;
-            
+        
             if (enemy_entity->flags & BIRD_ENEMY){
                 // birds handle dead state by themselves
                 enable_emitter(enemy_entity->bird_enemy.fire_emitter_index, enemy_entity->position);
@@ -8651,9 +8702,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
                 add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & CENTIPEDE_SEGMENT){
-                
             } else{
-                destroy_enemy(enemy_entity);
+                kill_enemy(enemy_entity, kill_position, kill_direction);
             }
         } else{
             enemy->stun_start_time = core.time.game_time;
@@ -8872,37 +8922,35 @@ void calculate_projectile_collisions(Entity *entity){
                 b32 killed = false;
                 b32 can_damage = true;
                 
+                Enemy *enemy = &other->enemy;
+                
                 if (other->flags & SHOOT_BLOCKER){
-                    Vector2 shoot_blocker_direction = get_rotated_vector(other->enemy.shoot_blocker_direction, other->rotation);
+                    Vector2 shoot_blocker_direction = get_rotated_vector(enemy->shoot_blocker_direction, other->rotation);
                     f32 velocity_dot_direction = dot(velocity_dir, shoot_blocker_direction);    
                         
-                    can_damage = !other->enemy.shoot_blocker_immortal && (compare_difference(velocity_dot_direction, 1, 0.1f) || compare_difference(velocity_dot_direction, -1, 0.1f));
+                    can_damage = !enemy->shoot_blocker_immortal && (compare_difference(velocity_dot_direction, 1, 0.1f) || compare_difference(velocity_dot_direction, -1, 0.1f));
                     sparks_speed += 2;
                     sparks_count += 2;
                     
                     if (!can_damage){
                         need_bounce = true;
-                        other->enemy.last_hit_time = core.time.game_time;
+                        enemy->last_hit_time = core.time.game_time;
                         play_sound("ShootBlock", col.point);
                     }
                 }
                 
-                if (other->flags & WIN_BLOCK && can_damage){
-                    win_level();
-                } else if (other->flags & BIRD_ENEMY && can_damage){
+                if (other->flags & BIRD_ENEMY && can_damage){
                     other->bird_enemy.velocity += projectile->velocity * 0.05f;
-                    projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
-                    projectile->type = WEAK;
-                    projectile->birth_time = core.time.game_time;
-                    stun_enemy(other, entity->position, col.normal);    
-                    // sparks_speed += 1;
-                } else if (other->flags & JUMP_SHOOTER && can_damage){
+                }
+                if (other->flags & JUMP_SHOOTER && can_damage){
                     other->jump_shooter.velocity += projectile->velocity * 0.05f;
+                }
+                
+                if (enemy->max_hits_taken > 1){
                     projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
                     projectile->type = WEAK;
                     projectile->birth_time = core.time.game_time;
                     stun_enemy(other, entity->position, col.normal);    
-                    sparks_speed += 1;
                 } else if (can_damage){
                     kill_enemy(other, entity->position, col.normal, false);
                     killed = true;
@@ -10511,7 +10559,25 @@ void fill_entities_draw_queue(){
             }
         }
         
-        //always draw sticky texture
+        // always draw kill switch
+        if (entity->flags & KILL_SWITCH){
+            Kill_Switch *kill_switch = &entity->enemy.kill_switch;
+            for (i32 i = 0; i < kill_switch->connected.count; i++){
+                Entity *connected = get_entity_by_id(kill_switch->connected.get(i));                
+                if (!connected){
+                    continue;
+                }
+                
+                f32 width = 4.0f;
+                Vector2 first = entity->position;
+                Vector2 second = {connected->position.x, entity->position.y};
+                Vector2 third = connected->position;
+                draw_game_line(first, second, width, YELLOW);
+                draw_game_line(second, third, width, YELLOW);
+            }
+        }
+        
+        // always draw sticky texture
         if (entity->flags & STICKY_TEXTURE){
             Sticky_Texture *st = &entity->sticky_texture;
             Entity *follow_entity = get_entity_by_id(entity->sticky_texture.follow_id);

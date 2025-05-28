@@ -266,6 +266,7 @@ enum Flags : u64{
     GIVES_BIG_SWORD_CHARGE = (static_cast<u64>(1) << 36),
     AMMO_PACK              = (static_cast<u64>(1) << 37),
     TURRET                 = (static_cast<u64>(1) << 38),
+    KILL_SWITCH            = (static_cast<u64>(1) << 39),
 };
 
 // #define LONG_SPIN              (static_cast<u64>(1) << 32)
@@ -318,6 +319,10 @@ struct Turret{
     f32 last_shot_time = 0;
 };
 
+struct Kill_Switch{
+    Dynamic_Array<i32> connected = {};   
+};
+
 struct Enemy{
     b32 dead_man = false;  
     b32 in_agro = false;
@@ -331,7 +336,7 @@ struct Enemy{
     f32 died_time = 0;
     
     i32 hits_taken = 0;
-    i32 max_hits_taken = 3;
+    i32 max_hits_taken = 1;
     
     f32 stun_start_time = -1234;
     f32 max_stun_time = 1.0f;
@@ -366,6 +371,7 @@ struct Enemy{
     Hit_Booster hit_booster = {};
     Multiple_Hits multiple_hits = {};
     Turret turret = {};
+    Kill_Switch kill_switch = {};
 };
 
 struct Jump_Shooter{
