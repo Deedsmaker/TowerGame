@@ -311,12 +311,20 @@ struct Multiple_Hits{
     f32 timer = 0;
 };
 
+struct Projectile_Settings{
+    FLAGS enemy_flags = 0;
+    b32 homing = false;  
+    b32 blocker_clockwise = false;
+    f32 launch_speed = 75.0f;
+    f32 max_lifetime = 7.0f;
+};
+
 struct Turret{
     b32 activated = true;
-    b32 homing = false;  
     f32 shot_delay = 0.2f;
-    f32 projectile_speed = 75.0f;
     f32 last_shot_time = 0;
+    
+    Projectile_Settings projectile_settings = {};
 };
 
 struct Kill_Switch{
@@ -751,26 +759,22 @@ struct Player{
     i32 tires_emitter_index = -1;
 };
 
-enum Projectile_Flags{
-    DEFAULT = 1 << 1,  
-    PLAYER_RIFLE = 1 << 2,
-    JUMP_SHOOTER_PROJECTILE = 1 << 3,
-    TURRET_DIRECT_PROJECTILE = 1 << 4,
-};
-
 enum Projectile_Type{  
-    WEAK = 0,
-    MEDIUM = 1,
-    STRONG = 2
+    UNDEFINED_PROJECTILE     = 0,
+    PLAYER_RIFLE_PROJECTILE  = 1,
+    JUMP_SHOOTER_PROJECTILE  = 2,
+    TURRET_DIRECT_PROJECTILE = 3,
 };
 
 struct Projectile{
-    FLAGS flags;
-    Projectile_Type type = WEAK;
+    Projectile_Type type = UNDEFINED_PROJECTILE;
     Vector2 velocity = {0, 0};
     f32 birth_time = 0;
     f32 max_lifetime = 5;
     b32 dying = false;
+    b32 bounced = false;
+    
+    b32 homing = false;
     
     i32 trail_emitter_index = -1;
     
@@ -1324,6 +1328,7 @@ struct Editor{
     b32 draw_entity_settings = true;
     b32 draw_trigger_settings = false;
     b32 draw_enemy_settings = false;
+    b32 draw_turret_settings = false;
     b32 draw_centipede_settings = false;
     b32 draw_jump_shooter_settings = false;
     b32 draw_door_settings = false;
@@ -1338,7 +1343,7 @@ struct Log_Message{
 struct Debug{
     f32 last_zoom = 0.35f;
 
-    b32 full_light = true;
+    b32 full_light = false;
 
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;

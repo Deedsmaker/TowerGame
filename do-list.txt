@@ -1,3 +1,5 @@
+[X] This player projectile bug on turrets and centipede segments.
+[X] Saving/loading turret settings.
 [X] Think about hit booster unkillability thing.
 [ ] Remove most of PHYSICS_OBJECT code. We could left only rope stuff but without swinging part. Only ability for it to cut rope and fall.
 [X] We should give ammo only for killing certain enemies that are just ammo-packs. That will remove possible confusion when we will spawn enemies constantly.
@@ -6,7 +8,7 @@
     [ ]? Turrets should have ability to enable on some trigger that player could trigger or be active by default.
     [X] Turrets could die only if we kill they battery, that shoud be separated entity visibly conneted to turret.
     [ ] Turrets that shoot into player. Probably should do projectiles homing to player.
-    [ ] Turrets that just shoot in rhytm.
+    [ ] Turrets that just shoot in rhytm. Even if they was enabled in different time. 
 [ ] Bomber that drops bombs. Simplest idea with him is that he's flying left-right and below is blocks that we need to spin on.
 [ ] Enemies that on slowmo will do something like spawn smoke or speed up.
 [ ] Will need to do hub level for all levels. Levels will work as such - On each one player have exactly 5 (?) tries to 'oneshoot' it. If he do - he gets some kind of currency. If not - infinite tries, but without more rewards. Ammo pack is one for the whole game, so that thing should encourage people to spend ammo to get the reward.

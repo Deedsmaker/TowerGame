@@ -196,7 +196,7 @@ void init_entity(Entity *entity);
 
 void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size = SMALL_LIGHT, i32 entity_id = -1);
 
-void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_Type type);
+void add_rifle_projectile(Vector2 start_position, Vector2 velocity);
 
 void check_avaliable_ids_and_set_if_found(i32 *id);
 

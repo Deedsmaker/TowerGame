@@ -916,6 +916,17 @@ i32 save_level(const char *level_name){
             fprintf(fptr, "jump_shooter_shoot_bullet_blockers:%d: ", e->jump_shooter.shoot_bullet_blockers);
         }
         
+        if (e->flags & TURRET){
+            Turret *turret = &e->enemy.turret;
+            fprintf(fptr, "turret_projectile_flags:%llu: ", turret->projectile_settings.enemy_flags);
+            fprintf(fptr, "turret_shoot_sword_blocker_clockwise:%d: ", turret->projectile_settings.blocker_clockwise);
+            fprintf(fptr, "turret_homing_projectiles:%d: ", turret->projectile_settings.homing);
+            fprintf(fptr, "turret_shot_delay:%f: ", turret->shot_delay);
+            fprintf(fptr, "turret_projectile_speed:%f: ", turret->projectile_settings.launch_speed);
+            fprintf(fptr, "turret_projectile_max_lifetime:%f: ", turret->projectile_settings.max_lifetime);
+            
+        }
+        
         if (e->flags & PHYSICS_OBJECT){
             fprintf(fptr, "physics_simulating:%d: ", e->physics_object.simulating);
             fprintf(fptr, "on_rope:%d: ", e->physics_object.on_rope);
@@ -1350,6 +1361,24 @@ b32 load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "jump_shooter_explosive_count")){
                 fill_i32_from_string(&entity_to_fill.jump_shooter.explosive_count, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_projectile_flags")){
+                fill_u64_from_string(&entity_to_fill.enemy.turret.projectile_settings.enemy_flags, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_shoot_sword_blocker_clockwise")){
+                fill_b32_from_string(&entity_to_fill.enemy.turret.projectile_settings.blocker_clockwise, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_homing_projectiles")){
+                fill_b32_from_string(&entity_to_fill.enemy.turret.projectile_settings.homing, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_shot_delay")){
+                fill_f32_from_string(&entity_to_fill.enemy.turret.shot_delay, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_projectile_speed")){
+                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.launch_speed, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_projectile_max_lifetime")){
+                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.max_lifetime, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers")){
                 fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers, splitted_line.get(i+1).data);
@@ -5289,6 +5318,33 @@ void update_editor_ui(){
                 v_pos += height_add;
             }
         }
+        
+        // inspector turret inspector
+        if (selected->flags & TURRET){
+            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Turret settings", "turret_settings")){
+                editor.draw_turret_settings = !editor.draw_turret_settings;
+            }
+            v_pos += height_add;
+            
+            if (editor.draw_turret_settings){
+                Turret *turret = &selected->enemy.turret;
+                
+                INSPECTOR_UI_TOGGLE_FLAGS("Shoot blockers: ", "turret_shoot_blockers", turret->projectile_settings.enemy_flags, BLOCKER, );
+                
+                if (turret->projectile_settings.enemy_flags & BLOCKER){
+                    h_pos = 15;
+                    INSPECTOR_UI_TOGGLE("Sword blockers clockwise: ", "turret_shoot_sword_blocker_clockwise", turret->projectile_settings.blocker_clockwise, );
+                    h_pos = 5;
+                }
+                
+                INSPECTOR_UI_TOGGLE_FLAGS("Shoot explosive: ", "turret_shoot_explosive", turret->projectile_settings.enemy_flags, EXPLOSIVE, );
+                
+                INSPECTOR_UI_TOGGLE("Homing projectiels: ", "turret_homing_projectiles", turret->projectile_settings.homing, );
+                INSPECTOR_UI_INPUT_FIELD("Shot delay: ", "turret_shot_delay", "%.2f", turret->shot_delay, to_f32, );
+                INSPECTOR_UI_INPUT_FIELD("Projectile speed: ", "turret_projectile_speed", "%.0f", turret->projectile_settings.launch_speed, to_f32, );
+                INSPECTOR_UI_INPUT_FIELD("Max lifetime: ", "turret_projectile_max_lifetime", "%.0f", turret->projectile_settings.max_lifetime, to_f32, );
+            }
+        }
 
         if (selected->flags & DOOR){
             if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Door settings", "door_settings")){
@@ -6116,6 +6172,7 @@ void update_editor(){
                 
                 undo_action.changed_entities.add(spawned->id);
             }
+            assert(spawned_entities.count == editor.copied_entities.count);
             
             add_undo_action(undo_action);
             
@@ -6125,19 +6182,20 @@ void update_editor(){
             // and we will know which ids they have now, because we track spawned entities and they 
             // have the same indexes as copied entities. If that was a bad explanation I've explained it also in do-list 
             // in 'Loading multiple levels' task.
-            assert(spawned_entities.count == editor.copied_entities.count);
             for (i32 i = 0; i < spawned_entities.count; i++){
                 Entity *spawned =  get_entity_by_id(spawned_entities.get(i));
                 if (spawned->flags & TRIGGER){
                     // We have original trigger connected and tracking in copied_entities.
                     spawned->trigger.connected.clear();                                      
                     spawned->trigger.tracking.clear();
-                    // Will have to change here when we'll remove all of types from entity. Nothing scary.
+                    // @CLEANUP: Will have to change here when we'll remove all of types from entity. Nothing scary.
                     Entity *copied_trigger_entity = editor.copied_entities.get_ptr(i);
                     // Here we want to go through all copied entities and find entities with ids from copied trigger.
                     // Then we want to add entity from spawned with the same index to connected and tracked of new trigger.
                     // That's confusing because it's just is. Not sure if it's even possible to make simpler.
                     // But on the bright side - that's not so much code.
+                    //
+                    // UPDATE after ~3 months - completely understandable. Making same thing for KILL_SWITCH now.
                     for (i32 x = 0; x < spawned_entities.count; x++){
                         Entity *other_copied_entity = editor.copied_entities.get_ptr(x);
                         if (copied_trigger_entity->trigger.connected.contains(other_copied_entity->id)){
@@ -6148,17 +6206,37 @@ void update_editor(){
                         }
                     }
                 }
+                
+                // This thing is trying to catch that moment where we paste entity that was connected to some trigger or kill switch
+                // and we want to assign pasted entity to this trigger or kill switch.
+                // (Actually entity itself don't know it is connected to something, so we're going through all triggers/killswitches
+                // and look for original copied entity id - that means our original was connected and we connecting newly created one).
+                //
+                // We check for spawned entities count because that's actually could be frustrating
+                // when we copy big chunks of level    
+                // without trigger and trigger connecting to new level parts that could be not even relevant to him.
+                if (spawned_entities.count < 10){
+                    i32 originally_copied_id = editor.copied_entities.get_ptr(i)->id;
+                    i32 spawned_id = spawned->id;
+                    ForEntities(entity, TRIGGER | KILL_SWITCH){
+                        // If this trigger or kill switch happened to be in copied - we do not assign anything new to him, 
+                        // because he will want to have his own connected.
+                        // That's somewhat hard to understand for some reason, but that's just works and *prevents* situations
+                        // when in pasted [trigger, enemy] enemy connects to old trigger aswell.
+                        if (entity_array_contains_id(editor.copied_entities.data, editor.copied_entities.count, entity->id)){
+                            continue;
+                        }
+                        if (entity->flags & TRIGGER && entity->trigger.connected.contains(originally_copied_id)){
+                            entity->trigger.connected.add(spawned_id);
+                        }
+                        
+                        if (entity->flags & KILL_SWITCH && entity->enemy.kill_switch.connected.contains(originally_copied_id)){
+                            entity->enemy.kill_switch.connected.add(spawned_id);
+                        }
+                    }
+                }
             }
         } else{
-            // Entity *pasted_entity = add_entity(&editor.copied_entity);
-            // pasted_entity->position = input.mouse_position;
-            // assign_selected_entity(pasted_entity);
-            
-            // Undo_Action undo_action;
-            // undo_action.spawned_entity = *pasted_entity;
-            // undo_action.entity_id = pasted_entity->id;
-            // undo_action.entity_was_spawned = true;
-            // add_undo_action(undo_action);
         }
     }
     
@@ -7398,7 +7476,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             }
             
             f32 rifle_projectile_speed = 1400;
-            add_rifle_projectile(sword_tip, shoot_direction * rifle_projectile_speed, STRONG);
+            add_rifle_projectile(sword_tip, shoot_direction * rifle_projectile_speed);
             add_player_ammo(-1);
             
             add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
@@ -8671,8 +8749,8 @@ void add_fire_light_to_entity(Entity *entity){
     if (new_fire_light){
         new_fire_light->make_shadows = false;
         new_fire_light->make_backshadows = false;
-        new_fire_light->shadows_size_flags = MEDIUM;
-        new_fire_light->backshadows_size_flags = MEDIUM;
+        new_fire_light->shadows_size_flags = MEDIUM_LIGHT;
+        new_fire_light->backshadows_size_flags = MEDIUM_LIGHT;
         new_fire_light->color = ColorBrightness(ORANGE, 0.4f);
         new_fire_light->fire_effect = true;
         // entity->flags |= LIGHT;
@@ -8742,10 +8820,9 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     }
 }
 
-void add_rifle_projectile(Vector2 start_position, Vector2 velocity, Projectile_Type type){
+void add_rifle_projectile(Vector2 start_position, Vector2 velocity){
     Entity *projectile_entity = add_entity(start_position, {2, 2}, {0.5f, 0.5f}, 0, PINK, PROJECTILE | PARTICLE_EMITTER);
-    projectile_entity->projectile.flags = PLAYER_RIFLE;
-    projectile_entity->projectile.type  = type;
+    projectile_entity->projectile.type  = PLAYER_RIFLE_PROJECTILE;
     projectile_entity->projectile.birth_time = core.time.game_time;
     projectile_entity->projectile.velocity = velocity;
     projectile_entity->projectile.max_lifetime = 7;
@@ -8925,7 +9002,7 @@ inline b32 should_kill_player(Entity *entity){
 void calculate_projectile_collisions(Entity *entity){
     Projectile *projectile = &entity->projectile;
     
-    if (projectile->flags & PLAYER_RIFLE){
+    if (projectile->type == PLAYER_RIFLE_PROJECTILE){
         fill_collisions(entity, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
         // Player *player = player_data;
         
@@ -8934,6 +9011,12 @@ void calculate_projectile_collisions(Entity *entity){
         for (i32 i = 0; i < collisions_buffer.count; i++){
             Collision col = collisions_buffer.get(i);
             Entity *other = col.other_entity;
+            
+            // Dying player rifle projectile is just slow shit and that happens only after bounce. So we destroy it at any collision.
+            if (projectile->dying){
+                entity->destroyed = true;
+                return;
+            }
             
             if (projectile->already_hit_ids.count >= projectile->already_hit_ids.max_count || projectile->already_hit_ids.contains(other->id)){
                 continue;
@@ -8946,7 +9029,7 @@ void calculate_projectile_collisions(Entity *entity){
             f32 sparks_count = 1;
             f32 hitstop_add = 0;
             
-            if (other->flags & ENEMY && is_enemy_can_take_damage(other, false) && (projectile->type != WEAK || !projectile->dying)){
+            if (other->flags & ENEMY && is_enemy_can_take_damage(other, false) && !projectile->dying){
                 projectile->already_hit_ids.add(other->id);
                 b32 killed = false;
                 b32 can_damage = true;
@@ -8977,7 +9060,7 @@ void calculate_projectile_collisions(Entity *entity){
                 
                 if (enemy->max_hits_taken > 1){
                     projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
-                    projectile->type = WEAK;
+                    projectile->bounced = true;
                     projectile->birth_time = core.time.game_time;
                     stun_enemy(other, entity->position, col.normal);    
                 } else if (enemy->max_hits_taken <= -1){
@@ -9014,8 +9097,6 @@ void calculate_projectile_collisions(Entity *entity){
                 }
             
                 damaged_enemy = can_damage;
-            } else if (other->flags & ENEMY && projectile->type == WEAK){
-                need_bounce = true;
             }
             
             if (other->flags & PHYSICS_OBJECT){
@@ -9046,7 +9127,7 @@ void calculate_projectile_collisions(Entity *entity){
                 projectile->last_light_spawn_time = core.time.game_time;
             }
         }
-    } else if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
+    } else if (projectile->type == JUMP_SHOOTER_PROJECTILE){
         fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
         // @CLEANUP We don't need JUMP_SHOOTER_PROJECTILE anymore because we don't want jump shooter.        
         Enemy *enemy = &entity->enemy;
@@ -9077,7 +9158,7 @@ void calculate_projectile_collisions(Entity *entity){
                 }
             }
         }
-    } else if (projectile->flags & TURRET_DIRECT_PROJECTILE){
+    } else if (projectile->type == TURRET_DIRECT_PROJECTILE){
         fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
         Enemy *enemy = &entity->enemy;
         
@@ -9109,16 +9190,17 @@ void update_projectile(Entity *entity, f32 dt){
     }
     
     f32 sqr_distance_to_player = sqr_magnitude(entity->position - player_entity->position);
-    if (projectile->flags & PLAYER_RIFLE){
+    if (projectile->type == PLAYER_RIFLE_PROJECTILE){
         if (sqr_distance_to_player > 1000 * 1000){
             entity->destroyed = true;
             return;
         }
         
-        if (projectile->type == WEAK){
-            f32 weak_threshold = 0.1f;
-            if (lifetime > weak_threshold){
-                f32 life_overshoot = lifetime - weak_threshold;
+        if (projectile->bounced){
+            // Projectile flies for some time after bounce, but then we want it to settle down.
+            f32 feel_strong_after_bounce = 0.1f;
+            if (lifetime > feel_strong_after_bounce){
+                f32 life_overshoot = lifetime - feel_strong_after_bounce;
                 projectile->dying = true;
                 
                 clamp_magnitude(&projectile->velocity, 60);
@@ -9144,7 +9226,7 @@ void update_projectile(Entity *entity, f32 dt){
         }
     }
     
-    if (projectile->flags & JUMP_SHOOTER_PROJECTILE){
+    if (projectile->type == JUMP_SHOOTER_PROJECTILE){
         if (lifetime >= 0.5f && !projectile->dying){
             Collision ray = raycast(entity->position + entity->up * entity->scale.y * 0.5f, entity->up, 10, GROUND | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER, 5, entity->id);
             if (ray.collided){
@@ -9210,7 +9292,7 @@ void update_sticky_texture(Entity *entity, f32 dt){
 
 inline void trigger_editor_verify_connected(Entity *entity){
     for (i32 i = 0; i < entity->trigger.connected.count; i++){   
-        //So if entiity was somehow destoyed, annighilated
+        // So if entiity was somehow destoyed, annighilated.
         if (!current_level_context->entities.has_key(entity->trigger.connected.get(i))){
             entity->trigger.connected.remove(i);
             i--;
@@ -9621,32 +9703,20 @@ void update_all_collision_cells(){
     }
 }
 
-void shoot_projectile(Vector2 position, Vector2 direction, f32 speed, FLAGS projectile_flags, Color color){
-    FLAGS additional_flags = 0;
-    // if (explosive_indexes.contains(i)){
-    //     additional_flags |= EXPLOSIVE;        
-    // }
-    // if (shooter->shoot_sword_blockers){
-    //     additional_flags |= BLOCKER;
-    // }
-    // if (shooter->shoot_bullet_blockers){
-    //     additional_flags |= SHOOT_BLOCKER;
-    // }
-    
-    Entity *projectile_entity = add_entity(position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | additional_flags);
+void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings settings, Projectile_Type type, Color color){
+    // @CLEANUP: Right now we set additional projectile enemy flags directly to entity, but when we redo entity system we will 
+    // want to set that on enemy of spawned projectile.
+    Entity *projectile_entity = add_entity(position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | settings.enemy_flags);
     change_color(projectile_entity, color);
     projectile_entity->projectile.birth_time = core.time.game_time;
-    projectile_entity->projectile.flags = projectile_flags;
-    projectile_entity->projectile.velocity = direction * speed;
-    projectile_entity->projectile.max_lifetime = 5;
+    projectile_entity->projectile.type = type;
+    projectile_entity->projectile.velocity = direction * settings.launch_speed;
+    projectile_entity->projectile.max_lifetime = settings.max_lifetime;
+    projectile_entity->projectile.homing = settings.homing;
     
-    // if (shooter->shoot_sword_blockers){
-    //     projectile_entity->enemy.blocker_clockwise = shooter->blocker_clockwise;
-    //     projectile_entity->enemy.blocker_immortal  = shooter->shoot_sword_blockers_immortal;
-    // }
-    // if (shooter->shoot_bullet_blockers){
-    //     projectile_entity->enemy.shoot_blocker_immortal = true;
-    // }
+    if (projectile_entity->flags & BLOCKER){
+        projectile_entity->enemy.blocker_clockwise = settings.blocker_clockwise;
+    }
     
     // add_and_enable_entity_particle_emitter(projectile_entity, &small_air_dust_trail_emitter_copy, projectile_entity->position, true);
     projectile_entity->enemy.alarm_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &alarm_smoke_emitter_copy, projectile_entity->position, true);
@@ -9659,7 +9729,7 @@ void update_turret(Entity *entity, f32 dt){
     
     if (time_since_shot >= turret->shot_delay){
         Vector2 start_position = entity->position + entity->up * entity->scale.y * entity->pivot.y;
-        shoot_projectile(start_position, entity->up, turret->projectile_speed, TURRET_DIRECT_PROJECTILE, ColorBrightness(RED, 0.5f));
+        shoot_projectile(start_position, entity->up, turret->projectile_settings, TURRET_DIRECT_PROJECTILE, ColorBrightness(RED, 0.5f));
         // For real consistency.
         turret->last_shot_time = core.time.game_time - (time_since_shot - turret->shot_delay);
     }
@@ -10054,7 +10124,7 @@ inline b32 update_entity(Entity *e, f32 dt){
                     Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | additional_flags);
                     change_color(projectile_entity, ColorBrightness(RED, 0.4f));
                     projectile_entity->projectile.birth_time = core.time.game_time;
-                    projectile_entity->projectile.flags = JUMP_SHOOTER_PROJECTILE;
+                    projectile_entity->projectile.type = JUMP_SHOOTER_PROJECTILE;
                     projectile_entity->projectile.velocity = direction * speed;
                     projectile_entity->projectile.max_lifetime = 15;
                     projectile_entity->enemy.gives_ammo = false;
@@ -11554,7 +11624,6 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
-    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
@@ -12189,20 +12258,6 @@ void check_avaliable_ids_and_set_if_found(i32 *id){
 Entity* add_entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context){
     Entity e = Entity(copy, keep_id, copy_entity_level_context);
     
-    // We check for copied entities count because that's actually could be frustrating when we copy big chunks of level    
-    // without trigger and trigger connecting to new level parts that could be not even relevant to him.
-    if (!keep_id && game_state == EDITOR && editor.copied_entities.count < 10){
-        ForEntities(entity, 0){
-            // We want to check if in copied entities currently this same trigger because when we pasting multiple entities
-            // and there's this trigger - that means that this trigger should have his own copies of connected entities
-            // and we don't want original trigger to track new entities, that was created for other trigger.
-            if (entity->flags & TRIGGER
-                    && !entity_array_contains_id(editor.copied_entities.data, editor.copied_entities.count, entity->id)
-                    && entity->trigger.connected.contains(copy->id)){
-                entity->trigger.connected.add(e.id);
-            }
-        }
-    }
     e.level_context = current_level_context;
     current_level_context->entities.add(e.id, e);
     return current_level_context->entities.last_ptr();
