@@ -10903,6 +10903,9 @@ void draw_entity(Entity *e){
                 make_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
             }
         }
+    } else if (e->flags & AMMO_PACK){
+        draw_game_circle(e->position, e->scale.x, RED);
+        draw_game_circle(e->position, e->scale.x * 0.5f, ColorBrightness(RED, 0.6f));
     } else if (e->flags & ENEMY){
         draw_enemy(e);
     }
@@ -11519,6 +11522,7 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
+    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
