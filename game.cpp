@@ -181,6 +181,11 @@ void free_entity(Entity *e){
         bird_clear_formation(&e->bird_enemy);
     }
     
+    // free kill switch
+    if (e->flags & KILL_SWITCH){
+        e->enemy.kill_switch.connected.free_arr();    
+    }
+    
     if (e->flags & CENTIPEDE){
         // free centipede
         for (i32 i = 0; i < e->centipede.segments_ids.count; i++){
@@ -452,6 +457,7 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
         enemy = copy->enemy;
     }
     
+    // copy trigger
     if (flags & TRIGGER){
         trigger = copy->trigger;
         trigger.connected = Dynamic_Array<int>();
@@ -471,18 +477,23 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
         }
     }
     
+    // copy kill switch
+    if (flags & KILL_SWITCH){
+        Kill_Switch *kill_switch = &enemy.kill_switch;
+        Kill_Switch *copy_kill_switch = &copy->enemy.kill_switch;
+        *kill_switch = *copy_kill_switch;
+        kill_switch->connected = Dynamic_Array<i32>();
+        for (i32 i = 0; i < copy_kill_switch->connected.count; i++){
+            kill_switch->connected.add(copy_kill_switch->connected.get(i));
+        }
+    }
+    
     if (flags & NOTE){
         note_index = add_note("");
         if (note_index != -1 && copy->note_index != -1){
             (*current_level_context->notes.get_ptr(note_index)) = *copy_level_context->notes.get_ptr(copy->note_index);
         }
     }
-    
-    // if (!should_init_entity){
-    //     // PARTICLES COPY. Right now if we init entity - we'll add all emitters in this entity init. So when we want to 
-    //     // just copy entity (like on checkpoint) we will copy also copy all emitters indexes. 
-    //     for (i32 i = 0; i < copy->particle_emitters_i
-    // }
     
     if (flags & MOVE_SEQUENCE){
         move_sequence = copy->move_sequence;
@@ -10224,6 +10235,27 @@ void update_entities(f32 dt){
         
         if (!e->enabled || (e->hidden && game_state == GAME && !state_context.in_pause_editor)){
             continue;
+        }
+        
+        // verify kill switch
+        if (e->flags & KILL_SWITCH){
+            Kill_Switch *kill_switch = &e->enemy.kill_switch;
+            for (i32 i = 0; i < kill_switch->connected.count; i++){
+                Entity *connected = get_entity_by_id(kill_switch->connected.get(i));
+                if (!connected){
+                    kill_switch->connected.remove(i);
+                    i--;
+                    continue;
+                }
+                // That could happen if entity was destroyed and before that code happens - someone occupies that slot. 
+                // I want to know it that will ever happen so i'll leave log here.
+                if (!(connected->flags & ENEMY)){
+                    kill_switch->connected.remove(i);
+                    i--;
+                    print("FUNNY situation at verify kill switch");
+                    continue;
+                }
+            }
         }
         
         if (game_state == EDITOR || state_context.in_pause_editor){
