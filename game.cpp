@@ -920,7 +920,7 @@ i32 save_level(const char *level_name){
             Turret *turret = &e->enemy.turret;
             fprintf(fptr, "turret_projectile_flags:%llu: ", turret->projectile_settings.enemy_flags);
             fprintf(fptr, "turret_shoot_sword_blocker_clockwise:%d: ", turret->projectile_settings.blocker_clockwise);
-            fprintf(fptr, "turret_homing_projectiles:%d: ", turret->projectile_settings.homing);
+            fprintf(fptr, "turret_homing_projectiles:%d: ", turret->homing);
             fprintf(fptr, "turret_shot_delay:%f: ", turret->shot_delay);
             fprintf(fptr, "turret_projectile_speed:%f: ", turret->projectile_settings.launch_speed);
             fprintf(fptr, "turret_projectile_max_lifetime:%f: ", turret->projectile_settings.max_lifetime);
@@ -1369,7 +1369,7 @@ b32 load_level(const char *level_name){
                 fill_b32_from_string(&entity_to_fill.enemy.turret.projectile_settings.blocker_clockwise, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "turret_homing_projectiles")){
-                fill_b32_from_string(&entity_to_fill.enemy.turret.projectile_settings.homing, splitted_line.get(i+1).data);
+                fill_b32_from_string(&entity_to_fill.enemy.turret.homing, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "turret_shot_delay")){
                 fill_f32_from_string(&entity_to_fill.enemy.turret.shot_delay, splitted_line.get(i+1).data);
@@ -1690,6 +1690,24 @@ void init_spawn_objects(){
     copy_entity(&turret_direct_object.entity, &turret_direct_entity);
     str_copy(turret_direct_object.name, turret_direct_entity.name);
     spawn_objects.add(turret_direct_object);
+    
+    Entity turret_homing_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
+    turret_homing_entity.enemy.unkillable = true;
+    {
+        Turret *turret = &turret_homing_entity.enemy.turret;
+        turret->homing = true;
+        turret->projectile_settings.launch_speed = 200;
+        turret->projectile_settings.max_lifetime = 5;
+        turret->shot_delay = 2.0f;
+    }
+    turret_homing_entity.color = ColorBrightness(PURPLE, 0.1f);
+    str_copy(turret_homing_entity.name, "turret_homing"); 
+    setup_color_changer(&turret_homing_entity);
+    
+    Spawn_Object turret_homing_object;
+    copy_entity(&turret_homing_object.entity, &turret_homing_entity);
+    str_copy(turret_homing_object.name, turret_homing_entity.name);
+    spawn_objects.add(turret_homing_object);
     
     Entity bird_entity = Entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     init_bird_entity(&bird_entity);
@@ -2104,14 +2122,17 @@ void init_entity(Entity *entity){
         init_bird_entity(entity);
     }
     
+    // init kill switch
     if (entity->flags & KILL_SWITCH){
         entity->enemy.max_hits_taken = 5;
     }
     
+    // init hit booster
     if (entity->flags & HIT_BOOSTER){
         entity->enemy.max_hits_taken = -1;
     }
     
+    // init turret
     if (entity->flags & TURRET){
         entity->enemy.unkillable = true;
     }
@@ -5339,7 +5360,8 @@ void update_editor_ui(){
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Shoot explosive: ", "turret_shoot_explosive", turret->projectile_settings.enemy_flags, EXPLOSIVE, );
                 
-                INSPECTOR_UI_TOGGLE("Homing projectiels: ", "turret_homing_projectiles", turret->projectile_settings.homing, );
+                // I think it's better to just have separate turret entitites for homing ones so we could change visuals without problems.
+                // INSPECTOR_UI_TOGGLE("Homing projectiels: ", "turret_homing_projectiles", turret->projectile_settings.homing, );
                 INSPECTOR_UI_INPUT_FIELD("Shot delay: ", "turret_shot_delay", "%.2f", turret->shot_delay, to_f32, );
                 INSPECTOR_UI_INPUT_FIELD("Projectile speed: ", "turret_projectile_speed", "%.0f", turret->projectile_settings.launch_speed, to_f32, );
                 INSPECTOR_UI_INPUT_FIELD("Max lifetime: ", "turret_projectile_max_lifetime", "%.0f", turret->projectile_settings.max_lifetime, to_f32, );
@@ -9158,7 +9180,7 @@ void calculate_projectile_collisions(Entity *entity){
                 }
             }
         }
-    } else if (projectile->type == TURRET_DIRECT_PROJECTILE){
+    } else if (projectile->type == TURRET_DIRECT_PROJECTILE || projectile->type == TURRET_HOMING_PROJECTILE){
         fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
         Enemy *enemy = &entity->enemy;
         
@@ -9185,7 +9207,11 @@ void update_projectile(Entity *entity, f32 dt){
     f32 lifetime = core.time.game_time - projectile->birth_time;
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime){
-        entity->destroyed = true;    
+        if (entity->flags & ENEMY){
+            kill_enemy(entity, entity->position, entity->up);
+        } else{
+            entity->destroyed = true;    
+        }
         return;
     }
     
@@ -9207,6 +9233,15 @@ void update_projectile(Entity *entity, f32 dt){
                 projectile->velocity.y -= player_data->gravity * dt;
             }
         }
+    }
+    
+    if (projectile->type == TURRET_HOMING_PROJECTILE){
+        Vector2 vec_to_player = player_entity->position - entity->position;
+        Vector2 dir = normalized(vec_to_player);
+        
+        change_up(entity, move_towards(entity->up, dir, 2, dt));
+        f32 projectile_speed = magnitude(projectile->velocity);
+        projectile->velocity = entity->up * projectile_speed;
     }
     
     Vector2 move = projectile->velocity * dt;
@@ -9342,6 +9377,11 @@ void update_editor_entity(Entity *e){
     if (e->flags & DOOR){
         e->door.closed_position = e->door.is_open ? e->position - e->up * e->scale.y : e->position;
         e->door.open_position   = e->door.is_open ? e->position : e->position + e->up * e->scale.y;
+    }
+    
+    // update turret editor
+    if (e->flags & TURRET){
+        e->enemy.turret.original_angle = fangle(e->up, Vector2_right);
     }
 }
 
@@ -9704,15 +9744,21 @@ void update_all_collision_cells(){
 }
 
 void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings settings, Projectile_Type type, Color color){
+    Vector2 scale = {2, 4};
+    
+    if (type == TURRET_HOMING_PROJECTILE){
+        scale *= 2;
+    }
+    
     // @CLEANUP: Right now we set additional projectile enemy flags directly to entity, but when we redo entity system we will 
     // want to set that on enemy of spawned projectile.
-    Entity *projectile_entity = add_entity(position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | settings.enemy_flags);
+    Entity *projectile_entity = add_entity(position, scale, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | settings.enemy_flags);
     change_color(projectile_entity, color);
     projectile_entity->projectile.birth_time = core.time.game_time;
     projectile_entity->projectile.type = type;
     projectile_entity->projectile.velocity = direction * settings.launch_speed;
+    change_up(projectile_entity, direction);
     projectile_entity->projectile.max_lifetime = settings.max_lifetime;
-    projectile_entity->projectile.homing = settings.homing;
     
     if (projectile_entity->flags & BLOCKER){
         projectile_entity->enemy.blocker_clockwise = settings.blocker_clockwise;
@@ -9723,15 +9769,40 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
     init_entity(projectile_entity);
 }
 
-void update_turret(Entity *entity, f32 dt){
+inline void update_turret(Entity *entity, f32 dt){
     Turret *turret = &entity->enemy.turret;
-    f32 time_since_shot = core.time.game_time - turret->last_shot_time;
     
-    if (time_since_shot >= turret->shot_delay){
-        Vector2 start_position = entity->position + entity->up * entity->scale.y * entity->pivot.y;
-        shoot_projectile(start_position, entity->up, turret->projectile_settings, TURRET_DIRECT_PROJECTILE, ColorBrightness(RED, 0.5f));
-        // For real consistency.
-        turret->last_shot_time = core.time.game_time - (time_since_shot - turret->shot_delay);
+    Projectile_Type projectile_type = TURRET_DIRECT_PROJECTILE;
+    Color projectile_color = ColorBrightness(RED, 0.5f);
+    
+    b32 see_player = true;
+    if (turret->homing){
+        projectile_type = TURRET_HOMING_PROJECTILE;
+        projectile_color = ColorBrightness(ORANGE, -0.2f);
+        
+        Vector2 vec_to_player = player_entity->position - entity->position;
+        Vector2 dir = normalized(vec_to_player);
+        f32 current_angle = fangle(entity->up, Vector2_right);
+        f32 desired_angle = fangle(dir, Vector2_right);
+        
+        f32 angle_diversion = abs(desired_angle - turret->original_angle);
+        if (angle_diversion > 70){
+            see_player = false;
+        } else{
+            f32 rotation_speed = 30;
+            f32 angle_change = normalized(desired_angle - current_angle) * rotation_speed * dt * -1;
+            rotate(entity, angle_change);
+        }
+        
+    }
+    
+    if (see_player){
+        turret->cooldown_countdown -= dt;
+        if (turret->cooldown_countdown <= 0){
+            Vector2 start_position = entity->position + entity->up * entity->scale.y * entity->pivot.y;
+            shoot_projectile(start_position, entity->up, turret->projectile_settings, projectile_type, projectile_color);
+            turret->cooldown_countdown += turret->shot_delay;
+        }
     }
 }
 
@@ -11010,6 +11081,13 @@ void draw_entity(Entity *e){
         draw_game_circle(e->position, e->scale.x * 0.5f, ColorBrightness(RED, 0.6f));
     } else if (e->flags & ENEMY){
         draw_enemy(e);
+    }
+    
+    // draw turret
+    if (e->flags & TURRET){
+        if (e->enemy.turret.homing){
+            draw_game_line(e->position - e->up * e->scale.y * (1.0f - e->pivot.y), e->position + e->up * e->scale.y * e->pivot.y, e->scale.x * 0.2f, RED);
+        }
     }
     
     if (e->flags & WIN_BLOCK){

@@ -313,7 +313,6 @@ struct Multiple_Hits{
 
 struct Projectile_Settings{
     FLAGS enemy_flags = 0;
-    b32 homing = false;  
     b32 blocker_clockwise = false;
     f32 launch_speed = 75.0f;
     f32 max_lifetime = 7.0f;
@@ -322,7 +321,9 @@ struct Projectile_Settings{
 struct Turret{
     b32 activated = true;
     f32 shot_delay = 0.2f;
-    f32 last_shot_time = 0;
+    f32 cooldown_countdown = 0.2f;
+    f32 original_angle = 0;
+    b32 homing = false;  
     
     Projectile_Settings projectile_settings = {};
 };
@@ -764,6 +765,7 @@ enum Projectile_Type{
     PLAYER_RIFLE_PROJECTILE  = 1,
     JUMP_SHOOTER_PROJECTILE  = 2,
     TURRET_DIRECT_PROJECTILE = 3,
+    TURRET_HOMING_PROJECTILE = 4
 };
 
 struct Projectile{
@@ -773,8 +775,6 @@ struct Projectile{
     f32 max_lifetime = 5;
     b32 dying = false;
     b32 bounced = false;
-    
-    b32 homing = false;
     
     i32 trail_emitter_index = -1;
     
