@@ -319,6 +319,7 @@ struct Turret{
     f32 cooldown_countdown = 0.2f;
     f32 original_angle = 0;
     b32 homing = false;  
+    b32 see_player = false;
     
     Projectile_Settings projectile_settings = {};
 };

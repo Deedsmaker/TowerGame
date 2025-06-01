@@ -9791,34 +9791,56 @@ inline void update_turret(Entity *entity, f32 dt){
     Projectile_Type projectile_type = TURRET_DIRECT_PROJECTILE;
     Color projectile_color = ColorBrightness(RED, 0.5f);
     
-    b32 see_player = true;
+    turret->see_player = false;
     if (turret->homing){
         projectile_type = TURRET_HOMING_PROJECTILE;
         projectile_color = ColorBrightness(ORANGE, -0.2f);
         
         Vector2 vec_to_player = player_entity->position - entity->position;
         Vector2 dir = normalized(vec_to_player);
-        f32 current_angle = fangle(entity->up, Vector2_right);
-        f32 desired_angle = fangle(dir, Vector2_right);
         
-        f32 angle_diversion = abs(desired_angle - turret->original_angle);
-        if (angle_diversion > 70){
-            see_player = false;
+        f32 sqr_distance = sqr_magnitude(vec_to_player);
+            
+        if (sqr_distance >= 400 * 400){
         } else{
-            f32 rotation_speed = 30;
-            f32 angle_change = normalized(desired_angle - current_angle) * rotation_speed * dt * -1;
-            rotate(entity, angle_change);
+            // This (- 2) because of the shitty raycast where we could hit obstacle *behind* player and count that as we don't 
+            // see player, even though we have direct line of sight.
+            f32 distance = sqrtf(sqr_distance) - entity->scale.y * entity->pivot.y - 2;
+            
+            Collision ray_collision = raycast(entity->position + entity->up * entity->scale.y * entity->pivot.y, dir, distance, GROUND | ENEMY_BARRIER | NO_MOVE_BLOCK, 1);
+            
+            if (ray_collision.collided){
+                turret->see_player = false;
+            } else{
+                turret->see_player = true;
+            }
+            
+            f32 current_angle = fangle(entity->up, Vector2_right);
+            f32 desired_angle = fangle(dir, Vector2_right);
+            
+            f32 angle_diversion = abs(desired_angle - turret->original_angle);
+            if (angle_diversion > 70){
+                turret->see_player = false;
+            } else{
+                f32 rotation_speed = 30;
+                f32 angle_change = normalized(desired_angle - current_angle) * rotation_speed * dt * -1;
+                rotate(entity, angle_change);
+            }
         }
-        
+    } else{
+        // We currently don't care about non-homing turret seeing player.
+        turret->see_player = true;
     }
     
-    if (see_player){
+    if (turret->see_player){
         turret->cooldown_countdown -= dt;
         if (turret->cooldown_countdown <= 0){
             Vector2 start_position = entity->position + entity->up * entity->scale.y * entity->pivot.y;
             shoot_projectile(start_position, entity->up, turret->projectile_settings, projectile_type, projectile_color);
             turret->cooldown_countdown += turret->shot_delay;
         }
+    } else{
+        turret->cooldown_countdown = turret->shot_delay;
     }
 }
 
@@ -10636,6 +10658,21 @@ void fill_entities_draw_queue(){
                 }
                 
                 make_line(entity->position, target_position, attack_line_width, attack_line_color);
+            }
+        }
+        
+        // always draw turret
+        if (entity->flags & TURRET){
+            Turret *turret = &entity->enemy.turret;
+            if (turret->homing && turret->see_player){
+                f32 t = 1.0f - (turret->cooldown_countdown / turret->shot_delay);
+                
+                Color line_color = color_fade(Fade(RED, 0.6f), t);
+                f32 line_width = lerp(0.0f, 3.0f, t * t * t);
+                
+                Vector2 target_position = player_entity->position;
+                
+                make_line(entity->position + entity->up * entity->scale.y * entity->pivot.y, target_position, line_width, line_color);
             }
         }
         
