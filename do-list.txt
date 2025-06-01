@@ -7,7 +7,7 @@
 [ ] Turrets.
     [ ]? Turrets should have ability to enable on some trigger that player could trigger or be active by default.
     [X] Turrets could die only if we kill they battery, that shoud be separated entity visibly conneted to turret.
-    [ ] Turrets that shoot into player. Probably should do projectiles homing to player.
+    [X] Turrets that shoot into player. Probably should do projectiles homing to player.
     [ ] Turrets that just shoot in rhytm. Even if they was enabled in different time. 
 [ ] Bomber that drops bombs. Simplest idea with him is that he's flying left-right and below is blocks that we need to spin on.
 [ ] Enemies that on slowmo will do something like spawn smoke or speed up.

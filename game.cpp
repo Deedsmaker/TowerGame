@@ -1521,7 +1521,7 @@ global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dyn
 
 global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
 
-#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | MULTIPLE_HITS)
+#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK)
 
 Entity *spawn_object_by_name(const char* name, Vector2 position){
     for (i32 i = 0; i < spawn_objects.count; i++){
@@ -1771,6 +1771,16 @@ void init_spawn_objects(){
     copy_entity(&kill_switch_object.entity, &kill_switch_entity);
     str_copy(kill_switch_object.name, kill_switch_entity.name);
     spawn_objects.add(kill_switch_object);
+    
+    Entity enemy_barrier_entity = Entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER);
+    enemy_barrier_entity.color = ColorBrightness(GRAY, 0.2f);
+    str_copy(enemy_barrier_entity.name, "enemy_barrier"); 
+    setup_color_changer(&enemy_barrier_entity);
+    
+    Spawn_Object enemy_barrier_object;
+    copy_entity(&enemy_barrier_object.entity, &enemy_barrier_entity);
+    str_copy(enemy_barrier_object.name, enemy_barrier_entity.name);
+    spawn_objects.add(enemy_barrier_object);
     
     Entity spikes_entity = Entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
     spikes_entity.trigger.kill_player = true;
@@ -2124,6 +2134,10 @@ void init_entity(Entity *entity){
     
     // init kill switch
     if (entity->flags & KILL_SWITCH){
+        entity->enemy.max_hits_taken = 5;
+    }
+    
+    if (entity->flags & ENEMY_BARRIER){
         entity->enemy.max_hits_taken = 5;
     }
     
@@ -4064,7 +4078,9 @@ void update_game(){
     
     draw_game();
     
+    #if RELEASE_BUILD
     UpdateMusicStream(ambient_theme);
+    #endif
     UpdateMusicStream(wind_theme);
     UpdateMusicStream(tires_theme);
     
@@ -7778,7 +7794,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     b32 moving_object_detected = false;
     // player ground checker
-    FLAGS player_ground_collision_flags = GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK;
+    FLAGS player_ground_collision_flags = GROUND | ENEMY_BARRIER | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK;
     fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
     b32 is_ground_huge_collision_speed = false;
     b32 found_no_move_block = false;
@@ -7913,7 +7929,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     }
     
     // player body collision
-    fill_collisions(player_entity, &collisions_buffer, GROUND | BLOCKER | SHOOT_BLOCKER | SWORD_SIZE_REQUIRED | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK);
+    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK);
     
     b32 is_body_huge_collision_speed = false;
     b32 on_propeller = false;
@@ -8217,7 +8233,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
     b32 is_high_velocity = bird_speed > 100;
     
     b32 should_respond = true;
-    if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & BLOCKER || other->flags & SHOOT_BLOCKER){
+    if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & ENEMY_BARRIER){
         resolve_collision(bird_entity, col);
         
         if (other->flags & PHYSICS_OBJECT){
@@ -9150,7 +9166,7 @@ void calculate_projectile_collisions(Entity *entity){
             }
         }
     } else if (projectile->type == JUMP_SHOOTER_PROJECTILE){
-        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
+        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
         // @CLEANUP We don't need JUMP_SHOOTER_PROJECTILE anymore because we don't want jump shooter.        
         Enemy *enemy = &entity->enemy;
         
@@ -9181,21 +9197,19 @@ void calculate_projectile_collisions(Entity *entity){
             }
         }
     } else if (projectile->type == TURRET_DIRECT_PROJECTILE || projectile->type == TURRET_HOMING_PROJECTILE){
-        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT);
+        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
         Enemy *enemy = &entity->enemy;
         
         for (i32 i = 0; i < collisions_buffer.count; i++){
             Collision col = collisions_buffer.get(i);
             Entity *other = col.other_entity;
             
-            if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT){
-                kill_enemy(entity, col.point, col.normal);
-                emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
-            }
-            
             if (other->flags & PLAYER && !player_data->dead_man && !enemy->dead_man){
                 kill_player();
             }
+            
+            kill_enemy(entity, col.point, col.normal);
+            emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
         }
     }
 }
@@ -9239,9 +9253,11 @@ void update_projectile(Entity *entity, f32 dt){
         Vector2 vec_to_player = player_entity->position - entity->position;
         Vector2 dir = normalized(vec_to_player);
         
-        change_up(entity, move_towards(entity->up, dir, 2, dt));
-        f32 projectile_speed = magnitude(projectile->velocity);
-        projectile->velocity = entity->up * projectile_speed;
+        if (dot(dir, entity->up) > 0){
+            change_up(entity, move_towards(entity->up, dir, 2, dt));
+            f32 projectile_speed = magnitude(projectile->velocity);
+            projectile->velocity = entity->up * projectile_speed;
+        }
     }
     
     Vector2 move = projectile->velocity * dt;
@@ -11088,6 +11104,21 @@ void draw_entity(Entity *e){
         if (e->enemy.turret.homing){
             draw_game_line(e->position - e->up * e->scale.y * (1.0f - e->pivot.y), e->position + e->up * e->scale.y * e->pivot.y, e->scale.x * 0.2f, RED);
         }
+    }
+    
+    // draw enemy barrier
+    if (e->flags & ENEMY_BARRIER){
+        f32 w = e->scale.x;
+        f32 h = e->scale.y;
+        // Assuming pivot for barriers {0.5, 0.5}.
+        
+        draw_game_line(e->position + e->up * h * 0.35f - e->right * w * 0.45f, e->position + e->up * h * 0.45f - e->right * w * 0.35f, 1.0f, BLUE);
+        draw_game_line(e->position + e->up * h * 0.35f + e->right * w * 0.45f, e->position + e->up * h * 0.45f + e->right * w * 0.35f, 1.0f, BLUE);
+        draw_game_line(e->position - e->up * h * 0.35f - e->right * w * 0.45f, e->position - e->up * h * 0.45f - e->right * w * 0.35f, 1.0f, BLUE);
+        draw_game_line(e->position - e->up * h * 0.35f + e->right * w * 0.45f, e->position - e->up * h * 0.45f + e->right * w * 0.35f, 1.0f, BLUE);
+        
+        draw_game_line(e->position + e->up * h * 0.35f + e->right * w * 0.25f, e->position - e->up * h * 0.35f + e->right * w * 0.25f, 0.5f, ColorBrightness(BLUE, 0.2f));
+        draw_game_line(e->position + e->up * h * 0.35f - e->right * w * 0.25f, e->position - e->up * h * 0.35f - e->right * w * 0.25f, 0.5f, ColorBrightness(BLUE, 0.2f));
     }
     
     if (e->flags & WIN_BLOCK){

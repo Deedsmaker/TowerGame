@@ -267,13 +267,8 @@ enum Flags : u64{
     AMMO_PACK              = (static_cast<u64>(1) << 37),
     TURRET                 = (static_cast<u64>(1) << 38),
     KILL_SWITCH            = (static_cast<u64>(1) << 39),
+    ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
 };
-
-// #define LONG_SPIN              (static_cast<u64>(1) << 32)
-// #define NO_MOVE_BLOCK          (static_cast<u64>(1) << 33)
-// #define HIT_BOOSTER            (static_cast<u64>(1) << 34)
-// #define MULTIPLE_HITS          (static_cast<u64>(1) << 35)
-// #define GIVES_BIG_SWORD_CHARGE (static_cast<u64>(1) << 36)
 
 struct Physics_Object{
     b32 simulating = true;
