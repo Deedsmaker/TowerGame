@@ -7881,8 +7881,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         f32 angle = fangle(col.normal, player_entity->up);
         
         if (angle <= player_data->max_ground_angle){
-            // Check that we won't be clipping in the ceiling.
-            if (!raycast(player_entity->position + Vector2_up * player_entity->scale.y * 0.5f, Vector2_up, 2.0f, GROUND, 2.0f, player_entity->id).collided){
+            b32 ceiling_too_close = raycast(player_entity->position + Vector2_up * player_entity->scale.y * 0.5f, Vector2_up, 2.0f, GROUND, 2.0f, player_entity->id).collided;
+            if (!ceiling_too_close){
                 player_entity->position.y += col.overlap;
             } 
             
@@ -8683,13 +8683,11 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
                 
                 Vector2 dir_to_other = normalized(vec_to_other);
-                u64 additional_flags = 0;
-                if (other_entity->flags & PLAYER) additional_flags |= CENTIPEDE_SEGMENT | CENTIPEDE;
                 
-                Collision raycast_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other - 1, GROUND | additional_flags, 2, enemy_entity->id);
-                if (raycast_collision.collided){
+                Collision obstacle_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other - 1, GROUND | CENTIPEDE_SEGMENT | CENTIPEDE, distance_to_other - 2, enemy_entity->id);
+                if (obstacle_collision.collided){
                     if (spawned_particles_count < 3){
-                        emit_particles(&ground_splash_emitter, raycast_collision.point, raycast_collision.normal, 4, 5.5f);
+                        emit_particles(&ground_splash_emitter, obstacle_collision.point, obstacle_collision.normal, 4, 5.5f);
                         spawned_particles_count += 1;
                     }
                     continue;
@@ -9807,7 +9805,7 @@ inline void update_turret(Entity *entity, f32 dt){
             // see player, even though we have direct line of sight.
             f32 distance = sqrtf(sqr_distance) - entity->scale.y * entity->pivot.y - 2;
             
-            Collision ray_collision = raycast(entity->position + entity->up * entity->scale.y * entity->pivot.y, dir, distance, GROUND | ENEMY_BARRIER | NO_MOVE_BLOCK, 1);
+            Collision ray_collision = raycast(entity->position + entity->up * entity->scale.y * entity->pivot.y, dir, distance, GROUND | ENEMY_BARRIER | NO_MOVE_BLOCK, distance);
             
             if (ray_collision.collided){
                 turret->see_player = false;
@@ -11770,6 +11768,7 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
+    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
