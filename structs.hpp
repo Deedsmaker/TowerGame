@@ -315,11 +315,15 @@ struct Projectile_Settings{
 
 struct Turret{
     b32 activated = true;
-    f32 shot_delay = 0.2f;
-    f32 cooldown_countdown = 0.2f;
+    i32 shoot_every_tick = 3;
+    i32 start_tick_delay = 0;
     f32 original_angle = 0;
     b32 homing = false;  
     b32 see_player = false;
+    
+    i32 last_shot_tick = 0;
+    
+    f32 shoot_radius = 400;
     
     Projectile_Settings projectile_settings = {};
 };
@@ -1044,6 +1048,13 @@ struct Level_Context{
     Dynamic_Array<Light> lights = Dynamic_Array<Light>(1024);
 };
 
+struct Turret_State{
+    f32 tick_delay = 0.2f;
+    b32 ticked_this_frame = false;
+    i32 current_tick = 0;
+    f32 tick_countdown = 0.2f;
+};
+
 struct State_Context{
     b32 playing_relax = false;
 
@@ -1086,6 +1097,9 @@ struct State_Context{
         b32 on_rails_vertical   = false;
         i32 rails_trigger_id    = -1;
     };
+    
+    Turret_State turret_state = {};
+    
     Cam_State cam_state = {};
       
     b32 we_got_a_winner = false;
