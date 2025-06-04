@@ -9797,6 +9797,7 @@ inline void update_turret(Entity *entity, f32 dt){
     Color projectile_color = ColorBrightness(RED, 0.5f);
     
     b32 player_in_range = true;
+    b32 player_in_angle_range = true;
     
     turret->see_player = false;
     if (turret->homing){
@@ -9831,6 +9832,7 @@ inline void update_turret(Entity *entity, f32 dt){
             f32 angle_diversion = abs(desired_angle - turret->original_angle);
             if (angle_diversion > 70){
                 turret->see_player = false;
+                player_in_angle_range = false;
             } else{
                 f32 rotation_speed = 30;
                 // f32 angle_change = normalized(desired_angle - current_angle) * rotation_speed * dt * -1;
@@ -9855,7 +9857,7 @@ inline void update_turret(Entity *entity, f32 dt){
         turret->last_shot_tick = state->current_tick;
     }
     
-    if (is_my_tick && player_in_range/* && turret->see_player*/){
+    if (is_my_tick && player_in_range && player_in_angle_range /*turret->see_player*/){
         Vector2 start_position = entity->position + entity->up * entity->scale.y * entity->pivot.y;
         shoot_projectile(start_position, entity->up, turret->projectile_settings, projectile_type, projectile_color);
         if (turret->homing){
@@ -11818,7 +11820,6 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
-    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
