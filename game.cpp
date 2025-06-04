@@ -5382,8 +5382,8 @@ void update_editor_ui(){
                 
                 // I think it's better to just have separate turret entitites for homing ones so we could change visuals without problems.
                 // INSPECTOR_UI_TOGGLE("Homing projectiels: ", "turret_homing_projectiles", turret->projectile_settings.homing, );
-                INSPECTOR_UI_INPUT_FIELD("Shot every tick: ", "turret_shoot_every_tick", "%d", turret->shoot_every_tick, to_i32, );
-                INSPECTOR_UI_INPUT_FIELD("Shot every tick: ", "turret_start_tick_delay", "%d", turret->start_tick_delay, to_i32, );
+                INSPECTOR_UI_INPUT_FIELD("Shoot every x tick: ", "turret_shoot_every_tick", "%d", turret->shoot_every_tick, to_i32, );
+                INSPECTOR_UI_INPUT_FIELD("Start delay: ", "turret_start_tick_delay", "%d", turret->start_tick_delay, to_i32, );
                 INSPECTOR_UI_INPUT_FIELD("Projectile speed: ", "turret_projectile_speed", "%.0f", turret->projectile_settings.launch_speed, to_f32, );
                 INSPECTOR_UI_INPUT_FIELD("Max lifetime: ", "turret_projectile_max_lifetime", "%.0f", turret->projectile_settings.max_lifetime, to_f32, );
             }
@@ -9796,6 +9796,8 @@ inline void update_turret(Entity *entity, f32 dt){
     Projectile_Type projectile_type = TURRET_DIRECT_PROJECTILE;
     Color projectile_color = ColorBrightness(RED, 0.5f);
     
+    b32 player_in_range = true;
+    
     turret->see_player = false;
     if (turret->homing){
         projectile_type = TURRET_HOMING_PROJECTILE;
@@ -9808,6 +9810,7 @@ inline void update_turret(Entity *entity, f32 dt){
             
         if (sqr_distance >= turret->shoot_radius * turret->shoot_radius){
             entity->enemy.in_agro = false;
+            player_in_range = false;
         } else{
             entity->enemy.in_agro = true;
             // This (- 2) because of the shitty raycast where we could hit obstacle *behind* player and count that as we don't 
@@ -9852,7 +9855,7 @@ inline void update_turret(Entity *entity, f32 dt){
         turret->last_shot_tick = state->current_tick;
     }
     
-    if (is_my_tick && turret->see_player){
+    if (is_my_tick && player_in_range/* && turret->see_player*/){
         Vector2 start_position = entity->position + entity->up * entity->scale.y * entity->pivot.y;
         shoot_projectile(start_position, entity->up, turret->projectile_settings, projectile_type, projectile_color);
         if (turret->homing){
@@ -10625,6 +10628,13 @@ inline b32 should_not_draw_entity(Entity *e, Cam cam){
     return /*!should_draw_entity_anyway(e) && */(!check_bounds_collision(cam.view_position, cam_bounds, e) || !e->enabled);
 }
 
+inline f32 get_turret_charge_progress(Turret *turret){
+    Turret_State *state = &state_context.turret_state;
+    f32 between_tick_time       = (f32)(turret->shoot_every_tick) * state->tick_delay;
+    f32 from_previous_tick_time = (f32)(state->current_tick - turret->last_shot_tick) * state->tick_delay + (state->tick_delay - state->tick_countdown);
+    return clamp01(from_previous_tick_time / between_tick_time);
+}
+
 void fill_entities_draw_queue(){
     session_context.entities_draw_queue.clear();
     
@@ -10692,10 +10702,7 @@ void fill_entities_draw_queue(){
         if (entity->flags & TURRET){
             Turret *turret = &entity->enemy.turret;
             if (turret->homing && turret->see_player){
-                Turret_State *state = &state_context.turret_state;
-                f32 between_tick_time       = (f32)(turret->shoot_every_tick) * state->tick_delay;
-                f32 from_previous_tick_time = (f32)(state->current_tick - turret->last_shot_tick) * state->tick_delay + (state->tick_delay - state->tick_countdown);
-                f32 t = from_previous_tick_time / between_tick_time;;
+                f32 t = get_turret_charge_progress(turret);
                 
                 Color line_color = color_fade(Fade(RED, 0.6f), t);
                 f32 line_width = lerp(0.0f, 3.0f, t * t * t);
@@ -11161,7 +11168,14 @@ void draw_entity(Entity *e){
     // draw turret
     if (e->flags & TURRET){
         if (e->enemy.turret.homing){
-            draw_game_line(e->position - e->up * e->scale.y * (1.0f - e->pivot.y), e->position + e->up * e->scale.y * e->pivot.y, e->scale.x * 0.2f, RED);
+            // Drawing charge line
+            Vector2 start = e->position - e->up * e->scale.y * (1.0f - e->pivot.y); 
+            f32 length = e->scale.y * e->pivot.y;
+            if (game_state == GAME && !state_context.in_pause_editor){
+                f32 t = get_turret_charge_progress(&e->enemy.turret);
+                length = lerp(0.0f, length, t * t * t);
+            }
+            draw_game_line(start, start + e->up * length, e->scale.x * 0.2f, RED);
         }
     }
     
@@ -11804,6 +11818,7 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
+    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
