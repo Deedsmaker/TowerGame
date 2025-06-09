@@ -8061,13 +8061,18 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     b32 just_lost_ground_below_my_feet = player_data->grounded && !found_ground && player_data->timers.since_jump_timer >= 0.5f;
     if (just_lost_ground_below_my_feet && !on_propeller){
         Collision col = raycast(player_entity->position, Vector2_up * -1, player_entity->scale.y + ground_checker->scale.y * 2, player_ground_collision_flags, 0.2f, player_entity->id);
-        // f32 old_new_normal_dot = dot(col.normal, player_data->ground_normal);
-        Vector2 next_velocity_plane = get_move_plane(col.normal, player_data->velocity.x);
-        f32 old_new_velocity_plane_dot = dot(next_velocity_plane, player_data->velocity_plane);
-        if (col.collided && col.normal != player_data->ground_normal && old_new_velocity_plane_dot >= 0.9f){
-            found_ground = true;
-            player_snap_to_plane(col.normal);
-            player_data->velocity -= col.normal;
+        // That situation for snapping to surface while moving on different normal ground.
+        if (col.collided){
+            Vector2 next_velocity_plane = get_move_plane(col.normal, player_data->velocity.x);
+            f32 old_new_velocity_plane_dot = dot(next_velocity_plane, player_data->velocity_plane);
+            if (col.normal != player_data->ground_normal && old_new_velocity_plane_dot >= 0.9f){
+                found_ground = true;
+                player_snap_to_plane(col.normal);
+                player_data->velocity -= col.normal;
+            }
+        } else if (input_direction.x == 0 && player_data->velocity.x < player_data->ground_walk_speed * 0.5f){
+            // That for stopping and not falling when on edge and player not holding key forward.
+            player_data->velocity = player_data->velocity * -0.8f;;
         }
     }
     player_data->grounded = found_ground;
