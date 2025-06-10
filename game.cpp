@@ -5652,10 +5652,29 @@ inline Vector2 get_editor_mouse_move(){
     return cast(Vector2){input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom} / (current_level_context->cam.unit_size);
 }
 
+inline f32 round_to_factor(f32 number, f32 quantization_factor){
+    return roundf(number / quantization_factor) * quantization_factor;
+}
+
 void editor_mouse_move_entity(Entity *entity){
     Vector2 move_delta = get_editor_mouse_move();
     
-    entity->position += move_delta;
+    f32 cell_size = 5;
+    
+    b32 moving_without_cell_bound = IsKeyDown(KEY_LEFT_ALT);
+    if (!moving_without_cell_bound){
+        move_delta = input.mouse_position - entity->position;
+    }
+    
+    if (moving_without_cell_bound){
+        entity->position += move_delta;
+    } else if (sqr_magnitude(move_delta) >= (cell_size * 0.5f * cell_size * 0.5f)){
+        Vector2 next_position = entity->position + move_delta;
+        Vector2 cell_position = {round_to_factor(next_position.x, cell_size), round_to_factor(next_position.y, cell_size)};
+        move_delta = cell_position - entity->position;
+        entity->position += move_delta;
+    }
+    
     if (editor.move_entity_points){
         editor_move_entity_points(entity, move_delta);
     }
@@ -6311,43 +6330,47 @@ void update_editor(){
         current_level_context->cam.position = editor.selected_entity->position;
     }
     
-    //editor Entity rotation
-    if (editor.selected_entity != NULL){
-        if (can_control_with_single_button){
-            f32 rotation = 0;
-            f32 speed = 50;
-            if (!editor.is_rotating_entity && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_Q))){
-                editor.rotating_start = editor.selected_entity->rotation;
-                undo_remember_vertices_start(editor.selected_entity);
-                editor.is_rotating_entity = true;
-            } 
-            
-            if (IsKeyDown(KEY_E)){
-                rotation = dt * speed;
-            } else if (IsKeyDown(KEY_Q)){
-                rotation = -dt * speed;
-            }
-            
-            if (rotation != 0 && editor.is_rotating_entity){
-                rotate(editor.selected_entity, rotation);
-            }
+    //editor free entity rotation
+    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT)){
+        f32 rotation = 0;
+        f32 speed = 50;
+        if (!editor.is_rotating_entity && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_Q))){
+            editor.rotating_start = editor.selected_entity->rotation;
+            undo_remember_vertices_start(editor.selected_entity);
+            editor.is_rotating_entity = true;
+        } 
+        
+        if (IsKeyDown(KEY_E)){
+            rotation = dt * speed;
+        } else if (IsKeyDown(KEY_Q)){
+            rotation = -dt * speed;
         }
+        
+        if (rotation != 0 && editor.is_rotating_entity){
+            rotate(editor.selected_entity, rotation);
+        }
+        
         if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))){
             undo_add_rotation(editor.selected_entity, editor.selected_entity->rotation - editor.rotating_start);
             editor.is_rotating_entity = false;
         } 
-    }
-    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT) && IsKeyUp(KEY_LEFT_SHIFT)){
+    } else if (editor.selected_entity && can_control_with_single_button){
+        // editor snap entity rotation.
         local_persist f32 holding_time = 0;
+        f32 to_rotate = 0;
         if (IsKeyPressed(KEY_E)){
-            undo_remember_vertices_start(editor.selected_entity);
-            rotate(editor.selected_entity, 30);
-            undo_add_rotation(editor.selected_entity, 30);
+            to_rotate = 15;
         }
         if (IsKeyPressed(KEY_Q)){
+            to_rotate = -15;
+        }
+        
+        if (to_rotate != 0){
+            f32 next_rotation = round_to_factor(editor.selected_entity->rotation + to_rotate, 15);
+            to_rotate = next_rotation - editor.selected_entity->rotation;
             undo_remember_vertices_start(editor.selected_entity);
-            rotate(editor.selected_entity, -30);
-            undo_add_rotation(editor.selected_entity, (-30));
+            rotate(editor.selected_entity, to_rotate);
+            undo_add_rotation(editor.selected_entity, (to_rotate));
         }
         
         if (IsKeyReleased(KEY_E) || IsKeyReleased(KEY_Q)){
@@ -6357,7 +6380,7 @@ void update_editor(){
         if (IsKeyDown(KEY_E) || IsKeyDown(KEY_Q)){
             holding_time += dt;
             if (holding_time >= 0.2f){
-                f32 direction = IsKeyDown(KEY_E) ? 30 : -30;
+                f32 direction = IsKeyDown(KEY_E) ? 15 : -15;
                 undo_remember_vertices_start(editor.selected_entity);
                 rotate(editor.selected_entity, direction);
                 undo_add_rotation(editor.selected_entity, (direction));
@@ -6366,45 +6389,47 @@ void update_editor(){
         }
     }
     
-    //editor entity scaling
-    if (editor.selected_entity != NULL){
-        if (can_control_with_single_button){
-            Vector2 scaling = {};
-            f32 speed = 80;
-            
-            if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))){
-                editor.scaling_start = editor.selected_entity->scale;
-                undo_remember_vertices_start(editor.selected_entity);
-                editor.is_scaling_entity = true;
-            }
-            if      (IsKeyDown(KEY_W)) scaling.y += speed * dt;
-            else if (IsKeyDown(KEY_S)) scaling.y -= speed * dt;
-            if      (IsKeyDown(KEY_D)) scaling.x += speed * dt;
-            else if (IsKeyDown(KEY_A)) scaling.x -= speed * dt;
-    
-            
-            if (scaling != Vector2_zero && editor.is_scaling_entity){
-                add_scale(editor.selected_entity, scaling);
-            }
-        } 
+    //editor free entity scaling
+    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT)){
+        Vector2 scaling = {};
+        f32 speed = 80;
+        
+        if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))){
+            editor.scaling_start = editor.selected_entity->scale;
+            undo_remember_vertices_start(editor.selected_entity);
+            editor.is_scaling_entity = true;
+        }
+        if      (IsKeyDown(KEY_W)) scaling.y += speed * dt;
+        else if (IsKeyDown(KEY_S)) scaling.y -= speed * dt;
+        if      (IsKeyDown(KEY_D)) scaling.x += speed * dt;
+        else if (IsKeyDown(KEY_A)) scaling.x -= speed * dt;
+
+        if (scaling != Vector2_zero && editor.is_scaling_entity){
+            add_scale(editor.selected_entity, scaling);
+        }
+        
         if (editor.is_scaling_entity && (IsKeyUp(KEY_W) && IsKeyUp(KEY_S) && IsKeyUp(KEY_A) && IsKeyUp(KEY_D))){
             Vector2 scale_change = editor.selected_entity->scale - editor.scaling_start;
             
             undo_add_scaling(editor.selected_entity, scale_change);
             editor.is_scaling_entity = false;
         } 
-    }
-    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT) && IsKeyUp(KEY_LEFT_SHIFT)){
+    } else if (editor.selected_entity && can_control_with_single_button){
         local_persist f32 holding_time = 0;
         Vector2 scaling = Vector2_zero;
+        f32 scale_amount = 5;
         
-        if      (IsKeyPressed(KEY_W)) scaling.y += 50;
-        else if (IsKeyPressed(KEY_S)) scaling.y -= 50;
-        if      (IsKeyPressed(KEY_D)) scaling.x += 50;
-        else if (IsKeyPressed(KEY_A)) scaling.x -= 50;
+        if      (IsKeyPressed(KEY_W)) scaling.y += scale_amount;
+        else if (IsKeyPressed(KEY_S)) scaling.y -= scale_amount;
+        if      (IsKeyPressed(KEY_D)) scaling.x += scale_amount;
+        else if (IsKeyPressed(KEY_A)) scaling.x -= scale_amount;
 
 
         if (scaling != Vector2_zero){
+            Vector2 next_scale = editor.selected_entity->scale + scaling;
+            next_scale = {round_to_factor(next_scale.x, scale_amount), round_to_factor(next_scale.y, scale_amount)};
+            scaling = next_scale - editor.selected_entity->scale;
+        
             undo_remember_vertices_start(editor.selected_entity);
             add_scale(editor.selected_entity, scaling);
             undo_add_scaling(editor.selected_entity, scaling);
@@ -6414,19 +6439,30 @@ void update_editor(){
             holding_time = 0;
         }
         
+        local_persist i32 hold_scale_times = 0;
         if (IsKeyDown(KEY_W) || IsKeyDown(KEY_S) || IsKeyDown(KEY_A) || IsKeyDown(KEY_D)){
+            f32 delay = 0.2f;
+            if (hold_scale_times >= 1){
+                delay = 0.05f;
+            }
             holding_time += dt;
-            if (holding_time >= 0.2f){
-                if      (IsKeyDown(KEY_W)) scaling.y += 50;
-                else if (IsKeyDown(KEY_S)) scaling.y -= 50;
-                if      (IsKeyDown(KEY_D)) scaling.x += 50;
-                else if (IsKeyDown(KEY_A)) scaling.x -= 50;
+            if (holding_time >= delay){
+                hold_scale_times += 1;
+                if (hold_scale_times > 10){
+                    scale_amount = 20;
+                }
+                if      (IsKeyDown(KEY_W)) scaling.y += scale_amount;
+                else if (IsKeyDown(KEY_S)) scaling.y -= scale_amount;
+                if      (IsKeyDown(KEY_D)) scaling.x += scale_amount;
+                else if (IsKeyDown(KEY_A)) scaling.x -= scale_amount;
                 
                 undo_remember_vertices_start(editor.selected_entity);
                 add_scale(editor.selected_entity, scaling);
                 undo_add_scaling(editor.selected_entity, scaling);
                 holding_time = 0;
             }
+        } else{
+            hold_scale_times = 0;
         }
     }
     
