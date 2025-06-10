@@ -512,6 +512,7 @@ struct Trigger{
     
     b32 debug_should_trigger_now = false;
     b32 triggered = false;
+    f32 triggered_time = -12;
     
     b32 lock_camera = false;
     b32 unlock_camera = false;
@@ -1281,7 +1282,8 @@ struct Editor{
 
     b32 move_entity_points = false;
     
-    Vector2 dragging_start;
+    Vector2 dragging_start = Vector2_zero;
+    Vector2 dragging_start_mouse_offset = Vector2_zero;
     Vector2 scaling_start;
     f32     rotating_start;
     Array<Vector2, MAX_VERTICES> vertices_start = Array<Vector2, MAX_VERTICES>();

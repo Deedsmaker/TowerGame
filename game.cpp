@@ -920,6 +920,7 @@ i32 save_level(const char *level_name){
             Turret *turret = &e->enemy.turret;
             fprintf(fptr, "turret_projectile_flags:%llu: ", turret->projectile_settings.enemy_flags);
             fprintf(fptr, "turret_shoot_sword_blocker_clockwise:%d: ", turret->projectile_settings.blocker_clockwise);
+            fprintf(fptr, "turret_activated:%d: ", turret->activated);
             fprintf(fptr, "turret_homing_projectiles:%d: ", turret->homing);
             fprintf(fptr, "turret_shoot_every_tick:%d: ", turret->shoot_every_tick);
             fprintf(fptr, "turret_start_tick_delay:%d: ", turret->start_tick_delay);
@@ -1384,6 +1385,9 @@ b32 load_level(const char *level_name){
             } else if (str_equal(splitted_line.get(i).data, "turret_projectile_max_lifetime")){
                 fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.max_lifetime, splitted_line.get(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_activated")){
+                fill_b32_from_string(&entity_to_fill.enemy.turret.activated, splitted_line.get(i+1).data);
+                i++;
             } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers")){
                 fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers, splitted_line.get(i+1).data);
                 i++;
@@ -1654,7 +1658,7 @@ void init_spawn_objects(){
     str_copy(dummy_object.name, dummy_entity.name);
     spawn_objects.add(dummy_object);
     
-    Entity platform_entity = Entity({0, 0}, {40, 2}, {0.5f, 0.5f}, 0, PLATFORM);
+    Entity platform_entity = Entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
     platform_entity.color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
     str_copy(platform_entity.name, "platform"); 
     setup_color_changer(&platform_entity);
@@ -5382,6 +5386,7 @@ void update_editor_ui(){
                 
                 // I think it's better to just have separate turret entitites for homing ones so we could change visuals without problems.
                 // INSPECTOR_UI_TOGGLE("Homing projectiels: ", "turret_homing_projectiles", turret->projectile_settings.homing, );
+                INSPECTOR_UI_TOGGLE("Activated: ", "turret_activated", turret->activated, );
                 INSPECTOR_UI_INPUT_FIELD("Shoot every x tick: ", "turret_shoot_every_tick", "%d", turret->shoot_every_tick, to_i32, );
                 INSPECTOR_UI_INPUT_FIELD("Start delay: ", "turret_start_tick_delay", "%d", turret->start_tick_delay, to_i32, );
                 INSPECTOR_UI_INPUT_FIELD("Projectile speed: ", "turret_projectile_speed", "%.0f", turret->projectile_settings.launch_speed, to_f32, );
@@ -5663,7 +5668,7 @@ void editor_mouse_move_entity(Entity *entity){
     
     b32 moving_without_cell_bound = IsKeyDown(KEY_LEFT_ALT);
     if (!moving_without_cell_bound){
-        move_delta = input.mouse_position - entity->position;
+        move_delta = input.mouse_position - (entity->position + editor.dragging_start_mouse_offset);
     }
     
     if (moving_without_cell_bound){
@@ -6139,6 +6144,7 @@ void update_editor(){
                 editor.dragging_entity = editor.selected_entity;
                 editor.dragging_entity_id = editor.selected_entity->id;
                 editor.dragging_start = editor.dragging_entity->position;
+                editor.dragging_start_mouse_offset = input.mouse_position - editor.dragging_start;
             }
         }
     } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && can_select){ //stop dragging entity
@@ -8750,6 +8756,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     if (other_entity->flags & JUMP_SHOOTER){
                         other_entity->jump_shooter.velocity += dir_to_other * explosion_add_speed;
                     }
+                } else if (other_entity->flags & PROJECTILE){
+                    other_entity->destroyed = true;
                 }
                 
                 if (other_entity->flags & PHYSICS_OBJECT){
@@ -8796,6 +8804,10 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
     }
     
     if (enemy_entity->enemy.unkillable){
+        return false;
+    }
+    
+    if (enemy_entity->flags & TRIGGER && enemy_entity->enemy.dead_man){
         return false;
     }
     
@@ -9266,7 +9278,8 @@ void update_projectile(Entity *entity, f32 dt){
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime){
         if (entity->flags & ENEMY){
-            kill_enemy(entity, entity->position, entity->up);
+            // kill_enemy(entity, entity->position, entity->up);
+            entity->destroyed = true;    
         } else{
             entity->destroyed = true;    
         }
@@ -9445,6 +9458,10 @@ void update_editor_entity(Entity *e){
     }
 }
 
+void activate_turret(Entity *entity){
+    entity->enemy.turret.activated = true;
+}
+
 void trigger_entity(Entity *trigger_entity, Entity *connected){
     connected->hidden = !trigger_entity->trigger.shows_entities;
     
@@ -9480,6 +9497,10 @@ void trigger_entity(Entity *trigger_entity, Entity *connected){
     if (connected->flags & MOVE_SEQUENCE){
         connected->move_sequence.moving = trigger_entity->trigger.starts_moving_sequence;
     }
+    
+    if (connected->flags & TURRET){
+        activate_turret(connected);
+    }
 }
 
 i32 update_trigger(Entity *e){
@@ -9493,8 +9514,11 @@ i32 update_trigger(Entity *e){
     }
     
     if (e->flags & ENEMY && e->enemy.dead_man){
+        if (e->trigger.triggered){
+            return TRIGGER_SOME_ACTION;
+        }
+    
         trigger_now = true;
-        e->enemy.dead_man = false;
     }
     
     if (e->trigger.kill_enemies){
@@ -9633,6 +9657,7 @@ i32 update_trigger(Entity *e){
         }
         
         e->trigger.triggered = true;
+        e->trigger.triggered_time = core.time.game_time;
         
         if (e->trigger.die_after_trigger){
             e->enabled = false;
@@ -9831,8 +9856,16 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
     init_entity(projectile_entity);
 }
 
+global_variable f32 turret_max_angle_diversion = 70;
 inline void update_turret(Entity *entity, f32 dt){
     Turret *turret = &entity->enemy.turret;
+    
+    if (!turret->activated){
+        if (turret->homing && entity->rotation != turret->original_angle - turret_max_angle_diversion){
+            rotate_to(entity, turret->original_angle - turret_max_angle_diversion);
+        }
+        return;
+    }
     
     Projectile_Type projectile_type = TURRET_DIRECT_PROJECTILE;
     Color projectile_color = ColorBrightness(RED, 0.5f);
@@ -9871,7 +9904,7 @@ inline void update_turret(Entity *entity, f32 dt){
             f32 desired_angle = fangle(dir, Vector2_right);
             
             f32 angle_diversion = abs(desired_angle - turret->original_angle);
-            if (angle_diversion > 70){
+            if (angle_diversion > turret_max_angle_diversion){
                 turret->see_player = false;
                 player_in_angle_range = false;
             } else{
@@ -10606,12 +10639,6 @@ inline void draw_rifle(Entity *entity){
     draw_game_line_strip(&visual_entity, WHITE);
 }
 
-void draw_enemy(Entity *entity){
-    assert(entity->flags & ENEMY);
-    
-    draw_game_triangle_strip(entity);
-}
-
 inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len){
     if (!player_entity){
         print("WARNING: Tried to get ray collision to player, but player is not present");
@@ -10805,30 +10832,31 @@ void fill_entities_draw_queue(){
         
         // always draw trigger
         if (entity->flags & TRIGGER){
+            Trigger *trigger = &entity->trigger;
             if (should_draw_editor_hints()){
                 // draw cam zoom trigger draw trigger zoom draw trigger cam
-                if (entity->trigger.change_zoom){
-                    Bounds cam_bounds = get_cam_bounds(current_level_context->cam, entity->trigger.zoom_value);
+                if (trigger->change_zoom){
+                    Bounds cam_bounds = get_cam_bounds(current_level_context->cam, trigger->zoom_value);
                     Vector2 position = entity->position;
-                    if (entity->trigger.lock_camera){
+                    if (trigger->lock_camera){
                     }
-                    draw_game_circle(entity->trigger.locked_camera_position, 2, PINK);
+                    draw_game_circle(trigger->locked_camera_position, 2, PINK);
                     
                     Color cam_border_color = Fade(PINK, 0.15f);
                     if (editor.selected_entity && editor.selected_entity->id == entity->id){
                         cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.45f);
                     }
-                    position = entity->trigger.locked_camera_position;
+                    position = trigger->locked_camera_position;
                     make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (current_level_context->cam.cam2D.zoom), cam_border_color);
-                    draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, text_format("%.2f", entity->trigger.zoom_value), 18.0f / current_level_context->cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
+                    draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, text_format("%.2f", trigger->zoom_value), 18.0f / current_level_context->cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
                 }
                 
-                if (entity->trigger.lock_camera){
+                if (trigger->lock_camera){
                 }
                 
-                if (entity->trigger.start_cam_rails_horizontal || entity->trigger.start_cam_rails_vertical){
-                    for (i32 ii = 0; ii < entity->trigger.cam_rails_points.count; ii++){
-                        Vector2 point = entity->trigger.cam_rails_points.get(ii);
+                if (trigger->start_cam_rails_horizontal || trigger->start_cam_rails_vertical){
+                    for (i32 ii = 0; ii < trigger->cam_rails_points.count; ii++){
+                        Vector2 point = trigger->cam_rails_points.get(ii);
                         
                         Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
                         
@@ -10836,32 +10864,53 @@ void fill_entities_draw_queue(){
                             draw_game_circle(point, 1  * (0.4f / current_level_context->cam.cam2D.zoom), SKYBLUE);
                             draw_game_text(point - Vector2_up, text_format("%d", ii), 18 / current_level_context->cam.cam2D.zoom, RED);
                         }
-                        if (ii < entity->trigger.cam_rails_points.count - 1){
-                            make_line(point, entity->trigger.cam_rails_points.get(ii+1), color);
+                        if (ii < trigger->cam_rails_points.count - 1){
+                            make_line(point, trigger->cam_rails_points.get(ii+1), color);
                         } 
                     }
                 }
             }
             
             b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id || (IsKeyDown(KEY_LEFT_ALT) && should_draw_editor_hints());
-            for (i32 ii = 0; ii < entity->trigger.connected.count; ii++){
-                i32 id = entity->trigger.connected.get(ii);
-                Entity *connected_entity = current_level_context->entities.get_by_key_ptr(id);
+            f32 since_triggered = core.time.game_time - trigger->triggered_time;
+            for (i32 ii = 0; ii < trigger->connected.count; ii++){
+                Entity *connected = get_entity_by_id(trigger->connected.get(ii));
                 
-                if (!connected_entity){
+                if (!connected){
                     continue;
                 }
                 
-                if (connected_entity->flags & DOOR && ((entity->flags ^ TRIGGER) > 0 || game_state != GAME)){
-                    Color color = connected_entity->door.is_open == entity->trigger.open_doors ? SKYBLUE : ORANGE;
-                    f32 width = connected_entity->door.is_open == entity->trigger.open_doors ? 1.0f : 0.2f;
-                    make_line(entity->position, connected_entity->position, width, Fade(ColorBrightness(color, 0.2f), 0.3f));
+                if (connected->flags & DOOR && ((entity->flags ^ TRIGGER) > 0 || game_state != GAME)){
+                    Color color = connected->door.is_open == trigger->open_doors ? SKYBLUE : ORANGE;
+                    f32 width = connected->door.is_open == trigger->open_doors ? 1.0f : 0.2f;
+                    make_line(entity->position, connected->position, width, Fade(ColorBrightness(color, 0.2f), 0.3f));
                 } else if (is_trigger_selected && should_draw_editor_hints()){
-                    make_line(entity->position, connected_entity->position, RED);
+                    make_line(entity->position, connected->position, RED);
+                }
+                
+                if (trigger->triggered && since_triggered <= 1.5f){
+                    f32 full_t = since_triggered / 1.5f;
+                    Color start_color = Fade(PURPLE, 0);
+                    Color target_color = Fade(ColorBrightness(PURPLE, 0.15f), 0.6f);
+                    Color line_color;
+                    
+                    f32 target_thick = 2.0f;
+                    f32 thick;
+                    if (full_t <= 0.3f){
+                        f32 t = full_t / 0.3f;
+                        line_color = lerp(start_color, target_color, t);
+                        thick = lerp(0.0f, target_thick, EaseInOutElastic(t));
+                    } else{
+                        f32 t = (full_t - 0.3f) / 0.7f;
+                        line_color = color_fade(target_color, 1.0f - t);
+                        thick = lerp(target_thick, 0.0f, t * t);
+                    }
+                    
+                    make_line(entity->position, connected->position, thick, line_color);
                 }
             }
-            for (i32 ii = 0; ii < entity->trigger.tracking.count; ii++){
-                i32 id = entity->trigger.tracking.get(ii);
+            for (i32 ii = 0; ii < trigger->tracking.count; ii++){
+                i32 id = trigger->tracking.get(ii);
                 Entity *tracked_entity = get_entity_by_id(id);
                 if (!tracked_entity){
                     continue;
@@ -10869,7 +10918,7 @@ void fill_entities_draw_queue(){
                                 
                 if (is_trigger_selected && should_draw_editor_hints()){
                     make_line(entity->position, tracked_entity->position, GREEN);
-                } else if (entity->trigger.draw_lines_to_tracked && game_state != EDITOR){
+                } else if (trigger->draw_lines_to_tracked && game_state != EDITOR){
                     if ((tracked_entity->flags & ENEMY | CENTIPEDE) && !tracked_entity->enemy.dead_man){
                         make_line(entity->position, tracked_entity->position, 1.0f, Fade(PINK, 0.3f));
                     }
@@ -11204,13 +11253,13 @@ void draw_entity(Entity *e){
     } else if (e->flags & AMMO_PACK){
         draw_game_circle(e->position, e->scale.x, RED);
         draw_game_circle(e->position, e->scale.x * 0.5f, ColorBrightness(RED, 0.6f));
-    } else if (e->flags & ENEMY){
-        draw_enemy(e);
-    }
-    
-    // draw turret
-    if (e->flags & TURRET){
-        if (e->enemy.turret.homing){
+    } else if (e->flags & TURRET){ // draw turret
+        Color color = e->color;
+        if (!e->enemy.turret.activated){
+            color = ColorBrightness(color, -0.4f);
+        }
+        draw_game_triangle_strip(e, color);
+        if (e->enemy.turret.homing && e->enemy.turret.activated){
             // Drawing charge line
             Vector2 start = e->position - e->up * e->scale.y * (1.0f - e->pivot.y); 
             f32 length = e->scale.y * e->pivot.y;
@@ -11220,6 +11269,16 @@ void draw_entity(Entity *e){
             }
             draw_game_line(start, start + e->up * length, e->scale.x * 0.2f, RED);
         }
+    } else if (e->flags & ENEMY && e->flags & TRIGGER){
+        Color color = e->color;
+        if (e->enemy.dead_man){
+            color = ColorTint(color, ColorBrightness(BROWN, 0.15f));
+            color = ColorBrightness(color, 0.1f);
+            // color = color_fade(color, 0.6f);
+        }
+        draw_game_triangle_strip(e, color);
+    } else if (e->flags & ENEMY){ // draw enemy
+        draw_game_triangle_strip(e);
     }
     
     // draw enemy barrier
