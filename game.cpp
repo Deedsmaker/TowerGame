@@ -9460,6 +9460,7 @@ void update_editor_entity(Entity *e){
 
 void activate_turret(Entity *entity){
     entity->enemy.turret.activated = true;
+    entity->enemy.turret.last_shot_tick = state_context.turret_state.current_tick - entity->enemy.turret.start_tick_delay;
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected){
@@ -9923,7 +9924,8 @@ inline void update_turret(Entity *entity, f32 dt){
     
     // We apply delay only for first shot ever, because next it will just work as intended because of last_shot_tick.
     i32 tick_delay = turret->last_shot_tick == 0 ? turret->start_tick_delay : 0;
-    b32 is_my_tick = state->ticked_this_frame && (state->current_tick - turret->last_shot_tick - tick_delay) >= turret->shoot_every_tick;
+    // b32 is_my_tick = state->ticked_this_frame && (state->current_tick - turret->last_shot_tick - tick_delay) >= turret->shoot_every_tick;
+    b32 is_my_tick = state->ticked_this_frame && ((state->current_tick - turret->start_tick_delay) % turret->shoot_every_tick) == 0 && turret->last_shot_tick != state->current_tick;
     
     // We don't set last shot tick on real shot because homing turrets will not always see player when tick happens, so 
     // we just tracking ticks for that to work correctly.
@@ -11907,8 +11909,6 @@ inline void add_light_to_draw_queue(Light light){
     render.lights_draw_queue.add(light);
 }
 
-#define MAX_BUFFERED_TRANSFERTS 48
-
 struct Bake_Settings{
     i32 rays_per_pixel = 128;
     i32 raymarch_steps = 256;
@@ -11920,6 +11920,7 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
+    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
