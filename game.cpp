@@ -3484,7 +3484,7 @@ void fixed_game_update(f32 dt){
                 memset(direction_enemies_count, 0, sizeof(direction_enemies_count));
                 // @OPTIMIZATION: Of course here we want just to through enemies, not through all entities.
                 ForEntities(entity, ENEMY){
-                    if (entity->flags == ENEMY || !entity->enemy.in_agro || entity->enemy.dead_man || entity->flags & PROJECTILE){
+                    if (entity->flags == ENEMY || entity->flags & AMMO_PACK || entity->flags & HIT_BOOSTER || entity->flags & PROJECTILE || !entity->enemy.in_agro || entity->enemy.dead_man || entity->flags & PROJECTILE){
                         continue;
                     }
                     
@@ -9492,7 +9492,7 @@ void update_editor_entity(Entity *e){
     
     // update turret editor
     if (e->flags & TURRET){
-        e->enemy.turret.original_angle = fangle(e->up, Vector2_right);
+        e->enemy.turret.original_angle = fangle(e->up, Vector2_up);
     }
 }
 
@@ -9939,8 +9939,8 @@ inline void update_turret(Entity *entity, f32 dt){
                 turret->see_player = true;
             }
             
-            f32 current_angle = fangle(entity->up, Vector2_right);
-            f32 desired_angle = fangle(dir, Vector2_right);
+            f32 desired_angle = fangle(dir, Vector2_up);
+            desired_angle *= normalized(dir.x);
             
             f32 angle_diversion = abs(desired_angle - turret->original_angle);
             if (angle_diversion > turret_max_angle_diversion){
@@ -11958,7 +11958,6 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
-    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
