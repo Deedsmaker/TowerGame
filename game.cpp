@@ -5660,6 +5660,9 @@ inline Vector2 get_editor_mouse_move(){
 inline f32 round_to_factor(f32 number, f32 quantization_factor){
     return roundf(number / quantization_factor) * quantization_factor;
 }
+inline Vector2 round_to_factor(Vector2 vec, f32 quantization_factor){
+    return {round_to_factor(vec.x, quantization_factor), round_to_factor(vec.y, quantization_factor)};
+}
 
 void editor_mouse_move_entity(Entity *entity){
     Vector2 move_delta = get_editor_mouse_move();
@@ -6078,8 +6081,10 @@ void update_editor(){
         
         if (!was_moving_multiselected && should_move_multiselected){
             editor.multiselect_moving_displacement = Vector2_zero;   
+            editor.dragging_start = input.mouse_position;
         }
         if (should_move_multiselected){
+            // This thing exist only for undo.
             editor.multiselect_moving_displacement += get_editor_mouse_move();
         }
         if (was_moving_multiselected && !should_move_multiselected){
@@ -6092,6 +6097,25 @@ void update_editor(){
         Vector2 most_left_entity_position;
         Vector2 most_top_entity_position;
         Vector2 most_bottom_entity_position;
+        
+        // Detecting required movement for multiselected;
+        Vector2 moving_displacement = Vector2_zero;
+        if (IsKeyDown(KEY_LEFT_ALT)){
+            moving_displacement = get_editor_mouse_move();
+        } else{
+            f32 cell_size = 5;
+            
+            if (sqr_magnitude(input.mouse_position - editor.dragging_start) < (cell_size * 0.5f * cell_size * 0.5f)){
+                return;
+            }
+            
+            // While moving multiselected entities we canot directly set position like we do in editor_mouse_move_entity,
+            // so here we calculate current quantized displacement from last moving.
+            Vector2 cell_mouse_position = round_to_factor(input.mouse_position, cell_size);
+            moving_displacement = cell_mouse_position - editor.dragging_start;
+            editor.dragging_start += moving_displacement;
+        }
+
 
         for (i32 entity_index = 0; entity_index < editor.multiselected_entities.count; entity_index++){
             Entity *entity = get_entity_by_id(editor.multiselected_entities.get(entity_index));
@@ -6111,7 +6135,18 @@ void update_editor(){
                     editor.move_entity_points = true;
                 }
                 assign_selected_entity(NULL);
-                editor_mouse_move_entity(entity);
+                
+                
+                // editor_mouse_move_mulentity(entity);
+            
+                if (moving_displacement != Vector2_zero){
+                    entity->position += moving_displacement;
+                    
+                    if (editor.move_entity_points){
+                        editor_move_entity_points(entity, moving_displacement);
+                    }
+                }
+                
                 editor.move_entity_points = was_moving_entity_points;
             }
             
@@ -6189,7 +6224,7 @@ void update_editor(){
         move_vertex(editor.moving_vertex_entity, input.mouse_position, editor.moving_vertex_index);
     }
     
-    //editor copy/paste
+    //editor copy
     if ((editor.selected_entity || editor.multiselected_entities.count > 0) && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)){
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&copied_entities_level_context);
@@ -6215,8 +6250,11 @@ void update_editor(){
         editor.is_copied = true;
     }
     
+    // editor paste
     if (editor.is_copied && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)){
         if (editor.copied_entities.count > 0){
+            Vector2 paste_position = {round_to_factor(input.mouse_position.x, 5), round_to_factor(input.mouse_position.y, 5)};
+            
             assign_selected_entity(NULL);
             
             Undo_Action undo_action = {};
@@ -6229,8 +6267,8 @@ void update_editor(){
                 Entity *to_spawn = editor.copied_entities.get_ptr(i);
                 Entity *spawned = add_entity(to_spawn, false, &copied_entities_level_context);
                 spawned_entities.add(spawned->id);
-                spawned->position += input.mouse_position - editor.copied_entities_center;
-                editor_move_entity_points(spawned, input.mouse_position - editor.copied_entities_center);
+                spawned->position += paste_position - editor.copied_entities_center;
+                editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
                 
                 if (editor.copied_entities.count == 1){
                     assign_selected_entity(spawned);

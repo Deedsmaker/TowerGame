@@ -1,3 +1,4 @@
+[ ] Some flickering on multiselected moving.
 [X] Think about thing to skip next shoot tick when homing turret just sees player. So it not just shoot from nowhere if player was not lucky with tick counter.
 [X] This player projectile bug on turrets and centipede segments.
 [X] Saving/loading turret settings.
