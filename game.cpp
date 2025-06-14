@@ -5592,7 +5592,7 @@ Entity *editor_spawn_entity(const char *name, Vector2 position){
     return entity;
 }
 
-b32 snap_vertex_to_closest(Vector2 *entity_vertex, i32 vertex_index){ 
+b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_index){ 
     if (!editor.selected_entity){
         return false;
     }
@@ -5622,15 +5622,17 @@ b32 snap_vertex_to_closest(Vector2 *entity_vertex, i32 vertex_index){
         }
     }
     
-    // Because when we start moving vertex we remembering these vertices already. 
-    // So if we do that here aswell - on undo vertices will go on place where we pressed button.
-    // Really need to change undo system though.
-    if (!editor.moving_vertex_entity){
-        undo_remember_vertices_start(editor.selected_entity);
-    }
-    move_vertex(editor.selected_entity, closest_vertex_global, vertex_index);
+    entity->position = closest_vertex_global - *entity_vertex;     
+    
+    // // Because when we start moving vertex we remembering these vertices already. 
+    // // So if we do that here aswell - on undo vertices will go on place where we pressed button.
+    // // Really need to change undo system though.
+    // if (!editor.moving_vertex_entity){
+    //     undo_remember_vertices_start(editor.selected_entity);
+    // }
+    // move_vertex(editor.selected_entity, closest_vertex_global, vertex_index);
 
-    undo_add_vertices_change(editor.selected_entity);
+    // undo_add_vertices_change(editor.selected_entity);
     
     return true;
 }
@@ -5953,8 +5955,8 @@ void update_editor(){
         moving_editor_cam = true;
     }
     
-    b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select;
-    b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
+    // b32 need_move_vertices = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select;
+    // b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
     
     i32 selected_vertex_index;
     
@@ -5997,19 +5999,19 @@ void update_editor(){
             cursor_entities_count++;
         }
         
-        //editor vertices
-        for (i32 v = 0; v < e->vertices.count && need_move_vertices; v++){
-            Vector2 *vertex = e->vertices.get_ptr(v);
+        // //editor vertices
+        // for (i32 v = 0; v < e->vertices.count && need_move_vertices; v++){
+        //     Vector2 *vertex = e->vertices.get_ptr(v);
             
-            Vector2 vertex_global = global(e, *vertex);
+        //     Vector2 vertex_global = global(e, *vertex);
             
-            if (need_move_vertices && (!moving_vertex_entity_candidate || (editor.selected_entity && e->id == editor.selected_entity->id))){
-                if (is_vertex_on_mouse(vertex_global)){
-                    moving_vertex_entity_candidate = e;
-                    moving_vertex_candidate = v;
-                }
-            }
-        }
+        //     if (need_move_vertices && (!moving_vertex_entity_candidate || (editor.selected_entity && e->id == editor.selected_entity->id))){
+        //         if (is_vertex_on_mouse(vertex_global)){
+        //             moving_vertex_entity_candidate = e;
+        //             moving_vertex_candidate = v;
+        //         }
+        //     }
+        // }
         
         b32 maybe_want_to_move_edges = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
         if (maybe_want_to_move_edges){
@@ -6039,17 +6041,17 @@ void update_editor(){
     }
     
     //assign move vertex
-    if (need_move_vertices && moving_vertex_entity_candidate){
-        assign_moving_vertex_entity (moving_vertex_entity_candidate, moving_vertex_candidate);
-        undo_remember_vertices_start(moving_vertex_entity_candidate);
-    }
+    // if (need_move_vertices && moving_vertex_entity_candidate){
+    //     assign_moving_vertex_entity (moving_vertex_entity_candidate, moving_vertex_candidate);
+    //     undo_remember_vertices_start(moving_vertex_entity_candidate);
+    // }
     
-    if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
-        snap_vertex_to_closest(editor.moving_vertex, editor.moving_vertex_index);
+    // if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity){
+    //     snap_vertex_to_closest(editor.moving_vertex_entity, editor.moving_vertex, editor.moving_vertex_index);
         
-        editor.moving_vertex = NULL;
-        editor.moving_vertex_entity = NULL;
-    }
+    //     editor.moving_vertex = NULL;
+    //     editor.moving_vertex_entity = NULL;
+    // }
     
     if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT)){
         i32 vertex_snap_index = -1;
@@ -6060,7 +6062,7 @@ void update_editor(){
         
         if (vertex_snap_index != -1 && vertex_snap_index < editor.selected_entity->vertices.count){
             Vector2 *vertex = editor.selected_entity->vertices.get_ptr(vertex_snap_index);
-            snap_vertex_to_closest(vertex, vertex_snap_index);
+            snap_vertex_to_closest(editor.selected_entity, vertex, vertex_snap_index);
         }
     }
     
