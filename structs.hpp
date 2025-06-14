@@ -317,7 +317,7 @@ struct Turret{
     b32 activated = true;
     i32 shoot_every_tick = 3;
     i32 start_tick_delay = 0;
-    f32 original_angle = 0;
+    Vector2 original_up = Vector2_one;
     b32 homing = false;  
     b32 see_player = false;
     
@@ -1262,6 +1262,14 @@ struct Circle{
     f32 radius;
 };
 
+enum Entity_Edge_Type{
+    NONE,  
+    LEFT_EDGE,
+    RIGHT_EDGE,
+    TOP_EDGE,
+    BOTTOM_EDGE
+};
+
 struct Editor{
     f32 in_editor_time = 0;
 
@@ -1299,6 +1307,9 @@ struct Editor{
     Entity  *moving_vertex_entity = NULL;
     int moving_vertex_entity_id;
     Entity  *cursor_entity = NULL;
+    
+    Entity_Edge_Type moving_entity_edge_type = NONE;
+    i32 moving_entity_edge_id = -1;
     
     b32 excluding_multiselection = false;
     b32 multiselecting = false;

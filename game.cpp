@@ -1706,7 +1706,7 @@ void init_spawn_objects(){
         turret->homing = true;
         turret->projectile_settings.launch_speed = 200;
         turret->projectile_settings.max_lifetime = 5;
-        turret->shoot_every_tick = 2;
+        turret->shoot_every_tick = 8;
     }
     turret_homing_entity.color = ColorBrightness(PURPLE, 0.1f);
     str_copy(turret_homing_entity.name, "turret_homing"); 
@@ -1824,7 +1824,7 @@ void init_spawn_objects(){
     str_copy(door_object.name, door_entity.name);
     spawn_objects.add(door_object);
     
-    Entity enemy_trigger_entity = Entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
+    Entity enemy_trigger_entity = Entity({0, 0}, {10, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
     enemy_trigger_entity.trigger.player_touch = false;
     enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
     str_copy(enemy_trigger_entity.name, "enemy_trigger"); 
@@ -5797,6 +5797,97 @@ void clear_multiselected_entities(b32 add_to_undo){
     editor.multiselected_entities.clear();
 }
 
+b32 clicked_on_entity_edge(f32 rotation, Vector2 edge_center, b32 is_horizontal, f32 orthogonal_size){
+    Array<Vector2, MAX_VERTICES> edge_vertices = Array<Vector2, MAX_VERTICES>();
+    add_rect_vertices(&edge_vertices, {0.5f, 0.5f});
+    f32 selection_radius = 2.5f;
+    for (i32 i = 0; i < edge_vertices.count; i++){
+        if (is_horizontal){
+            edge_vertices.get_ptr(i)->x *= selection_radius;
+            edge_vertices.get_ptr(i)->y *= orthogonal_size;
+        } else{
+            edge_vertices.get_ptr(i)->y *= selection_radius;
+            edge_vertices.get_ptr(i)->x *= orthogonal_size;
+        }
+        rotate_around_point(edge_vertices.get_ptr(i), Vector2_zero, rotation);
+    }
+    
+    b32 clicked_edge = IsMouseButtonPressed(MOUSE_BUTTON_LEFT) 
+                        && check_collision(edge_center, mouse_entity.position, edge_vertices, mouse_entity.vertices, {0.5f, 0.5f}, mouse_entity.pivot).collided;
+    return clicked_edge;
+}
+
+void try_move_entity_edges(Entity *e){
+    if (editor.moving_entity_edge_type == NONE && !IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        return;
+    }
+    
+    if (editor.moving_entity_edge_type != NONE && editor.moving_entity_edge_id != e->id){
+        return;
+    }
+    
+    // These settings for left edge just for example. We will set it again on switch anyway.
+    Vector2 scale_side = Vector2_right * -1;
+    Vector2 position_change_direction = e->right * -1;
+    Vector2 edge_center = e->position + position_change_direction * e->scale.x * e->pivot.x;
+    f32 scale_modifier = 1;
+    
+    if (editor.moving_entity_edge_type == NONE){
+        if (0){
+        } else if (clicked_on_entity_edge(e->rotation, e->position + e->right * e->scale.x * e->pivot.x, true, e->scale.y)){
+            editor.moving_entity_edge_type = RIGHT_EDGE;
+        } else if (clicked_on_entity_edge(e->rotation, e->position - e->right * e->scale.x * e->pivot.x, true, e->scale.y)){
+            editor.moving_entity_edge_type = LEFT_EDGE;
+        } else if (clicked_on_entity_edge(e->rotation, e->position + e->up * e->scale.y * e->pivot.y, false, e->scale.x)){
+            editor.moving_entity_edge_type = TOP_EDGE;
+        } else if (clicked_on_entity_edge(e->rotation, e->position - e->up * e->scale.y * e->pivot.y, false, e->scale.x)){
+            editor.moving_entity_edge_type = BOTTOM_EDGE;
+        } else{
+            return;
+        }
+    }
+    
+    switch (editor.moving_entity_edge_type){
+        case LEFT_EDGE:{
+            edge_center = e->position + e->right * -1 * e->scale.x * e->pivot.x;
+            position_change_direction = e->right * -1;
+            scale_side = Vector2_right * -1;
+            scale_modifier = -1;
+        } break;
+        case RIGHT_EDGE:{
+            edge_center = e->position + e->right * e->scale.x * e->pivot.x;
+            position_change_direction = e->right;
+            scale_side = Vector2_right;
+            scale_modifier = 1;
+        } break;
+        case TOP_EDGE:{
+            edge_center = e->position + e->up * e->scale.y * e->pivot.y;
+            position_change_direction = e->up;
+            scale_side = Vector2_up;
+            scale_modifier = 1;
+        } break;
+        case BOTTOM_EDGE:{
+            edge_center = e->position + e->up * -1 * e->scale.y * e->pivot.y;
+            position_change_direction = e->up * -1;
+            scale_side = Vector2_up * -1;
+            scale_modifier = -1;
+        } break;
+    }
+    
+    // If we currently not moving edge we will not end up here because of "return" in switch.
+    
+    editor.moving_entity_edge_id = e->id;
+    
+    Vector2 to_mouse = input.mouse_position - edge_center;
+    f32 edge_mouse_dot = dot(to_mouse, position_change_direction);
+    
+    f32 scale_amount = 10;
+    if (abs(edge_mouse_dot) >= scale_amount * 0.75f){
+        change_scale(e, e->scale + scale_side * scale_modifier * normalized(edge_mouse_dot) * scale_amount);
+        e->position += position_change_direction * normalized(edge_mouse_dot) * scale_amount * 0.5f;
+    }
+}
+
 // This can be called not only when game_state is EDITOR, but even when we're in pause for example.
 void update_editor(){
     if (IsKeyPressed(KEY_ESCAPE)){
@@ -5920,8 +6011,16 @@ void update_editor(){
             }
         }
         
+        b32 maybe_want_to_move_edges = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        if (maybe_want_to_move_edges){
+            try_move_entity_edges(e);
+        } else{
+            editor.moving_entity_edge_type = NONE;
+            editor.moving_entity_edge_id = -1;
+        }
+        
         //editor move sequence points        
-        // We don't want move points if selected entity already is move sequence or if selected is trigger with cam rails.
+        // We don't want to move points if selected entity already is move sequence or if selected is trigger with cam rails.
         b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger.cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
         for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count && !cannot_move_points; p++){
             Vector2 *point = e->move_sequence.points.get_ptr(p);
@@ -6105,15 +6204,13 @@ void update_editor(){
         } else{
             f32 cell_size = 5;
             
-            if (sqr_magnitude(input.mouse_position - editor.dragging_start) < (cell_size * 0.5f * cell_size * 0.5f)){
-                return;
+            if (sqr_magnitude(input.mouse_position - editor.dragging_start) >= (cell_size * 0.5f * cell_size * 0.5f)){
+                // While moving multiselected entities we canot directly set position like we do in editor_mouse_move_entity,
+                // so here we calculate current quantized displacement from last moving.
+                Vector2 cell_mouse_position = round_to_factor(input.mouse_position, cell_size);
+                moving_displacement = cell_mouse_position - editor.dragging_start;
+                editor.dragging_start += moving_displacement;
             }
-            
-            // While moving multiselected entities we canot directly set position like we do in editor_mouse_move_entity,
-            // so here we calculate current quantized displacement from last moving.
-            Vector2 cell_mouse_position = round_to_factor(input.mouse_position, cell_size);
-            moving_displacement = cell_mouse_position - editor.dragging_start;
-            editor.dragging_start += moving_displacement;
         }
 
 
@@ -6175,7 +6272,7 @@ void update_editor(){
     
     if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_LEFT_CONTROL) && editor.selected_entity != NULL && need_start_dragging && can_select){ // assign dragging entity
         if (editor.cursor_entity != NULL){
-            if (editor.moving_vertex == NULL && editor.selected_entity->id == editor.cursor_entity->id){
+            if (editor.moving_vertex == NULL && editor.selected_entity->id == editor.cursor_entity->id && editor.moving_entity_edge_type == NONE){
                 editor.dragging_entity = editor.selected_entity;
                 editor.dragging_entity_id = editor.selected_entity->id;
                 editor.dragging_start = editor.dragging_entity->position;
@@ -9492,7 +9589,7 @@ void update_editor_entity(Entity *e){
     
     // update turret editor
     if (e->flags & TURRET){
-        e->enemy.turret.original_angle = fangle(e->up, Vector2_up);
+        e->enemy.turret.original_up = e->up;
     }
 }
 
@@ -9900,9 +9997,9 @@ inline void update_turret(Entity *entity, f32 dt){
     Turret *turret = &entity->enemy.turret;
     
     if (!turret->activated){
-        if (turret->homing && entity->rotation != turret->original_angle - turret_max_angle_diversion){
-            rotate_to(entity, turret->original_angle - turret_max_angle_diversion);
-        }
+        // if (turret->homing && entity->rotation != turret->original_angle - turret_max_angle_diversion){
+        //     rotate_to(entity, turret->original_angle - turret_max_angle_diversion);
+        // }
         return;
     }
     
@@ -9939,11 +10036,9 @@ inline void update_turret(Entity *entity, f32 dt){
                 turret->see_player = true;
             }
             
-            f32 desired_angle = fangle(dir, Vector2_up);
-            desired_angle *= normalized(dir.x);
-            
-            f32 angle_diversion = abs(desired_angle - turret->original_angle);
-            if (angle_diversion > turret_max_angle_diversion){
+            f32 dot_original_current = dot(turret->original_up, dir);
+            f32 max_allowed_dot = 1.0f - (turret_max_angle_diversion / 90.0f);          
+            if (dot_original_current < max_allowed_dot){
                 turret->see_player = false;
                 player_in_angle_range = false;
             } else{

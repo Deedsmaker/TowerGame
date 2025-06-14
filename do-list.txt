@@ -1,4 +1,4 @@
-[ ] Some flickering on multiselected moving.
+[X] Some flickering on multiselected moving.
 [X] Think about thing to skip next shoot tick when homing turret just sees player. So it not just shoot from nowhere if player was not lucky with tick counter.
 [X] This player projectile bug on turrets and centipede segments.
 [X] Saving/loading turret settings.
@@ -6,11 +6,11 @@
 [ ] Remove most of PHYSICS_OBJECT code. We could left only rope stuff but without swinging part. Only ability for it to cut rope and fall.
 [X] We should give ammo only for killing certain enemies that are just ammo-packs. That will remove possible confusion when we will spawn enemies constantly.
     [ ] Made them physical. So they fall, but only down.
-[ ] Turrets.
-    [ ]? Turrets should have ability to enable on some trigger that player could trigger or be active by default.
+[X] Turrets.
+    [X]? Turrets should have ability to enable on some trigger that player could trigger or be active by default.
     [X] Turrets could die only if we kill they battery, that shoud be separated entity visibly conneted to turret.
     [X] Turrets that shoot into player. Probably should do projectiles homing to player.
-    [ ] Turrets that just shoot in rhytm. Even if they was enabled in different time. 
+    [X] Turrets that just shoot in rhytm. Even if they was enabled in different time. 
 [ ] Bomber that drops bombs. Simplest idea with him is that he's flying left-right and below is blocks that we need to spin on.
 [ ] Enemies that on slowmo will do something like spawn smoke or speed up.
 [ ] Will need to do hub level for all levels. Levels will work as such - On each one player have exactly 5 (?) tries to 'oneshoot' it. If he do - he gets some kind of currency. If not - infinite tries, but without more rewards. Ammo pack is one for the whole game, so that thing should encourage people to spend ammo to get the reward.
@@ -25,12 +25,12 @@
 [ ] We could not see anything behind blocks on lightmap, because it's all black. Not really sure how we should solve this, maybe it's just that we need glowing particles.
 [X] Think about how we'll control shooting and DO WE NEED IT ATALL.
 [X] Game logging.
-[ ] Think about how we can make centipede scraping easier. We could change velocity to go along segments for example.
-![ ] Should add something for traversing vertical and other spaces by attacking. Because I removed wall climibing, we'll see how it goes.
-[ ] Change jump shooter (or make new one) to not fly around, but really move by points and spam projectiles.
+[\] Think about how we can make centipede scraping easier. We could change velocity to go along segments for example.
+![X] Should add something for traversing vertical and other spaces by attacking. Because I removed wall climibing, we'll see how it goes.
+[\] Change jump shooter (or make new one) to not fly around, but really move by points and spam projectiles.
 [ ] Level editor:
-    [ ] Grid moving objects.
-    [ ] Grid resizing objects.
+    [X] Grid moving objects.
+    [X] Grid resizing objects.
     [ ] Returning vertices to base values.
 [X] Reducing physics aspect for increasing control:
     [X] Little max vertical downward velocity. I think that will be good for controlling character. Of course need more tuning.
