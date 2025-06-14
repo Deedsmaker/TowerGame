@@ -5622,7 +5622,10 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
         }
     }
     
-    entity->position = closest_vertex_global - *entity_vertex;     
+    Vector2 new_position = closest_vertex_global - *entity_vertex;
+    Vector2 position_change = new_position - entity->position;
+    entity->position = new_position;     
+    undo_add_position(entity, position_change);
     
     // // Because when we start moving vertex we remembering these vertices already. 
     // // So if we do that here aswell - on undo vertices will go on place where we pressed button.
@@ -5847,6 +5850,14 @@ void try_move_entity_edges(Entity *e){
         } else{
             return;
         }
+        
+        if (editor.moving_entity_edge_type != NONE){
+            // So we really clicked on edge this frame and we should remember vertices because I am just writed retarded 
+            // undo system long ago and this shit needs full rewrite.
+            undo_remember_vertices_start(e);
+            editor.moving_edge_start_entity_position = e->position;
+            editor.moving_edge_start_entity_scale = e->scale;
+        }
     }
     
     switch (editor.moving_entity_edge_type){
@@ -5883,10 +5894,14 @@ void try_move_entity_edges(Entity *e){
     Vector2 to_mouse = input.mouse_position - edge_center;
     f32 edge_mouse_dot = dot(to_mouse, position_change_direction);
     
-    f32 scale_amount = 10;
+    f32 scale_amount = 5;
     if (abs(edge_mouse_dot) >= scale_amount * 0.75f){
-        change_scale(e, e->scale + scale_side * scale_modifier * normalized(edge_mouse_dot) * scale_amount);
-        e->position += position_change_direction * normalized(edge_mouse_dot) * scale_amount * 0.5f;
+    
+        Vector2 next_scale = round_to_factor(e->scale + scale_side * scale_modifier * normalized(edge_mouse_dot) * scale_amount, scale_amount);
+        
+        change_scale(e, next_scale);
+        Vector2 position_change = position_change_direction * normalized(edge_mouse_dot) * scale_amount * 0.5f;
+        e->position += position_change;
     }
 }
 
@@ -6014,11 +6029,26 @@ void update_editor(){
         // }
         
         b32 maybe_want_to_move_edges = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-        if (maybe_want_to_move_edges){
+        if (maybe_want_to_move_edges && !editor.is_scaling_entity){
             try_move_entity_edges(e);
         } else{
-            editor.moving_entity_edge_type = NONE;
-            editor.moving_entity_edge_id = -1;
+            if (editor.moving_entity_edge_type != NONE && e->id == editor.moving_entity_edge_id){
+                if (e->scale != editor.moving_edge_start_entity_scale){
+                    Vector2 position_change = e->position - editor.moving_edge_start_entity_position;
+                    Vector2 scale_change    = e->scale - editor.moving_edge_start_entity_scale;
+                    Undo_Action undo_action = {};
+                    undo_action.position_change = position_change;
+                    undo_action.moved_entity_points = false;
+                    undo_action.scale_change = scale_change;
+                    
+                    // We remembered vertices when just clicked on edge in try_move_entity_edges.
+                    undo_apply_vertices_change(e, &undo_action);
+                    
+                    add_undo_action(undo_action);
+                }
+                editor.moving_entity_edge_type = NONE;
+                editor.moving_entity_edge_id = -1;
+            }
         }
         
         //editor move sequence points        
@@ -6533,7 +6563,7 @@ void update_editor(){
     }
     
     //editor free entity scaling
-    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT)){
+    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT) && editor.moving_entity_edge_type == NONE){
         Vector2 scaling = {};
         f32 speed = 80;
         
@@ -6557,7 +6587,7 @@ void update_editor(){
             undo_add_scaling(editor.selected_entity, scale_change);
             editor.is_scaling_entity = false;
         } 
-    } else if (editor.selected_entity && can_control_with_single_button){
+    } else if (editor.selected_entity && can_control_with_single_button && editor.moving_entity_edge_type == NONE){
         local_persist f32 holding_time = 0;
         Vector2 scaling = Vector2_zero;
         f32 scale_amount = 5;

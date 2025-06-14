@@ -1310,6 +1310,8 @@ struct Editor{
     
     Entity_Edge_Type moving_entity_edge_type = NONE;
     i32 moving_entity_edge_id = -1;
+    Vector2 moving_edge_start_entity_position = Vector2_zero;
+    Vector2 moving_edge_start_entity_scale = Vector2_zero;
     
     b32 excluding_multiselection = false;
     b32 multiselecting = false;
