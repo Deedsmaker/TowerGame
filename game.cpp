@@ -5895,13 +5895,17 @@ void try_move_entity_edges(Entity *e){
     f32 edge_mouse_dot = dot(to_mouse, position_change_direction);
     
     f32 scale_amount = 5;
-    if (abs(edge_mouse_dot) >= scale_amount * 0.75f){
+    while (abs(edge_mouse_dot) >= scale_amount * 0.75f){
     
         Vector2 next_scale = round_to_factor(e->scale + scale_side * scale_modifier * normalized(edge_mouse_dot) * scale_amount, scale_amount);
         
-        change_scale(e, next_scale);
-        Vector2 position_change = position_change_direction * normalized(edge_mouse_dot) * scale_amount * 0.5f;
-        e->position += position_change;
+        if (next_scale.x >= scale_amount && next_scale.y >= scale_amount){
+            Vector2 position_change = position_change_direction * normalized(edge_mouse_dot) * scale_amount * 0.5f;
+            change_scale(e, next_scale);
+            e->position += position_change;
+        }
+        
+        edge_mouse_dot -= scale_amount * normalized(edge_mouse_dot);
     }
 }
 
