@@ -323,7 +323,8 @@ struct Turret{
     
     i32 last_shot_tick = 0;
     
-    f32 shoot_radius = 400;
+    f32 shoot_width  = 400;
+    f32 shoot_height = 400;
     
     Projectile_Settings projectile_settings = {};
 };
@@ -531,7 +532,7 @@ struct Velocity_Move{
 };
 
 struct Propeller{
-    f32 power = 1000;  
+    f32 power = 200;  
     b32 spin_sensitive = false;
     
     i32 air_emitter_index = -1;

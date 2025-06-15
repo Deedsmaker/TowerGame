@@ -926,7 +926,8 @@ i32 save_level(const char *level_name){
             fprintf(fptr, "turret_start_tick_delay:%d: ", turret->start_tick_delay);
             fprintf(fptr, "turret_projectile_speed:%f: ", turret->projectile_settings.launch_speed);
             fprintf(fptr, "turret_projectile_max_lifetime:%f: ", turret->projectile_settings.max_lifetime);
-            
+            fprintf(fptr, "turret_shoot_width:%f: ", turret->shoot_width);
+            fprintf(fptr, "turret_shoot_height:%f: ", turret->shoot_height);
         }
         
         if (e->flags & PHYSICS_OBJECT){
@@ -1384,6 +1385,12 @@ b32 load_level(const char *level_name){
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "turret_projectile_max_lifetime")){
                 fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.max_lifetime, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_shoot_width")){
+                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_width, splitted_line.get(i+1).data);
+                i++;
+            } else if (str_equal(splitted_line.get(i).data, "turret_shoot_height")){
+                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_height, splitted_line.get(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get(i).data, "turret_activated")){
                 fill_b32_from_string(&entity_to_fill.enemy.turret.activated, splitted_line.get(i+1).data);
@@ -2089,6 +2096,18 @@ void copy_light(Light *dest, Light *src){
     dest->backshadows_rt = original_dest.backshadows_rt;
 }
 
+void init_propeller_emitter_settings(Entity *e, Particle_Emitter *air_emitter){
+    enable_emitter(air_emitter);
+    air_emitter->position            = e->position;
+    air_emitter->over_distance       = 0;
+    air_emitter->speed_multiplier    = e->propeller.power / 5.0f;
+    air_emitter->count_multiplier    = e->propeller.power / 5.0f;
+    air_emitter->lifetime_multiplier = (1.8f * (e->scale.y / 120.0f)) / air_emitter->speed_multiplier;
+    air_emitter->spawn_offset        = e->up * e->scale.x * 0.5f;
+    air_emitter->spawn_area          = {e->scale.x, e->scale.x};
+    air_emitter->direction           = e->up;
+}
+
 Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light){
     Light *new_light = NULL;
     
@@ -2267,15 +2286,7 @@ void init_entity(Entity *entity){
         Particle_Emitter *air_emitter = get_particle_emitter(entity->propeller.air_emitter_index);
         
         if (air_emitter){
-            air_emitter->position = entity->position;
-            enable_emitter(air_emitter);
-            air_emitter->speed_multiplier    = entity->propeller.power / 5.0f;
-            air_emitter->count_multiplier    = entity->propeller.power / 5.0f;
-            air_emitter->lifetime_multiplier = (1.8f * (entity->scale.y / 120.0f)) / air_emitter->speed_multiplier;
-            // air_emitter->spawn_radius        = entity->scale.x * 0.5f;
-            air_emitter->spawn_offset = entity->up * entity->scale.y * 0.125f;
-            air_emitter->spawn_area = {entity->scale.x, entity->scale.y * 0.25f};
-            air_emitter->direction           = entity->up;
+            init_propeller_emitter_settings(entity, air_emitter);
         }
     }        
     
@@ -5391,6 +5402,10 @@ void update_editor_ui(){
                 INSPECTOR_UI_INPUT_FIELD("Start delay: ", "turret_start_tick_delay", "%d", turret->start_tick_delay, to_i32, );
                 INSPECTOR_UI_INPUT_FIELD("Projectile speed: ", "turret_projectile_speed", "%.0f", turret->projectile_settings.launch_speed, to_f32, );
                 INSPECTOR_UI_INPUT_FIELD("Max lifetime: ", "turret_projectile_max_lifetime", "%.0f", turret->projectile_settings.max_lifetime, to_f32, );
+                if (turret->homing){
+                    INSPECTOR_UI_INPUT_FIELD("Shoot width: ", "turret_shoot_width", "%.0f", turret->shoot_width, to_f32, );
+                    INSPECTOR_UI_INPUT_FIELD("Shoot height: ", "turret_shoot_height", "%.0f", turret->shoot_height, to_f32, );
+                }
             }
         }
 
@@ -7396,7 +7411,10 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
         if (player_data->velocity.y > 0){
             max_vertical_speed_boost *= 0.3f;   
         }
-        player_data->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
+        
+        if (!player_data->grounded){
+            player_data->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
+        }
                          
         if (was_alive_before_hit){
             add_hitstop(0.01f + hitstop_add);
@@ -7737,7 +7755,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             
             add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
             
-            push_or_set_player_up(rifle_in_machinegun_mode ? 5 : 20);
+            if (!player_data->grounded){
+                push_or_set_player_up(rifle_in_machinegun_mode ? 5 : 20);
+            }
+            
             shake_camera(0.1f);
             play_sound("RifleShot", sword_tip, 0.3f);
             player_data->timers.rifle_shake_start_time = core.time.game_time;
@@ -9627,6 +9648,13 @@ void update_editor_entity(Entity *e){
     if (e->flags & TURRET){
         e->enemy.turret.original_up = e->up;
     }
+    
+    if (e->flags & PROPELLER){
+        Particle_Emitter *air_emitter = get_particle_emitter(e->propeller.air_emitter_index);
+        if (air_emitter){
+            init_propeller_emitter_settings(e, air_emitter);
+        }
+    }
 }
 
 void activate_turret(Entity *entity){
@@ -10050,19 +10078,18 @@ inline void update_turret(Entity *entity, f32 dt){
         projectile_type = TURRET_HOMING_PROJECTILE;
         projectile_color = ColorBrightness(ORANGE, -0.2f);
         
-        Vector2 vec_to_player = player_entity->position - entity->position;
-        Vector2 dir = normalized(vec_to_player);
-        
-        f32 sqr_distance = sqr_magnitude(vec_to_player);
+        // f32 sqr_distance = sqr_magnitude(vec_to_player);
             
-        if (sqr_distance >= turret->shoot_radius * turret->shoot_radius){
+        if (!check_rectangles_collision(player_entity->position, player_entity->scale, entity->position, {turret->shoot_width, turret->shoot_height})){
             entity->enemy.in_agro = false;
             player_in_range = false;
         } else{
             entity->enemy.in_agro = true;
+            Vector2 vec_to_player = player_entity->position - entity->position;
+            Vector2 dir = normalized(vec_to_player);
             // This (- 2) because of the shitty raycast where we could hit obstacle *behind* player and count that as we don't 
             // see player, even though we have direct line of sight.
-            f32 distance = sqrtf(sqr_distance) - entity->scale.y * entity->pivot.y - 2;
+            f32 distance = magnitude(vec_to_player) - entity->scale.y * entity->pivot.y - 2;
             
             Collision ray_collision = raycast(entity->position + entity->up * entity->scale.y * entity->pivot.y, dir, distance, GROUND | ENEMY_BARRIER | NO_MOVE_BLOCK, distance);
             
@@ -10954,7 +10981,8 @@ void fill_entities_draw_queue(){
             }
             
             if (should_draw_editor_hints() && editor.selected_entity && entity->id == editor.selected_entity->id && turret->homing){
-                draw_game_circle(entity->position, turret->shoot_radius, Fade(RED, 0.2f));
+                // draw_game_circle(entity->position, turret->shoot_radius, Fade(RED, 0.2f));
+                draw_game_rect(entity->position, {turret->shoot_width, turret->shoot_height}, {0.5f, 0.5f}, 0, Fade(RED, 0.2f));
             }
         }
         
