@@ -8002,6 +8002,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->velocity.y = wall_vertical_boost;
             player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
         } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
+            // Here 90 is straight wall.
+            f32 wall_angle = fangle(col.normal, Vector2_up);
             player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, 1)) * 5;
         }
         hit_a_wall = true;
@@ -8017,6 +8019,8 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->velocity.y = wall_vertical_boost;
             player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
         } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
+            // Here 90 is straight wall.
+            f32 wall_angle = fangle(col.normal, Vector2_up);
             player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, -1)) * 5;
         }
         hit_a_wall = true;
@@ -12117,7 +12121,6 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
-    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
