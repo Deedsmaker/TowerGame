@@ -8004,7 +8004,13 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
             // Here 90 is straight wall.
             f32 wall_angle = fangle(col.normal, Vector2_up);
-            player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, 1)) * 5;
+            // That's looks a bit complicated so here's explanation.
+            // Angles that we might consider "wall" is 45..90, so part with "-0.5f" and "* 2" is for 
+            // remaping angle to 0..1, where 1 will be straight wall. Next we do "1 - x", so now angle 45 will be maximum power
+            // and 90 is no additional down power at all.
+            // Then there's sqrtf for more rapid increase in power and "* 5" for max down power when angle is 45.
+            f32 push_down_power = sqrtf(1.0f - (((wall_angle / 90.0f) - 0.5f) * 2)) * 5;
+            player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, 1)) * push_down_power;
         }
         hit_a_wall = true;
         break;
@@ -8021,7 +8027,9 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back){
             // Here 90 is straight wall.
             f32 wall_angle = fangle(col.normal, Vector2_up);
-            player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, -1)) * 5;
+            // Explanation of this "formula" is on left wall collision code.
+            f32 push_down_power = sqrtf(1.0f - (((wall_angle / 90.0f) - 0.5f) * 2)) * 5;
+            player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, -1)) * push_down_power;
         }
         hit_a_wall = true;
         break;

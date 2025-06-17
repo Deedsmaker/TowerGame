@@ -245,6 +245,7 @@ There has been change in the game ideas during May of 2025, so next tasks may be
 
 <Level ideas>
 ///////////////////////////////////////////////////
+[ ] Leap of faith level. We can do that because player can see whole level before playing. Also it could be cool level for modifications in different worlds.
 [ ] Propeller-type stage where we just fly and spin for killing threats, but there will be switches that
 [ ] Wall of projectiles in the middle where you should choose or you use slowmo (that will cause harm in later stages with enemies that react to slowmo) or you use big sword charge.
 [ ] Level with *multiple* MULTIPLE_HITS in a row and each one uncovers more enemies, but we chased by a wall of death.
