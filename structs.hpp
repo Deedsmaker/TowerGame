@@ -1322,7 +1322,7 @@ struct Editor{
     // And this one is actual multiselected.
     Dynamic_Array<i32> multiselected_entities = Dynamic_Array<i32>(128);
     Vector2 multiselected_entities_center = Vector2_zero;
-    Vector2 multiselect_moving_displacement = Vector2_zero;
+    Vector2 multiselect_total_displacement_for_undo = Vector2_zero;
     
     Vector2 copied_entities_center = Vector2_zero;
     Dynamic_Array<Entity> copied_entities = Dynamic_Array<Entity>(128);

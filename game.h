@@ -93,6 +93,9 @@ void draw_game();
 
 inline void add_light_to_draw_queue(Light light);
 
+inline f32 round_to_factor(f32 number, f32 quantization_factor);
+inline Vector2 round_to_factor(Vector2 vec, f32 quantization_factor);
+
 void make_light(Vector2 position, f32 radius, f32 power, f32 opacity, Color color);
 void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color);
 void make_line(Vector2 start_position, Vector2 target_position, Color color);

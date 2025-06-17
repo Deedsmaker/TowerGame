@@ -5594,7 +5594,7 @@ Entity *get_cursor_entity(){
 }
 
 Entity *editor_spawn_entity(const char *name, Vector2 position){
-    Entity *entity = spawn_object_by_name(name, input.mouse_position);
+    Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5));
     
     if (entity){
         Undo_Action undo_action;
@@ -5804,6 +5804,8 @@ void remove_from_multiselection(i32 id, b32 add_to_undo){
     }
 }
 
+// This function really just removes from multiselection all entities and also adds that to undo, so when we do undo 
+// we will select the same entities.
 void clear_multiselected_entities(b32 add_to_undo){
     if (add_to_undo && editor.multiselected_entities.count > 0){
         Undo_Action undo_action = {};
@@ -6230,15 +6232,11 @@ void update_editor(){
         b32 should_move_multiselected = IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_LEFT_CONTROL);
         
         if (!was_moving_multiselected && should_move_multiselected){
-            editor.multiselect_moving_displacement = Vector2_zero;   
+            editor.multiselect_total_displacement_for_undo = Vector2_zero;   
             editor.dragging_start = input.mouse_position;
         }
-        if (should_move_multiselected){
-            // This thing exist only for undo.
-            editor.multiselect_moving_displacement += get_editor_mouse_move();
-        }
         if (was_moving_multiselected && !should_move_multiselected){
-            undo_add_multiselect_position_change(editor.multiselect_moving_displacement);
+            undo_add_multiselect_position_change(editor.multiselect_total_displacement_for_undo);
         }
         
         was_moving_multiselected = should_move_multiselected;
@@ -6248,22 +6246,23 @@ void update_editor(){
         Vector2 most_top_entity_position;
         Vector2 most_bottom_entity_position;
         
-        // Detecting required movement for multiselected;
+        // Detecting required movement for multiselected.
         Vector2 moving_displacement = Vector2_zero;
         if (IsKeyDown(KEY_LEFT_ALT)){
             moving_displacement = get_editor_mouse_move();
+            editor.multiselect_total_displacement_for_undo += moving_displacement;
         } else{
             f32 cell_size = 5;
             
             if (sqr_magnitude(input.mouse_position - editor.dragging_start) >= (cell_size * 0.5f * cell_size * 0.5f)){
                 // While moving multiselected entities we canot directly set position like we do in editor_mouse_move_entity,
                 // so here we calculate current quantized displacement from last moving.
-                Vector2 cell_mouse_position = round_to_factor(input.mouse_position, cell_size);
-                moving_displacement = cell_mouse_position - editor.dragging_start;
+                // Vector2 cell_mouse_position = round_to_factor(input.mouse_position, cell_size);
+                moving_displacement = round_to_factor(input.mouse_position - editor.dragging_start, cell_size);
                 editor.dragging_start += moving_displacement;
+                editor.multiselect_total_displacement_for_undo += moving_displacement;
             }
         }
-
 
         for (i32 entity_index = 0; entity_index < editor.multiselected_entities.count; entity_index++){
             Entity *entity = get_entity_by_id(editor.multiselected_entities.get(entity_index));
@@ -6283,7 +6282,6 @@ void update_editor(){
                     editor.move_entity_points = true;
                 }
                 assign_selected_entity(NULL);
-                
                 
                 // editor_mouse_move_mulentity(entity);
             
