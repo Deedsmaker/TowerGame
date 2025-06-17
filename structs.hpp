@@ -309,7 +309,7 @@ struct Multiple_Hits{
 struct Projectile_Settings{
     FLAGS enemy_flags = 0;
     b32 blocker_clockwise = false;
-    f32 launch_speed = 75.0f;
+    f32 launch_speed = 150.0f;
     f32 max_lifetime = 7.0f;
 };
 

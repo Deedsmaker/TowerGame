@@ -1697,6 +1697,13 @@ void init_spawn_objects(){
     
     Entity turret_direct_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
     turret_direct_entity.enemy.unkillable = true;
+    {
+        Turret *turret = &turret_direct_entity.enemy.turret;
+        turret->homing = false;
+        turret->projectile_settings.launch_speed = 75;
+        turret->projectile_settings.max_lifetime = 7;
+        turret->shoot_every_tick = 3;
+    }
     turret_direct_entity.color = ColorBrightness(PURPLE, 0.5f);
     str_copy(turret_direct_entity.name, "turret_direct"); 
     setup_color_changer(&turret_direct_entity);
@@ -1711,8 +1718,8 @@ void init_spawn_objects(){
     {
         Turret *turret = &turret_homing_entity.enemy.turret;
         turret->homing = true;
-        turret->projectile_settings.launch_speed = 200;
-        turret->projectile_settings.max_lifetime = 5;
+        turret->projectile_settings.launch_speed = 125;
+        turret->projectile_settings.max_lifetime = 15;
         turret->shoot_every_tick = 8;
     }
     turret_homing_entity.color = ColorBrightness(PURPLE, 0.1f);
