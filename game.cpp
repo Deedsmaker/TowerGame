@@ -1838,7 +1838,7 @@ void init_spawn_objects(){
     str_copy(door_object.name, door_entity.name);
     spawn_objects.add(door_object);
     
-    Entity enemy_trigger_entity = Entity({0, 0}, {10, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
+    Entity enemy_trigger_entity = Entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
     enemy_trigger_entity.trigger.player_touch = false;
     enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
     str_copy(enemy_trigger_entity.name, "enemy_trigger"); 
