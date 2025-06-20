@@ -9361,6 +9361,11 @@ void calculate_projectile_collisions(Entity *entity){
                     other->jump_shooter.velocity += projectile->velocity * 0.05f;
                 }
                 
+                // We don't want projectiles to hit triggers. That's just not cool.
+                if (other->flags & TRIGGER){
+                    can_damage = false;
+                }
+                
                 if (enemy->max_hits_taken > 1){
                     projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
                     projectile->bounced = true;
@@ -12134,6 +12139,7 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
+    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
