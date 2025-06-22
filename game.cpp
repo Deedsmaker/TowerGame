@@ -1718,7 +1718,7 @@ void init_spawn_objects(){
     {
         Turret *turret = &turret_homing_entity.enemy.turret;
         turret->homing = true;
-        turret->projectile_settings.launch_speed = 125;
+        turret->projectile_settings.launch_speed = 200;
         turret->projectile_settings.max_lifetime = 15;
         turret->shoot_every_tick = 8;
     }
@@ -1739,8 +1739,7 @@ void init_spawn_objects(){
     str_copy(enemy_bird_object.name, bird_entity.name);
     spawn_objects.add(enemy_bird_object);
     
-    Entity win_block_entity = Entity({0, 0}, {3, 3}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | SHOOT_BLOCKER);
-    win_block_entity.color = GREEN * 0.9f;
+    Entity win_block_entity = Entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | MULTIPLE_HITS | NO_MOVE_BLOCK);
     win_block_entity.color_changer.start_color = win_block_entity.color;
     win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
     str_copy(win_block_entity.name, "win_block"); 
@@ -1849,7 +1848,7 @@ void init_spawn_objects(){
     str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
     spawn_objects.add(enemy_trigger_object);
     
-    Entity centipede_entity = Entity({0, 0}, {7, 5}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
+    Entity centipede_entity = Entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
     centipede_entity.move_sequence.moving = true;
     centipede_entity.move_sequence.loop = true;
     centipede_entity.move_sequence.rotate = true;
@@ -2183,6 +2182,12 @@ void init_entity(Entity *entity){
     // init turret
     if (entity->flags & TURRET){
         entity->enemy.unkillable = true;
+    }
+    
+    if (entity->flags & WIN_BLOCK){
+        // That's for projectile to reflect, but projectiles do not damage win block.
+        entity->enemy.max_hits_taken = 5;
+        entity->enemy.multiple_hits.required_hits *= 2;    
     }
     
     // init explosive
@@ -7403,6 +7408,8 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
                 sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
             } else if (enemy_entity->flags & JUMP_SHOOTER){
                 sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
+            } else if (enemy_entity->flags & WIN_BLOCK){
+                win_level();
             } else{
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
             }
@@ -7500,9 +7507,9 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity){
             try_sword_damage_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y);
         }
         
-        if (other->flags & WIN_BLOCK && !is_player_in_stun()){
-            win_level();
-        }
+        // if (other->flags & WIN_BLOCK && !is_player_in_stun()){
+        //     win_level();
+        // }
         
         if (other->flags & BLOCK_ROPE && player_data->sword_spin_progress >= 0.7f){
             // cut rope
@@ -7665,6 +7672,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
         f32 sword_spin_sense = player_data->in_big_sword ? 40 : 10; 
         
         f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
+        
+        if (!player_data->in_big_sword && player_data->grounded){
+            wish_angular_velocity *= 2;
+        }
         
         if (core.time.time_scale < 1){
             sword_spin_sense /= core.time.time_scale;
@@ -9363,6 +9374,10 @@ void calculate_projectile_collisions(Entity *entity){
                 
                 // We don't want projectiles to hit triggers. That's just not cool.
                 if (other->flags & TRIGGER){
+                    can_damage = false;
+                }
+                
+                if (other->flags & WIN_BLOCK){
                     can_damage = false;
                 }
                 
@@ -11498,6 +11513,9 @@ void draw_entity(Entity *e){
             // color = color_fade(color, 0.6f);
         }
         draw_game_triangle_strip(e, color);
+    } else if (e->flags & WIN_BLOCK){
+        // draw win block  
+        draw_game_triangle_strip(e, ColorBrightness(GREEN, -0.2f));
     } else if (e->flags & ENEMY){ // draw enemy
         draw_game_triangle_strip(e);
     }
@@ -11529,9 +11547,6 @@ void draw_entity(Entity *e){
         draw_game_rect(position, {width, height}, {0, 0}, 0, PINK);
     }
 
-    if (e->flags & WIN_BLOCK){
-    }
-    
     if (e-> flags & DRAW_TEXT){
         draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
     }
@@ -12139,7 +12154,6 @@ Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
 void bake_lightmaps_if_need(){
-    return;
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     local_persist i32 last_baked_index = -1;
