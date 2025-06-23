@@ -219,7 +219,7 @@ void free_entity(Entity *e){
         }
     }
     
-    // @CLEANUP: Why exactly that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
+    // @CLEANUP: Why exactly we don't free that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
     // if (e->flags & MOVE_SEQUENCE){
     //     e->move_sequence.points.free_arr();
     // }
