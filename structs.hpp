@@ -339,13 +339,17 @@ struct Enemy{
     b32 in_stun = false;
     b32 just_awake = true;
     
-    b32 unkillable = false;
+    // This is for entities that act like enemies, but cannot be touched by sword or projectile. 
+    // But could be killed with explosive.
+    b32 player_cannot_kill = false;
     
     b32 was_in_stun = false;
     
     f32 died_time = 0;
     
     i32 hits_taken = 0;
+    
+    // This could be -1, that means that enemy will take hit by player but will not be "dead_man" and will not be destroyed.
     i32 max_hits_taken = 1;
     
     f32 stun_start_time = -1234;

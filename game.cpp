@@ -1696,7 +1696,7 @@ void init_spawn_objects(){
     spawn_objects.add(big_sword_charge_giver_object);
     
     Entity turret_direct_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
-    turret_direct_entity.enemy.unkillable = true;
+    turret_direct_entity.enemy.player_cannot_kill = true;
     {
         Turret *turret = &turret_direct_entity.enemy.turret;
         turret->homing = false;
@@ -1714,7 +1714,7 @@ void init_spawn_objects(){
     spawn_objects.add(turret_direct_object);
     
     Entity turret_homing_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
-    turret_homing_entity.enemy.unkillable = true;
+    turret_homing_entity.enemy.player_cannot_kill = true;
     {
         Turret *turret = &turret_homing_entity.enemy.turret;
         turret->homing = true;
@@ -2181,13 +2181,13 @@ void init_entity(Entity *entity){
     
     // init turret
     if (entity->flags & TURRET){
-        entity->enemy.unkillable = true;
+        entity->enemy.player_cannot_kill = true;
     }
     
     if (entity->flags & WIN_BLOCK){
         // That's for projectile to reflect, but projectiles do not damage win block.
         entity->enemy.max_hits_taken = 5;
-        entity->enemy.multiple_hits.required_hits *= 2;    
+        entity->enemy.multiple_hits.required_hits = 80;    
     }
     
     // init explosive
@@ -8322,11 +8322,10 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     b32 just_lost_ground_below_my_feet = player_data->grounded && !found_ground && player_data->timers.since_jump_timer >= 0.5f;
     if (just_lost_ground_below_my_feet && !on_propeller){
-        Collision col = raycast(player_entity->position + normalized(player_data->velocity), Vector2_up * -1, 10, player_ground_collision_flags, 0.1f, player_entity->id);
+        Collision col = raycast(player_entity->position + normalized(player_data->velocity), Vector2_up * -1, 10, player_ground_collision_flags, 0.2f, player_entity->id);
         // That situation for snapping to surface while moving on different normal ground.
         if (col.collided){
             Vector2 next_velocity_plane = get_move_plane(col.normal, player_data->velocity.x);
-            // f32 old_new_velocity_plane_dot = dot(next_velocity_plane, player_data->velocity_plane);
             f32 angle_difference = fangle(col.normal, player_data->ground_normal);
             if (col.normal != player_data->ground_normal && angle_difference < 35){
                 found_ground = true;
@@ -8966,7 +8965,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     continue;
                 }
                 
-                if (other_entity->flags & ENEMY){
+                if (other_entity->flags & ENEMY && other_entity->enemy.max_hits_taken >= 0){
                     if (!other_entity->enemy.dead_man){
                         stun_enemy(other_entity, other_entity->position, dir_to_other, true);
                     }
@@ -9024,7 +9023,7 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
         return false;
     }
     
-    if (enemy_entity->enemy.unkillable){
+    if (enemy_entity->enemy.player_cannot_kill){
         return false;
     }
     
