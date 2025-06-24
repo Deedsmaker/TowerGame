@@ -8025,7 +8025,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             // remaping angle to 0..1, where 1 will be straight wall. Next we do "1 - x", so now angle 45 will be maximum power
             // and 90 is no additional down power at all.
             // Then there's sqrtf for more rapid increase in power and "* 5" for max down power when angle is 45.
-            f32 push_down_power = sqrtf(1.0f - (((wall_angle / 90.0f) - 0.5f) * 2)) * 5;
+            f32 push_down_power = sqrtf(1.0f - clamp01((((wall_angle / 90.0f) - 0.5f) * 2))) * 5;
             player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, 1)) * push_down_power;
         }
         hit_a_wall = true;
@@ -8044,7 +8044,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             // Here 90 is straight wall.
             f32 wall_angle = fangle(col.normal, Vector2_up);
             // Explanation of this "formula" is on left wall collision code.
-            f32 push_down_power = sqrtf(1.0f - (((wall_angle / 90.0f) - 0.5f) * 2)) * 5;
+            f32 push_down_power = sqrtf(1.0f - clamp01((((wall_angle / 90.0f) - 0.5f) * 2))) * 5;
             player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, -1)) * push_down_power;
         }
         hit_a_wall = true;
@@ -8075,7 +8075,7 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             continue;
         }
         
-        if (other->flags & PLATFORM && dot(player_data->velocity, other->up) > 0){
+        if (other->flags & PLATFORM && dot(player_entity->position - other->position, other->up) < 0){
             continue;
         }
         
@@ -8322,15 +8322,16 @@ void update_player(Entity *player_entity, f32 dt, Input input){
     
     b32 just_lost_ground_below_my_feet = player_data->grounded && !found_ground && player_data->timers.since_jump_timer >= 0.5f;
     if (just_lost_ground_below_my_feet && !on_propeller){
-        Collision col = raycast(player_entity->position, Vector2_up * -1, player_entity->scale.y + ground_checker->scale.y * 2, player_ground_collision_flags, 0.2f, player_entity->id);
+        Collision col = raycast(player_entity->position + normalized(player_data->velocity), Vector2_up * -1, 10, player_ground_collision_flags, 0.1f, player_entity->id);
         // That situation for snapping to surface while moving on different normal ground.
         if (col.collided){
             Vector2 next_velocity_plane = get_move_plane(col.normal, player_data->velocity.x);
-            f32 old_new_velocity_plane_dot = dot(next_velocity_plane, player_data->velocity_plane);
-            if (col.normal != player_data->ground_normal && old_new_velocity_plane_dot >= 0.9f){
+            // f32 old_new_velocity_plane_dot = dot(next_velocity_plane, player_data->velocity_plane);
+            f32 angle_difference = fangle(col.normal, player_data->ground_normal);
+            if (col.normal != player_data->ground_normal && angle_difference < 35){
                 found_ground = true;
                 player_snap_to_plane(col.normal);
-                player_data->velocity -= col.normal;
+                player_entity->position -= col.normal;
             }
         } else if (input_direction.x == 0 && player_data->velocity.x < player_data->ground_walk_speed * 0.5f){
             // That for stopping and not falling when on edge and player not holding key forward.
