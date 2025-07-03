@@ -3333,6 +3333,8 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
         player_entity = add_player_entity(player_data);
     }     
     
+    current_level_context->original_win_blocks_count = 0;
+    
     ForEntities(entity, 0){
         if (should_init_entities){
             update_editor_entity(entity);
@@ -8962,6 +8964,10 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             f32 explosion_add_speed = 80;
             i32 spawned_particles_count = 0;
             ForEntities(other_entity, 0){
+                if (other_entity->flags & TURRET){
+                    continue;
+                }
+            
                 Vector2 vec_to_other = other_entity->position - enemy_entity->position;
                 f32 distance_to_other = magnitude(vec_to_other);
                 
@@ -8971,7 +8977,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 
                 Vector2 dir_to_other = normalized(vec_to_other);
                 
-                Collision obstacle_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other - 1, GROUND | CENTIPEDE_SEGMENT | CENTIPEDE, distance_to_other - 2, enemy_entity->id);
+                Collision obstacle_collision = raycast(enemy_entity->position, dir_to_other, distance_to_other - 5, GROUND | CENTIPEDE_SEGMENT | CENTIPEDE, distance_to_other - 5, enemy_entity->id);
                 if (obstacle_collision.collided){
                     if (spawned_particles_count < 3){
                         emit_particles(&ground_splash_emitter, obstacle_collision.point, obstacle_collision.normal, 4, 5.5f);
