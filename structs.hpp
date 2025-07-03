@@ -1041,6 +1041,9 @@ struct Level_Context{
     Vector2 player_spawn_point = Vector2_zero;
     char level_name[256] = "\0";
 
+    i32 original_win_blocks_count = 0;
+    i32 current_win_blocks_count = 0;
+
     Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
       
     Dynamic_Array<Particle>         particles = Dynamic_Array<Particle>(MAX_PARTICLES);

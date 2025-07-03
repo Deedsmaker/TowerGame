@@ -2184,10 +2184,10 @@ void init_entity(Entity *entity){
         entity->enemy.player_cannot_kill = true;
     }
     
+    // init win block
     if (entity->flags & WIN_BLOCK){
         // That's for projectile to reflect, but projectiles do not damage win block.
         entity->enemy.max_hits_taken = 5;
-        entity->enemy.multiple_hits.required_hits = 80;    
     }
     
     // init explosive
@@ -3331,13 +3331,21 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities){
     
     if (should_init_entities){
         player_entity = add_player_entity(player_data);
-        
-        ForEntities(entity, 0){
+    }     
+    
+    ForEntities(entity, 0){
+        if (should_init_entities){
             update_editor_entity(entity);
             init_entity(entity);
             update_entity_collision_cells(entity);
         }
+        
+        if (entity->flags & WIN_BLOCK){
+            current_level_context->original_win_blocks_count += 1;
+        }
     }
+    
+    current_level_context->current_win_blocks_count = current_level_context->original_win_blocks_count;
 }
 
 void kill_player(){
@@ -7409,7 +7417,14 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position){
             } else if (enemy_entity->flags & JUMP_SHOOTER){
                 sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
             } else if (enemy_entity->flags & WIN_BLOCK){
-                win_level();
+                assert(current_level_context->current_win_blocks_count > 0);
+                current_level_context->current_win_blocks_count -= 1;
+                
+                kill_enemy(enemy_entity, hit_position, particles_direction, false, 1.0f);
+                
+                if (current_level_context->current_win_blocks_count <= 0){
+                    win_level();
+                }
             } else{
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
             }
@@ -9381,16 +9396,18 @@ void calculate_projectile_collisions(Entity *entity){
                     can_damage = false;
                 }
                 
-                if (enemy->max_hits_taken > 1){
-                    projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
-                    projectile->bounced = true;
-                    projectile->birth_time = core.time.game_time;
-                    stun_enemy(other, entity->position, col.normal);    
-                } else if (enemy->max_hits_taken <= -1){
-                    
-                } else if (can_damage){
-                    kill_enemy(other, entity->position, col.normal, false);
-                    killed = true;
+                if (can_damage){
+                    if (enemy->max_hits_taken > 1){
+                        projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
+                        projectile->bounced = true;
+                        projectile->birth_time = core.time.game_time;
+                        stun_enemy(other, entity->position, col.normal);    
+                    } else if (enemy->max_hits_taken <= -1){
+                        
+                    } else{
+                        kill_enemy(other, entity->position, col.normal, false);
+                        killed = true;
+                    }
                 }
                 
                 if (other->flags & TRIGGER && can_damage){
@@ -12680,7 +12697,7 @@ void draw_game(){
     draw_debug_info();
     
     if (state_context.we_got_a_winner){
-        make_ui_text("Finale for now!\nNow you can try speedruns.\nOpen console with \"/\" (slash) button and type help.\ngame_speedrun for full game speedrun.\nlevel_speedrun for current level speedrun.\nfirst for loading first level\nnext for loading next level", {screen_width * 0.3f, screen_height * 0.2f}, 20, GREEN, "win_speedrun_text");
+        // make_ui_text("Finale for now!\nNow you can try speedruns.\nOpen console with \"/\" (slash) button and type help.\ngame_speedrun for full game speedrun.\nlevel_speedrun for current level speedrun.\nfirst for loading first level\nnext for loading next level", {screen_width * 0.3f, screen_height * 0.2f}, 20, GREEN, "win_speedrun_text");
     }
     
     if (game_state == GAME && player_data->dead_man && !state_context.we_got_a_winner){
