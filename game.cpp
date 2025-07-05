@@ -1718,7 +1718,7 @@ void init_spawn_objects(){
     {
         Turret *turret = &turret_homing_entity.enemy.turret;
         turret->homing = true;
-        turret->projectile_settings.launch_speed = 200;
+        turret->projectile_settings.launch_speed = 150;
         turret->projectile_settings.max_lifetime = 15;
         turret->shoot_every_tick = 8;
     }
@@ -8592,14 +8592,13 @@ void respond_bird_collision(Entity *bird_entity, Collision col){
         }
     }
     
-    if (other->flags & PLAYER && !player_data->dead_man && bird->attacking && !enemy->dead_man){
-        if (should_kill_player(bird_entity)){
+    if (other->flags & PLAYER){
+        b32 should_kill_player = !player_data->dead_man && bird->attacking && !enemy->dead_man && !(bird_entity->flags & EXPLOSIVE);
+        if (should_kill_player){
             kill_player();
             if (bird_entity->flags & EXPLOSIVE){
                 kill_enemy(bird_entity, col.point, col.normal);
             }
-        } else{
-            try_sword_damage_enemy(bird_entity, bird_entity->position);
         }
     }
 }
@@ -8964,7 +8963,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             f32 explosion_add_speed = 80;
             i32 spawned_particles_count = 0;
             ForEntities(other_entity, 0){
-                if (other_entity->flags & TURRET){
+                if (other_entity->flags & TURRET || other_entity->flags & WIN_BLOCK){
                     continue;
                 }
             
@@ -9287,6 +9286,7 @@ void stop_death_instinct(){
     state_context.death_instinct.played_effects = false;
 }
 
+// @CLEANUP: Death instinct mechanic is not present right now, so that a candidate for removal.
 b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards){
     return false;
 
@@ -9300,9 +9300,7 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
         return false;
     }
     
-    // That's pretty sloppy when player tries to just kill single enemy with big sword, but without slowmo it's just REALLY hard and 
-    // we should left that for late game.
-    b32 will_kill_on_hit = (should_kill_player(entity) || (entity->flags & EXPLOSIVE));
+    b32 will_kill_on_hit = true;
     if (!will_kill_on_hit){
         return false;       
     }
@@ -9328,10 +9326,6 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason){
     state_context.death_instinct.threat_entity_id = threat_entity->id;
     state_context.death_instinct.last_reason = reason;
     return true;
-}
-
-inline b32 should_kill_player(Entity *entity){
-    return true;// !can_sword_damage_enemy(entity);
 }
 
 void calculate_projectile_collisions(Entity *entity){
@@ -9512,12 +9506,17 @@ void calculate_projectile_collisions(Entity *entity){
             Collision col = collisions_buffer.get(i);
             Entity *other = col.other_entity;
             
-            if (other->flags & PLAYER && !player_data->dead_man && !enemy->dead_man){
-                kill_player();
+            if (other->flags & PLAYER){
+                b32 should_kill_player = !player_data->dead_man && !enemy->dead_man && !(entity->flags & EXPLOSIVE);
+                if (should_kill_player){
+                    kill_player();
+                    kill_enemy(entity, col.point, col.normal);
+                    emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
+                }
+            } else{
+                kill_enemy(entity, col.point, col.normal);
+                emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
             }
-            
-            kill_enemy(entity, col.point, col.normal);
-            emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
         }
     }
 }

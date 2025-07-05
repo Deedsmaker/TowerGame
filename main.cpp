@@ -44,6 +44,7 @@ b32 bordless_fullscreen = false;
 b32 window_minimized = false;
 
 #include "game.cpp"
+
 int main(){
     SetTraceLogLevel(LOG_WARNING);
 
