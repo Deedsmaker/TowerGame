@@ -6078,9 +6078,12 @@ void update_editor(){
         // }
         
         b32 maybe_want_to_move_edges = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-        if (maybe_want_to_move_edges && !editor.is_scaling_entity){
+        if (maybe_want_to_move_edges && !editor.is_scaling_entity && editor.selected_entity && editor.selected_entity->id == e->id){
             try_move_entity_edges(e);
-        } else{
+        } else if (!IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){ 
+            // Check for mouse button not released this frame is for that we keep dragging edge state for one frame
+            // and could consider that in editor code. (Was added so that releasing button not de-selected entity on dragging code).
+            // This else is for clearing moving edge state after we finished and also for remembering undo.
             if (editor.moving_entity_edge_type != NONE && e->id == editor.moving_entity_edge_id){
                 if (e->scale != editor.moving_edge_start_entity_scale){
                     Vector2 position_change = e->position - editor.moving_edge_start_entity_position;
@@ -6358,7 +6361,7 @@ void update_editor(){
         }
     } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && can_select){ //stop dragging entity
         if (editor.selected_entity && !editor.selected_this_click && editor.cursor_entity){
-            if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id){
+            if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id && editor.moving_entity_edge_type == NONE){
                 assign_selected_entity(NULL);
             }
         }
