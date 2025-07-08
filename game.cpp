@@ -5847,10 +5847,14 @@ void clear_multiselected_entities(b32 add_to_undo){
     editor.multiselected_entities.clear();
 }
 
-b32 clicked_on_entity_edge(f32 rotation, Vector2 edge_center, b32 is_horizontal, f32 orthogonal_size){
+b32 clicked_on_entity_edge(f32 rotation, Vector2 edge_center, b32 is_horizontal, f32 orthogonal_size, f32 radius_multiplier){
+    if (!IsMouseButtonPressed(MOUSE_BUTTON_LEFT)){
+        return false;
+    }
+
     Array<Vector2, MAX_VERTICES> edge_vertices = Array<Vector2, MAX_VERTICES>();
     add_rect_vertices(&edge_vertices, {0.5f, 0.5f});
-    f32 selection_radius = 2.5f;
+    f32 selection_radius = fmaxf(3.0f, 1.5f / current_level_context->cam.cam2D.zoom) * radius_multiplier;
     for (i32 i = 0; i < edge_vertices.count; i++){
         if (is_horizontal){
             edge_vertices.get_ptr(i)->x *= selection_radius;
@@ -5884,13 +5888,23 @@ void try_move_entity_edges(Entity *e){
     
     if (editor.moving_entity_edge_type == NONE){
         if (0){
-        } else if (clicked_on_entity_edge(e->rotation, e->position + e->right * e->scale.x * e->pivot.x, true, e->scale.y)){
+        } else if (clicked_on_entity_edge(e->rotation, e->position + e->right * e->scale.x * e->pivot.x, true, e->scale.y, 0.1f)){
             editor.moving_entity_edge_type = RIGHT_EDGE;
-        } else if (clicked_on_entity_edge(e->rotation, e->position - e->right * e->scale.x * e->pivot.x, true, e->scale.y)){
+        } else if (clicked_on_entity_edge(e->rotation, e->position - e->right * e->scale.x * e->pivot.x, true, e->scale.y, 0.1f)){
             editor.moving_entity_edge_type = LEFT_EDGE;
-        } else if (clicked_on_entity_edge(e->rotation, e->position + e->up * e->scale.y * e->pivot.y, false, e->scale.x)){
+        } else if (clicked_on_entity_edge(e->rotation, e->position + e->up * e->scale.y * e->pivot.y, false, e->scale.x, 0.1f)){
             editor.moving_entity_edge_type = TOP_EDGE;
-        } else if (clicked_on_entity_edge(e->rotation, e->position - e->up * e->scale.y * e->pivot.y, false, e->scale.x)){
+        } else if (clicked_on_entity_edge(e->rotation, e->position - e->up * e->scale.y * e->pivot.y, false, e->scale.x, 0.1f)){
+            editor.moving_entity_edge_type = BOTTOM_EDGE;
+        // Two pass for that we detect precisely which edge was clicked. First more precise.
+        // That needs in situations where two edges really clear and radius are too big so we detect right-left first.
+        } else if (clicked_on_entity_edge(e->rotation, e->position + e->right * e->scale.x * e->pivot.x, true, e->scale.y, 1)){
+            editor.moving_entity_edge_type = RIGHT_EDGE;
+        } else if (clicked_on_entity_edge(e->rotation, e->position - e->right * e->scale.x * e->pivot.x, true, e->scale.y, 1)){
+            editor.moving_entity_edge_type = LEFT_EDGE;
+        } else if (clicked_on_entity_edge(e->rotation, e->position + e->up * e->scale.y * e->pivot.y, false, e->scale.x, 1)){
+            editor.moving_entity_edge_type = TOP_EDGE;
+        } else if (clicked_on_entity_edge(e->rotation, e->position - e->up * e->scale.y * e->pivot.y, false, e->scale.x, 1)){
             editor.moving_entity_edge_type = BOTTOM_EDGE;
         } else{
             return;
