@@ -3521,6 +3521,10 @@ void fixed_game_update(f32 dt){
                         continue;
                     }
                     
+                    if (entity->flags & TURRET && !entity->enemy.turret.homing){
+                        continue;
+                    }
+                    
                     Vector2 vec_to_enemy = entity->position - player_entity->position;
                     Vector2 dir_to_enemy = normalized(vec_to_enemy);
                     f32 distance_to_enemy = magnitude(vec_to_enemy);
@@ -5723,6 +5727,8 @@ void editor_mouse_move_entity(Entity *entity){
         Vector2 cell_position = {round_to_factor(next_position.x, cell_size), round_to_factor(next_position.y, cell_size)};
         move_delta = cell_position - entity->position;
         entity->position += move_delta;
+    } else{
+        move_delta = Vector2_zero;
     }
     
     if (editor.move_entity_points){
@@ -8046,6 +8052,15 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, 1)) * push_down_power;
         }
         hit_a_wall = true;
+        
+        if (col.other_entity->flags & CENTIPEDE_SEGMENT && input_direction.x < 0){
+            Vector2 climb_plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -120);
+            f32 max_wall_speed = 150;
+            f32 wall_acceleration = 400;
+            if (dot(player_data->velocity, climb_plane) < max_wall_speed){
+                player_data->velocity += climb_plane * wall_acceleration * dt;
+            }
+        }
         break;
     }
     
@@ -8065,6 +8080,15 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, -1)) * push_down_power;
         }
         hit_a_wall = true;
+        
+        if (col.other_entity->flags & CENTIPEDE_SEGMENT && input_direction.x > 0){
+            Vector2 climb_plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -120);
+            f32 max_wall_speed = 150;
+            f32 wall_acceleration = 400;
+            if (dot(player_data->velocity, climb_plane) < max_wall_speed){
+                player_data->velocity += climb_plane * wall_acceleration * dt;
+            }
+        }
         break;
     }
     
@@ -8347,7 +8371,12 @@ void update_player(Entity *player_entity, f32 dt, Input input){
             if (col.normal != player_data->ground_normal && angle_difference < 35){
                 found_ground = true;
                 player_snap_to_plane(col.normal);
-                player_entity->position -= col.normal;
+                
+                // This thing just kills player in centipede case, but we're probably should first of all think of a better way
+                // for centipede walking and secondly make better centipede segments collision.
+                if (!(col.other_entity->flags & CENTIPEDE_SEGMENT)){
+                    player_entity->position -= col.normal;
+                }
             }
         } else if (input_direction.x == 0 && player_data->velocity.x < player_data->ground_walk_speed * 0.5f){
             // That for stopping and not falling when on edge and player not holding key forward.

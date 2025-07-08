@@ -699,7 +699,7 @@ struct Player{
     f32 ground_acceleration = 600;
     f32 ground_deceleration = 450;
     f32 air_acceleration    = 600;
-    f32 air_deceleration    = 450;
+    f32 air_deceleration    = 150;
     // f32 friction = 100;
     f32 jump_force = 80;
     f32 gravity = 100;
