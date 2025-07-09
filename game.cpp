@@ -1935,6 +1935,8 @@ Texture small_sword_killable_texture;
 Texture perlin_texture;
 Texture missing_texture;
 
+Texture test_normal_texture;
+
 Sound_Handler *missing_sound = NULL;
 
 Texture get_texture(const char *name){
@@ -1986,6 +1988,8 @@ void load_textures(){
     spiral_clockwise_texture        = get_texture("vpravo");
     spiral_counterclockwise_texture = get_texture("levo");
     hitmark_small_texture           = get_texture("hitmark_small");
+    
+    test_normal_texture = get_texture("NormalMap");
 }
 
 inline void loop_entities(void (func)(Entity*)){
@@ -2998,20 +3002,12 @@ inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pit
     play_sound(name, current_level_context->cam.position, volume_multiplier, base_pitch, pitch_variation);
 }
 
-// RenderTexture emitters_occluders_rt;
-// Shader emitters_occluders_shader;
-// RenderTexture voronoi_seed_rt;
-// Shader voronoi_seed_shader;
-// RenderTexture jump_flood_rt;
-// Shader jump_flood_shader;
-// RenderTexture distance_field_rt;
-// Shader distance_field_shader;
 RenderTexture global_illumination_rt;
-// Shader global_illumination_shader;
 
 RenderTexture light_geometry_rt;
 
-RenderTexture final_light_rt;
+RenderTexture global_normal_rt;
+
 Shader env_light_shader;
 
 Shader gaussian_blur_shader;
@@ -3105,6 +3101,8 @@ void load_render(){
         lightmaps.get_ptr(i)->emitters_occluders_rt  = LoadRenderTexture(light_texture_width, light_texture_height);
         lightmaps.get_ptr(i)->distance_field_rt      = LoadRenderTexture(light_texture_width, light_texture_height);
     }
+    global_normal_rt = LoadRenderTexture(light_texture_width, light_texture_height);
+
     
     voronoi_seed_shader = LoadShader(0, "./resources/shaders/voronoi_seed.fs");
     jump_flood_shader = LoadShader(0, "./resources/shaders/jump_flood.fs");
@@ -12282,7 +12280,20 @@ void bake_lightmaps_if_need(){
             }
         EndBlendMode();
         EndMode2D();
-        }EndTextureMode();
+        } EndTextureMode();
+        
+        BeginTextureMode(global_normal_rt);{
+            BeginMode2D(current_level_context->cam.cam2D);{
+            ClearBackground(Fade(BLACK, 0));
+            
+            ForEntities(texture_entity, TEXTURE){
+                if (str_equal(texture_entity->texture_name, "dude")){
+                    draw_game_texture(test_normal_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color);
+                }
+            }
+            } EndMode2D();
+        } EndTextureMode();
+        
         current_level_context->cam = with_shake_cam;
         
         BeginTextureMode(voronoi_seed_rt);{
@@ -12354,6 +12365,7 @@ void bake_lightmaps_if_need(){
         
     // At this point we computed emitters/occluders and distnace fields for every lightmap.
     // Now we do real global illumination work and we will need this info for calculating neighbours.
+    // (we're not calculating neighbours anymore).
     for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
         // Baking one at the time to see that something is happening.
         // if (lightmap_index != last_baked_index){
@@ -12391,6 +12403,10 @@ void bake_lightmaps_if_need(){
             i32 time_loc               = get_shader_location(global_illumination_shader, "u_time");
             i32 distance_mod           = get_shader_location(global_illumination_shader, "u_dist_mod");
             i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
+            
+            
+            i32 normal_texture_loc     = get_shader_location(global_illumination_shader, "u_normal_texture");
+            set_shader_value_tex(global_illumination_shader, normal_texture_loc, global_normal_rt.texture);
             
             set_shader_value(global_illumination_shader, distance_mod, bake_settings.distance_mod);
             set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
@@ -12698,6 +12714,7 @@ void new_render(){
             RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
     
             draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+            draw_game_texture(global_normal_rt.texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
         }
         EndMode2D();
     } else if (debug.full_light){
@@ -12722,7 +12739,7 @@ void new_render(){
     //     draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
     // }
     // EndMode2D();
-}
+} // new render end
 
 void draw_game(){
     saved_cam = current_level_context->cam;
@@ -12732,8 +12749,6 @@ void draw_game(){
     with_shake_cam = current_level_context->cam;
     BeginDrawing();
 
-    // old_render();
-    
     new_render();
     
     update_input_field();

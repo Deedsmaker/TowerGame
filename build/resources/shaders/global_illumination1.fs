@@ -25,6 +25,11 @@ uniform int u_max_raymarch_steps = 128;
 uniform float u_dist_mod = 1;
 uniform vec2 u_screen_pixel_size;
 
+// r - left (?)
+// g - up
+// b - to us
+uniform sampler2D u_normal_texture;
+
 out vec4 finalColor;
 
 float random (vec2 st){
@@ -147,7 +152,7 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
    return bounce_count > 0;
 }
 
-
+// Don't think that we should use that as it flattens all the colors. We're want to apply hdr stuff afterwards.
 vec3 lin_to_srgb(vec4 color)
 {
    vec3 x = color.rgb * 12.92;
@@ -183,6 +188,8 @@ void main()
     float rand2pi = perlin(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
     float golden_angle = PI * 0.7639320225; // magic number that gives us a good ray distribution.
    
+    vec2 average_light_direction = vec2(0);
+   
     // cast our rays.
     for (int i = 0; i < u_rays_per_pixel; i++){
         // get our ray dir by taking the random angle and adding golden_angle * ray number.
@@ -199,18 +206,34 @@ void main()
             // get_surface(hit_pos, mat_emissive, mat_colour);
             pixel_emis += mat_emissive;
             pixel_col += mat_colour;
+            
+            if (mat_emissive > 0){
+                average_light_direction += ray_dir * (mat_emissive / u_emission_multi);
+            }
         }
     }
+    
     
     pixel_col /= float(u_rays_per_pixel);
     pixel_emis /= float(u_rays_per_pixel);
     pixel_emis *= u_emission_multi;
+    
+    vec4 normal_color = texture(u_normal_texture, uv);
+    if (normal_color.a > 0){
+        average_light_direction = normalize(average_light_direction);
+            
+        vec2 normal_direction = vec2(((normal_color.r - 0.5) * 2) * -1, (normal_color.g - 0.5) * 2) * 1;
+        
+        float mult = dot(average_light_direction, normal_direction);
+        
+        mult = max(mult, -1);
+        mult = (mult + 1) * 0.5;
+        
+        pixel_emis *= mult;
+    }
 
     vec4 current_color = texture(texture0, fragTexCoord);
     // finalColor = current_color + vec4(pixel_emis * pixel_col, 1);
     finalColor = current_color + vec4(pixel_col * pixel_emis, 1);
     finalColor.a = 1.0;
-    // finalColor = current_color;
-    ////////
-    // finalColor = vec4(1, 0, 0, 1);
 }

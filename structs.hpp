@@ -810,7 +810,7 @@ struct Entity{
 
     b32 enabled = 1;
     
-    Texture texture;
+    Texture texture = {};
     char texture_name[64];
     Vector2 scaling_multiplier = {1, 1};
     
