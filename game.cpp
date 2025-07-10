@@ -3103,12 +3103,12 @@ void load_render(){
         lightmaps.get_ptr(i)->emitters_occluders_rt  = LoadRenderTexture(light_texture_width, light_texture_height);
         lightmaps.get_ptr(i)->distance_field_rt      = LoadRenderTexture(light_texture_width, light_texture_height);
     }
-    global_normal_rt = LoadRenderTexture(light_texture_width, light_texture_height);
+    global_normal_rt = LoadRenderTexture(light_texture_width * 2, light_texture_height * 2);
 
     
-    voronoi_seed_shader = LoadShader(0, "./resources/shaders/voronoi_seed.fs");
-    jump_flood_shader = LoadShader(0, "./resources/shaders/jump_flood.fs");
-    distance_field_shader = LoadShader(0, "./resources/shaders/distance_field.fs");
+    voronoi_seed_shader        = load_shader(0, "./resources/shaders/voronoi_seed.fs");
+    jump_flood_shader          = load_shader(0, "./resources/shaders/jump_flood.fs");
+    distance_field_shader      = load_shader(0, "./resources/shaders/distance_field.fs");
     global_illumination_shader = load_shader(0, "./resources/shaders/global_illumination1.fs");
 }
 
@@ -12125,7 +12125,7 @@ void draw_screen_space_editor(){
     bool draw_horizontal_vertical_lines = true;
     if (draw_horizontal_vertical_lines && editor.selected_entity){
         Vector2 screen_position = world_to_screen_with_zoom(editor.selected_entity->position);
-        draw_line({(f32)0, screen_position.y}, {(f32)screen_width, screen_position.y}, Fade(BLUE, 0.5f));
+        draw_line({(f32)0, screen_position.y}, {(f32)screen_width, screen_position.y}, Fade(RED, 0.5f));
         draw_line({screen_position.x, (f32)0}, {screen_position.x, (f32)screen_height}, Fade(GREEN, 0.5f));
     }
 }
@@ -12237,12 +12237,31 @@ void bake_lightmaps_if_need(){
         RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture *distance_field_rt = &lightmap_data->distance_field_rt;
 
+        drawing_state= LIGHTING_DRAWING;
+        
+        BeginTextureMode(global_normal_rt);{
+            current_level_context->cam = get_cam_for_resolution(light_texture_width * 2, light_texture_height * 2);
+            current_level_context->cam.position = lightmap_data->position;
+            current_level_context->cam.view_position = lightmap_data->position;
+            current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
+        
+            BeginMode2D(current_level_context->cam.cam2D);{
+            ClearBackground(Fade(BLACK, 0));
+            
+            ForEntities(texture_entity, TEXTURE){
+                if (str_equal(texture_entity->texture_name, "TEST1")){
+                    draw_game_texture(test_normal_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color);
+                }
+            }
+            } EndMode2D();
+        } EndTextureMode();
+
+        
         current_level_context->cam = get_cam_for_resolution(light_texture_width, light_texture_height);
         current_level_context->cam.position = lightmap_data->position;
         current_level_context->cam.view_position = lightmap_data->position;
         current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
         
-        drawing_state= LIGHTING_DRAWING;
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(Fade(BLACK, 0));
@@ -12272,18 +12291,6 @@ void bake_lightmaps_if_need(){
             }
         EndBlendMode();
         EndMode2D();
-        } EndTextureMode();
-        
-        BeginTextureMode(global_normal_rt);{
-            BeginMode2D(current_level_context->cam.cam2D);{
-            ClearBackground(Fade(BLACK, 0));
-            
-            ForEntities(texture_entity, TEXTURE){
-                if (str_equal(texture_entity->texture_name, "dude")){
-                    draw_game_texture(test_normal_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color);
-                }
-            }
-            } EndMode2D();
         } EndTextureMode();
         
         current_level_context->cam = with_shake_cam;
@@ -12396,7 +12403,6 @@ void bake_lightmaps_if_need(){
             i32 distance_mod           = get_shader_location(global_illumination_shader, "u_dist_mod");
             i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
             
-            
             i32 normal_texture_loc     = get_shader_location(global_illumination_shader, "u_normal_texture");
             set_shader_value_tex(global_illumination_shader, normal_texture_loc, global_normal_rt.texture);
             
@@ -12425,44 +12431,6 @@ void bake_lightmaps_if_need(){
 void new_render(){
     bake_lightmaps_if_need();
 
-    BeginTextureMode(render.main_render_texture);
-    BeginMode2D(current_level_context->cam.cam2D);
-    
-    Color base_background_color = debug.full_light ? ColorBrightness(GRAY, 0.1f) : Fade(WHITE, 0);
-    
-    ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : base_background_color);
-    
-    drawing_state = CAMERA_DRAWING;
-    draw_entities();
-    // ClearBackground(WHITE);
-    draw_particles();
-    
-    if (player_entity && debug.draw_player_collisions){
-        for (i32 i = 0; i < collisions_buffer.count; i++){
-            Collision col = collisions_buffer.get(i);
-            
-            make_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
-            draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
-        }
-    }
-    
-    if (debug.draw_collision_grid){
-        // draw collision grid
-        Collision_Grid grid = session_context.collision_grid;
-        Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
-        
-        update_entity_collision_cells(&mouse_entity);
-        for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
-            for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
-                Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
-                
-                draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
-            }
-        }
-    }
-    EndMode2D();
-    EndTextureMode();
-    
     // Drawing baked lightmaps on camera plane.
     BeginTextureMode(global_illumination_rt);{
     BeginMode2D(current_level_context->cam.cam2D);
@@ -12697,6 +12665,44 @@ void new_render(){
     if (IsKeyPressed(KEY_F1)){
         debug_toggle_lightmap_view();
     }
+    
+    BeginTextureMode(render.main_render_texture);{
+    BeginMode2D(current_level_context->cam.cam2D);{
+    
+    Color base_background_color = debug.full_light ? ColorBrightness(GRAY, 0.1f) : Fade(WHITE, 0);
+    
+    ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : base_background_color);
+    
+    drawing_state = CAMERA_DRAWING;
+    draw_entities();
+    // ClearBackground(WHITE);
+    draw_particles();
+    
+    if (player_entity && debug.draw_player_collisions){
+        for (i32 i = 0; i < collisions_buffer.count; i++){
+            Collision col = collisions_buffer.get(i);
+            
+            make_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
+            draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
+        }
+    }
+    
+    if (debug.draw_collision_grid){
+        // draw collision grid
+        Collision_Grid grid = session_context.collision_grid;
+        Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
+        
+        update_entity_collision_cells(&mouse_entity);
+        for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y){
+            for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x){
+                Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
+                
+                draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+            }
+        }
+    }
+    } EndMode2D();
+    } EndTextureMode();
     
     drawing_state = CAMERA_DRAWING;
     if (debug.view_only_lightmaps){
