@@ -30,6 +30,8 @@ global_variable Input input = {};
 global_variable Input replay_input = {};
 // global_variable Level_Context editor_level_context = {};
 
+#define CELL_SIZE 5
+
 #define MAX_LOADED_LEVELS 2
 global_variable Level_Context loaded_levels_contexts[MAX_LOADED_LEVELS];
 global_variable Level_Context *editor_level_context = NULL;
@@ -5711,8 +5713,6 @@ inline Vector2 round_to_factor(Vector2 vec, f32 quantization_factor){
 void editor_mouse_move_entity(Entity *entity){
     Vector2 move_delta = get_editor_mouse_move();
     
-    f32 cell_size = 5;
-    
     b32 moving_without_cell_bound = IsKeyDown(KEY_LEFT_ALT);
     if (!moving_without_cell_bound){
         move_delta = input.mouse_position - (entity->position + editor.dragging_start_mouse_offset);
@@ -5720,9 +5720,9 @@ void editor_mouse_move_entity(Entity *entity){
     
     if (moving_without_cell_bound){
         entity->position += move_delta;
-    } else if (sqr_magnitude(move_delta) >= (cell_size * 0.5f * cell_size * 0.5f)){
+    } else if (sqr_magnitude(move_delta) >= (CELL_SIZE * 0.5f * CELL_SIZE * 0.5f)){
         Vector2 next_position = entity->position + move_delta;
-        Vector2 cell_position = {round_to_factor(next_position.x, cell_size), round_to_factor(next_position.y, cell_size)};
+        Vector2 cell_position = {round_to_factor(next_position.x, CELL_SIZE), round_to_factor(next_position.y, CELL_SIZE)};
         move_delta = cell_position - entity->position;
         entity->position += move_delta;
     } else{
@@ -6295,13 +6295,11 @@ void update_editor(){
             moving_displacement = get_editor_mouse_move();
             editor.multiselect_total_displacement_for_undo += moving_displacement;
         } else{
-            f32 cell_size = 5;
-            
-            if (sqr_magnitude(input.mouse_position - editor.dragging_start) >= (cell_size * 0.5f * cell_size * 0.5f)){
+            if (sqr_magnitude(input.mouse_position - editor.dragging_start) >= (CELL_SIZE * 0.5f * CELL_SIZE * 0.5f)){
                 // While moving multiselected entities we canot directly set position like we do in editor_mouse_move_entity,
                 // so here we calculate current quantized displacement from last moving.
-                // Vector2 cell_mouse_position = round_to_factor(input.mouse_position, cell_size);
-                moving_displacement = round_to_factor(input.mouse_position - editor.dragging_start, cell_size);
+                // Vector2 cell_mouse_position = round_to_factor(input.mouse_position, CELL_SIZE);
+                moving_displacement = round_to_factor(input.mouse_position - editor.dragging_start, CELL_SIZE);
                 editor.dragging_start += moving_displacement;
                 editor.multiselect_total_displacement_for_undo += moving_displacement;
             }
@@ -6399,11 +6397,12 @@ void update_editor(){
     
     //entity tap moving
     if (editor.selected_entity){
-        f32 arrows_move_amount = 0.1f;
-        Vector2 move = input.tap_direction * 0.1f;
-        if (move.x != 0 || move.y != 0){
-            editor.selected_entity->position += move;
-            undo_action.position_change = move;
+        Vector2 tap_move = {input.tap_direction.x * CELL_SIZE, input.tap_direction.y * CELL_SIZE};
+        if (tap_move.x != 0 || tap_move.y != 0){
+            Vector2 next_position = round_to_factor(editor.selected_entity->position + tap_move, CELL_SIZE);
+            Vector2 move_amount = next_position - editor.selected_entity->position;
+            editor.selected_entity->position += move_amount;
+            undo_action.position_change = move_amount;
             undo_action.entity_id = editor.selected_entity->id;
             something_in_undo = true;
         }
@@ -11754,10 +11753,7 @@ void draw_entities(){
     }
 }
 
-void draw_editor(){
-    f32 closest_len = 1000000;
-    Entity *closest = NULL;
-
+void draw_game_space_editor(){
     Hash_Table_Int<Entity> *entities = &current_level_context->entities;
 
     for (i32 i = 0; i < entities->max_count; i++){
@@ -11807,14 +11803,6 @@ void draw_editor(){
             draw_game_text(e->position + (cast(Vector2){0, -9}), text_format("RIGHT: {%.2f, %.2f}", e->right.x, e->right.y), 20, RED);
         }
         
-        if (editor.dragging_entity != NULL && e->id != editor.dragging_entity->id){
-            f32 len = magnitude(e->position - editor.dragging_entity->position);
-            if (len < closest_len){
-                closest_len = len;
-                closest = e;
-            }
-        }
-        
         b32 draw_normals = false;
         if (draw_normals){
             global_normals.count = 0;
@@ -11827,10 +11815,6 @@ void draw_editor(){
                 draw_game_rect(end, {1, 1}, {0.5f, 0.5f}, PURPLE * 0.9f);
             }
         }
-    }
-    
-    if (editor.dragging_entity != NULL && closest){
-        make_line(editor.dragging_entity->position, closest->position, 0.1f, PINK);
     }
     
     //editor ruler drawing
@@ -12118,7 +12102,8 @@ void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 seg
     render.ring_lines_to_draw.add(ring);
 }
 
-void draw_debug_info(){
+void draw_screen_space_editor(){
+    // draw logs
     f32 add_vertical_position = screen_height * 0.03f;
     f32 v = screen_height * 0.05f;
     f32 h = screen_width * 0.35f;
@@ -12135,6 +12120,13 @@ void draw_debug_info(){
         
         draw_text(log->data, {h, v}, 26, ColorBrightness(BROWN, 0.3f));
         v += add_vertical_position;
+    }
+    
+    bool draw_horizontal_vertical_lines = true;
+    if (draw_horizontal_vertical_lines && editor.selected_entity){
+        Vector2 screen_position = world_to_screen_with_zoom(editor.selected_entity->position);
+        draw_line({(f32)0, screen_position.y}, {(f32)screen_width, screen_position.y}, Fade(BLUE, 0.5f));
+        draw_line({screen_position.x, (f32)0}, {screen_position.x, (f32)screen_height}, Fade(GREEN, 0.5f));
     }
 }
 
@@ -12755,12 +12747,12 @@ void draw_game(){
     
     BeginMode2D(current_level_context->cam.cam2D);{
         if (game_state == EDITOR || state_context.in_pause_editor){
-            draw_editor();
+            draw_game_space_editor();
         }
         draw_immediate_stuff();
     } EndMode2D();
     
-    draw_debug_info();
+    draw_screen_space_editor();
     
     if (state_context.we_got_a_winner){
         // make_ui_text("Finale for now!\nNow you can try speedruns.\nOpen console with \"/\" (slash) button and type help.\ngame_speedrun for full game speedrun.\nlevel_speedrun for current level speedrun.\nfirst for loading first level\nnext for loading next level", {screen_width * 0.3f, screen_height * 0.2f}, 20, GREEN, "win_speedrun_text");
