@@ -60,9 +60,18 @@ struct Lightmap_Data{
     Vector2 position = {0, 0};
     Vector2 game_size = {2048.0f, 2048.0f};
 
+    Vector2 pixel_size = {2048.0f, 2048.0f};
+
     RenderTexture global_illumination_rt = {}; 
     RenderTexture emitters_occluders_rt  = {};
     RenderTexture distance_field_rt      = {};
+    RenderTexture normal_rt             = {};
+    RenderTexture voronoi_seed_rt = {};
+    RenderTexture jump_flood_rt = {};
+    
+    b32 render_textures_loaded = false;
+    
+    Texture lightmap_texture = {};
     
     i32 distance_texture_loc = -1;
     i32 emitters_occluders_loc = -1;
@@ -1059,6 +1068,9 @@ struct Level_Context{
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
     Dynamic_Array<Light> lights = Dynamic_Array<Light>(1024);
+    
+    Dynamic_Array<Lightmap_Data> lightmaps = Dynamic_Array<Lightmap_Data>();
+    b32 lightmaps_render_textures_loaded = false;
 };
 
 struct Turret_State{
@@ -1291,6 +1303,8 @@ struct Editor{
     int max_undos_added;
 
     b32 update_cam_view_position = true;
+
+    b32 editing_lightmaps = false;
 
     f32 create_box_scrolled = 0;
     b32 create_box_active = false;

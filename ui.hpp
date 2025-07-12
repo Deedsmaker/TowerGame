@@ -142,11 +142,6 @@ b32 make_ui_toggle(Vector2 position, u64 current_value, const char *tag){
     return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value != 0);
 }
 
-// b32 make_ui_toggle(Vector2 position, b32 current_value, const char *tag){
-//     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
-//     return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value != 0);
-// }
-
 b32 make_ui_color_picker(Vector2 position, Color color, b32 current_value, const char *tag){
     return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, color, VIOLET, UI_COLOR_PICKER, current_value);
 }
@@ -156,3 +151,50 @@ b32 make_ui_toggle(Vector2 position, Entity* e, b32 (get_value)(Entity*), const 
     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
     return make_button(position, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
 }
+
+Vector2 panel_last_added_position = {0};
+Vector2 panel_last_added_size = {0};
+Ui_Element* current_panel = NULL;
+
+void begin_panel(Vector2 position, Vector2 size, Color color, const char* tag){
+    Ui_Element* new_panel = init_ui_element(position, size, {0, 0}, color, tag, UI_IMAGE);
+    
+    Rectangle image_rec = {position.x - size.x * (0), position.y - size.y * 0, size.x, size.y};
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(input.screen_mouse_position, image_rec)){
+        clicked_ui = true;
+    }
+    
+    current_panel = new_panel;
+    panel_last_added_position = position + Vector2_up * 10 + Vector2_right * 5;
+    panel_last_added_size = {0};
+}
+
+void end_panel(){
+    current_panel = NULL;
+}
+
+b32 make_panel_button(const char* text, const char* tag){
+    assert(current_panel);   
+    
+    Vector2 position = panel_last_added_position + Vector2_up * 5 + Vector2_up * panel_last_added_size.y;  
+    Vector2 size = {150, 25};
+    
+    panel_last_added_position = position;
+    panel_last_added_size = size;
+    
+    return make_button(position, size, {0, 0}, text, 20, tag, BLUE, WHITE);
+}
+
+void make_panel_text(const char* text, const char* tag){
+    assert(current_panel);   
+    
+    Vector2 position = panel_last_added_position + Vector2_up * 5 + Vector2_up * panel_last_added_size.y;  
+    Vector2 size = {100, 20};
+    
+    panel_last_added_position = position;
+    panel_last_added_size = size;
+    
+    make_ui_text(text, position, tag);
+}
+
+

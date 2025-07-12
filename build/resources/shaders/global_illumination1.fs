@@ -213,7 +213,6 @@ void main()
         }
     }
     
-    
     pixel_col /= float(u_rays_per_pixel);
     pixel_emis /= float(u_rays_per_pixel);
     pixel_emis *= u_emission_multi;

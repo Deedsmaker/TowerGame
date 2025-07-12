@@ -81,8 +81,6 @@ global_variable Dynamic_Array<Sound_Handler> sounds_array = Dynamic_Array<Sound_
 
 global_variable b32 initing_game = false;
 
-global_variable Array<Lightmap_Data, 1> lightmaps = Array<Lightmap_Data, 1>();
-
 #include "../my_libs/random.hpp"
 #include "particles.hpp"
 #include "text_input.hpp"
@@ -708,6 +706,13 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     
     for (i32 i = 0; i < src->line_trails.max_count; i++){
         dest->line_trails.data[i] = src->line_trails.get(i);
+    }
+    
+    assert(src->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
+    assert(dest->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
+    dest->lightmaps.clear();
+    for (i32 i = 0; i < src->lightmaps.count; i++){
+        dest->lightmaps.add(src->lightmaps.get(i));
     }
     
     switch_current_level_context(original_level_context);
@@ -2824,10 +2829,14 @@ void debug_toggle_draw_triggers(){
     debug.draw_areas_in_game = !debug.draw_areas_in_game;
 }
 
+const char* get_lightmap_name(i32 index){
+    return text_format("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
+}
+
 void save_lightmaps_to_file(){
-    for (i32 i = 0; i < lightmaps.max_count; i++){
-        Image lightmap_image = LoadImageFromTexture(lightmaps.get(i).global_illumination_rt.texture);
-        ExportImage(lightmap_image, text_format("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, i));
+    for (i32 i = 0; i < current_level_context->lightmaps.max_count; i++){
+        Image lightmap_image = LoadImageFromTexture(current_level_context->lightmaps.get(i).global_illumination_rt.texture);
+        ExportImage(lightmap_image, get_lightmap_name(i));
         UnloadImage(lightmap_image);
     }
 }
@@ -3011,8 +3020,6 @@ RenderTexture global_illumination_rt;
 
 RenderTexture light_geometry_rt;
 
-RenderTexture global_normal_rt;
-
 Shader env_light_shader;
 
 Shader gaussian_blur_shader;
@@ -3071,8 +3078,8 @@ void init_level_context(Level_Context *level_context){
 }
 
 // global_variable RenderTexture emitters_occluders_rt;
-global_variable RenderTexture voronoi_seed_rt;
-global_variable RenderTexture jump_flood_rt;
+// global_variable RenderTexture voronoi_seed_rt;
+// global_variable RenderTexture jump_flood_rt;
 // global_variable RenderTexture distance_field_rt;
 // global_variable RenderTexture raytracing_global_illumination_rt;
 
@@ -3082,9 +3089,6 @@ global_variable Shader voronoi_seed_shader;
 global_variable Shader jump_flood_shader;
 global_variable Shader distance_field_shader;
 global_variable Shader global_illumination_shader;
-
-i32 light_texture_width  = (i32)(2048 * 1.0f);
-i32 light_texture_height = (i32)(2048 * 1.0f);
 
 Shader load_shader(const char *vertex, const char *fragment){
     Shader loaded = LoadShader(vertex, fragment);
@@ -3096,23 +3100,37 @@ Shader load_shader(const char *vertex, const char *fragment){
 }
 
 void load_render(){
-    // emitters_occluders_rt = LoadRenderTexture(light_texture_width, light_texture_height);
-    voronoi_seed_rt = LoadRenderTexture(light_texture_width, light_texture_height);
-    jump_flood_rt = LoadRenderTexture(light_texture_width, light_texture_height);
-    // distance_field_rt = LoadRenderTexture(light_texture_width, light_texture_height);
-    // raytracing_global_illumination_rt = LoadRenderTexture(light_texture_width, light_texture_height);
-    for (i32 i = 0; i < lightmaps.max_count; i++){
-        lightmaps.get_ptr(i)->global_illumination_rt = LoadRenderTexture(light_texture_width, light_texture_height);
-        lightmaps.get_ptr(i)->emitters_occluders_rt  = LoadRenderTexture(light_texture_width, light_texture_height);
-        lightmaps.get_ptr(i)->distance_field_rt      = LoadRenderTexture(light_texture_width, light_texture_height);
-    }
-    global_normal_rt = LoadRenderTexture(light_texture_width * 2, light_texture_height * 2);
-
-    
     voronoi_seed_shader        = load_shader(0, "./resources/shaders/voronoi_seed.fs");
     jump_flood_shader          = load_shader(0, "./resources/shaders/jump_flood.fs");
     distance_field_shader      = load_shader(0, "./resources/shaders/distance_field.fs");
     global_illumination_shader = load_shader(0, "./resources/shaders/global_illumination1.fs");
+}
+
+void load_lightmaps(){
+    for (i32 i = 0; i < current_level_context->lightmaps.max_count; i++){
+        Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
+        l->global_illumination_rt = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+        l->emitters_occluders_rt  = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+        l->distance_field_rt      = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+        l->normal_rt              = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+        l->voronoi_seed_rt        = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+        l->jump_flood_rt          = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+
+        // Doing it in cycle so it become true only if there was at least one.
+        current_level_context->lightmaps_render_textures_loaded = true;
+    }
+}
+
+void unload_lightmaps(){
+    for (i32 i = 0; i < current_level_context->lightmaps.max_count; i++){
+        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->global_illumination_rt);
+        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->emitters_occluders_rt);
+        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->distance_field_rt);
+        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->normal_rt);
+        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->voronoi_seed_rt);
+        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->jump_flood_rt);
+    }
+    current_level_context->lightmaps_render_textures_loaded = false;
 }
 
 void init_game(){
@@ -12220,9 +12238,9 @@ void bake_lightmaps_if_need(){
     local_persist i32 last_baked_index = -1;
     b32 need_to_bake = ((IsKeyPressed(KEY_F9) || IsKeyPressed(KEY_F10) || IsKeyPressed(KEY_F11)) || session_context.app_frame_count == 0);
     local_persist Bake_Settings bake_settings = light_bake_settings;
-    if (need_to_bake || (last_baked_index < lightmaps.max_count && last_baked_index != -1)){
+    if (need_to_bake || (last_baked_index < current_level_context->lightmaps.max_count && last_baked_index != -1)){
         last_baked_index += 1;
-        if (last_baked_index >= lightmaps.max_count){
+        if (last_baked_index >= current_level_context->lightmaps.max_count){
             last_baked_index = -1;
         }
         
@@ -12235,19 +12253,31 @@ void bake_lightmaps_if_need(){
         }
     }
     
-    for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count && need_to_bake; lightmap_index++){
-        Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
-        RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
-        RenderTexture *distance_field_rt = &lightmap_data->distance_field_rt;
+    // Could happen that we starting to bake and render textures are still loaded, but only if we started new bake 
+    // before previous is finished. Would like to clearly check that lighmaps will be unloaded correctly, but that probably
+    // will not be a problem.
+    if (need_to_bake && !current_level_context->lightmaps_render_textures_loaded){
+        load_lightmaps();     
+    }
+    
+    // We do this calculations only on very first bake progress, right after button press.
+    // Because here we're drawing all the emitters/occlusions/normal_maps that will be used for calculating GI.
+    for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count && need_to_bake; lightmap_index++){
+        Lightmap_Data* lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
+        RenderTexture* emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
+        RenderTexture* distance_field_rt = &lightmap_data->distance_field_rt;
+        RenderTexture* normal_rt = &lightmap_data->normal_rt;
+        RenderTexture* voronoi_rt = &lightmap_data->voronoi_seed_rt;
+        RenderTexture* jump_flood_rt = &lightmap_data->jump_flood_rt;
 
         drawing_state= LIGHTING_DRAWING;
         
-        BeginTextureMode(global_normal_rt);{
-            current_level_context->cam = get_cam_for_resolution(light_texture_width * 2, light_texture_height * 2);
-            current_level_context->cam.position = lightmap_data->position;
-            current_level_context->cam.view_position = lightmap_data->position;
-            current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
+        current_level_context->cam = get_cam_for_resolution(lightmap_data->pixel_size.x, lightmap_data->pixel_size.y);
+        current_level_context->cam.position = lightmap_data->position;
+        current_level_context->cam.view_position = lightmap_data->position;
+        current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
         
+        BeginTextureMode(*normal_rt);{
             BeginMode2D(current_level_context->cam.cam2D);{
             ClearBackground(Fade(BLACK, 0));
             
@@ -12258,12 +12288,6 @@ void bake_lightmaps_if_need(){
             }
             } EndMode2D();
         } EndTextureMode();
-
-        
-        current_level_context->cam = get_cam_for_resolution(light_texture_width, light_texture_height);
-        current_level_context->cam.position = lightmap_data->position;
-        current_level_context->cam.view_position = lightmap_data->position;
-        current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
         
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
@@ -12298,19 +12322,19 @@ void bake_lightmaps_if_need(){
         
         current_level_context->cam = with_shake_cam;
         
-        BeginTextureMode(voronoi_seed_rt);{
+        BeginTextureMode(*voronoi_rt);{
             ClearBackground({0, 0, 0, 0});
             BeginShaderMode(voronoi_seed_shader);
                 draw_render_texture(emitters_occluders_rt->texture, {1.0f, 1.0f}, WHITE);
             EndShaderMode();
         }EndTextureMode();
         
-        RenderTexture prev = voronoi_seed_rt;
-        RenderTexture next = jump_flood_rt;
+        RenderTexture prev = *voronoi_rt;
+        RenderTexture next = *jump_flood_rt;
         
         //jump flood voronoi render pass
         {
-            i32 passes = ceilf(logf(fmaxf(light_texture_width, light_texture_height)) / logf(2.0f));
+            i32 passes = ceilf(logf(fmaxf(lightmap_data->pixel_size.x, lightmap_data->pixel_size.y)) / logf(2.0f));
             
             i32 level_loc     = get_shader_location(jump_flood_shader, "u_level");
             i32 max_steps_loc = get_shader_location(jump_flood_shader, "u_max_steps");
@@ -12327,12 +12351,12 @@ void bake_lightmaps_if_need(){
                     
                     i32 screen_pixel_size_loc  = get_shader_location(jump_flood_shader, "u_screen_pixel_size");
             
-                    set_shader_value(jump_flood_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
+                    set_shader_value(jump_flood_shader, screen_pixel_size_loc, {(1.0f) / lightmap_data->pixel_size.x, (1.0f) / lightmap_data->pixel_size.y});
     
                     // set_shader_value(jump_flood_shader, step_loc, 1 << i);
                     // set_shader_value(jump_flood_shader, pixel_loc, {LIGHT_TEXTURE_SCALING_FACTOR / screen_width, LIGHT_TEXTURE_SCALING_FACTOR / screen_height});
                     set_shader_value_tex(jump_flood_shader, tex_loc, prev.texture);
-                    draw_render_texture(voronoi_seed_rt.texture, {1.0f, 1.0f}, WHITE);
+                    draw_render_texture(voronoi_rt->texture, {1.0f, 1.0f}, WHITE);
                     EndShaderMode();
                 }EndTextureMode();
                 
@@ -12354,8 +12378,6 @@ void bake_lightmaps_if_need(){
             EndShaderMode();
         }EndTextureMode();
         
-        // lightmap_data->distance_texture_loc = get_shader_location(global_illumination_shader, text_format("lightmaps_data[%i].distance_texture", lightmap_index));        
-        // lightmap_data->emitters_occluders_loc = get_shader_location(global_illumination_shader, text_format("lightmaps_data[%i].emitters_occluders_texture", lightmap_index));        
         lightmap_data->distance_texture_loc = get_shader_location(global_illumination_shader, "distance_texture");        
         lightmap_data->emitters_occluders_loc = get_shader_location(global_illumination_shader, "emitters_occluders_texture");        
     }
@@ -12368,7 +12390,7 @@ void bake_lightmaps_if_need(){
     // At this point we computed emitters/occluders and distnace fields for every lightmap.
     // Now we do real global illumination work and we will need this info for calculating neighbours.
     // (we're not calculating neighbours anymore).
-    for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
+    for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count; lightmap_index++){
         // Baking one at the time to see that something is happening.
         // if (lightmap_index != last_baked_index){
         //     continue;
@@ -12382,10 +12404,11 @@ void bake_lightmaps_if_need(){
             bake_progress += 0.05f;
         }
     
-        Lightmap_Data *lightmap_data         = lightmaps.get_ptr(lightmap_index);
+        Lightmap_Data *lightmap_data         = current_level_context->lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
         RenderTexture *my_emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture *my_distance_field_rt     = &lightmap_data->distance_field_rt;
+        RenderTexture *my_normal_rt             = &lightmap_data->normal_rt;
         
         //global illumination pass
         BeginTextureMode(*gi_rt);{
@@ -12407,10 +12430,10 @@ void bake_lightmaps_if_need(){
             i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
             
             i32 normal_texture_loc     = get_shader_location(global_illumination_shader, "u_normal_texture");
-            set_shader_value_tex(global_illumination_shader, normal_texture_loc, global_normal_rt.texture);
+            set_shader_value_tex(global_illumination_shader, normal_texture_loc, my_normal_rt->texture);
             
             set_shader_value(global_illumination_shader, distance_mod, bake_settings.distance_mod);
-            set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / light_texture_width, (1.0f) / light_texture_height});
+            set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / lightmap_data->pixel_size.x, (1.0f) / lightmap_data->pixel_size.y});
             set_shader_value(global_illumination_shader, time_loc, core.time.app_time + PI * 10);
             
             set_shader_value(global_illumination_shader, rays_per_pixel_loc, bake_settings.rays_per_pixel);
@@ -12429,6 +12452,16 @@ void bake_lightmaps_if_need(){
             EndShaderMode();
         } EndTextureMode();
     }
+    
+    if (bake_progress >= 1 && current_level_context->lightmaps_render_textures_loaded){
+        save_lightmaps_to_file();
+    
+        unload_lightmaps();
+        
+        for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+            current_level_context->lightmaps.get_ptr(i)->lightmap_texture = LoadTexture(get_lightmap_name(i));
+        }
+    }
 }
 
 void new_render(){
@@ -12438,11 +12471,15 @@ void new_render(){
     BeginTextureMode(global_illumination_rt);{
     BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(BLACK);
-        for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
-            Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
-            RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
+        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count; lightmap_index++){
+            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
+            Texture lightmap_texture = lightmap_data->lightmap_texture;
+            
+            if (current_level_context->lightmaps_render_textures_loaded){
+                lightmap_texture = lightmap_data->global_illumination_rt.texture;
+            }
     
-            draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
         }
     EndMode2D();
     } EndTextureMode();
@@ -12663,7 +12700,7 @@ void new_render(){
     render.lights_draw_queue.clear();
 
     // In original lighting there goes blur pass, but we can think about drawing dynamic lights in other render texture and blur
-    // it instead, because there's no way we want to blur whole global illumination including lightmaps.
+    // it instead, because there's no way we want to blur whole global illumination including current_level_context->lightmaps.
 
     if (IsKeyPressed(KEY_F1)){
         debug_toggle_lightmap_view();
@@ -12710,12 +12747,17 @@ void new_render(){
     drawing_state = CAMERA_DRAWING;
     if (debug.view_only_lightmaps){
         BeginMode2D(current_level_context->cam.cam2D);
-        for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
-            Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
-            RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
-    
-            draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
-            draw_game_texture(global_normal_rt.texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count; lightmap_index++){
+            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
+            
+            Texture lightmap_texture = lightmap_data->lightmap_texture;
+            
+            if (current_level_context->lightmaps_render_textures_loaded){
+                lightmap_texture = lightmap_data->global_illumination_rt.texture;
+            }
+            
+            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+            // draw_game_texture(normal_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
         }
         EndMode2D();
     } else if (debug.full_light){
@@ -12733,8 +12775,8 @@ void new_render(){
     }
 
     // BeginMode2D(current_level_context->cam.cam2D);
-    // for (i32 lightmap_index = 0; lightmap_index < lightmaps.max_count; lightmap_index++){
-    //     Lightmap_Data *lightmap_data = lightmaps.get_ptr(lightmap_index);
+    // for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count; lightmap_index++){
+    //     Lightmap_Data *lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
     //     RenderTexture *gi_rt = &lightmap_data->global_illumination_rt;
 
     //     draw_game_texture(gi_rt->texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
@@ -12777,6 +12819,26 @@ void draw_game(){
     draw_ui("");
     
     current_level_context->cam = saved_cam;
+    
+    if (game_state == EDITOR || state_context.in_pause_editor){
+        begin_panel({5, screen_height * 0.2f}, {screen_width * 0.2f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "main_info_panel");
+            
+        if (make_panel_button("Add lightmap", "add_lightmap_button")){
+            current_level_context->lightmaps.add({});
+        }
+        
+        if (!editor.editing_lightmaps){
+            if (make_panel_button("Edit lightmaps", "edit_lightmaps_button")){
+                editor.editing_lightmaps = true;
+            }
+        } else{
+            if (make_panel_button("Cancel edit lightmaps", "cance_edit_lightmaps_button")){
+                editor.editing_lightmaps = false;
+            }
+        }
+        
+        end_panel();
+    }
     
     f32 v_pos = 10;
     f32 font_size = 18;
