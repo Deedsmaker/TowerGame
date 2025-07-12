@@ -812,6 +812,10 @@ struct Entity{
     
     Texture texture = {};
     char texture_name[64];
+    
+    b32 have_normal_map = false;
+    Texture normal_map_texture = {};
+    
     Vector2 scaling_multiplier = {1, 1};
     
     b32 destroyed = 0;

@@ -222,7 +222,7 @@ void main()
     if (normal_color.a > 0){
         average_light_direction = normalize(average_light_direction);
             
-        vec2 normal_direction = vec2(((normal_color.r - 0.5) * 2) * -1, (normal_color.g - 0.5) * 2) * 1;
+        vec2 normal_direction = vec2(((normal_color.r - 0.5) * 2) * 1, (normal_color.g - 0.5) * 2) * 1;
         
         float mult = dot(average_light_direction, normal_direction) + normal_color.b * 0.5;
         

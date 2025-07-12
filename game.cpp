@@ -75,7 +75,8 @@ global_variable b32 clicked_ui = false;
 
 global_variable b32 enter_game_state_on_new_level = false;
 
-global_variable Dynamic_Array<Texture_Data> textures_array = Dynamic_Array<Texture_Data>(512);
+global_variable Dynamic_Array<Texture_Data> loaded_textures = Dynamic_Array<Texture_Data>(512);
+global_variable Dynamic_Array<Texture_Data> normal_maps     = Dynamic_Array<Texture_Data>(16);
 global_variable Dynamic_Array<Sound_Handler> sounds_array = Dynamic_Array<Sound_Handler>(128);
 
 global_variable b32 initing_game = false;
@@ -443,6 +444,11 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
     
     if (flags & TEXTURE){
         texture = copy->texture;
+        
+        if (have_normal_map){
+            normal_map_texture = copy->normal_map_texture;
+        }
+        
         scaling_multiplier = {texture.width / current_level_context->cam.unit_size, texture.height / current_level_context->cam.unit_size};
         // This means that copy is just texture. Visual flakes.
         if (copy->scale == Vector2_one){
@@ -1432,18 +1438,8 @@ b32 load_level(const char *level_name){
         if (parsing_entities){
             if (entity_to_fill.flags & TEXTURE){
                 i64 texture_hash = hash_str(get_substring_before_symbol(entity_to_fill.texture_name, '.'));
-                char *trimped_name = get_substring_before_symbol(entity_to_fill.texture_name, '.');
-                b32 found = false;
-                for (i32 i = 0; i < textures_array.count; i++){
-                    if (str_equal(textures_array.get(i).name, trimped_name)){
-                        entity_to_fill.texture = textures_array.get(i).texture;
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found){
-                    print(text_format("WARNING: While loading entities could not find texture named %s.", trimped_name));
-                }
+                
+                entity_to_fill.texture = get_texture(entity_to_fill.texture_name);
             }
             
             setup_color_changer(&entity_to_fill);
@@ -1499,7 +1495,7 @@ b32 load_level(const char *level_name){
     clear_level_context(editor_level_context);
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
-    if (enter_game_state_on_new_level || game_state == GAME || (initing_game && RELEASE_BUILD)){
+    if (enter_game_state_on_new_level || game_state == GAME || (0 && initing_game && RELEASE_BUILD)){
         enter_game_state(&loaded_level_context, true);
         
         if (enter_game_state_on_new_level){
@@ -1911,7 +1907,7 @@ void init_spawn_objects(){
 }
 
 void add_spawn_object_from_texture(Texture texture, char *name){
-    Entity texture_entity = Entity({0, 0}, {texture.width / 10.0f, texture.height / 10.0f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
+    Entity texture_entity = Entity({0, 0}, {(f32)texture.width * 0.25f, (f32)texture.height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
@@ -1937,8 +1933,6 @@ Texture small_sword_killable_texture;
 Texture perlin_texture;
 Texture missing_texture;
 
-Texture test_normal_texture;
-
 Sound_Handler *missing_sound = NULL;
 
 Texture get_texture(const char *name){
@@ -1947,9 +1941,9 @@ Texture get_texture(const char *name){
     char *trimped_name = get_substring_before_symbol(name, '.');
     
     b32 found = false;
-    for (i32 i = 0; i < textures_array.count; i++){
-        if (str_equal(textures_array.get(i).name, trimped_name)){
-            found_texture = textures_array.get(i).texture;
+    for (i32 i = 0; i < loaded_textures.count; i++){
+        if (str_equal(loaded_textures.get(i).name, trimped_name)){
+            found_texture = loaded_textures.get(i).texture;
             found = true;
         }
     }
@@ -1975,14 +1969,16 @@ void load_textures(){
         substring_after_line(name, "resources\\textures\\");
         name = get_substring_before_symbol(name, '.');
         
-        // i64 hash = hash_str(name);
         Texture_Data data = {};
         str_copy(data.name, name);
         data.texture = texture;
         
-        textures_array.add(data);
-        
-        add_spawn_object_from_texture(texture, name);
+        if (str_contains(data.name, "normal_map")){
+            normal_maps.add(data);
+        } else{
+            loaded_textures.add(data);
+            add_spawn_object_from_texture(texture, name);
+        }
     }
     UnloadDirectoryFiles(textures);
     
@@ -1990,8 +1986,6 @@ void load_textures(){
     spiral_clockwise_texture        = get_texture("vpravo");
     spiral_counterclockwise_texture = get_texture("levo");
     hitmark_small_texture           = get_texture("hitmark_small");
-    
-    test_normal_texture = get_texture("NormalMap");
 }
 
 inline void loop_entities(void (func)(Entity*)){
@@ -2162,6 +2156,15 @@ Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light){
 }
 
 void init_entity(Entity *entity){
+    if (entity->flags & TEXTURE){
+        for (i32 i = 0; i < normal_maps.count; i++){        
+            if (str_contains(normal_maps.get_ptr(i)->name, entity->texture_name)){
+                entity->have_normal_map = true;
+                entity->normal_map_texture = normal_maps.get_ptr(i)->texture;
+            }
+        }
+    }
+
     if (entity->flags & ENEMY){
         entity->enemy.original_scale = entity->scale;
     }
@@ -3186,7 +3189,7 @@ void init_game(){
     mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
     char level_name_to_load[256] = "\0";
-    if (RELEASE_BUILD){
+    if (0 && RELEASE_BUILD){
         str_copy(level_name_to_load, first_level_name);
     } else{
         str_copy(level_name_to_load, "test_level");
@@ -4123,9 +4126,9 @@ void update_game(){
     
     draw_game();
     
-    #if RELEASE_BUILD
-    UpdateMusicStream(ambient_theme);
-    #endif
+    // #if RELEASE_BUILD
+    // UpdateMusicStream(ambient_theme);
+    // #endif
     UpdateMusicStream(wind_theme);
     UpdateMusicStream(tires_theme);
     
@@ -12249,8 +12252,8 @@ void bake_lightmaps_if_need(){
             ClearBackground(Fade(BLACK, 0));
             
             ForEntities(texture_entity, TEXTURE){
-                if (str_equal(texture_entity->texture_name, "TEST1")){
-                    draw_game_texture(test_normal_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color);
+                if (texture_entity->have_normal_map){
+                    draw_game_texture(texture_entity->normal_map_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color);
                 }
             }
             } EndMode2D();
