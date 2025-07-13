@@ -217,7 +217,7 @@ void main()
     pixel_emis /= float(u_rays_per_pixel);
     pixel_emis *= u_emission_multi;
     
-    vec4 normal_color = texture(u_normal_texture, uv);
+    vec4 normal_color = texture(u_normal_texture, fragTexCoord);
     if (normal_color.a > 0){
         average_light_direction = normalize(average_light_direction);
             

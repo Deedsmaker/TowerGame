@@ -91,10 +91,6 @@ i32 currently_baking_index = -1;
 i32 bake_only_one_index = -1;
 
 void bake_lightmaps_if_need(){
-    if (IsKeyPressed(KEY_F9)){
-        need_to_bake = true;
-    }
-
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     if (need_to_bake){
@@ -155,7 +151,7 @@ void bake_lightmaps_if_need(){
         RenderTexture* voronoi_rt = &lightmap_data->voronoi_seed_rt;
         RenderTexture* jump_flood_rt = &lightmap_data->jump_flood_rt;
 
-        drawing_state= LIGHTING_DRAWING;
+        drawing_state = LIGHTING_DRAWING;
         
         Vector2 pixel_size = get_lightmap_pixel_size(lightmap_data);
         
@@ -381,6 +377,22 @@ void make_lightmap_settings_panel(){
         current_level_context->lightmaps.add({});
     }
     
+    local_persist i32 lightmap_level = 0;
+    const char* lightmap_level_text = NULL;
+    if (0){}
+    else if (lightmap_level == 0) lightmap_level_text = tprintf("Fast bake setting");
+    else if (lightmap_level == 1) lightmap_level_text = tprintf("Nice bake setting");
+    else if (lightmap_level == 2) lightmap_level_text = tprintf("Highest bake setting");
+    
+    if (make_panel_button(lightmap_level_text, "lightmap_level_text")){
+        lightmap_level += 1;    
+        lightmap_level %= 3;
+        if (0){}
+        else if (lightmap_level == 0) bake_settings = light_bake_settings;
+        else if (lightmap_level == 1) bake_settings = heavy_bake_settings;
+        else if (lightmap_level == 2) bake_settings = final_bake_settings;
+    }
+    
     i32 hovered_index = -1;
     
     for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
@@ -391,7 +403,6 @@ void make_lightmap_settings_panel(){
             bake_only_one_index = i;
             need_to_bake = true;
         }
-
         
         if (editor.editing_lightmap && editor.editing_lightmap_index == i){
             if (make_panel_button(tprintf("Cancel edit %d", i+1), tprintf("cancel_edit_%d"))){
