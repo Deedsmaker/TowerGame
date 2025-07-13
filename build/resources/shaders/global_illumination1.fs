@@ -223,7 +223,7 @@ void main()
             
         vec2 normal_direction = vec2(((normal_color.r - 0.5) * 2) * 1, (normal_color.g - 0.5) * 2) * 1;
         
-        float mult = dot(average_light_direction, normal_direction) + normal_color.b * 0.5;
+        float mult = dot(average_light_direction, normal_direction) + normal_color.b * 0.6;
         
         mult = max(mult, -1);
         mult = (mult + 1) * 0.5;

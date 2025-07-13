@@ -76,7 +76,7 @@ int main(){
             window_minimized = false;
         }
         
-        if (!IsWindowFocused()){
+        if (!IsWindowFocused() && game_state == EDITOR){
             WaitTime(1);
         }
         

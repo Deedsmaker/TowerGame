@@ -1303,6 +1303,7 @@ struct Editor{
 
     b32 update_cam_view_position = true;
 
+    b32 lightmap_settings_active = false;
     b32 editing_lightmap = false;
     b32 picking_lightmap_position = false;
     i32 editing_lightmap_index = -1;

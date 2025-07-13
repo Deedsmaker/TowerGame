@@ -368,9 +368,16 @@ void make_lightmap_settings_panel(){
         editor.picking_lightmap_position = false;        
     }
 
+    if (make_button({5, screen_height * 0.2f - 20}, {screen_width * 0.08f, 20.0f}, {0.0f, 0.0f}, "Lightmap settings", 18, "lightmap_settings_button", Fade(SKYBLUE, 0.4f))){
+        editor.lightmap_settings_active = !editor.lightmap_settings_active;
+    }
+    
+    if (!editor.lightmap_settings_active){
+        return;
+    }
+
     begin_panel({5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "lightmap_settings_panel");
         
-    make_panel_text("Lightmaps settings", "lightmap_settings_panel_text");
     make_panel_text(tprintf("Lightmaps count: %d", current_level_context->lightmaps.count), "lightmap_count_panel_text");
     
     if (make_panel_button("Add lightmap", "add_lightmap_button")){
@@ -393,6 +400,16 @@ void make_lightmap_settings_panel(){
         else if (lightmap_level == 2) bake_settings = final_bake_settings;
     }
     
+    const char* pixels_per_unit_text = NULL;
+    if (0){}
+    else if (pixel_per_unit == 2) pixels_per_unit_text = tprintf("2 pixel per unit");
+    else if (pixel_per_unit == 4) pixels_per_unit_text = tprintf("4 pixel per unit");
+    
+    if (make_panel_button(pixels_per_unit_text, "pixels_per_unit_text")){
+        pixel_per_unit += 2;    
+        if (pixel_per_unit > 4) pixel_per_unit = 2;
+    }
+    
     i32 hovered_index = -1;
     
     for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
@@ -410,8 +427,6 @@ void make_lightmap_settings_panel(){
             }
         } else{
             if (make_panel_button(tprintf("Edit lightmap %d", i+1), tprintf("edit_lightmap_%d", i+1))){
-                unload_lightmap_render_textures(i);
-                
                 editor.editing_lightmap = true;
                 editor.editing_lightmap_index = i;
             }
