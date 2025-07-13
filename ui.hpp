@@ -153,16 +153,16 @@ void make_ui_text(const char *content, Vector2 position, const char *tag, Color 
     init_ui_text(&new_ui_element->text, content, font_size, color);
 }
 
-b32 make_ui_toggle(Vector2 position, u64 current_value, const char *tag){
+inline b32 make_ui_toggle(Vector2 position, u64 current_value, const char *tag){
     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
     return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value != 0);
 }
 
-b32 make_ui_color_picker(Vector2 position, Color color, b32 current_value, const char *tag){
+inline b32 make_ui_color_picker(Vector2 position, Color color, b32 current_value, const char *tag){
     return make_button(position + Vector2_up, {14, 14}, {0, 0}, "", 0, tag, color, VIOLET, UI_COLOR_PICKER, current_value);
 }
 
-b32 make_ui_toggle(Vector2 position, Entity* e, b32 (get_value)(Entity*), const char *tag){
+inline b32 make_ui_toggle(Vector2 position, Entity* e, b32 (get_value)(Entity*), const char *tag){
     b32 current_value = get_value(e);
     //Ui_Element *new_ui_element = init_ui_element(position, {32, 32}, {0, 0}, Fade(BLACK, 0.9f), tag, UI_TOGGLE);
     return make_button(position, {14, 14}, {0, 0}, "", 0, tag, BLACK, VIOLET, UI_TOGGLE, current_value);
@@ -191,10 +191,10 @@ void end_panel(){
 
 constexpr f32 INDENT_AMOUNT = 25;
 
-void panel_indent(){
+inline void panel_indent(){
     panel_last_added_position.x += INDENT_AMOUNT;
 }
-void panel_unindent(){
+inline void panel_unindent(){
     panel_last_added_position.x -= INDENT_AMOUNT;
 }
 

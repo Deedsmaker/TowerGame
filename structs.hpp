@@ -58,9 +58,7 @@ enum Particle_Spawn_Area{
 
 struct Lightmap_Data{
     Vector2 position = {0, 0};
-    Vector2 game_size = {2048.0f, 2048.0f};
-
-    Vector2 pixel_size = {2048.0f, 2048.0f};
+    Vector2 game_size = {2000.0f, 2000.0f};
 
     RenderTexture global_illumination_rt = {}; 
     RenderTexture emitters_occluders_rt  = {};
@@ -69,7 +67,8 @@ struct Lightmap_Data{
     RenderTexture voronoi_seed_rt = {};
     RenderTexture jump_flood_rt = {};
     
-    b32 render_textures_loaded = false;
+    b32 has_loaded_texture = false;
+    // b32 render_textures_loaded = false;
     
     Texture lightmap_texture = {};
     

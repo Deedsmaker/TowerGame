@@ -779,6 +779,8 @@ void clear_level_context(Level_Context *level_context){
         }
     }
     
+    current_level_context->lightmaps.clear();
+    
     // level_context->we_got_a_winner = false;
     // player_data = {};
     
@@ -805,10 +807,17 @@ i32 save_level(const char *level_name){
     
     fprintf(fptr, "Setup Data:\n");
     
-    fprintf(fptr, "player_spawn_point:{:%f:, :%f:} ", current_level_context->player_spawn_point.x, current_level_context->player_spawn_point.y);
+    fprintf(fptr, "player_spawn_point:{:%f:, :%f:};\n", current_level_context->player_spawn_point.x, current_level_context->player_spawn_point.y);
     
-    fprintf(fptr, ";\n");
-    
+    if (current_level_context->lightmaps.count > 0){
+        fprintf(fptr, "lightmaps [ ");
+        for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+            Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
+            fprintf(fptr, "{pos:{:%f:, :%f:}, size:{:%f:, :%f:}} ", l->position.x, l->position.y, l->game_size.x, l->game_size.y);
+        }
+        fprintf(fptr, "];\n"); 
+    }
+
     fprintf(fptr, "Entities:\n");
     for (i32 i = 0; i < current_level_context->entities.max_count; i++){        
         if (!current_level_context->entities.has_index(i)){
@@ -1085,6 +1094,32 @@ void fill_string(char *dest, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr)
     }
 }
 
+void parse_lightmaps(Dynamic_Array<Lightmap_Data>* lightmaps, Dynamic_Array<Medium_Str>* splitted_line){
+    assert(str_equal(splitted_line->get_ptr(0)->data, "lightmaps"));
+    assert(str_equal(splitted_line->get_ptr(1)->data, "["));
+    
+    for (i32 i = 2; i < splitted_line->count; i++){
+        Medium_Str* str = splitted_line->get_ptr(i);
+        if (str_equal(str->data, "]")){
+            break;
+        }
+        
+        assert(str_equal(str->data, "pos"));
+        Lightmap_Data new_lightmap = {};
+        fill_vector2_from_string(&new_lightmap.position, splitted_line->get_ptr(i+1)->data, splitted_line->get_ptr(i+2)->data);
+        assert(str_equal(splitted_line->get_ptr(i+3)->data, "size"));
+        fill_vector2_from_string(&new_lightmap.game_size, splitted_line->get_ptr(i+4)->data, splitted_line->get_ptr(i+5)->data);
+        i += 5;
+        
+        if (FileExists(get_lightmap_name(current_level_context->lightmaps.count))){
+            new_lightmap.lightmap_texture = LoadTexture(get_lightmap_name(current_level_context->lightmaps.count));
+            new_lightmap.has_loaded_texture = true;
+        }
+        
+        current_level_context->lightmaps.add(new_lightmap);
+    }
+}
+
 b32 load_level(const char *level_name){
     Game_State original_game_state = game_state;
     game_state = EDITOR;
@@ -1093,7 +1128,7 @@ b32 load_level(const char *level_name){
     
     char name[1024];
     str_copy(name, get_substring_before_symbol(level_name, '.'));
-
+    
     const char *level_path = tprintf("levels/%s.level", name);
     File file = load_file(level_path, "r");
     
@@ -1108,6 +1143,20 @@ b32 load_level(const char *level_name){
     clean_up_scene();
     switch_current_level_context(&loaded_level_context, true);
     clear_level_context(&loaded_level_context);
+    
+    b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
+    b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
+    if (!is_temp_level && !is_autosave){
+        if (!str_equal(current_level_context->level_name, name)){
+            str_copy(session_context.previous_level_name, current_level_context->level_name);
+        }
+        // We need to have information about current level name before loading, because we looking up to files to find 
+        // lightmaps during loading for example.
+        str_copy(current_level_context->level_name, name);
+        print_to_console(tprintf("Loaded level: %s", name));
+        editor.last_autosave_time = core.time.app_time;
+    }
+    
     setup_particles();
     
     Dynamic_Array<Medium_Str> splitted_line = Dynamic_Array<Medium_Str>(64);
@@ -1140,6 +1189,9 @@ b32 load_level(const char *level_name){
                     fill_vector2_from_string(&current_level_context->player_spawn_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
                     i += 2;
                     continue;
+                }
+                if (str_equal(splitted_line.get(i).data, "lightmaps")){
+                    parse_lightmaps(&current_level_context->lightmaps, &splitted_line);
                 }
             }
         
@@ -1500,17 +1552,6 @@ b32 load_level(const char *level_name){
     }
     
     game_state = original_game_state;
-    
-    b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
-    b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
-    if (!is_temp_level && !is_autosave){
-        if (!str_equal(current_level_context->level_name, name)){
-            str_copy(session_context.previous_level_name, current_level_context->level_name);
-        }
-        str_copy(current_level_context->level_name, name);
-        print_to_console(tprintf("Loaded level: %s", name));
-        editor.last_autosave_time = core.time.app_time;
-    }
     
     //free_string_array(&splitted_line);
     splitted_line.free_arr();
@@ -7025,7 +7066,9 @@ void update_editor(){
         current_level_context->player_spawn_point = input.mouse_position;
     }
 
-    clicked_ui = false;
+    if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)){
+        clicked_ui = false;
+    }
 } // update editor end
 
 void change_color(Entity *entity, Color new_color){
@@ -12185,11 +12228,11 @@ void new_render(){
     BeginTextureMode(global_illumination_rt);{
     BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(BLACK);
-        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count; lightmap_index++){
+        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.count; lightmap_index++){
             Lightmap_Data *lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
             Texture lightmap_texture = lightmap_data->lightmap_texture;
             
-            if (current_level_context->lightmaps_render_textures_loaded){
+            if (!lightmap_data->has_loaded_texture){
                 lightmap_texture = lightmap_data->global_illumination_rt.texture;
             }
     
@@ -12461,7 +12504,7 @@ void new_render(){
     drawing_state = CAMERA_DRAWING;
     if (debug.view_only_lightmaps){
         BeginMode2D(current_level_context->cam.cam2D);
-        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count; lightmap_index++){
+        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.count; lightmap_index++){
             Lightmap_Data *lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
             
             Texture lightmap_texture = lightmap_data->lightmap_texture;

@@ -1,38 +1,54 @@
 #pragma once
 
+// 2 is light version. 4 is high quality version.
+f32 pixel_per_unit = 2;
+
 const char* get_lightmap_name(i32 index){
     return tprintf("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
 }
 
+Vector2 get_lightmap_pixel_size(Lightmap_Data* l){
+    return {l->game_size.x * pixel_per_unit, l->game_size.y * pixel_per_unit};    
+}
+
+void save_lightmap_to_file(i32 index){
+    Image lightmap_image = LoadImageFromTexture(current_level_context->lightmaps.get(index).global_illumination_rt.texture);
+    ExportImage(lightmap_image, get_lightmap_name(index));
+    UnloadImage(lightmap_image);
+}
+
 void save_lightmaps_to_file(){
     for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
-        Image lightmap_image = LoadImageFromTexture(current_level_context->lightmaps.get(i).global_illumination_rt.texture);
-        ExportImage(lightmap_image, get_lightmap_name(i));
-        UnloadImage(lightmap_image);
+        save_lightmap_to_file(i);
     }
 }
 
 void load_lightmap_render_textures(i32 index){
     assert(index < current_level_context->lightmaps.count);
-
     Lightmap_Data* l = current_level_context->lightmaps.get_ptr(index);
-    l->global_illumination_rt = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-    l->emitters_occluders_rt  = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-    l->distance_field_rt      = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-    l->normal_rt              = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-    l->voronoi_seed_rt        = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-    l->jump_flood_rt          = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+    
+    Vector2 pixel_size = get_lightmap_pixel_size(l);
+    
+    l->global_illumination_rt = LoadRenderTexture(pixel_size.x, pixel_size.y);
+    l->emitters_occluders_rt  = LoadRenderTexture(pixel_size.x, pixel_size.y);
+    l->distance_field_rt      = LoadRenderTexture(pixel_size.x, pixel_size.y);
+    l->normal_rt              = LoadRenderTexture(pixel_size.x, pixel_size.y);
+    l->voronoi_seed_rt        = LoadRenderTexture(pixel_size.x, pixel_size.y);
+    l->jump_flood_rt          = LoadRenderTexture(pixel_size.x, pixel_size.y);
 }
 
 void load_lightmaps(){
     for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
         Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
-        l->global_illumination_rt = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-        l->emitters_occluders_rt  = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-        l->distance_field_rt      = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-        l->normal_rt              = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-        l->voronoi_seed_rt        = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
-        l->jump_flood_rt          = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+        
+        Vector2 pixel_size = get_lightmap_pixel_size(l);
+        
+        l->global_illumination_rt = LoadRenderTexture(pixel_size.x, pixel_size.y);
+        l->emitters_occluders_rt  = LoadRenderTexture(pixel_size.x, pixel_size.y);
+        l->distance_field_rt      = LoadRenderTexture(pixel_size.x, pixel_size.y);
+        l->normal_rt              = LoadRenderTexture(pixel_size.x, pixel_size.y);
+        l->voronoi_seed_rt        = LoadRenderTexture(pixel_size.x, pixel_size.y);
+        l->jump_flood_rt          = LoadRenderTexture(pixel_size.x, pixel_size.y);
 
         // Doing it in cycle so it become true only if there was at least one.
         current_level_context->lightmaps_render_textures_loaded = true;
@@ -67,16 +83,42 @@ Bake_Settings light_bake_settings = {128, 256, 1};
 Bake_Settings heavy_bake_settings = {512, 1024, 4};
 Bake_Settings final_bake_settings = {1024, 2048, 4};
 
+Bake_Settings bake_settings = light_bake_settings;
+
+b32 need_to_bake = false;
+f32 bake_progress = 0;
+i32 currently_baking_index = -1;
+i32 bake_only_one_index = -1;
+
 void bake_lightmaps_if_need(){
+    if (IsKeyPressed(KEY_F9)){
+        need_to_bake = true;
+    }
+
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
-    local_persist i32 last_baked_index = -1;
-    b32 need_to_bake = ((IsKeyPressed(KEY_F9) || IsKeyPressed(KEY_F10) || IsKeyPressed(KEY_F11)) || session_context.app_frame_count == 0);
-    local_persist Bake_Settings bake_settings = light_bake_settings;
-    if (need_to_bake || (last_baked_index < current_level_context->lightmaps.max_count && last_baked_index != -1)){
-        last_baked_index += 1;
-        if (last_baked_index >= current_level_context->lightmaps.max_count){
-            last_baked_index = -1;
+    if (need_to_bake){
+        currently_baking_index += 1;
+        if (currently_baking_index >= current_level_context->lightmaps.count){
+            currently_baking_index = -1;
+        }
+        
+        // All unloading of previous textures should happen here.
+        if (bake_only_one_index > -1){
+            currently_baking_index = bake_only_one_index;
+            Lightmap_Data* l = current_level_context->lightmaps.get_ptr(bake_only_one_index);
+            if (l->has_loaded_texture){
+                UnloadTexture(l->lightmap_texture);
+                l->has_loaded_texture = false;
+            }
+        } else{
+            for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+                Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
+                if (l->has_loaded_texture){
+                    UnloadTexture(l->lightmap_texture);
+                    l->has_loaded_texture = false;
+                }
+            }
         }
         
         if (IsKeyPressed(KEY_F9)){
@@ -91,13 +133,21 @@ void bake_lightmaps_if_need(){
     // Could happen that we starting to bake and render textures are still loaded, but only if we started new bake 
     // before previous is finished. Would like to clearly check that lighmaps will be unloaded correctly, but that probably
     // will not be a problem.
-    if (need_to_bake && !current_level_context->lightmaps_render_textures_loaded){
-        load_lightmaps();     
+    if (bake_progress == 0 && currently_baking_index > -1){
+        load_lightmap_render_textures(currently_baking_index);     
     }
     
     // We do this calculations only on very first bake progress, right after button press.
     // Because here we're drawing all the emitters/occlusions/normal_maps that will be used for calculating GI.
     for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count && need_to_bake; lightmap_index++){
+        if (lightmap_index != currently_baking_index){
+            continue;
+        }
+        
+        if (!need_to_bake){
+            continue;
+        }
+    
         Lightmap_Data* lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
         RenderTexture* emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture* distance_field_rt = &lightmap_data->distance_field_rt;
@@ -107,7 +157,9 @@ void bake_lightmaps_if_need(){
 
         drawing_state= LIGHTING_DRAWING;
         
-        current_level_context->cam = get_cam_for_resolution(lightmap_data->pixel_size.x, lightmap_data->pixel_size.y);
+        Vector2 pixel_size = get_lightmap_pixel_size(lightmap_data);
+        
+        current_level_context->cam = get_cam_for_resolution(pixel_size.x, pixel_size.y);
         current_level_context->cam.position = lightmap_data->position;
         current_level_context->cam.view_position = lightmap_data->position;
         current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
@@ -169,7 +221,7 @@ void bake_lightmaps_if_need(){
         
         //jump flood voronoi render pass
         {
-            i32 passes = ceilf(logf(fmaxf(lightmap_data->pixel_size.x, lightmap_data->pixel_size.y)) / logf(2.0f));
+            i32 passes = ceilf(logf(fmaxf(pixel_size.x, pixel_size.y)) / logf(2.0f));
             
             i32 level_loc     = get_shader_location(jump_flood_shader, "u_level");
             i32 max_steps_loc = get_shader_location(jump_flood_shader, "u_max_steps");
@@ -186,7 +238,7 @@ void bake_lightmaps_if_need(){
                     
                     i32 screen_pixel_size_loc  = get_shader_location(jump_flood_shader, "u_screen_pixel_size");
             
-                    set_shader_value(jump_flood_shader, screen_pixel_size_loc, {(1.0f) / lightmap_data->pixel_size.x, (1.0f) / lightmap_data->pixel_size.y});
+                    set_shader_value(jump_flood_shader, screen_pixel_size_loc, {(1.0f) / pixel_size.x, (1.0f) / pixel_size.y});
     
                     // set_shader_value(jump_flood_shader, step_loc, 1 << i);
                     // set_shader_value(jump_flood_shader, pixel_loc, {LIGHT_TEXTURE_SCALING_FACTOR / screen_width, LIGHT_TEXTURE_SCALING_FACTOR / screen_height});
@@ -217,33 +269,28 @@ void bake_lightmaps_if_need(){
         lightmap_data->emitters_occluders_loc = get_shader_location(global_illumination_shader, "emitters_occluders_texture");        
     }
     
-    local_persist f32 bake_progress = 0;
-    if (need_to_bake){
-        bake_progress = 0;
-    }
-        
     // At this point we computed emitters/occluders and distnace fields for every lightmap.
     // Now we do real global illumination work and we will need this info for calculating neighbours.
     // (we're not calculating neighbours anymore).
     for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.max_count; lightmap_index++){
         // Baking one at the time to see that something is happening.
-        // if (lightmap_index != last_baked_index){
+        // if (lightmap_index != currently_baking_index){
         //     continue;
         // }
         
-        if (!need_to_bake && bake_progress >= 1){
-            break;
+        if (lightmap_index != currently_baking_index){
+            continue;
         }
         
-        if (lightmap_index == 0){
-            bake_progress += 0.05f;
-        }
+        bake_progress += 0.05f;
     
         Lightmap_Data *lightmap_data         = current_level_context->lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
         RenderTexture *my_emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture *my_distance_field_rt     = &lightmap_data->distance_field_rt;
         RenderTexture *my_normal_rt             = &lightmap_data->normal_rt;
+        
+        Vector2 pixel_size = get_lightmap_pixel_size(lightmap_data);
         
         //global illumination pass
         BeginTextureMode(*gi_rt);{
@@ -268,7 +315,7 @@ void bake_lightmaps_if_need(){
             set_shader_value_tex(global_illumination_shader, normal_texture_loc, my_normal_rt->texture);
             
             set_shader_value(global_illumination_shader, distance_mod, bake_settings.distance_mod);
-            set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / lightmap_data->pixel_size.x, (1.0f) / lightmap_data->pixel_size.y});
+            set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / pixel_size.x, (1.0f) / pixel_size.y});
             set_shader_value(global_illumination_shader, time_loc, core.time.app_time + PI * 10);
             
             set_shader_value(global_illumination_shader, rays_per_pixel_loc, bake_settings.rays_per_pixel);
@@ -288,15 +335,34 @@ void bake_lightmaps_if_need(){
         } EndTextureMode();
     }
     
-    if (bake_progress >= 1 && current_level_context->lightmaps_render_textures_loaded){
-        save_lightmaps_to_file();
-    
-        unload_lightmaps();
+    if (bake_progress >= 1){
+        assert(currently_baking_index > -1 && currently_baking_index < current_level_context->lightmaps.count);
         
-        for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
-            current_level_context->lightmaps.get_ptr(i)->lightmap_texture = LoadTexture(get_lightmap_name(i));
+        save_lightmap_to_file(currently_baking_index);
+        
+        unload_lightmap_render_textures(currently_baking_index);
+        
+        // We unloaded this when started.
+        assert(current_level_context->lightmaps.get_ptr(currently_baking_index)->has_loaded_texture == false);
+        current_level_context->lightmaps.get_ptr(currently_baking_index)->lightmap_texture = LoadTexture(get_lightmap_name(currently_baking_index));
+        current_level_context->lightmaps.get_ptr(currently_baking_index)->has_loaded_texture = true;
+        
+        currently_baking_index += 1;
+        
+        if (currently_baking_index >= current_level_context->lightmaps.count){
+            currently_baking_index = -1;
         }
+        
+        if (bake_only_one_index > -1){
+            bake_only_one_index = -1;
+            currently_baking_index = -1;
+        }
+        
+        bake_progress = 0;
     }
+    
+    // We want this to be true only on the first bake cycle.
+    need_to_bake = false;
 }
 
 i32 hovered_edit_button_index = -1;
@@ -306,7 +372,7 @@ void make_lightmap_settings_panel(){
         editor.picking_lightmap_position = false;        
     }
 
-    begin_panel({5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "main_info_panel");
+    begin_panel({5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "lightmap_settings_panel");
         
     make_panel_text("Lightmaps settings", "lightmap_settings_panel_text");
     make_panel_text(tprintf("Lightmaps count: %d", current_level_context->lightmaps.count), "lightmap_count_panel_text");
@@ -320,6 +386,12 @@ void make_lightmap_settings_panel(){
     for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
         make_panel_text(tprintf("Lightmap: %d", i+1), tprintf("lightmap_text_%d", i+1));
         panel_indent();
+        
+        if (make_panel_button(tprintf("Bake %d", i+1), tprintf("bake_lightmap_%d"))){
+            bake_only_one_index = i;
+            need_to_bake = true;
+        }
+
         
         if (editor.editing_lightmap && editor.editing_lightmap_index == i){
             if (make_panel_button(tprintf("Cancel edit %d", i+1), tprintf("cancel_edit_%d"))){
@@ -363,10 +435,48 @@ void make_lightmap_settings_panel(){
     
     hovered_edit_button_index = hovered_index;
     
-    if (editor.picking_lightmap_position && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !clicked_ui){
+    if (editor.picking_lightmap_position && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !clicked_ui){
         assert(editor.editing_lightmap_index != -1);
         assert(editor.editing_lightmap_index < current_level_context->lightmaps.count);
-        current_level_context->lightmaps.get_ptr(editor.editing_lightmap_index)->position = input.mouse_position;
+        current_level_context->lightmaps.get_ptr(editor.editing_lightmap_index)->position = round_to_factor(input.mouse_position, CELL_SIZE);
+    }
+    
+    // Making size choosing panel.
+    if (editor.editing_lightmap){
+        begin_panel({screen_width * 0.15f + 5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.3f}, Fade(GREEN, 0.4f), "lightam_editing_panel");
+        
+        assert(editor.editing_lightmap_index > -1 && editor.editing_lightmap_index < current_level_context->lightmaps.count);
+        Lightmap_Data* l = current_level_context->lightmaps.get_ptr(editor.editing_lightmap_index);
+        make_panel_text(tprintf("Position : {%.0f, %.0f}", l->position.x, l->position.y), "editing_lightmap_position");
+        make_panel_text(tprintf("Game size: {%.0f, %.0f}", l->game_size.x, l->game_size.y), "editing_lightmap_gamesize");
+        
+        if (make_panel_button("Up 50", "up_position_lightmap_50")){
+            l->position = round_to_factor(l->position + Vector2_up * 50, 50);
+        }
+        if (make_panel_button("Down 50", "down_position_lightmap_50")){
+            l->position = round_to_factor(l->position - Vector2_up * 50, 50);
+        }
+        if (make_panel_button("Right 50", "right_position_lightmap_50")){
+            l->position = round_to_factor(l->position + Vector2_right * 50, 50);
+        }
+        if (make_panel_button("Left 50", "left_position_lightmap_50")){
+            l->position = round_to_factor(l->position - Vector2_right * 50, 50);
+        }
+        
+        if (make_panel_button("+Height 100", "plus_height_lightmap_100")){
+            l->game_size = round_to_factor(l->game_size + Vector2_up * 100, 100);
+        }
+        if (make_panel_button("-Height 100", "minus_height_lightmap_100")){
+            l->game_size = round_to_factor(l->game_size - Vector2_up * 100, 100);
+        }
+        if (make_panel_button("+Width 100", "plus_width_lightmap_100")){
+            l->game_size = round_to_factor(l->game_size + Vector2_right * 100, 100);
+        }
+        if (make_panel_button("-Width 100", "minus_width_lightmap_100")){
+            l->game_size = round_to_factor(l->game_size - Vector2_right * 100, 100);
+        }
+        
+        end_panel();
     }
 }
 
