@@ -32,6 +32,8 @@ void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 void calculate_bounds(Entity *entity);
 Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
 Bounds get_cam_bounds(Cam cam, f32 zoom);
+Cam get_cam_for_resolution(i32 width, i32 height);
+inline f32 get_light_zoom(f32 radius);
 
 inline Entity *get_entity_by_id(i32 id, Level_Context *level_context = NULL);
 Entity *get_entity_by_index(i32 index);
