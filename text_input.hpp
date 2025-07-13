@@ -103,7 +103,7 @@ void update_input_field(){
                 f32 num = to_f32(focus_input_field.content);
                                 
                 num += (GetMouseDelta().x) * 0.01f;
-                str_copy(focus_input_field.content, text_format("%f", num));
+                str_copy(focus_input_field.content, tprintf("%f", num));
                 focus_input_field.changed = true;
             }
         } else{

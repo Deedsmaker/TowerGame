@@ -1304,7 +1304,9 @@ struct Editor{
 
     b32 update_cam_view_position = true;
 
-    b32 editing_lightmaps = false;
+    b32 editing_lightmap = false;
+    b32 picking_lightmap_position = false;
+    i32 editing_lightmap_index = -1;
 
     f32 create_box_scrolled = 0;
     b32 create_box_active = false;

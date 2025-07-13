@@ -57,6 +57,8 @@ struct Ui_Context{
 
 global_variable Ui_Context ui_context = {};
 
+Ui_Element* last_ui_element = NULL;
+
 //all in screen space
 
 static Ui_Element *init_ui_element(Vector2 position, Vector2 size, Vector2 pivot, Color color, const char *tag, UI_FLAGS ui_flags){
@@ -68,7 +70,21 @@ static Ui_Element *init_ui_element(Vector2 position, Vector2 size, Vector2 pivot
     new_ui_element.color = color;
     
     ui_context.elements.add(new_ui_element);
+    
+    last_ui_element = ui_context.elements.last_ptr();
+    
     return ui_context.elements.last_ptr();
+}
+
+inline b32 last_ui_element_hovered(){
+    Ui_Element* l = last_ui_element;
+    Rectangle rec = {l->position.x - l->size.x * (l->pivot.x), l->position.y - l->size.y * l->pivot.y, l->size.x, l->size.y};
+    
+    if (CheckCollisionPointRec(input.screen_mouse_position, rec)){
+        return true;
+    }
+    
+    return false;
 }
 
 static void init_ui_text(Ui_Text *ui_text, const char *content, f32 font_size, Color text_color){
@@ -173,11 +189,20 @@ void end_panel(){
     current_panel = NULL;
 }
 
+constexpr f32 INDENT_AMOUNT = 25;
+
+void panel_indent(){
+    panel_last_added_position.x += INDENT_AMOUNT;
+}
+void panel_unindent(){
+    panel_last_added_position.x -= INDENT_AMOUNT;
+}
+
 b32 make_panel_button(const char* text, const char* tag){
     assert(current_panel);   
     
     Vector2 position = panel_last_added_position + Vector2_up * 5 + Vector2_up * panel_last_added_size.y;  
-    Vector2 size = {150, 25};
+    Vector2 size = {150, 18};
     
     panel_last_added_position = position;
     panel_last_added_size = size;

@@ -1,19 +1,31 @@
 #pragma once
 
 const char* get_lightmap_name(i32 index){
-    return text_format("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
+    return tprintf("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
 }
 
 void save_lightmaps_to_file(){
-    for (i32 i = 0; i < current_level_context->lightmaps.max_count; i++){
+    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
         Image lightmap_image = LoadImageFromTexture(current_level_context->lightmaps.get(i).global_illumination_rt.texture);
         ExportImage(lightmap_image, get_lightmap_name(i));
         UnloadImage(lightmap_image);
     }
 }
 
+void load_lightmap_render_textures(i32 index){
+    assert(index < current_level_context->lightmaps.count);
+
+    Lightmap_Data* l = current_level_context->lightmaps.get_ptr(index);
+    l->global_illumination_rt = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+    l->emitters_occluders_rt  = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+    l->distance_field_rt      = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+    l->normal_rt              = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+    l->voronoi_seed_rt        = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+    l->jump_flood_rt          = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
+}
+
 void load_lightmaps(){
-    for (i32 i = 0; i < current_level_context->lightmaps.max_count; i++){
+    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
         Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
         l->global_illumination_rt = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
         l->emitters_occluders_rt  = LoadRenderTexture(l->pixel_size.x, l->pixel_size.y);
@@ -27,14 +39,20 @@ void load_lightmaps(){
     }
 }
 
+inline void unload_lightmap_render_textures(i32 index){
+    assert(index < current_level_context->lightmaps.count);
+
+    UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->global_illumination_rt);
+    UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->emitters_occluders_rt);
+    UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->distance_field_rt);
+    UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->normal_rt);
+    UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->voronoi_seed_rt);
+    UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->jump_flood_rt);
+}
+
 void unload_lightmaps(){
-    for (i32 i = 0; i < current_level_context->lightmaps.max_count; i++){
-        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->global_illumination_rt);
-        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->emitters_occluders_rt);
-        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->distance_field_rt);
-        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->normal_rt);
-        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->voronoi_seed_rt);
-        UnloadRenderTexture(current_level_context->lightmaps.get_ptr(i)->jump_flood_rt);
+    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+        unload_lightmap_render_textures(i);
     }
     current_level_context->lightmaps_render_textures_loaded = false;
 }
@@ -281,24 +299,98 @@ void bake_lightmaps_if_need(){
     }
 }
 
+i32 hovered_edit_button_index = -1;
 void make_lightmap_settings_panel(){
-    begin_panel({5, screen_height * 0.2f}, {screen_width * 0.2f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "main_info_panel");
+    if (IsKeyPressed(KEY_ESCAPE)){
+        editor.editing_lightmap = false;
+        editor.picking_lightmap_position = false;        
+    }
+
+    begin_panel({5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "main_info_panel");
         
     make_panel_text("Lightmaps settings", "lightmap_settings_panel_text");
+    make_panel_text(tprintf("Lightmaps count: %d", current_level_context->lightmaps.count), "lightmap_count_panel_text");
     
     if (make_panel_button("Add lightmap", "add_lightmap_button")){
         current_level_context->lightmaps.add({});
     }
     
-    if (!editor.editing_lightmaps){
-        if (make_panel_button("Edit lightmaps", "edit_lightmaps_button")){
-            editor.editing_lightmaps = true;
+    i32 hovered_index = -1;
+    
+    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+        make_panel_text(tprintf("Lightmap: %d", i+1), tprintf("lightmap_text_%d", i+1));
+        panel_indent();
+        
+        if (editor.editing_lightmap && editor.editing_lightmap_index == i){
+            if (make_panel_button(tprintf("Cancel edit %d", i+1), tprintf("cancel_edit_%d"))){
+                editor.editing_lightmap = false;
+            }
+        } else{
+            if (make_panel_button(tprintf("Edit lightmap %d", i+1), tprintf("edit_lightmap_%d", i+1))){
+                unload_lightmap_render_textures(i);
+                
+                editor.editing_lightmap = true;
+                editor.editing_lightmap_index = i;
+            }
+            
+            if (last_ui_element_hovered()) hovered_index = i;
         }
-    } else{
-        if (make_panel_button("Cancel edit lightmaps", "cance_edit_lightmaps_button")){
-            editor.editing_lightmaps = false;
+        
+        if (editor.picking_lightmap_position && editor.editing_lightmap_index == i){
+            if (make_panel_button(tprintf("Cancel picking %d position", i+1), tprintf("cancel_pick_lightmap_position_%d", i+1))){
+                editor.picking_lightmap_position = false;                
+            }
+        } else{
+            if (make_panel_button(tprintf("Pick %d position", i+1), tprintf("pick_lightmap_position_%d", i+1))){
+                editor.picking_lightmap_position = true;                
+                editor.editing_lightmap_index = i;
+            }
+            
+            if (last_ui_element_hovered()) hovered_index = i;
         }
+        
+        if (make_panel_button(tprintf("Remove lightmap %d", i+1), tprintf("remove_lightmap_%d", i+1))){
+            unload_lightmap_render_textures(i);
+            
+            current_level_context->lightmaps.remove(i);
+            editor.editing_lightmap = false;
+        }
+        
+        panel_unindent();
+    }
+
+    end_panel();
+    
+    hovered_edit_button_index = hovered_index;
+    
+    if (editor.picking_lightmap_position && IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !clicked_ui){
+        assert(editor.editing_lightmap_index != -1);
+        assert(editor.editing_lightmap_index < current_level_context->lightmaps.count);
+        current_level_context->lightmaps.get_ptr(editor.editing_lightmap_index)->position = input.mouse_position;
+    }
+}
+
+inline void draw_game_lightmap_editing(){
+    if (!editor.editing_lightmap && !editor.picking_lightmap_position && hovered_edit_button_index == -1){
+        return;
     }
     
-    end_panel();
+    i32 index = editor.editing_lightmap_index;
+    if (!editor.editing_lightmap && !editor.picking_lightmap_position){
+        assert(hovered_edit_button_index > -1);
+        index = hovered_edit_button_index;
+    }
+    assert(index < current_level_context->lightmaps.count);
+    
+    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+        Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
+        f32 fade_progress = ((sinf(core.time.app_time * 2) + 1) * 0.5f + 0.2f) * 0.4f;
+        
+        // Index is lightmap that we currently editing, but we want to see others aswell.
+        if (i == index){
+            draw_game_rect(l->position, l->game_size, {0.5f, 0.5f}, 0, Fade(YELLOW, fade_progress));
+        } else{
+            draw_game_rect(l->position, l->game_size, {0.5f, 0.5f}, 0, Fade(BLUE, fade_progress * 0.5f));
+        }
+    }
 }
