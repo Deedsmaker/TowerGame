@@ -41,14 +41,7 @@ void load_lightmaps(){
     for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
         Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
         
-        Vector2 pixel_size = get_lightmap_pixel_size(l);
-        
-        l->global_illumination_rt = LoadRenderTexture(pixel_size.x, pixel_size.y);
-        l->emitters_occluders_rt  = LoadRenderTexture(pixel_size.x, pixel_size.y);
-        l->distance_field_rt      = LoadRenderTexture(pixel_size.x, pixel_size.y);
-        l->normal_rt              = LoadRenderTexture(pixel_size.x, pixel_size.y);
-        l->voronoi_seed_rt        = LoadRenderTexture(pixel_size.x, pixel_size.y);
-        l->jump_flood_rt          = LoadRenderTexture(pixel_size.x, pixel_size.y);
+        load_lightmap_render_textures(i);
 
         // Doing it in cycle so it become true only if there was at least one.
         current_level_context->lightmaps_render_textures_loaded = true;
@@ -175,7 +168,7 @@ void bake_lightmaps_if_need(){
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(Fade(BLACK, 0));
-        BeginBlendMode(BLEND_ADDITIVE);
+        // BeginBlendMode(BLEND_ADDITIVE);
             ForEntities(entity, LIGHT){   
                 if (entity->flags & LIGHT){
                     Light *light = current_level_context->lights.get_ptr(entity->light_index);
@@ -193,13 +186,13 @@ void bake_lightmaps_if_need(){
                     continue;
                 }
                 
-                draw_game_triangle_strip(entity2, BLACK);
+                draw_game_triangle_strip(entity2, ColorBrightness(entity2->color, -0.75f));
                 
                 if (entity2->flags & NO_MOVE_BLOCK){
                     draw_game_line_strip(entity2->position, entity2->vertices, PURPLE);
                 }
             }
-        EndBlendMode();
+        // EndBlendMode();
         EndMode2D();
         } EndTextureMode();
         

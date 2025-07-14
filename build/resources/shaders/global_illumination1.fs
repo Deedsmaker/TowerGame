@@ -73,6 +73,10 @@ void get_surface(vec4 surface_color, out float emissive, out vec3 colour)
         return;
     }
     
+    if (length(surface_color.rgb) < 1){
+        surface_color = normalize(surface_color);
+    }
+    
     emissive = max(surface_color.r, max(surface_color.g, surface_color.b)) * u_emission_multi * surface_color.a;
     colour = surface_color.rgb * u_emission_multi;
     // colour = vec3(1, 0, 0);
@@ -103,6 +107,11 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
     mat_emissive = 0;    
     mat_colour = vec3(0);
    
+    bool started_inside = false;
+    bool started_inside_and_exited = false;
+    
+    float inside_traveled = 0;
+   
     for (int i = 0; i < u_max_raymarch_steps; i++){
         vec2 sample_point = origin + dir * current_dist;
         sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
@@ -117,7 +126,19 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
         
         float dist_to_surface = distance_data.r / u_dist_mod;
 
-        if (distance_data.a == 0){
+        if (distance_data.a == 0 && (!started_inside || started_inside_and_exited)){
+            if (i == 0 && length(emitters_occluders_data.rgb) < 0.5){
+                started_inside = true;
+                continue;
+            }
+        
+            //nocheckin
+            // if (started_inside_and_exited){
+            //     mat_emissive = 100;
+            //     mat_colour = vec3(1, 0, 0);
+            //     return true;
+            // }
+        
             // hit_pos = sample_point;
             float emissive = 0;
             vec3 color = vec3(0);
@@ -128,12 +149,18 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
             emissive /= bounce_count;
             color /= bounce_count;
             
+            emissive -= inside_traveled * 20;
+            
             mat_emissive += emissive;
             mat_colour   += color;
             
             return true;
         }
-
+        
+        if (i > 0 && started_inside && distance_data.a > 0){
+            started_inside_and_exited = true;
+        }
+        
         // we've hit a surface if distance field returns 0 or close to 0 (due to our distance field using a 16-bit float
         // the precision isn't enough to just check against 0).
         // if(dist_to_surface <= 0.00001){
@@ -144,6 +171,10 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
         // if we don't hit a surface, continue marching along the ray.
         if (dist_to_surface < 0.001){
             dist_to_surface = 0.001;
+        }
+      
+        if (started_inside && !started_inside_and_exited){
+            inside_traveled += dist_to_surface;
         }
       
         current_dist += dist_to_surface;
