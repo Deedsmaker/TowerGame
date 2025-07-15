@@ -11379,7 +11379,6 @@ void draw_entity(Entity *e){
     if (e->flags & TEXTURE){
         // draw texture
         i32 exclude_flags = NOTE;
-        
         if (!(e->flags & exclude_flags)){
             Vector2 position = e->position;
             // draw sticky texture texture
@@ -11389,7 +11388,21 @@ void draw_entity(Entity *e){
                     make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture.alpha));
                 }
             } else{
-                draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
+                b32 should_draw = true;
+                
+                // Currently in game mode we don't want to draw textures that goes into light baking as light emitters,
+                // just because it messes up the looks.
+                if (e->flags & LIGHT && game_state == GAME && !state_context.in_pause_editor){
+                    assert(e->light_index != -1);
+                    Light *light = current_level_context->lights.get_ptr(e->light_index);
+                    if (light->bake_shadows){
+                        should_draw = false;
+                    }
+                }
+            
+                if (should_draw){
+                    draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
+                }
             }
         }
     }

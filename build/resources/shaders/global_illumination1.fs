@@ -111,6 +111,8 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
     bool started_inside_and_exited = false;
     
     float inside_traveled = 0;
+    
+    bool there_was_a_hit = false;
    
     for (int i = 0; i < u_max_raymarch_steps; i++){
         vec2 sample_point = origin + dir * current_dist;
@@ -118,26 +120,21 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
 
         // early exit if we hit the edge of the screen.
         if(sample_point.y > 1.0 || sample_point.y < 0.0 || sample_point.x > 1.0 || sample_point.x < 0.0){
-            return false;
+            if (there_was_a_hit){
+            }
+        
+            return there_was_a_hit;
         }
             
         vec4 distance_data = texture(distance_texture, sample_point);
         vec4 emitters_occluders_data = texture(emitters_occluders_texture, sample_point);
-        
-        float dist_to_surface = distance_data.r / u_dist_mod;
 
+        // Zero distance data alpha means it's either emitter or occluder.
         if (distance_data.a == 0 && (!started_inside || started_inside_and_exited)){
-            if (i == 0 && length(emitters_occluders_data.rgb) < 0.5){
+            if (i == 0 && length(emitters_occluders_data.rgb) < 0.2){
                 started_inside = true;
                 continue;
             }
-        
-            //nocheckin
-            // if (started_inside_and_exited){
-            //     mat_emissive = 100;
-            //     mat_colour = vec3(1, 0, 0);
-            //     return true;
-            // }
         
             // hit_pos = sample_point;
             float emissive = 0;
@@ -146,15 +143,24 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
             
             bounce_count += 1;
             
-            emissive /= bounce_count;
-            color /= bounce_count;
-            
             emissive -= inside_traveled * 20;
             
-            mat_emissive += emissive;
+            color /= bounce_count;
+            
+            // if (!there_was_a_hit){
+            // mat_emissive += emissive;
+            // } else{
+            mat_emissive = max(emissive, mat_emissive);
+            emissive /= bounce_count;
+            // }
             mat_colour   += color;
             
-            return true;
+            
+            if (length(emitters_occluders_data.rgb) >= 0.2){
+                there_was_a_hit = true;    
+            } else{
+                return true;
+            }
         }
         
         if (i > 0 && started_inside && distance_data.a > 0){
@@ -168,6 +174,7 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
         //    return true;
         // }
 
+        float dist_to_surface = distance_data.r / u_dist_mod;
         // if we don't hit a surface, continue marching along the ray.
         if (dist_to_surface < 0.001){
             dist_to_surface = 0.001;
@@ -254,7 +261,7 @@ void main()
             
         vec2 normal_direction = vec2(((normal_color.r - 0.5) * 2) * 1, (normal_color.g - 0.5) * 2) * 1;
         
-        float mult = dot(average_light_direction, normal_direction) + normal_color.b * 0.6;
+        float mult = dot(average_light_direction, normal_direction) + 0.2 + normal_color.b * 0.4;
         
         mult = max(mult, -1);
         mult = (mult + 1) * 0.5;

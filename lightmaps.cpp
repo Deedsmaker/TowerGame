@@ -87,6 +87,8 @@ void bake_lightmaps_if_need(){
     // Currently baking one by one so we could see that something happening. 
     // Later we probably should do that in separate thread so everything does not stall, or just show progress.
     if (need_to_bake){
+        assign_selected_entity(NULL);
+    
         currently_baking_index += 1;
         if (currently_baking_index >= current_level_context->lightmaps.count){
             currently_baking_index = -1;
@@ -159,7 +161,7 @@ void bake_lightmaps_if_need(){
             
             ForEntities(texture_entity, TEXTURE){
                 if (texture_entity->have_normal_map){
-                    draw_game_texture(texture_entity->normal_map_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color);
+                    draw_game_texture(texture_entity->normal_map_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color_changer.start_color);
                 }
             }
             } EndMode2D();
@@ -168,15 +170,15 @@ void bake_lightmaps_if_need(){
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(Fade(BLACK, 0));
-        // BeginBlendMode(BLEND_ADDITIVE);
+        BeginBlendMode(BLEND_ALPHA);
             ForEntities(entity, LIGHT){   
                 if (entity->flags & LIGHT){
                     Light *light = current_level_context->lights.get_ptr(entity->light_index);
                     if (light->bake_shadows){
                         if (entity->flags & TEXTURE){
-                            draw_game_texture(entity->texture, entity->position, entity->scale, entity->pivot, entity->rotation, Fade(light->color, sqrtf(light->opacity)));
+                            draw_game_texture(entity->texture, entity->position, entity->scale, entity->pivot, entity->rotation, Fade(light->color, light->opacity));
                         } else{
-                            draw_game_triangle_strip(entity, Fade(light->color, sqrtf(light->opacity)));
+                            draw_game_triangle_strip(entity, Fade(light->color, light->opacity));
                         }
                     }
                 }
@@ -192,7 +194,7 @@ void bake_lightmaps_if_need(){
                     draw_game_line_strip(entity2->position, entity2->vertices, PURPLE);
                 }
             }
-        // EndBlendMode();
+        EndBlendMode();
         EndMode2D();
         } EndTextureMode();
         
