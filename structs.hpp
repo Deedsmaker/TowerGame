@@ -63,9 +63,10 @@ struct Lightmap_Data{
     RenderTexture global_illumination_rt = {}; 
     RenderTexture emitters_occluders_rt  = {};
     RenderTexture distance_field_rt      = {};
-    RenderTexture normal_rt             = {};
-    RenderTexture voronoi_seed_rt = {};
-    RenderTexture jump_flood_rt = {};
+    RenderTexture normal_rt              = {};
+    RenderTexture static_textures_rt     = {};
+    RenderTexture voronoi_seed_rt        = {};
+    RenderTexture jump_flood_rt          = {};
     
     b32 has_loaded_texture = false;
     // b32 render_textures_loaded = false;

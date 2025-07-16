@@ -29,6 +29,7 @@ uniform vec2 u_screen_pixel_size;
 // g - up
 // b - to us
 uniform sampler2D u_normal_texture;
+uniform sampler2D u_static_textures;
 
 out vec4 finalColor;
 
@@ -128,6 +129,12 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
             
         vec4 distance_data = texture(distance_texture, sample_point);
         vec4 emitters_occluders_data = texture(emitters_occluders_texture, sample_point);
+        
+        // vec4 static_textures_data = texture(u_static_textures, sample_point);
+        // emitters_occluders_data += static_textures_data * 0.1;
+        // if (static_textures_data.a > emitters_occluders_data.a){
+        //     emitters_occluders_data = static_textures_data * 0.1;
+        // }
 
         // Zero distance data alpha means it's either emitter or occluder.
         if (distance_data.a == 0 && (!started_inside || started_inside_and_exited)){
@@ -270,6 +277,14 @@ void main()
     }
 
     vec4 current_color = texture(texture0, fragTexCoord);
+    
+    // vec4 static_textures_color = texture(u_static_textures, fragTexCoord);
+    // if (static_textures_color.a > 0){
+    //     // current_color = static_textures_color;
+    //     pixel_col += static_textures_color.rgb;
+    //     pixel_emis *= length(static_textures_color);
+    // }
+    
     // finalColor = current_color + vec4(pixel_emis * pixel_col, 1);
     finalColor = current_color + vec4(pixel_col * pixel_emis, 1);
     finalColor.a = 1.0;

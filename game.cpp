@@ -11392,14 +11392,19 @@ void draw_entity(Entity *e){
                 
                 // Currently in game mode we don't want to draw textures that goes into light baking as light emitters,
                 // just because it messes up the looks.
-                if (e->flags & LIGHT && game_state == GAME && !state_context.in_pause_editor){
-                    assert(e->light_index != -1);
-                    Light *light = current_level_context->lights.get_ptr(e->light_index);
-                    if (light->bake_shadows){
-                        should_draw = false;
+                if (game_state == GAME && !state_context.in_pause_editor){
+                    if (e->flags & LIGHT){
+                        assert(e->light_index != -1);
+                        Light *light = current_level_context->lights.get_ptr(e->light_index);
+                        if (light->bake_shadows){
+                            should_draw = false;
+                        }
                     }
+                    // if (e->flags == TEXTURE){
+                    //     should_draw = false;
+                    // }
                 }
-            
+                
                 if (should_draw){
                     draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
                 }

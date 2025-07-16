@@ -33,6 +33,7 @@ void load_lightmap_render_textures(i32 index){
     l->emitters_occluders_rt  = LoadRenderTexture(pixel_size.x, pixel_size.y);
     l->distance_field_rt      = LoadRenderTexture(pixel_size.x, pixel_size.y);
     l->normal_rt              = LoadRenderTexture(pixel_size.x, pixel_size.y);
+    l->static_textures_rt     = LoadRenderTexture(pixel_size.x, pixel_size.y);
     l->voronoi_seed_rt        = LoadRenderTexture(pixel_size.x, pixel_size.y);
     l->jump_flood_rt          = LoadRenderTexture(pixel_size.x, pixel_size.y);
 }
@@ -55,6 +56,7 @@ inline void unload_lightmap_render_textures(i32 index){
     UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->emitters_occluders_rt);
     UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->distance_field_rt);
     UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->normal_rt);
+    UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->static_textures_rt);
     UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->voronoi_seed_rt);
     UnloadRenderTexture(current_level_context->lightmaps.get_ptr(index)->jump_flood_rt);
 }
@@ -135,6 +137,7 @@ void bake_lightmaps_if_need(){
             continue;
         }
         
+        // Need to bake is true only on first pass, right after the "bake" button is pressed.
         if (!need_to_bake){
             continue;
         }
@@ -143,6 +146,7 @@ void bake_lightmaps_if_need(){
         RenderTexture* emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture* distance_field_rt = &lightmap_data->distance_field_rt;
         RenderTexture* normal_rt = &lightmap_data->normal_rt;
+        RenderTexture* static_textures_rt = &lightmap_data->static_textures_rt;
         RenderTexture* voronoi_rt = &lightmap_data->voronoi_seed_rt;
         RenderTexture* jump_flood_rt = &lightmap_data->jump_flood_rt;
 
@@ -167,10 +171,34 @@ void bake_lightmaps_if_need(){
             } EndMode2D();
         } EndTextureMode();
         
+        BeginTextureMode(*static_textures_rt);{
+            BeginMode2D(current_level_context->cam.cam2D);{
+            ClearBackground(Fade(BLACK, 0));
+            
+            ForEntities(texture_entity, TEXTURE){
+                if (texture_entity->flags == TEXTURE){
+                    draw_game_texture(texture_entity->texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color_changer.start_color);
+                }
+            }
+            } EndMode2D();
+        } EndTextureMode();
+        
         BeginTextureMode(*emitters_occluders_rt);{
         BeginMode2D(current_level_context->cam.cam2D);
-        ClearBackground(Fade(BLACK, 0));
+        ClearBackground(Fade(BLACK, 0.0f));
         BeginBlendMode(BLEND_ALPHA);
+            ForEntities(entity2, GROUND){   
+                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT || entity2->flags & LIGHT || entity2->flags & MOVE_SEQUENCE){
+                    continue;
+                }
+                
+                draw_game_triangle_strip(entity2, ColorBrightness(entity2->color, -0.75f));
+                
+                if (entity2->flags & NO_MOVE_BLOCK){
+                    draw_game_line_strip(entity2->position, entity2->vertices, PURPLE);
+                }
+            }
+            
             ForEntities(entity, LIGHT){   
                 if (entity->flags & LIGHT){
                     Light *light = current_level_context->lights.get_ptr(entity->light_index);
@@ -181,17 +209,6 @@ void bake_lightmaps_if_need(){
                             draw_game_triangle_strip(entity, Fade(light->color, light->opacity));
                         }
                     }
-                }
-            }
-            ForEntities(entity2, GROUND){   
-                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT || entity2->flags & LIGHT || entity2->flags & MOVE_SEQUENCE){
-                    continue;
-                }
-                
-                draw_game_triangle_strip(entity2, ColorBrightness(entity2->color, -0.75f));
-                
-                if (entity2->flags & NO_MOVE_BLOCK){
-                    draw_game_line_strip(entity2->position, entity2->vertices, PURPLE);
                 }
             }
         EndBlendMode();
@@ -277,9 +294,10 @@ void bake_lightmaps_if_need(){
     
         Lightmap_Data *lightmap_data         = current_level_context->lightmaps.get_ptr(lightmap_index);
         RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
-        RenderTexture *my_emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
-        RenderTexture *my_distance_field_rt     = &lightmap_data->distance_field_rt;
-        RenderTexture *my_normal_rt             = &lightmap_data->normal_rt;
+        RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
+        RenderTexture *distance_field_rt     = &lightmap_data->distance_field_rt;
+        RenderTexture *normal_rt             = &lightmap_data->normal_rt;
+        RenderTexture *static_textures_rt    = &lightmap_data->static_textures_rt;
         
         Vector2 pixel_size = get_lightmap_pixel_size(lightmap_data);
         
@@ -292,8 +310,8 @@ void bake_lightmaps_if_need(){
             
             BeginShaderMode(global_illumination_shader);
             
-            set_shader_value_tex(global_illumination_shader, lightmap_data->distance_texture_loc, my_distance_field_rt->texture);
-            set_shader_value_tex(global_illumination_shader, lightmap_data->emitters_occluders_loc, my_emitters_occluders_rt->texture);
+            set_shader_value_tex(global_illumination_shader, lightmap_data->distance_texture_loc, distance_field_rt->texture);
+            set_shader_value_tex(global_illumination_shader, lightmap_data->emitters_occluders_loc, emitters_occluders_rt->texture);
             
             i32 rays_per_pixel_loc     = get_shader_location(global_illumination_shader, "u_rays_per_pixel");
             i32 emission_multi_loc     = get_shader_location(global_illumination_shader, "u_emission_multi");
@@ -303,7 +321,10 @@ void bake_lightmaps_if_need(){
             i32 screen_pixel_size_loc  = get_shader_location(global_illumination_shader, "u_screen_pixel_size");
             
             i32 normal_texture_loc     = get_shader_location(global_illumination_shader, "u_normal_texture");
-            set_shader_value_tex(global_illumination_shader, normal_texture_loc, my_normal_rt->texture);
+            set_shader_value_tex(global_illumination_shader, normal_texture_loc, normal_rt->texture);
+            
+            i32 static_textures_loc     = get_shader_location(global_illumination_shader, "u_static_textures");
+            set_shader_value_tex(global_illumination_shader, static_textures_loc, static_textures_rt->texture);
             
             set_shader_value(global_illumination_shader, distance_mod, bake_settings.distance_mod);
             set_shader_value(global_illumination_shader, screen_pixel_size_loc, {(1.0f) / pixel_size.x, (1.0f) / pixel_size.y});
