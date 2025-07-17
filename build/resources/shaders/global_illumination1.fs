@@ -25,9 +25,12 @@ uniform int u_max_raymarch_steps = 128;
 uniform float u_dist_mod = 1;
 uniform vec2 u_screen_pixel_size;
 
-// r - left (?)
-// g - up
-// b - to us
+// Global illumination texture is really for lighting data, not for normals or textures. (even though we should look at textures to 
+// properly calculate GI).
+// so @TODO: Make a separate pass that will render textures with applied normal maps.
+// R - right.
+// G - up.
+// B - to us.
 uniform sampler2D u_normal_texture;
 uniform sampler2D u_static_textures;
 
@@ -117,7 +120,8 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
    
     for (int i = 0; i < u_max_raymarch_steps; i++){
         vec2 sample_point = origin + dir * current_dist;
-        sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
+        //nocheckin
+        // sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
 
         // early exit if we hit the edge of the screen.
         if(sample_point.y > 1.0 || sample_point.y < 0.0 || sample_point.x > 1.0 || sample_point.x < 0.0){
@@ -154,12 +158,8 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
             
             color /= bounce_count;
             
-            // if (!there_was_a_hit){
-            // mat_emissive += emissive;
-            // } else{
             mat_emissive = max(emissive, mat_emissive);
             emissive /= bounce_count;
-            // }
             mat_colour   += color;
             
             
@@ -227,8 +227,10 @@ void main()
    
     // convert from uv aspect to world aspect.
     vec2 uv = fragTexCoord;
-    float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
-    uv.x *= aspect;
+    //nocheckin
+    // float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
+    // uv.x *= aspect;
+    float aspect = 1;
     
     float rand2pi = perlin(fragTexCoord * vec2(u_time, -u_time)) * 2.0 * PI;
     float golden_angle = PI * 0.7639320225; // magic number that gives us a good ray distribution.

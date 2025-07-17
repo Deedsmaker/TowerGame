@@ -248,12 +248,16 @@ There has been change in the game ideas during May of 2025, so next tasks may be
 [X] Big bombs sections. Teaching that be can hide from explosions.
 [X] Arena section with explosions involved. Also hiding behind centipedes. 
 
+<Current levels in development>
+-leap_of_faith
+-arenas
+-right_decision
 <Level ideas>
 ///////////////////////////////////////////////////
 [ ] Dark level where there's homing explosive flying to us. (they light up the territory).
 [ ] Level where we're should go behind a moving platform to avoid homing scary things.
 [X] Multiple arenas with birds in a row. In each we add turrets.
-[ ] Leap of faith level. We can do that because player can see whole level before playing. Also it could be cool level for modifications in different worlds.
+[X] Leap of faith level. We can do that because player can see whole level before playing. Also it could be cool level for modifications in different worlds.
 [ ] Propeller-type stage where we just fly and spin for killing threats, but there will be switches that can help or can put more danger on player.
 [ ] Wall of projectiles in the middle where you should choose or you use slowmo (that will cause harm in later stages with enemies that react to slowmo) or you use big sword charge.
 [X] Level with *multiple* MULTIPLE_HITS in a row and each one uncovers more enemies, but we chased by a wall of death. That happen to be barriers.level.
