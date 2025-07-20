@@ -603,11 +603,11 @@ struct Centipede_Segment{
     i32 previous_id = -1;
 };
 
-struct Centipede{
+struct Centipede {
     Array<i32, MAX_CENTIPEDE_SEGMENTS> segments_ids = Array<i32, MAX_CENTIPEDE_SEGMENTS>();
     
     i32 segments_count = 32;
-    b32 spikes_on_right = true;
+    b32 spikes_on_right = false;
     b32 spikes_on_left = false;
     
     b32 all_segments_dead = false;

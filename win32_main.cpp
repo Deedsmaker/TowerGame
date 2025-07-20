@@ -8,11 +8,11 @@
 #include <stdint.h>
 #include <assert.h>
 
-#include "../my_libs/my_defines.hpp"
-#include "../my_libs/my_math.cpp"
-#include "../my_libs/string.hpp"
-#include "../my_libs/array.hpp"
-#include "../my_libs/files.hpp"
+#include "my_libs/my_defines.hpp"
+#include "my_libs/my_math.cpp"
+#include "my_libs/string.hpp"
+#include "my_libs/array.hpp"
+#include "my_libs/files.hpp"
 
 #include <windows.h>
 #include <d3d11_1.h>

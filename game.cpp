@@ -14,7 +14,7 @@
 global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Array<Collision>(256);
 
 #include "game.h"
-#include "../my_libs/perlin.h"
+#include "my_libs/perlin.h"
 
 // #define ForEntities(entityext_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+0))
 
@@ -115,7 +115,7 @@ Texture missing_texture;
 
 Sound_Handler *missing_sound = NULL;
 
-#include "../my_libs/random.hpp"
+#include "my_libs/random.hpp"
 #include "particles.hpp"
 #include "text_input.hpp"
 #include "ui.hpp"
@@ -1987,7 +1987,14 @@ void init_spawn_objects() {
     spawn_objects.add(jump_shooter_object);
 }
 
-void add_spawn_object_from_texture(Texture texture, char *name) {
+struct Tile_Sheet {
+    String sheet_name;
+    Dynamic_Array<Texture_Data> textures;
+};
+
+Dynamic_Array<Tile_Sheet> tile_sheets = Dynamic_Array<Tile_Sheet>(4);
+
+void add_spawn_object_from_texture(Texture texture, const char *name, const char *directory_name = 0) {
     Entity texture_entity = Entity({0, 0}, {(f32)texture.width * 0.25f, (f32)texture.height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
@@ -1996,6 +2003,33 @@ void add_spawn_object_from_texture(Texture texture, char *name) {
     
     texture_entity.texture = texture;
     str_copy(texture_entity.texture_name, name);
+    
+    if (directory_name) {
+        i32 tile_sheet_index = -1;
+        for (i32 i = 0; i < tile_sheets.count; i++) {
+            if (tile_sheets.get_ptr(i)->sheet_name == directory_name) {
+                tile_sheet_index = i;
+                break;
+            }
+        }
+        
+        Tile_Sheet *sheet = NULL;
+        
+        if (tile_sheet_index == -1) {
+            sheet = tile_sheets.add({});
+            sheet->sheet_name = init_string_from_str(directory_name);
+            sheet->textures = Dynamic_Array<Texture_Data>(16);
+        } else {
+            sheet = tile_sheets.get_ptr(tile_sheet_index);
+        }
+        
+        assert(sheet);
+        
+        Texture_Data *new_data = sheet->textures.add({});
+        str_copy(new_data->name, name);
+        new_data->texture = texture;
+    }
+    
     // assign_texture(&texture_entity, texture, name);
     
     Spawn_Object texture_object;
@@ -2025,7 +2059,7 @@ Texture get_texture(const char *name) {
     return found_texture;
 }
 
-void load_textures(char* path) {
+void load_textures(char* path, b32 in_root_textures_directory) {
     String path_string = init_string_from_str(path);
     if (!str_end_with(path_string.data, "\\")) {
         path_string += "\\";
@@ -2036,7 +2070,7 @@ void load_textures(char* path) {
         char *name = textures.paths[i];
         
         if (!IsPathFile(name)) {
-            load_textures(name);
+            load_textures(name, false);
             continue;
         }
         
@@ -2058,7 +2092,7 @@ void load_textures(char* path) {
             normal_maps.add(data);
         } else {
             loaded_textures.add(data);
-            add_spawn_object_from_texture(texture, name);
+            add_spawn_object_from_texture(texture, name, in_root_textures_directory ? 0 : path);
         }
     }
     UnloadDirectoryFiles(textures);
@@ -2068,7 +2102,7 @@ void load_textures(char* path) {
 
 void load_all_textures() {
     // load_texrures is recursive and will check all subdirectories.
-    load_textures("resources\\textures");
+    load_textures("resources\\textures", true);
         
     missing_texture                 = get_texture("MissingTexture");
     spiral_clockwise_texture        = get_texture("vpravo");
@@ -2244,11 +2278,13 @@ Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light) {
 }
 
 void init_entity(Entity *entity) {
+    entity->color = entity->color_changer.start_color;
+
     // Load normal maps.
     if (entity->flags & TEXTURE) {
         for (i32 i = 0; i < normal_maps.count; i++) {        
             // We allow one normal map for different textures, but then texture should start with normal map name
-            // and after normal map name should go '_'.
+            // and after normal map name *could* be '_'.
             // For example normal map "Brick_normal_map" will go to "Brick" and "Brick_v1", but not to "Brick1".
             Texture_Data *normal_map = normal_maps.get_ptr(i);
             if (str_start_with(entity->texture_name, normal_map->name)
@@ -7062,6 +7098,32 @@ void update_editor() {
                 rotate(undo_entity, 0);
                 
                 calculate_bounds(undo_entity);
+            }
+        }
+    }
+    
+    // Tile sheets logic.
+    if (editor.selected_entity && editor.selected_entity->flags & TEXTURE) {
+        if (IsKeyPressed(KEY_PERIOD) || IsKeyPressed(KEY_COMMA)) {
+            // We don't really want to save tile sheet name on every entity, so we just take a little performance hit of 
+            // going through every texture of every tile sheet to look up the current tile texture.
+            for (i32 i = 0; i < tile_sheets.count; i++) {
+                Tile_Sheet *sheet = tile_sheets.get_ptr(i);
+                for (i32 j = 0; j < sheet->textures.count; j++) {
+                    const char *sheet_texture_name = sheet->textures.get_ptr(j)->name;
+                    if (str_equal(sheet_texture_name, editor.selected_entity->texture_name)) {
+                        i32 increment_direction = IsKeyPressed(KEY_PERIOD) ? 1 : -1;
+                        i32 next_index = (j + increment_direction);
+                        if (next_index >= sheet->textures.count) next_index = 0;
+                        if (next_index < 0) next_index = sheet->textures.count - 1;
+                        
+                        Texture_Data *next_data = sheet->textures.get_ptr(next_index);
+                        editor.selected_entity->texture = next_data->texture;
+                        str_copy(editor.selected_entity->texture_name, next_data->name);
+                        init_entity(editor.selected_entity);
+                        break;
+                    }
+                }
             }
         }
     }
