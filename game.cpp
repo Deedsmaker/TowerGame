@@ -2025,10 +2025,20 @@ Texture get_texture(const char *name) {
     return found_texture;
 }
 
-void load_textures() {
-    FilePathList textures = LoadDirectoryFiles("resources\\textures");
+void load_textures(char* path) {
+    String path_string = init_string_from_str(path);
+    if (!str_end_with(path_string.data, "\\")) {
+        path_string += "\\";
+    }
+
+    FilePathList textures = LoadDirectoryFiles(path);
     for (i32 i = 0; i < textures.count; i++) {
         char *name = textures.paths[i];
+        
+        if (!IsPathFile(name)) {
+            load_textures(name);
+            continue;
+        }
         
         // if (!str_end_with(name, ".png")) {
         //     continue;
@@ -2036,14 +2046,15 @@ void load_textures() {
         
         Texture texture = LoadTexture(name);
         
-        substring_after_line(name, "resources\\textures\\");
+        substring_after_line(name, path_string.data);
         name = get_substring_before_symbol(name, '.');
         
         Texture_Data data = {};
         str_copy(data.name, name);
         data.texture = texture;
         
-        if (str_contains(data.name, "normal_map")) {
+        if (str_contains(data.name, "_normal_map")) {
+            substring_before_line(data.name, "_normal_map");
             normal_maps.add(data);
         } else {
             loaded_textures.add(data);
@@ -2052,6 +2063,13 @@ void load_textures() {
     }
     UnloadDirectoryFiles(textures);
     
+    path_string.free_str();
+}
+
+void load_all_textures() {
+    // load_texrures is recursive and will check all subdirectories.
+    load_textures("resources\\textures");
+        
     missing_texture                 = get_texture("MissingTexture");
     spiral_clockwise_texture        = get_texture("vpravo");
     spiral_counterclockwise_texture = get_texture("levo");
@@ -2226,11 +2244,17 @@ Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light) {
 }
 
 void init_entity(Entity *entity) {
+    // Load normal maps.
     if (entity->flags & TEXTURE) {
         for (i32 i = 0; i < normal_maps.count; i++) {        
-            if (str_contains(normal_maps.get_ptr(i)->name, entity->texture_name)) {
+            // We allow one normal map for different textures, but then texture should start with normal map name
+            // and after normal map name should go '_'.
+            // For example normal map "Brick_normal_map" will go to "Brick" and "Brick_v1", but not to "Brick1".
+            Texture_Data *normal_map = normal_maps.get_ptr(i);
+            if (str_start_with(entity->texture_name, normal_map->name)
+                && (entity->texture_name[str_len(normal_map->name)] == '_' || entity->texture_name[str_len(normal_map->name)] == '\0')) {
                 entity->have_normal_map = true;
-                entity->normal_map_texture = normal_maps.get_ptr(i)->texture;
+                entity->normal_map_texture = normal_map->texture;
             }
         }
     }
@@ -3190,7 +3214,7 @@ void init_game() {
     input = {};
     init_console();
     // current_level = {};
-    load_textures();
+    load_all_textures();
     init_spawn_objects();
     
     jump_shooter_bullet_hint_texture = get_texture("JumpShooterHintBullet.png");
