@@ -5033,10 +5033,15 @@ void update_editor_ui() {
             }
             undo_add_position(selected, selected->position - old_position);
         }
-        v_pos += height_add;
+        // v_pos += height_add;
+
+        if (editor.multiselected_entities.count > 1) {
+            make_ui_text("Multiselected editing (only draw order)", {inspector_position.x + inspector_size.x * 0.05f, inspector_position.y + v_pos}, 24, RED * 0.9f, "inspector_pos");
+            v_pos += height_add;
+        }
         
-        make_ui_text("SCALE", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + 20 + v_pos - height_add}, 24, WHITE * 0.9f, "inspector_scale");
-        v_pos += height_add;
+        make_ui_text("SCALE", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + v_pos}, 24, WHITE * 0.9f, "inspector_scale");
+        v_pos += height_add * 2;
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
         if (make_input_field(tprintf("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
@@ -5089,21 +5094,29 @@ void update_editor_ui() {
         make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
         if (make_input_field(tprintf("%d", editor.selected_entity->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
             ) {
-            i32 old_draw_order = editor.selected_entity->draw_order;
-            i32 new_draw_order = old_draw_order;
             
-            if (str_equal(focus_input_field.tag, "inspector_draw_order")) {
-                new_draw_order = to_i32(focus_input_field.content);
+            if (editor.multiselected_entities.count > 1) {
+                for (i32 i = 0; i < editor.multiselected_entities.count; i++) {                
+                    Entity *entity = get_entity_by_id(editor.multiselected_entities.get(i));
+                    entity->draw_order = to_i32(focus_input_field.content);
+                }
             } else {
-                assert(false);
+                i32 old_draw_order = editor.selected_entity->draw_order;
+                i32 new_draw_order = old_draw_order;
+                
+                if (str_equal(focus_input_field.tag, "inspector_draw_order")) {
+                    new_draw_order = to_i32(focus_input_field.content);
+                } else {
+                    assert(false);
+                }
+                
+                i32 draw_order_add = new_draw_order - old_draw_order;
+                if (draw_order_add != 0) {
+                    editor.selected_entity->draw_order += draw_order_add;
+                }
+                
+                undo_add_draw_order(editor.selected_entity, draw_order_add);
             }
-            
-            i32 draw_order_add = new_draw_order - old_draw_order;
-            if (draw_order_add != 0) {
-                editor.selected_entity->draw_order += draw_order_add;
-            }
-            
-            undo_add_draw_order(editor.selected_entity, draw_order_add);
         }
         v_pos += height_add;
         
