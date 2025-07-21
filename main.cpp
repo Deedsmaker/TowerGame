@@ -7,6 +7,8 @@
 #include <assert.h>
 
 #include "my_libs/my_defines.hpp"
+#include "Allocator.cpp"
+
 #include "my_libs/my_math.cpp"
 #include "my_libs/string.hpp"
 #include "my_libs/array.hpp"

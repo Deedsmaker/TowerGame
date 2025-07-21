@@ -1167,7 +1167,6 @@ struct Session_Context{
     Collision_Grid collision_grid;
     i32 collision_grid_cells_count = 0;
     
-    
     // Cam cam = {};
     
     Speedrun_Timer speedrun_timer = {};
