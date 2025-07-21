@@ -1931,6 +1931,7 @@ void init_spawn_objects() {
     centipede_entity.move_sequence.moving = true;
     centipede_entity.move_sequence.loop = true;
     centipede_entity.move_sequence.rotate = true;
+    centipede_entity.move_sequence.speed = 100;
     centipede_entity.color = ColorBrightness(RED, 0.6f);
     str_copy(centipede_entity.name, "centipede"); 
     setup_color_changer(&centipede_entity);
@@ -2279,6 +2280,11 @@ Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light) {
 
 void init_entity(Entity *entity) {
     entity->color = entity->color_changer.start_color;
+
+    if (entity->flags & AMMO_PACK){
+        entity->flags |= TEXTURE;
+        entity->texture = get_texture("Prop");
+    }
 
     // Load normal maps.
     if (entity->flags & TEXTURE) {
@@ -11477,7 +11483,7 @@ void draw_entity(Entity *e) {
     
     if (e->flags & TEXTURE) {
         // draw texture
-        i32 exclude_flags = NOTE;
+        i32 exclude_flags = NOTE & AMMO_PACK;
         if (!(e->flags & exclude_flags)) {
             Vector2 position = e->position;
             // draw sticky texture texture
@@ -11690,8 +11696,9 @@ void draw_entity(Entity *e) {
             }
         }
     } else if (e->flags & AMMO_PACK) {
-        draw_game_circle(e->position, e->scale.x, RED);
-        draw_game_circle(e->position, e->scale.x * 0.5f, ColorBrightness(RED, 0.6f));
+        // draw_game_circle(e->position, e->scale.x, RED);
+        // draw_game_circle(e->position, e->scale.x * 0.5f, ColorBrightness(RED, 0.6f));
+        draw_game_texture(e->texture, e->position, e->scale * 2, e->pivot, e->rotation, WHITE);
     } else if (e->flags & TURRET) { // draw turret
         Color color = e->color;
         if (!e->enemy.turret.activated) {
