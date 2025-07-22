@@ -6,12 +6,10 @@
 struct Allocator {
     i32 reserved = 0;
     i32 watermark = 0;
-    u8 *start = NULL;
+    char *start = NULL;
 };
 
 // NULL on default allocator means it will be just malloc.
-Allocator *default_allocator = NULL;
-
 Allocator temp_allocator    = {};
 Allocator level_allocator   = {};
 Allocator state_allocator   = {};
@@ -21,16 +19,15 @@ void init_allocator(Allocator *allocator, size_t size) {
 
     allocator->reserved = size;
     allocator->watermark = 0;
-    allocator->start = (u8 *)malloc(size);
+    allocator->start = (char *)malloc(size);
 }
 
-u8 *alloc(size_t size, Allocator *allocator) {
-    if (!allocator) allocator = default_allocator;
-    if (!allocator) return (u8 *)malloc(size);
+char *alloc(Allocator *allocator, size_t size) {
+    if (!allocator) return (char *)malloc(size);
     
     assert(allocator->watermark + size < allocator->reserved && "We don't handle situation where memory arena consumed more than it could handle. Alloc more on the start or think about your behaviour.");
     
-    u8 *result = allocator->start + allocator->watermark;
+    char *result = allocator->start + allocator->watermark;
     allocator->watermark += size;
     
     return result;
@@ -43,4 +40,11 @@ void clear_allocator(Allocator *allocator) {
 void free_allocator(Allocator *allocator) {
     free(allocator->start);
 }
-
+    
+void free_data_in_allocator(Allocator *allocator, void *data) {
+    // Currently allocator is just Memory Arena, so we can't just free data in it.
+    // That's why we call default 'free' when allocator is NULL - that's mean it was allocated with just malloc.
+    if (!allocator) {
+        free(data);
+    }
+}

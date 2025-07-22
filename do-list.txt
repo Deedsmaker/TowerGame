@@ -1,4 +1,14 @@
-[ ] Physics bomb object. Bomb traps goes with it.
+[ ] Starting a level from a hub.
+    [ ] Starting a level by breaking level starter.
+    [ ] Saving passed level.
+    [ ] Debug capability for marking level as solved/unsolved.
+    [ ] Enter level from editor by pressing a button while this level entry is selected.
+[ ] Looking at the whole level before starting a level. 
+    [ ] Visuals for entities for information (like explosive and what turrets are shooting).
+    [ ] Simulate world a couple of seconds to see what's happening.
+    [ ] Activate triggers to see what will happen.
+    [ ] Restricted drawing. I think there's should be a resource of paint. Like we got 5 charges of ink and we can draw 5 contigunous shapes. That could be really cool for player to remember some things or, for example, draw a line for a precise shot. 
+[ ] Physics bomb objkect. Bomb traps goes with it.
 [ ] Better ai for birdies. 
     [ ] They should avoid obstacles to find a way.
     [ ] They should do better formations.

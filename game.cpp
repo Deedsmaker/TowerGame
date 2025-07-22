@@ -2060,7 +2060,7 @@ Texture get_texture(const char *name) {
     return found_texture;
 }
 
-void load_textures(char* path, b32 in_root_textures_directory) {
+void load_textures(const char* path, b32 in_root_textures_directory) {
     String path_string = init_string_from_str(path);
     if (!str_end_with(path_string.data, "\\")) {
         path_string += "\\";
