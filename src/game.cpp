@@ -14,7 +14,7 @@
 global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Array<Collision>(256);
 
 #include "game.h"
-#include "my_libs/perlin.h"
+#include "perlin.h"
 
 // #define ForEntities(entityext_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+0))
 
@@ -55,7 +55,7 @@ global_variable i32 checkpoint_trigger_id = -1;
 
 global_variable Level_Replay level_replay = {};
 global_variable Render render = {};
-global_variable Console console = {};
+global_variable Console console = {0};
 global_variable Editor editor  = {}; 
 global_variable Debug  debug  = {};
 
@@ -115,7 +115,7 @@ Texture missing_texture;
 
 Sound_Handler *missing_sound = NULL;
 
-#include "my_libs/random.hpp"
+#include "random.hpp"
 #include "particles.hpp"
 #include "text_input.hpp"
 #include "ui.hpp"
@@ -1058,21 +1058,15 @@ i32 save_level(const char *level_name) {
         }
         str_copy(current_level_context->level_name, name);
         reload_level_files();
-        console.str += tprintf("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time);
+        builder_append(&console.content_builder, temp_string("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time));
         printf("level saved: \"%s\"; \n", level_path);
     }
     
     if (is_temp_level) {
-        // console.str += "\t>Temp level saved: ";
-        // console.str += name;
-        // console.str += "\n";
         printf("Temp level saved: %s\n", level_path);
     }
     
     if (is_autosave) {
-        // console.str += "\t>Autosaved: ";
-        // console.str += name;
-        // console.str += "\n";
         printf("Temp level saved: %s\n", level_path);
     }
     
@@ -1133,9 +1127,7 @@ b32 load_level(const char *level_name) {
     File file = load_file(level_path, "r");
     
     if (!file.loaded) {
-        console.str += "Could not load level: ";
-        console.str += name;
-        console.str += "\n";
+        builder_append(&console.content_builder, temp_string("Could not load level: %s\n", name));
         return false;
     }
     
@@ -2127,7 +2119,7 @@ inline void loop_entities(void (func)(Entity*)) {
 }
 
 void print_to_console(const char *text) {
-    console.str += tprintf("\t>%s\n", text);
+    builder_append(&console.content_builder, temp_string("\t>%s\n", text));
 }
 
 inline void init_loaded_entity(Entity *entity) {
@@ -2659,10 +2651,8 @@ Console_Command make_console_command(const char *name, void (func)() = NULL, voi
     return command;
 }
 
-void print_current_level() {
-    console.str += "\t>";
-    console.str += current_level_context->level_name;
-    console.str += "\n";
+inline void print_current_level() {
+    print_to_console(current_level_context->level_name);
 }
 
 void create_level(const char *level_name) {
@@ -2673,7 +2663,7 @@ void create_level(const char *level_name) {
     FILE *fptr = fopen(path, "r");
     
     if (fptr != NULL) {
-         console.str += "this level already exists\n";
+        print_to_console("this level already exists");
     } else {
         clean_up_scene();
         // switch_current_level_context(&loaded_level_context);
@@ -2682,7 +2672,7 @@ void create_level(const char *level_name) {
         
         save_level(level_name);
         enter_editor_state();
-        console.str += "Level successfuly created";
+        print_to_console("Level successfuly created");
     }
     
     if (fptr) {
@@ -2691,7 +2681,7 @@ void create_level(const char *level_name) {
 }
 
 void print_create_level_hint() {
-    console.str += "\t>Provide level name";
+    print_to_console("Provide level name");
 }
 
 void reload_level_files() {
@@ -2714,32 +2704,32 @@ void reload_level_files() {
 }
 
 void print_hotkeys_to_console() {
-    console.str += "\t>Ctrl+LeftMouse - Multiselect\n";
-    console.str += "\t>Ctrl+Shift+Mouse - Move multiselected\n";
-    console.str += "\t>Ctrl+RightMouse - Exclude multiselect\n";
-    console.str += "\t>Ctrl+Shift+Space - Toggle Game/Editor\n";
-    console.str += "\t>Ctrl+S - Save current level.\n";
-    console.str += "\t>Alt - See and move vertices with mouse.\n";
-    console.str += "\t>Alt+V - While moving vertex for snap it to closest.\n";
-    console.str += "\t>Alt+1-5 - Fast entities creation.\n";
-    console.str += "\t>Space - Create menu\n";
-    console.str += "\t>P - Move player spawn point\n";
-    console.str += "\t>TAB - Pause in game\n";
-    console.str += "\t>Ctrl+Shift+H - Freecam in game\n";
-    console.str += "\t>Right_Ctrl+L - Unlock camera\n";
-    console.str += "\t>K - Teleport player to mouse in game\n";
-    console.str += "\t>WASD - Scaling selected entity. Hold Alt for big.\n";
-    console.str += "\t>QE - Rotating selected entity. Hold Alt for big.\n";
+    print_to_console("Ctrl+LeftMouse - Multiselect");
+    print_to_console("Ctrl+Shift+Mouse - Move multiselected");
+    print_to_console("Ctrl+RightMouse - Exclude multiselect");
+    print_to_console("Ctrl+Shift+Space - Toggle Game/Editor");
+    print_to_console("Ctrl+S - Save current level.");
+    print_to_console("Alt - See and move vertices with mouse.");
+    print_to_console("Alt+V - While moving vertex for snap it to closest.");
+    print_to_console("Alt+1-5 - Fast entities creation.");
+    print_to_console("Space - Create menu");
+    print_to_console("P - Move player spawn point");
+    print_to_console("TAB - Pause in game");
+    print_to_console("Ctrl+Shift+H - Freecam in game");
+    print_to_console("Right_Ctrl+L - Unlock camera");
+    print_to_console("K - Teleport player to mouse in game");
+    print_to_console("WASD - Scaling selected entity. Hold Alt for big.");
+    print_to_console("QE - Rotating selected entity. Hold Alt for big.");
     
-    console.str += "Commands:\n\t>debug - debug commands info\n";
-    console.str += "\t>save <level> - save current level or specify level where to save\n";
-    console.str += "\t>level <level> - get current level name or load level if provided\n";
-    console.str += "\t>load <level> - load level\n";
-    console.str += "\t>create / new_level <level> - create empty level\n";
-    console.str += "\t>next / previous / reload / restart_game / first\n";
-    console.str += "\t>level_speedrun - Speedrun for levels\n";
-    console.str += "\t>game_speedrun - Whole game speedrun. Death puts in game begining.\n";
-    console.str += "\t>speedrun_disable\n";
+    print_to_console("Commands:\n\t>debug - debug commands info");
+    print_to_console("save <level> - save current level or specify level where to save");
+    print_to_console("level <level> - get current level name or load level if provided");
+    print_to_console("load <level> - load level");
+    print_to_console("create / new_level <level> - create empty level");
+    print_to_console("next / previous / reload / restart_game / first");
+    print_to_console("level_speedrun - Speedrun for levels");
+    print_to_console("game_speedrun - Whole game speedrun. Death puts in game begining.");
+    print_to_console("speedrun_disable");
 }
 
 void debug_unlock_camera() {
@@ -2749,25 +2739,25 @@ void debug_unlock_camera() {
 }
 
 void print_debug_commands_to_console() {
-    console.str += "\t\t>Debug Functions:\n";
-    console.str += "\t>infinite_ammo\n";
-    console.str += "\t>die\n";
-    console.str += "\t>enemy_ai\n";
-    console.str += "\t>god_mode\n";
-    console.str += "\t>add_ammo\n";
-    console.str += "\t>unlock_camera\n";
-    console.str += "\t>full_light\n";
-    console.str += "\t>collision_grid\n";
-    console.str += "\t>timescale <scale>\n";
-    console.str += "\t>draw_triggers\n";
+    print_to_console("\t>Debug Functions:");
+    print_to_console("infinite_ammo");
+    print_to_console("die");
+    print_to_console("enemy_ai");
+    print_to_console("god_mode");
+    print_to_console("add_ammo");
+    print_to_console("unlock_camera");
+    print_to_console("full_light");
+    print_to_console("collision_grid");
+    print_to_console("timescale <scale>");
+    print_to_console("draw_triggers");
     
-    console.str += "\t>play_replay - Plays current recorded game state replay. (Single level)\n";
-    console.str += "\t>save_replay - Saves current replay to file\n";
-    console.str += "\t>replay_load - Loads replay from file\n";
+    print_to_console("play_replay - Plays current recorded game state replay. (Single level)");
+    print_to_console("save_replay - Saves current replay to file");
+    print_to_console("replay_load - Loads replay from file");
     
-    console.str += "\t\t>Debug Info:\n";
-    console.str += "\t>player_speed\n";
-    console.str += "\t>entities_count\n";
+    print_to_console("\t>Debug Info:");
+    print_to_console("player_speed");
+    print_to_console("entities_count");
 }
 
 void debug_toggle_player_speed() {
@@ -2783,27 +2773,27 @@ void debug_print_entities_count() {
     ForEntities(entity, 0) {
         count++;
     }
-    console.str += tprintf("\t>Entities count: %d\n", count);
+    builder_append(&console.content_builder, temp_string("\t>Entities count: %d\n", count));
 }
 
 void debug_infinite_ammo() {
     debug.infinite_ammo = !debug.infinite_ammo;
-    console.str += tprintf("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled");
+    builder_append(&console.content_builder, temp_string("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled"));
 }
 
 void debug_enemy_ai() {
     debug.enemy_ai = !debug.enemy_ai;
-    console.str += tprintf("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled");
+    builder_append(&console.content_builder, temp_string("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled"));
 }
 
 void debug_god_mode() {
     debug.god_mode = !debug.god_mode;
-    console.str += tprintf("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled");
+    builder_append(&console.content_builder, temp_string("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled"));
 }
 
 void debug_toggle_full_light() {
     debug.full_light = !debug.full_light;
-    console.str += tprintf("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled");
+    builder_append(&console.content_builder, temp_string("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled"));
 }
 
 void debug_toggle_lightmap_view() {
@@ -2819,7 +2809,7 @@ void debug_toggle_lightmap_view() {
 
 void debug_toggle_collision_grid() {
     debug.draw_collision_grid = !debug.draw_collision_grid;
-    console.str += tprintf("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled");
+    builder_append(&console.content_builder, temp_string("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled"));
 }
 
 void debug_set_default_time_scale() {
@@ -2843,7 +2833,7 @@ void save_replay(const char *replay_name) {
     size_t write_result = fwrite(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.count, fptr);
     
     if (write_result != -1) {
-        console.str += tprintf("\t>Temp replay named %s is saved\n", name);
+        builder_append(&console.content_builder, temp_string("\t>Temp replay named %s is saved\n", name));
     }
 }
 
@@ -2877,7 +2867,7 @@ void load_replay(const char *replay_name) {
         // enter_game_state(current_level_context, true);
         play_loaded_replay();
     
-        console.str += tprintf("\t>Replay named %s is loaded\n", name);
+        builder_append(&console.content_builder, temp_string("\t>Replay named %s is loaded\n", name));
     }
 }
 
@@ -2894,7 +2884,7 @@ void debug_toggle_play_replay() {
         play_loaded_replay();
     }
     
-    console.str += tprintf("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled");
+    builder_append(&console.content_builder, temp_string("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled"));
 }
 
 void restart_game() {
@@ -2962,8 +2952,6 @@ void debug_toggle_draw_triggers() {
 
 void init_console() {
     reload_level_files();    
-
-    console.str = init_string();
 
     console.commands.add(make_console_command("hotkeys", print_hotkeys_to_console));
     console.commands.add(make_console_command("hotkey",  print_hotkeys_to_console));
@@ -3199,6 +3187,10 @@ void load_render() {
 
 void init_game() {
     initing_game = true;
+    
+    // init arenas.
+    init_allocator(&temp_allocator, Megabytes(1));
+    
     str_copy(loaded_level_context.name, "loaded_level_context");
     // str_copy(editor_level_context.name, "editor_level_context");
     str_copy(game_level_context.name, "game_level_context");
@@ -3797,8 +3789,7 @@ void update_console() {
         }
         
         if (make_input_field("", {0.0f, (f32)screen_height * 0.5f}, {(f32)screen_width, focus_input_field.font_size}, "console_input_field", color, false)) {
-            console.str += focus_input_field.content;
-            console.str += "\n";
+            builder_append(&console.content_builder, temp_string("%s\n", focus_input_field.content));
             
             //if we used hint while input, for example
             if (content_changed) {
@@ -3822,7 +3813,7 @@ void update_console() {
             }
             
             if (!found_command && console.args.count > 0) {
-                console.str += "\t>Command was not found :D\n";
+                print_to_console("Command was not found :D");
             }
             
             Medium_Str history_str;            
@@ -3847,6 +3838,8 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
+    clear_allocator(&temp_allocator);
+
     frame_rnd = rnd01();
     frame_on_circle_rnd = rnd_on_circle();
     
@@ -12734,7 +12727,7 @@ void draw_game() {
         f32 y_position = lerp(-screen_height * 0.6f, 0.0f, EaseOutQuint(console.open_progress));
         
         draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
-        draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color, false);
+        draw_text_boxed(console.content_builder.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color, false);
         draw_text(tprintf("App time: %.2f", core.time.app_time), {screen_width * 0.46f, 5.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
         draw_text(tprintf("Game time: %.2f", core.time.game_time), {screen_width * 0.46f, 20.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
     } else {
@@ -12746,7 +12739,7 @@ void draw_game() {
             f32 y_position = lerp(0.0f, -screen_height * 0.6f, EaseOutQuint(t));
             
             draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
-            draw_text_boxed(console.str.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color);
+            draw_text_boxed(console.content_builder.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color);
         }
     }
     

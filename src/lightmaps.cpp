@@ -164,6 +164,10 @@ void bake_lightmaps_if_need(){
             ClearBackground(Fade(BLACK, 0));
             
             ForEntities(texture_entity, TEXTURE){
+                // @TODO: There's a serious problem with that normal maps have static colors regardless of entity orientation,
+                // that means if entity is not at base rotation - normal maps are wrong.
+                // I think it will be fixed with simple shader here that will rotate normal map colors around considering 
+                // entity rotation.
                 if (texture_entity->have_normal_map){
                     draw_game_texture(texture_entity->normal_map_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color_changer.start_color);
                 }

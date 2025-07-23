@@ -1435,7 +1435,7 @@ struct Console_Command{
     void (*func_arg)(const char*) = NULL;
 };
 
-struct Console{   
+struct Console {   
     b32 is_open = false;
     Dynamic_Array<Console_Command> commands;
     Dynamic_Array<Medium_Str> args;
@@ -1445,7 +1445,9 @@ struct Console{
     Dynamic_Array<Medium_Str> history;
     int history_max = 0;
     
-    String str = String();
+    // String str = String();
+    String_Builder content_builder = {0};
+    
     f32 closed_time = -12;
     f32 opened_time = -12;
     f32 open_progress = 0;

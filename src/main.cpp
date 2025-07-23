@@ -6,17 +6,17 @@
 #include <stdint.h>
 #include <assert.h>
 
-#include "my_libs/my_defines.hpp"
+#include "my_defines.hpp"
 #include "Allocator.cpp"
 
-#include "my_libs/my_math.cpp"
-#include "my_libs/string.hpp"
-#include "my_libs/array.hpp"
-#include "my_libs/files.hpp"
+#include "my_math.cpp"
+#include "string.hpp"
+#include "array.hpp"
+#include "files.hpp"
 
-#include "include\raylib.h"
-#include "include\raymath.h"
-#include "include\rlgl.h"
+#include "raylib.h"
+#include "raymath.h"
+#include "rlgl.h"
 
 // #include <windows.h>
 
