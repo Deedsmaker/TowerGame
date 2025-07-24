@@ -1293,6 +1293,17 @@ enum Entity_Edge_Type{
     BOTTOM_EDGE
 };
 
+struct Multiselection {
+    b32 excluding = false;
+    b32 selecting = false;
+    
+    Vector2 start_point;
+    Dynamic_Array<i32> selection_entities = Dynamic_Array<i32>(128);
+    Dynamic_Array<i32> entities = Dynamic_Array<i32>(128);
+    Vector2 center;
+    Vector2 total_displacement_for_undo;
+};
+
 struct Editor{
     f32 in_editor_time = 0;
 
@@ -1340,17 +1351,6 @@ struct Editor{
     i32 moving_entity_edge_id = -1;
     Vector2 moving_edge_start_entity_position = Vector2_zero;
     Vector2 moving_edge_start_entity_scale = Vector2_zero;
-    
-    struct Multiselection {
-        b32 excluding = false;
-        b32 selecting = false;
-        
-        Vector2 start_point;
-        Dynamic_Array<i32> selection_entities = Dynamic_Array<i32>(128);
-        Dynamic_Array<i32> entities = Dynamic_Array<i32>(128);
-        Vector2 center;
-        Vector2 total_displacement_for_undo;
-    };
     
     Multiselection multiselection = {0};
     
