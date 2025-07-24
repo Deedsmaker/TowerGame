@@ -120,7 +120,6 @@ bool raymarch(vec2 origin, vec2 dir, float aspect, out float mat_emissive, out v
    
     for (int i = 0; i < u_max_raymarch_steps; i++){
         vec2 sample_point = origin + dir * current_dist;
-        //nocheckin
         // sample_point.x /= aspect; // when we sample the distance field we need to convert back to uv space.
 
         // early exit if we hit the edge of the screen.
@@ -227,7 +226,6 @@ void main()
    
     // convert from uv aspect to world aspect.
     vec2 uv = fragTexCoord;
-    //nocheckin
     // float aspect = u_screen_pixel_size.y / u_screen_pixel_size.x;
     // uv.x *= aspect;
     float aspect = 1;

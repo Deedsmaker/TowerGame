@@ -1341,15 +1341,18 @@ struct Editor{
     Vector2 moving_edge_start_entity_position = Vector2_zero;
     Vector2 moving_edge_start_entity_scale = Vector2_zero;
     
-    b32 excluding_multiselection = false;
-    b32 multiselecting = false;
-    Vector2 multiselect_start_point = Vector2_zero;
-    // This first one for when we actually currently selecting, so we can un-select if rect is not on entity anymore.
-    Dynamic_Array<i32> selection_multiselected_entities = Dynamic_Array<i32>(128);
-    // And this one is actual multiselected.
-    Dynamic_Array<i32> multiselected_entities = Dynamic_Array<i32>(128);
-    Vector2 multiselected_entities_center = Vector2_zero;
-    Vector2 multiselect_total_displacement_for_undo = Vector2_zero;
+    struct Multiselection {
+        b32 excluding = false;
+        b32 selecting = false;
+        
+        Vector2 start_point;
+        Dynamic_Array<i32> selection_entities = Dynamic_Array<i32>(128);
+        Dynamic_Array<i32> entities = Dynamic_Array<i32>(128);
+        Vector2 center;
+        Vector2 total_displacement_for_undo;
+    };
+    
+    Multiselection multiselection = {0};
     
     Vector2 copied_entities_center = Vector2_zero;
     Dynamic_Array<Entity> copied_entities = Dynamic_Array<Entity>(128);
