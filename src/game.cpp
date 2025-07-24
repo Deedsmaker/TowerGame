@@ -6076,6 +6076,51 @@ void rotate_multiselected(f32 to_rotate) {
     }
 }
 
+// This is for holding key and repeating action. Don't think that we should use OS ticks for that, but we probably eventually will 
+// use OS ticks for text input.
+struct Repeat_Action {
+    f32 hold_time_to_action = 0.2f;
+    f32 start_repeat_action_delay = 0.08f;
+    
+    b32 should_sped_up = true;
+    f32 sped_up_repeat_action_delay = 0.01f;
+
+    f32 action_time = -12;
+    f32 hold_time;
+    b32 repeating;
+};
+
+b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold) {
+    b32 result = false;
+    
+    if (pressed) {
+        result = true;
+        repeat_data->action_time = core.time.app_time;
+    } else if (hold) {
+        f32 since_press = core.time.app_time - repeat_data->action_time;
+        repeat_data->hold_time += core.time.real_dt;
+        
+        f32 repeat_delay = repeat_data->start_repeat_action_delay;
+        if (repeat_data->hold_time > 1.5f && repeat_data->should_sped_up) {
+            repeat_delay = repeat_data->sped_up_repeat_action_delay;
+        }
+        
+        if (!repeat_data->repeating && since_press > repeat_data->hold_time_to_action) {
+            repeat_data->repeating = true;
+            result = true;
+            repeat_data->action_time = core.time.app_time;
+        } else if (repeat_data->repeating && since_press > repeat_delay) {
+            result = true;
+            repeat_data->action_time = core.time.app_time;
+        }
+    } else {
+        repeat_data->hold_time = 0;
+        repeat_data->repeating = false;
+    }
+    
+    return result;
+}
+
 // This can be called not only when game_state is EDITOR, but even when we're in pause for example.
 void update_editor() {
     if (IsKeyPressed(KEY_ESCAPE)) {
@@ -6987,38 +7032,13 @@ void update_editor() {
         add_undo_action(undo_action);
     }
     
-    local_persist f32 undo_time = -12;
-    local_persist f32 undo_hold_time  = 0;
-    local_persist b32  repeating_undo = false;
+    local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
     
     b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
-    b32 undo_pressed = undo_required_helper_keys_down  && IsKeyPressed(KEY_Z);
-    b32 undo_holded = undo_required_helper_keys_down  && IsKeyDown(KEY_Z);
-    b32 undo_queued = false;
+    b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
+    b32 undo_holded  = undo_required_helper_keys_down && IsKeyDown(KEY_Z);
     
-    if (undo_pressed) {
-        undo_queued = true;
-        undo_time = core.time.app_time;
-    } else if (undo_holded) {
-        f32 since_press = core.time.app_time - undo_time;
-        undo_hold_time += dt;
-        f32 repeat_delay = 0.08f;
-        if (undo_hold_time > 3) {
-            repeat_delay = 0.01f;
-        }
-        
-        if (!repeating_undo && since_press > 0.2f) {
-            repeating_undo = true;
-            undo_queued = true;
-            undo_time = core.time.app_time;
-        } else if (repeating_undo && since_press > repeat_delay) {
-            undo_queued = true;
-            undo_time = core.time.app_time;
-        }
-    } else {
-        undo_hold_time = 0;
-        repeating_undo = false;
-    }
+    b32 undo_queued = is_action_queued(&undo_repeat_data, undo_pressed, undo_holded);
     
     if (current_level_context->undo_actions.count > 0 && undo_queued) {
         Undo_Action *action = current_level_context->undo_actions.pop_ptr();
@@ -7097,8 +7117,16 @@ void update_editor() {
         }
     }
     
+    local_persist Repeat_Action redo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
+    
+    b32 redo_required_helper_keys_down = IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
+    b32 redo_pressed = redo_required_helper_keys_down && IsKeyPressed(KEY_Z);
+    b32 redo_holded  = redo_required_helper_keys_down && IsKeyDown(KEY_Z);
+    
+    b32 redo_queued = is_action_queued(&redo_repeat_data, redo_pressed, redo_holded);
+    
     // redo logic
-    b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
+    b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && redo_queued;
     if (need_make_redo) {
         current_level_context->undo_actions.count++;        
         Undo_Action *action = current_level_context->undo_actions.last_ptr();
