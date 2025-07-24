@@ -36,7 +36,7 @@ struct Dynamic_Array{
             data = (T*)malloc(max_count * sizeof(T));
         }
         
-        if (count >= max_count){     
+        while (count + 1 >= max_count){     
             assert(max_count > 0);
         
             max_count *= 2;
@@ -77,6 +77,14 @@ struct Dynamic_Array{
         //mem_copy(get_ptr(index), last_ptr(), sizeof(T));
         
         count--;
+    }
+    
+    T* pop_ptr(){
+        if (count <= 0) {
+            return NULL;
+        }
+    
+        return &data[--count];
     }
     
     void remove_first_half(){

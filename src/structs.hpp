@@ -1015,7 +1015,7 @@ enum Death_Instinct_Reason{
 
 #define MAX_LINE_TRAILS 256
 
-#define MAX_UNDOS 256
+#define MAX_UNDOS 2048
 
 struct Undo_Action{
     //Entity *entity;
@@ -1045,7 +1045,7 @@ struct Undo_Action{
 };
 
 struct Level_Context{
-    Array<Undo_Action, MAX_UNDOS> undo_actions = Array<Undo_Action, MAX_UNDOS>();
+    Dynamic_Array<Undo_Action> undo_actions = Dynamic_Array<Undo_Action>(128);
     Cam cam = {};
 
     b32 inited = false;

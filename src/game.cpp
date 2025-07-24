@@ -6057,6 +6057,25 @@ void try_move_entity_edges(Entity *e) {
     }
 }
 
+void rotate_multiselected(f32 to_rotate) {
+    for (i32 i = 0; i < editor.multiselection.entities.count; i++) {                
+        Entity *entity = get_entity_by_id(editor.multiselection.entities.get(i));
+        
+        f32 next_rotation = round_to_factor(entity->rotation + to_rotate, 15);
+        to_rotate = next_rotation - entity->rotation;
+        
+        // @TODO: Should rewrite undo system and make that we add to undo all the changes at once so we don't have to undo
+        // a thousand times.
+        undo_remember_vertices_start(entity);
+        rotate(entity, to_rotate);
+        undo_add_rotation(entity, (to_rotate));
+        
+        Vector2 before_position = entity->position;
+        rotate_around_point(&entity->position, editor.multiselection.center, to_rotate);
+        undo_add_position(entity, entity->position - before_position);
+    }
+}
+
 // This can be called not only when game_state is EDITOR, but even when we're in pause for example.
 void update_editor() {
     if (IsKeyPressed(KEY_ESCAPE)) {
@@ -6693,22 +6712,7 @@ void update_editor() {
         if (to_rotate != 0) {
             
             if (multiselection->entities.count > 1) {
-                for (i32 i = 0; i < multiselection->entities.count; i++) {                
-                    Entity *entity = get_entity_by_id(multiselection->entities.get(i));
-                    
-                    f32 next_rotation = round_to_factor(entity->rotation + to_rotate, 15);
-                    to_rotate = next_rotation - entity->rotation;
-                    
-                    // @TODO: Should rewrite undo system and make that we add to undo all the changes at once so we don't have to undo
-                    // a thousand times.
-                    undo_remember_vertices_start(entity);
-                    rotate(entity, to_rotate);
-                    undo_add_rotation(entity, (to_rotate));
-                    
-                    Vector2 before_position = entity->position;
-                    rotate_around_point(&entity->position, multiselection->center, to_rotate);
-                    undo_add_position(entity, entity->position - before_position);
-                }
+                rotate_multiselected(to_rotate);
             } else {
                 f32 next_rotation = round_to_factor(editor.selected_entity->rotation + to_rotate, 15);
                 to_rotate = next_rotation - editor.selected_entity->rotation;
@@ -6726,9 +6730,13 @@ void update_editor() {
             holding_time += dt;
             if (holding_time >= 0.2f) {
                 f32 direction = IsKeyDown(KEY_E) ? 15 : -15;
-                undo_remember_vertices_start(editor.selected_entity);
-                rotate(editor.selected_entity, direction);
-                undo_add_rotation(editor.selected_entity, (direction));
+                if (multiselection->entities.count > 1) {
+                    rotate_multiselected(direction);                    
+                } else {
+                    undo_remember_vertices_start(editor.selected_entity);
+                    rotate(editor.selected_entity, direction);
+                    undo_add_rotation(editor.selected_entity, (direction));
+                }
                 holding_time = 0;
             }
         }
@@ -6979,7 +6987,40 @@ void update_editor() {
         add_undo_action(undo_action);
     }
     
-    if (current_level_context->undo_actions.count > 0 && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z) && !IsKeyDown(KEY_LEFT_SHIFT)) {
+    local_persist f32 undo_time = -12;
+    local_persist f32 undo_hold_time  = 0;
+    local_persist b32  repeating_undo = false;
+    
+    b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
+    b32 undo_pressed = undo_required_helper_keys_down  && IsKeyPressed(KEY_Z);
+    b32 undo_holded = undo_required_helper_keys_down  && IsKeyDown(KEY_Z);
+    b32 undo_queued = false;
+    
+    if (undo_pressed) {
+        undo_queued = true;
+        undo_time = core.time.app_time;
+    } else if (undo_holded) {
+        f32 since_press = core.time.app_time - undo_time;
+        undo_hold_time += dt;
+        f32 repeat_delay = 0.08f;
+        if (undo_hold_time > 3) {
+            repeat_delay = 0.01f;
+        }
+        
+        if (!repeating_undo && since_press > 0.2f) {
+            repeating_undo = true;
+            undo_queued = true;
+            undo_time = core.time.app_time;
+        } else if (repeating_undo && since_press > repeat_delay) {
+            undo_queued = true;
+            undo_time = core.time.app_time;
+        }
+    } else {
+        undo_hold_time = 0;
+        repeating_undo = false;
+    }
+    
+    if (current_level_context->undo_actions.count > 0 && undo_queued) {
         Undo_Action *action = current_level_context->undo_actions.pop_ptr();
         
         focus_input_field.in_focus = false;
