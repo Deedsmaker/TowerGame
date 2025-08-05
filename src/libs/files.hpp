@@ -8,14 +8,15 @@ struct File{
     //FILE *fptr;
     b32 loaded = false;
     char name[MEDIUM_STR_LEN];
-    Dynamic_Array<Long_Str> lines;
+    Array<String> lines = {0};
 };
 
 File load_file(const char *name, const char *mode){
     File file;
     //file.name = (char*)malloc(str_len(name) * sizeof(char));
     str_copy(file.name, name);
-    file.lines = Dynamic_Array<Long_Str>(128);
+    //nocheckin maybe reserve it here.
+    // file.lines = Array<Long_Str>(128);
     
     FILE *fptr = fopen(name, mode);
     
@@ -36,8 +37,8 @@ File load_file(const char *name, const char *mode){
             buffer[buffer_len] = '\0';
         }
         
-        file.lines.add({});
-        str_copy(file.lines.last_ptr()->data, buffer);
+        file.lines.append({});
+        str_copy(file.lines.last()->data, buffer);
     }
     
     if (fptr){
@@ -50,7 +51,7 @@ File load_file(const char *name, const char *mode){
 
 void unload_file(File *file){
     //free_string_array(&file->lines);
-    file->lines.free_arr();
+    file->lines.free();
     //free(file->name);
 }
 

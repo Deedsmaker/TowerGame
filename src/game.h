@@ -13,7 +13,7 @@ enum Drawing_State{
 global_variable Game_State game_state = EDITOR;
 global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
-inline void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot);
+inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot);
 
 void clean_up_scene();
 void enter_game_state(Level_Context *level_context, b32 should_init_entities);
@@ -30,7 +30,7 @@ void close_create_box();
 void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
 void calculate_bounds(Entity *entity);
-Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
+Bounds get_bounds(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
 Bounds get_cam_bounds(Cam cam, f32 zoom);
 Cam get_cam_for_resolution(i32 width, i32 height);
 inline f32 get_light_zoom(f32 radius);
@@ -105,7 +105,7 @@ void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color
 void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color);
 void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color);
 inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
-inline void make_outline(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Color color);
+inline void make_outline(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color);
 
 inline b32 should_draw_editor_hints();
 void draw_immediate_stuff();
@@ -119,16 +119,16 @@ Vector2 local (Entity *e, Vector2 global_pos);
 
 Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
 
-Array<Vector2, MAX_VERTICES> get_normals(Array<Vector2, MAX_VERTICES> vertices);
-inline void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2, MAX_VERTICES> vertices);
+Static_Array<Vector2, MAX_VERTICES> get_normals(Static_Array<Vector2, MAX_VERTICES> vertices);
+inline void fill_arr_with_normals(Static_Array<Vector2, MAX_VERTICES> *normals, Static_Array<Vector2, MAX_VERTICES> vertices);
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity);
 
 void resolve_collision(Entity *entity, Collision col);
-//Array<Collision> get_collisions(Entity *entity);
-void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Dynamic_Array<Collision> *result, FLAGS include_flags, i32 my_id = -1);
-void fill_collisions(Entity *entity, Dynamic_Array<Collision> *result);
-void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Dynamic_Array<Collision> *result, FLAGS include_flags);
+//Static_Array<Collision> get_collisions(Entity *entity);
+void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision> *result, FLAGS include_flags, i32 my_id = -1);
+void fill_collisions(Entity *entity, Array<Collision> *result);
+void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<Collision> *result, FLAGS include_flags);
 Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 Collision get_nearest_ground_collision(Vector2 point, f32 radius);
 b32 check_col_circles(Circle a, Circle b);
@@ -151,7 +151,7 @@ inline Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale);
 inline Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale);
 inline void draw_game_triangle(Vector2 a, Vector2 b, Vector2 c, Color color);
 inline void draw_game_circle(Vector2 position, f32 radius, Color color);
-inline void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color);
+inline void draw_game_triangle_strip(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color);
 inline void draw_game_triangle_strip(Entity *entity);
 inline void draw_game_triangle_strip(Entity *entity, Color color);
 inline void draw_game_rect(Vector2 pos, Vector2 scale, Vector2 pivot, Color color);
@@ -160,7 +160,7 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
 inline void draw_game_line_strip(Entity *entity, Color color);
 inline void draw_game_line_strip(Vector2 *points, int count, Color color);
-inline void draw_game_line_strip(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Color color);
+inline void draw_game_line_strip(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color);
 inline void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip = false);
 inline void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
 inline void draw_game_line(Vector2 start, Vector2 end, Color color);
@@ -170,7 +170,7 @@ inline void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color c
 inline void draw_game_text(Vector2 position, const char *text, f32 size, Color color);
 
 //void draw_anim(Anim *anim, Texture *textures);
-void load_anim(Dynamic_Array<Texture> *frames, const char *name);
+void load_anim(Array<Texture> *frames, const char *name);
 
 Entity* add_text(Vector2 pos, f32 size, const char *text);
 
@@ -214,7 +214,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Text
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
-Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Array<Vector2, MAX_VERTICES> vertices);
+Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Static_Array<Vector2, MAX_VERTICES> vertices);
 
 // Particle_Emitter* add_emitter();
 // Particle_Emitter* add_emitter(Particle_Emitter *copy);

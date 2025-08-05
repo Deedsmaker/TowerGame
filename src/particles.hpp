@@ -52,9 +52,9 @@ global_variable i32 enabled_particles_count = 0;
 void add_line_trail_position(Line_Trail *line_trail, Vector2 point){
     Vector2 *spot = NULL;
     if (line_trail->positions.count < LINE_TRAIL_MAX_POINTS){
-        spot = line_trail->positions.add({});
+        spot = line_trail->positions.append({});
     } else{
-        spot = line_trail->positions.get_ptr(line_trail->start_index);    
+        spot = line_trail->positions.get(line_trail->start_index);    
         line_trail->start_index = (line_trail->start_index + 1) % LINE_TRAIL_MAX_POINTS;
     }
     
@@ -63,11 +63,11 @@ void add_line_trail_position(Line_Trail *line_trail, Vector2 point){
 }
 
 i32 add_line_trail(Vector2 start_position){
-    for (i32 i = 0; i < current_level_context->line_trails.max_count; i++){
-        Line_Trail *line_trail = current_level_context->line_trails.get_ptr(i);
+    for (i32 i = 0; i < current_level_context->line_trails.capacity; i++){
+        Line_Trail *line_trail = current_level_context->line_trails.get(i);
         if (!line_trail->occupied){
             line_trail->occupied = true;            
-            // line_trail->positions.add(start_position);
+            // line_trail->positions.append(start_position);
             add_line_trail_position(line_trail, start_position);
             return i;
         }
@@ -83,7 +83,7 @@ inline Line_Trail *get_line_trail(i32 index){
         return NULL;
     }
     
-    Line_Trail *line_trail = current_level_context->line_trails.get_ptr(index);
+    Line_Trail *line_trail = current_level_context->line_trails.get(index);
     if (!line_trail->occupied){
         printf("WARNING: Trying to get line trail that wasn't occupied with index %d\n", index);
         line_trail = NULL;
@@ -212,13 +212,13 @@ inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 
         particle.line_trail_index = add_line_trail(position);
     }
     
-    if (!current_level_context->particles.get(emitter->last_added_index).enabled){
+    if (!current_level_context->particles.get_value(emitter->last_added_index).enabled){
         enabled_particles_count++;
     }
     
-    *current_level_context->particles.get_ptr(emitter->last_added_index) = particle;
+    *current_level_context->particles.get(emitter->last_added_index) = particle;
     
-    // emitter->last_added_index = (last_added_index + 1) % current_level_context->particles.max_count;
+    // emitter->last_added_index = (last_added_index + 1) % current_level_context->particles.capacity;
     emitter->last_added_index += 1;
     if (emitter->last_added_index >= emitter->particles_max_index){
         emitter->last_added_index = emitter->particles_start_index;
@@ -258,7 +258,7 @@ void emit_particles(Particle_Emitter *emitter, Vector2 position, Vector2 directi
     }
     
     for (i32 i = 0; i < emitter->additional_emitters.count; i++){
-        emit_particles(emitter->additional_emitters.get(i), position, direction, count_multiplier, speed_multiplier, area_multiplier);
+        emit_particles(emitter->additional_emitters.get_value(i), position, direction, count_multiplier, speed_multiplier, area_multiplier);
     }
 }
 
@@ -329,11 +329,11 @@ inline void disable_particle(Particle *particle){
 internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt){
     emitter->alive_particles_count = 0;
     for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
-        if (!current_level_context->particles.get(i).enabled){
+        if (!current_level_context->particles.get_value(i).enabled){
             continue;
         }
     
-        Particle *particle = current_level_context->particles.get_ptr(i);
+        Particle *particle = current_level_context->particles.get(i);
         // dt = game_state == EDITOR ? core.time.real_dt : dt;
         
         if (particle->lifetime <= 0.2f && game_state == GAME){
@@ -388,18 +388,18 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         
         particle->rotation += emitter->rotation_multiplier * particle->velocity.x * dt;
         
-        Vector2 next_position = add(particle->position, multiply(particle->velocity, dt));
+        Vector2 next_position = particle->position + particle->velocity * dt;
         
         particle->position = next_position;
         
         if (emitter->should_collide){
-            local_persist Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
+            local_persist Static_Array<Vector2, MAX_VERTICES> vertices = Static_Array<Vector2, MAX_VERTICES>();
             add_rect_vertices(&vertices, {0.5f, 0.5f});
             local_persist Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
             
             fill_collisions(particle->position, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
             if (collisions_buffer.count > 0){
-                Collision col = collisions_buffer.get(0);
+                Collision col = collisions_buffer.get_value(0);
                 emit_particles(&air_dust_emitter, col.point, col.normal);
                 disable_particle(particle);
                 continue;
@@ -444,8 +444,8 @@ inline void update_emitter(Particle_Emitter *emitter, f32 dt){
 
 void update_particle_emitters(f32 dt){
     i32 emitters_count = 0;
-    for (int i = 0; i < current_level_context->particle_emitters.max_count; i++){
-        Particle_Emitter *emitter = current_level_context->particle_emitters.get_ptr(i);
+    for (int i = 0; i < current_level_context->particle_emitters.capacity; i++){
+        Particle_Emitter *emitter = current_level_context->particle_emitters.get(i);
         if (!emitter->occupied){
             continue;              
         }
@@ -544,14 +544,14 @@ void setup_particles(){
     blood_pop_emitter_copy.gravity_multiplier = 0.1f;
     blood_pop_emitter_copy.color             = Fade(RED, 0.2f);
     blood_pop_emitter_copy.enabled           = true;
-    blood_pop_emitter_copy.additional_emitters.add(&sword_sparks_emitter_copy);
+    blood_pop_emitter_copy.additional_emitters.append(&sword_sparks_emitter_copy);
     str_copy(blood_pop_emitter_copy.tag_16, "blood");
     
     sword_kill_medium_emitter_copy = blood_pop_emitter_copy;
     sword_kill_medium_emitter_copy.additional_emitters.clear();
-    sword_kill_medium_emitter_copy.additional_emitters.add(&sparks_emitter_copy);
-    sword_kill_medium_emitter_copy.additional_emitters.add(&ultra_small_shockwave_emitter_copy);
-    sword_kill_medium_emitter_copy.additional_emitters.add(&metal_debris_emitter_copy);
+    sword_kill_medium_emitter_copy.additional_emitters.append(&sparks_emitter_copy);
+    sword_kill_medium_emitter_copy.additional_emitters.append(&ultra_small_shockwave_emitter_copy);
+    sword_kill_medium_emitter_copy.additional_emitters.append(&metal_debris_emitter_copy);
     sword_kill_medium_emitter_copy.color             = Fade(ColorBrightness(RED, 0.3f), 0.4f);
     sword_kill_medium_emitter_copy.speed_min         = 2;
     sword_kill_medium_emitter_copy.speed_max         = 30;
@@ -565,11 +565,11 @@ void setup_particles(){
     
     sword_kill_big_emitter_copy = sword_kill_medium_emitter_copy;
     sword_kill_big_emitter_copy.additional_emitters.clear();
-    sword_kill_big_emitter_copy.additional_emitters.add(&sparks_emitter_copy);
-    sword_kill_big_emitter_copy.additional_emitters.add(&small_shockwave_emitter_copy);
-    sword_kill_big_emitter_copy.additional_emitters.add(&medium_metal_debris_emitter_copy);
-    sword_kill_big_emitter_copy.additional_emitters.add(&blood_sparks_emitter_copy);
-    sword_kill_big_emitter_copy.additional_emitters.add(&big_sword_sparks_emitter_copy);
+    sword_kill_big_emitter_copy.additional_emitters.append(&sparks_emitter_copy);
+    sword_kill_big_emitter_copy.additional_emitters.append(&small_shockwave_emitter_copy);
+    sword_kill_big_emitter_copy.additional_emitters.append(&medium_metal_debris_emitter_copy);
+    sword_kill_big_emitter_copy.additional_emitters.append(&blood_sparks_emitter_copy);
+    sword_kill_big_emitter_copy.additional_emitters.append(&big_sword_sparks_emitter_copy);
     sword_kill_big_emitter_copy.color             = Fade(ColorBrightness(RED, 0.3f), 0.7f);
     sword_kill_big_emitter_copy.speed_min         = 5;
     sword_kill_big_emitter_copy.speed_max         = 50;
@@ -727,7 +727,7 @@ void setup_particles(){
     medium_metal_debris_emitter_copy.scale_max         = 5.5f;
     str_copy(medium_metal_debris_emitter_copy.tag_16, "m_metal_debris");
     
-    // explosion_emitter_copy.additional_emitters.add(&smoke_explosion_emitter_copy);
+    // explosion_emitter_copy.additional_emitters.append(&smoke_explosion_emitter_copy);
     explosion_emitter_copy.spawn_radius       = 5;
     explosion_emitter_copy.over_distance      = 1;
     explosion_emitter_copy.direction_to_move  = 0;
@@ -744,7 +744,7 @@ void setup_particles(){
     explosion_emitter_copy.gravity_multiplier = 1;
     explosion_emitter_copy.color              = Fade(ORANGE, 0.7f);
     explosion_emitter_copy.enabled            = false;
-    explosion_emitter_copy.additional_emitters.add(&shockwave_emitter_copy);
+    explosion_emitter_copy.additional_emitters.append(&shockwave_emitter_copy);
     str_copy(explosion_emitter_copy.tag_16, "explosion");
     
     shockwave_emitter_copy.shape              = PARTICLE_TEXTURE;
@@ -787,10 +787,10 @@ void setup_particles(){
     
     big_explosion_emitter_copy = explosion_emitter_copy;
     big_explosion_emitter_copy.additional_emitters.clear();
-    big_explosion_emitter_copy.additional_emitters.add(&big_shockwave_emitter_copy);
+    big_explosion_emitter_copy.additional_emitters.append(&big_shockwave_emitter_copy);
     str_copy(big_explosion_emitter_copy.tag_16, "big_explos");
     
-    fire_emitter.additional_emitters.add(&smoke_fire_emitter_copy);
+    fire_emitter.additional_emitters.append(&smoke_fire_emitter_copy);
     fire_emitter.spawn_radius       = 1.5f;
     fire_emitter.over_distance      = 1;
     fire_emitter.direction_to_move  = 0;
@@ -931,7 +931,7 @@ void setup_particles(){
     
     bullet_strong_hit_emitter_copy = bullet_hit_emitter_copy;
     bullet_strong_hit_emitter_copy.additional_emitters.clear();
-    bullet_strong_hit_emitter_copy.additional_emitters.add(&magical_trails_emitter_copy);
+    bullet_strong_hit_emitter_copy.additional_emitters.append(&magical_trails_emitter_copy);
     str_copy(bullet_hit_emitter_copy.tag_16, "bullet_str_hit");
     
     magical_trails_emitter_copy.spawn_radius                 = 6.5f;

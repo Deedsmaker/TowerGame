@@ -9,7 +9,7 @@
 
 #include "my_math.cpp"
 #include "string.hpp"
-#include "array.hpp"
+#include "array_old.hpp"
 #include "files.hpp"
 
 void test_str1(){
@@ -20,19 +20,19 @@ void test_str1(){
     
     split_str(str.data, "\n {}|", &splitted);
     
-    assert(str_equal(splitted.get(0).data, "Cht"));
-    assert(str_equal(splitted.get(1).data, "oto"));
-    assert(str_equal(splitted.get(2).data, "ab"));
-    assert(str_equal(splitted.get(3).data, "ob"));
-    assert(str_equal(splitted.get(4).data, "a"));
-    assert(str_equal(splitted.get(5).data, "w"));
-    assert(str_equal(splitted.get(6).data, "ow!!!"));
+    assert(str_equal(splitted.get_value(0).data, "Cht"));
+    assert(str_equal(splitted.get_value(1).data, "oto"));
+    assert(str_equal(splitted.get_value(2).data, "ab"));
+    assert(str_equal(splitted.get_value(3).data, "ob"));
+    assert(str_equal(splitted.get_value(4).data, "a"));
+    assert(str_equal(splitted.get_value(5).data, "w"));
+    assert(str_equal(splitted.get_value(6).data, "ow!!!"));
     
     printf("test_str1 cool!\n");
     
     str.free_str();
     //free_string_array(&splitted);
-    splitted.free_arr();
+    splitted.free();
 }
 
 void test_str2(){
@@ -70,13 +70,13 @@ void test_str2(){
 //     Dynamic_Array<String> splited = Dynamic_Array<String>(16);
     
 //     for (int i = 0; i < test_file.lines.count; i++){
-//         splited = split_str(test_file.lines.get(i), "[, ]", 4);
+//         splited = split_str(test_file.lines.get_value(i), "[, ]", 4);
 //         for (int j = 0; j < splited.count; j++){
-//             int num = atoi(splited.get(j).data);
+//             int num = atoi(splited.get_value(j).data);
 //             assert(num == test_arr[i][j]);
 //         }
         
-//         //printf("%s", test_file.data.get(i).data);
+//         //printf("%s", test_file.data.get_value(i).data);
 //     }
     
 //     printf("test_files1 cool!\n");

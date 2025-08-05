@@ -49,10 +49,10 @@ struct Ui_Element{
 };
 
 struct Ui_Context{
-    // Array<Button, MAX_BUTTONS>     buttons   = Array<Button, MAX_BUTTONS>();
-    // Array<Ui_Image, MAX_UI_IMAGES> ui_images = Array<Ui_Image, MAX_UI_IMAGES>();
-    // Array<Ui_Text, MAX_UI_TEXTS>   ui_texts  = Array<Ui_Text, MAX_UI_TEXTS>();
-    Array<Ui_Element, MAX_UI_ELEMENTS> elements = Array<Ui_Element, MAX_UI_ELEMENTS>();
+    // Static_Array<Button, MAX_BUTTONS>     buttons   = Static_Array<Button, MAX_BUTTONS>();
+    // Static_Array<Ui_Image, MAX_UI_IMAGES> ui_images = Static_Array<Ui_Image, MAX_UI_IMAGES>();
+    // Static_Array<Ui_Text, MAX_UI_TEXTS>   ui_texts  = Static_Array<Ui_Text, MAX_UI_TEXTS>();
+    Static_Array<Ui_Element, MAX_UI_ELEMENTS> elements = Static_Array<Ui_Element, MAX_UI_ELEMENTS>();
 };
 
 global_variable Ui_Context ui_context = {};
@@ -69,11 +69,11 @@ static Ui_Element *init_ui_element(Vector2 position, Vector2 size, Vector2 pivot
     
     new_ui_element.color = color;
     
-    ui_context.elements.add(new_ui_element);
+    ui_context.elements.append(new_ui_element);
     
-    last_ui_element = ui_context.elements.last_ptr();
+    last_ui_element = ui_context.elements.last();
     
-    return ui_context.elements.last_ptr();
+    return ui_context.elements.last();
 }
 
 inline b32 last_ui_element_hovered(){

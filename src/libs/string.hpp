@@ -475,6 +475,22 @@ String make_string(Allocator *allocator, const char *text, ...){
     return result_string;
 }
 
+String make_substring(String original_string, int start_index, int end_index, Allocator *allocator) {
+    String new_string = {.allocator = allocator};
+    
+    if (end_index < start_index) {
+        return new_string;
+    }
+    
+    new_string.count = end_index - start_index;
+    
+    new_string.data = alloc(new_string.allocator,  new_string.count + 1); // +1 for null termination.
+    // @TODO: think about null termination.
+    mem_copy(new_string.data, original_string.data + start_index, new_string.count * sizeof(char));
+    new_string.data[new_string.count] = '\0';
+    return new_string;
+}
+
 String temp_string(const char *text, ...) {
     String result_string = {.allocator = &temp_allocator};
     result_string.data = alloc(result_string.allocator, 1024);
@@ -593,4 +609,34 @@ void builder_append(String_Builder *builder, String appended_string) {
 void builder_free(String_Builder *builder) {
     assert(builder->data);
     free_data_in_allocator(builder->allocator, builder->data);
+}
+
+
+#include "array_new.hpp"
+
+void split_string(Array<String> *result_array, String to_split, String separators) {
+    if (separators.count <= 0) {    
+        return;
+    }
+    
+    int ground_index = 0;
+    
+    for (int i = 0; i < to_split.count; i++) {
+        for (int s = 0; s < separators.count; s++) {
+            if (to_split.data[i] == separators.data[s]) {
+                // That check exists for continuous separators.
+                if (ground_index < i) {                
+                    result_array->append(make_substring(to_split, ground_index, i, &temp_allocator));
+                }
+                    
+                ground_index = i + 1;
+            }
+        }
+    }
+}
+
+Array<String> split_string(String to_split, String separators) {
+    Array<String> result = {0};     
+    split_string(&result, to_split, separators);    
+    return result;
 }

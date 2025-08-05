@@ -11,20 +11,20 @@
 //#define assert(a) (if (!a) (i32*)void*);
 //#define assert(Expression) if(!(Expression)) {*(i32 *)0 = 0;}
 
-global_variable Dynamic_Array<Collision> collisions_buffer        = Dynamic_Array<Collision>(256);
+global_variable Array<Collision> collisions_buffer; // Should probably reserve data.
 
 #include "game.h"
 #include "perlin.h"
 
-// #define ForEntities(entityext_avaliable(table, 0);  xx < table.max_count; xx = table_next_avaliable(table, xx+0))
+// #define ForEntities(entityext_avaliable(table, 0);  xx < table.capacity; xx = table_next_avaliable(table, xx+0))
 
-#define ForEntities(entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(current_level_context, 0, &entity, flags); index < current_level_context->entities.max_count && entity; index = next_entity_avaliable(current_level_context, index+1, &entity, flags)) 
+#define ForEntities(entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(current_level_context, 0, &entity, flags); index < current_level_context->entities.capacity && entity; index = next_entity_avaliable(current_level_context, index+1, &entity, flags)) 
 
-#define ForEntitiesInContext(context, entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(context, 0, &entity, flags); index < current_level_context->entities.max_count && entity; index = next_entity_avaliable(context, index+1, &entity, flags)) 
+#define ForEntitiesInContext(context, entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(context, 0, &entity, flags); index < current_level_context->entities.capacity && entity; index = next_entity_avaliable(context, index+1, &entity, flags)) 
 
-#define ArrayOfStructsToDefaultValues(arr) for (i32 arr_index = 0; arr_index < arr.max_count; arr_index++) { (*arr.get_ptr(arr_index)) = {};}
+#define ArrayOfStructsToDefaultValues(arr) for (i32 arr_index = 0; arr_index < arr.capacity; arr_index++) { (*arr.get(arr_index)) = {};}
 
-//#define For(arr, type, value) for(i32 ii = 0; ii < arr.count; ii++) { type value = arr.get(ii);
+//#define For(arr, type, value) for(i32 ii = 0; ii < arr.count; ii++) { type value = arr.get_value(ii);
 
 global_variable Input input = {};
 global_variable Input replay_input = {};
@@ -61,7 +61,7 @@ global_variable Debug  debug  = {};
 
 global_variable const char *first_level_name = "new_basics1";
 
-global_variable Array<Vector2, MAX_VERTICES> global_normals = Array<Vector2, MAX_VERTICES>();
+global_variable Static_Array<Vector2, MAX_VERTICES> global_normals = Static_Array<Vector2, MAX_VERTICES>();
 
 global_variable Entity mouse_entity;
 
@@ -75,9 +75,9 @@ global_variable b32 clicked_ui = false;
 
 global_variable b32 enter_game_state_on_new_level = false;
 
-global_variable Dynamic_Array<Texture_Data> loaded_textures = Dynamic_Array<Texture_Data>(512);
-global_variable Dynamic_Array<Texture_Data> normal_maps     = Dynamic_Array<Texture_Data>(16);
-global_variable Dynamic_Array<Sound_Handler> sounds_array = Dynamic_Array<Sound_Handler>(128);
+global_variable Array<Texture_Data> loaded_textures = {0};
+global_variable Array<Texture_Data> normal_maps = {0};
+global_variable Array<Sound_Handler> sounds_array = {0};
 
 global_variable b32 initing_game = false;
 
@@ -127,7 +127,7 @@ Player death_player_data = {};
 Cam global_cam_data = {};
 
 void log_short(const char *str) {
-    Log_Message *new_log = debug.log_messages_short.add({});
+    Log_Message *new_log = debug.log_messages_short.append({});
     str_copy(new_log->data, str);
     new_log->birth_time = core.time.app_time;
 }
@@ -196,7 +196,7 @@ void free_entity_light(Entity *e) {
         // has index and size is the same and use it. We will free it when level gets unload.
         // Update: We will have lights of each size loaded in the init and will use them without more allocating. 
         // Like we already do with temp lights.
-        Light *current_light = current_level_context->lights.get_ptr(e->light_index);           
+        Light *current_light = current_level_context->lights.get(e->light_index);           
         free_light(current_light);        
         e->light_index = -1;
     }
@@ -204,12 +204,12 @@ void free_entity_light(Entity *e) {
 
 void free_entity(Entity *e) {
     if (e->flags & TRIGGER) {
-        if (e->trigger.connected.max_count > 0) {
-            e->trigger.connected.free_arr();
+        if (e->trigger.connected.capacity > 0) {
+            e->trigger.connected.free();
         }
         
-        if (e->trigger.cam_rails_points.max_count > 0) {
-            e->trigger.cam_rails_points.free_arr();
+        if (e->trigger.cam_rails_points.capacity > 0) {
+            e->trigger.cam_rails_points.free();
         }
     }
     
@@ -219,7 +219,7 @@ void free_entity(Entity *e) {
     
     // free kill switch
     if (e->flags & KILL_SWITCH) {
-        e->enemy.kill_switch.connected.free_arr();    
+        e->enemy.kill_switch.connected.free();    
     }
     
     if (e->flags & CENTIPEDE) {
@@ -229,7 +229,7 @@ void free_entity(Entity *e) {
             // Probably that doesn't matter because while game-looping we're just destroy them and when we're clearing context 
             // we'll call it anyway, but nonetheless we should be able to just call free_entity without trouble in such case.
             // Will see into that when will rewrite entities.
-            Entity *segment = get_entity_by_id(e->centipede.segments_ids.get(i));
+            Entity *segment = get_entity_by_id(e->centipede.segments_ids.get_value(i));
             segment->destroyed = true;
             segment->enabled = false;
         }
@@ -257,11 +257,11 @@ void free_entity(Entity *e) {
     
     // @CLEANUP: Why exactly we don't free that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
     // if (e->flags & MOVE_SEQUENCE) {
-    //     e->move_sequence.points.free_arr();
+    //     e->move_sequence.points.free();
     // }
     
     // if (e->flags & JUMP_SHOOTER) {
-    //     e->jump_shooter.move_points.free_arr();
+    //     e->jump_shooter.move_points.free();
     // }
     
     // free light
@@ -274,48 +274,48 @@ void free_entity(Entity *e) {
     free_entity_particle_emitters(e);
 }
 
-inline void add_rect_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     vertices->clear();
-    vertices->add({1.0f - pivot.x, pivot.y});
-    vertices->add({-pivot.x, pivot.y});
-    vertices->add({1.0f - pivot.x, pivot.y - 1.0f});
-    vertices->add({-pivot.x, pivot.y - 1.0f});
+    vertices->append({1.0f - pivot.x, pivot.y});
+    vertices->append({-pivot.x, pivot.y});
+    vertices->append({1.0f - pivot.x, pivot.y - 1.0f});
+    vertices->append({-pivot.x, pivot.y - 1.0f});
 }
 
-void add_triangle_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_triangle_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     vertices->clear();
-    vertices->add({pivot.x, pivot.y});
-    vertices->add({-pivot.x, pivot.y});
-    vertices->add({pivot.x, pivot.y - 1.0f});
+    vertices->append({pivot.x, pivot.y});
+    vertices->append({-pivot.x, pivot.y});
+    vertices->append({pivot.x, pivot.y - 1.0f});
 }
 
-void add_sword_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_sword_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     add_rect_vertices(vertices, pivot);
-    vertices->get_ptr(0)->x *= 0.3f;
-    vertices->get_ptr(1)->x *= 0.3f;
+    vertices->get(0)->x *= 0.3f;
+    vertices->get(1)->x *= 0.3f;
     
-    vertices->get_ptr(2)->y += 0.15f;
-    vertices->get_ptr(3)->y += 0.15f;
+    vertices->get(2)->y += 0.15f;
+    vertices->get(3)->y += 0.15f;
 }
 
-void add_prism_shaped_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot, f32 narrowing = 0.3f) {
+void add_prism_shaped_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot, f32 narrowing = 0.3f) {
     add_rect_vertices(vertices, pivot);
-    vertices->get_ptr(0)->x *= narrowing;
-    vertices->get_ptr(1)->x *= narrowing;
+    vertices->get(0)->x *= narrowing;
+    vertices->get(1)->x *= narrowing;
 }
 
-void add_upsidedown_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_upsidedown_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     add_rect_vertices(vertices, pivot);
-    vertices->get_ptr(2)->x *= 0.3f;
-    vertices->get_ptr(3)->x *= 0.3f;
+    vertices->get(2)->x *= 0.3f;
+    vertices->get(3)->x *= 0.3f;
 }
 
-void add_romb_vertices(Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_romb_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     add_rect_vertices(vertices, pivot);
-    vertices->get_ptr(0)->x *= 1.5f;
-    vertices->get_ptr(3)->x *= 1.5f;
+    vertices->get(0)->x *= 1.5f;
+    vertices->get(3)->x *= 1.5f;
     for (i32 i = 0; i < vertices->count; i++) {
-        rotate_around_point(vertices->get_ptr(i), {0, 0}, -55);
+        rotate_around_point(vertices->get(i), {0, 0}, -55);
     }
 }
 
@@ -435,7 +435,7 @@ Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotat
     setup_color_changer(this);
 }
 
-Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Array<Vector2, MAX_VERTICES> _vertices) {
+Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Static_Array<Vector2, MAX_VERTICES> _vertices) {
     flags    = _flags;
     id = _id;
     position = _pos;
@@ -501,19 +501,19 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
     // copy trigger
     if (flags & TRIGGER) {
         trigger = copy->trigger;
-        trigger.connected = Dynamic_Array<int>();
+        trigger.connected = {0};
         for (i32 i = 0; i < copy->trigger.connected.count; i++) {
-            trigger.connected.add(copy->trigger.connected.get(i));
+            trigger.connected.append(copy->trigger.connected.get_value(i));
         }
-        trigger.tracking = Dynamic_Array<int>();
+        trigger.tracking = {0};
         for (i32 i = 0; i < copy->trigger.tracking.count; i++) {
-            trigger.tracking.add(copy->trigger.tracking.get(i));
+            trigger.tracking.append(copy->trigger.tracking.get_value(i));
         }
         
         if (copy->trigger.start_cam_rails_horizontal || copy->trigger.start_cam_rails_vertical) {
-            trigger.cam_rails_points = Dynamic_Array<Vector2>();           
+            trigger.cam_rails_points = {0};
             for (i32 i = 0; i < copy->trigger.cam_rails_points.count; i++) {
-                trigger.cam_rails_points.add(copy->trigger.cam_rails_points.get(i));               
+                trigger.cam_rails_points.append(copy->trigger.cam_rails_points.get_value(i));               
             }
         }
     }
@@ -523,24 +523,24 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
         Kill_Switch *kill_switch = &enemy.kill_switch;
         Kill_Switch *copy_kill_switch = &copy->enemy.kill_switch;
         *kill_switch = *copy_kill_switch;
-        kill_switch->connected = Dynamic_Array<i32>();
+        kill_switch->connected = {0};
         for (i32 i = 0; i < copy_kill_switch->connected.count; i++) {
-            kill_switch->connected.add(copy_kill_switch->connected.get(i));
+            kill_switch->connected.append(copy_kill_switch->connected.get_value(i));
         }
     }
     
     if (flags & NOTE) {
         note_index = add_note("");
         if (note_index != -1 && copy->note_index != -1) {
-            (*current_level_context->notes.get_ptr(note_index)) = *copy_level_context->notes.get_ptr(copy->note_index);
+            (*current_level_context->notes.get(note_index)) = *copy_level_context->notes.get(copy->note_index);
         }
     }
     
     if (flags & MOVE_SEQUENCE) {
         move_sequence = copy->move_sequence;
-        move_sequence.points = Dynamic_Array<Vector2>();
+        move_sequence.points = {0};
         for (i32 i = 0; i < copy->move_sequence.points.count; i++) {
-            move_sequence.points.add(copy->move_sequence.points.get(i));
+            move_sequence.points.append(copy->move_sequence.points.get_value(i));
         }
     }
     
@@ -554,7 +554,7 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
     
     if (copy->light_index != -1) {
         light_index = -1;
-        init_entity_light(this, copy_level_context->lights.get_ptr(copy->light_index));        
+        init_entity_light(this, copy_level_context->lights.get(copy->light_index));        
     }
     
     if (should_init_entity) {
@@ -616,7 +616,7 @@ i32 add_particle_emitter(Particle_Emitter *copy, i32 entity_id) {
     i32 emitter_index = -1;  
     i32 occupied_count = 0;
     for (i32 i = start_index; i < max_index; i++) {
-        Particle_Emitter *emitter = current_level_context->particle_emitters.get_ptr(i);
+        Particle_Emitter *emitter = current_level_context->particle_emitters.get(i);
         if (!emitter->occupied) {
             *emitter = *copy;
             emitter->occupied = true;
@@ -649,7 +649,7 @@ i32 add_particle_emitter(Particle_Emitter *copy, i32 entity_id) {
 }
 
 inline i32 add_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter) {
-    return *entity->particle_emitters_indexes.add(add_particle_emitter(emitter, entity->id));
+    return *entity->particle_emitters_indexes.append(add_particle_emitter(emitter, entity->id));
 }
 
 inline i32 add_and_enable_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter_copy, Vector2 position, b32 need_to_follow) {
@@ -664,12 +664,12 @@ inline i32 add_and_enable_entity_particle_emitter(Entity *entity, Particle_Emitt
 }
 
 Particle_Emitter *get_particle_emitter(i32 index) {
-    if (index < 0 || index >= current_level_context->particle_emitters.max_count) {
+    if (index < 0 || index >= current_level_context->particle_emitters.capacity) {
         printf("WARNING: Tried to get particle emitter with bad index: %d\n", index);
         return NULL;
     }
     
-    Particle_Emitter *emitter = current_level_context->particle_emitters.get_ptr(index);
+    Particle_Emitter *emitter = current_level_context->particle_emitters.get(index);
     if (!emitter->occupied) {
         print("WARNING: In get_particle_emitter we just took un-occupied emitter. Don't think that should happen");
     }
@@ -679,10 +679,10 @@ Particle_Emitter *get_particle_emitter(i32 index) {
 
 i32 add_note(const char *content) {
     i32 note_index = -1;
-    for (i32 i = 0; i < current_level_context->notes.max_count; i++) {
-        if (!current_level_context->notes.get_ptr(i)->occupied) {
-            current_level_context->notes.get_ptr(i)->occupied = true;
-            str_copy(current_level_context->notes.get_ptr(i)->content, content);
+    for (i32 i = 0; i < current_level_context->notes.capacity; i++) {
+        if (!current_level_context->notes.get(i)->occupied) {
+            current_level_context->notes.get(i)->occupied = true;
+            str_copy(current_level_context->notes.get(i)->content, content);
             note_index = i;
             break;
         }
@@ -714,15 +714,15 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         ArrayOfStructsToDefaultValues(current_level_context->particle_emitters);       
     }
     
-    for (i32 i = 0; i < src->particle_emitters.max_count; i++) {
+    for (i32 i = 0; i < src->particle_emitters.capacity; i++) {
         // Particle emitter could be connected to entity - in that case entity will add emitter itself if we init entities.
         // If emitter don't connected to entity - we want to copy it.
-        if (src->particle_emitters.get(i).connected_entity_id == -1 || !should_init_entities) {
-            dest->particle_emitters.data[i] = src->particle_emitters.get(i);
+        if (src->particle_emitters.get_value(i).connected_entity_id == -1 || !should_init_entities) {
+            dest->particle_emitters.data[i] = src->particle_emitters.get_value(i);
         }
     }
     
-    for (i32 i = 0; i < src->entities.max_count; i++) {
+    for (i32 i = 0; i < src->entities.capacity; i++) {
         Table_Data<Entity> data = {};
         
         data.key = src->entities.data[i].key;
@@ -735,19 +735,19 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         dest->entities.data[i] = data;
     }
     
-    dest->entities.max_count = src->entities.max_count;
+    dest->entities.capacity = src->entities.capacity;
     dest->entities.total_added_count = src->entities.total_added_count;
     dest->entities.last_added_key = src->entities.last_added_key;
     
-    for (i32 i = 0; i < src->line_trails.max_count; i++) {
-        dest->line_trails.data[i] = src->line_trails.get(i);
+    for (i32 i = 0; i < src->line_trails.capacity; i++) {
+        dest->line_trails.data[i] = src->line_trails.get_value(i);
     }
     
     assert(src->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
     assert(dest->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
     dest->lightmaps.clear();
     for (i32 i = 0; i < src->lightmaps.count; i++) {
-        dest->lightmaps.add(src->lightmaps.get(i));
+        dest->lightmaps.append(src->lightmaps.get_value(i));
     }
     
     switch_current_level_context(original_level_context);
@@ -770,11 +770,11 @@ void clear_level_context(Level_Context *level_context) {
     ArrayOfStructsToDefaultValues(level_context->particles);
     ArrayOfStructsToDefaultValues(level_context->notes);
     
-    for (i32 i = 0; i < level_context->lights.max_count; i++) {
-        level_context->lights.get_ptr(i)->exists = false;
+    for (i32 i = 0; i < level_context->lights.capacity; i++) {
+        level_context->lights.get(i)->exists = false;
         if (i >= session_context.entity_lights_start_index) {
-            free_light(level_context->lights.get_ptr(i));       
-            *(level_context->lights.get_ptr(i)) = {};
+            free_light(level_context->lights.get(i));       
+            *(level_context->lights.get(i)) = {};
         } else { // So we in temp lights section
         }
     }
@@ -812,19 +812,19 @@ i32 save_level(const char *level_name) {
     if (current_level_context->lightmaps.count > 0) {
         fprintf(fptr, "lightmaps [ ");
         for (i32 i = 0; i < current_level_context->lightmaps.count; i++) {
-            Lightmap_Data* l = current_level_context->lightmaps.get_ptr(i);
+            Lightmap_Data* l = current_level_context->lightmaps.get(i);
             fprintf(fptr, "{pos:{:%f:, :%f:}, size:{:%f:, :%f:}} ", l->position.x, l->position.y, l->game_size.x, l->game_size.y);
         }
         fprintf(fptr, "];\n"); 
     }
 
     fprintf(fptr, "Entities:\n");
-    for (i32 i = 0; i < current_level_context->entities.max_count; i++) {        
+    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
         if (!current_level_context->entities.has_index(i)) {
             continue;
         }
     
-        Entity *e = current_level_context->entities.get_ptr(i);
+        Entity *e = current_level_context->entities.get(i);
         
         if (!e->need_to_save) {
             continue;
@@ -835,13 +835,13 @@ i32 save_level(const char *level_name) {
         
         fprintf(fptr, "vertices [ ");
         for (i32 v = 0; v < e->vertices.count; v++) {
-            fprintf(fptr, "{:%f:, :%f:} ", e->vertices.get(v).x, e->vertices.get(v).y); 
+            fprintf(fptr, "{:%f:, :%f:} ", e->vertices.get_value(v).x, e->vertices.get_value(v).y); 
         }
         fprintf(fptr, "] "); 
         
         fprintf(fptr, "unscaled_vertices [ ");
         for (i32 v = 0; v < e->unscaled_vertices.count; v++) {
-            fprintf(fptr, "{:%f:, :%f:} ", e->unscaled_vertices.get(v).x, e->unscaled_vertices.get(v).y); 
+            fprintf(fptr, "{:%f:, :%f:} ", e->unscaled_vertices.get_value(v).x, e->unscaled_vertices.get_value(v).y); 
         }
         fprintf(fptr, "] "); 
         
@@ -849,7 +849,7 @@ i32 save_level(const char *level_name) {
         fprintf(fptr, "spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo);
         
         if (e->light_index >= 0) {
-            Light *light = current_level_context->lights.get_ptr(e->light_index);
+            Light *light = current_level_context->lights.get(e->light_index);
             fprintf(fptr, "light_shadows_size_flag:%d: ",     light->shadows_size_flags);
             fprintf(fptr, "light_backshadows_size_flag:%d: ", light->backshadows_size_flags);
             fprintf(fptr, "light_make_shadows:%d: ",          light->make_shadows);
@@ -865,7 +865,7 @@ i32 save_level(const char *level_name) {
             if (e->trigger.connected.count > 0) {
                 fprintf(fptr, "trigger_connected [ ");
                 for (i32 v = 0; v < e->trigger.connected.count; v++) {
-                    fprintf(fptr, ":%d: ", e->trigger.connected.get(v)); 
+                    fprintf(fptr, ":%d: ", e->trigger.connected.get_value(v)); 
                 }
                 fprintf(fptr, "] "); 
             }
@@ -873,7 +873,7 @@ i32 save_level(const char *level_name) {
             if (e->trigger.tracking.count > 0) {
                 fprintf(fptr, "trigger_tracking [ ");
                 for (i32 v = 0; v < e->trigger.tracking.count; v++) {
-                    fprintf(fptr, ":%d: ", e->trigger.tracking.get(v)); 
+                    fprintf(fptr, ":%d: ", e->trigger.tracking.get_value(v)); 
                 }
                 fprintf(fptr, "] "); 
             }
@@ -921,7 +921,7 @@ i32 save_level(const char *level_name) {
             if (e->trigger.cam_rails_points.count > 0) {
                 fprintf(fptr, "trigger_cam_rails_points [ ");
                 for (i32 v = 0; v < e->trigger.cam_rails_points.count; v++) {
-                    fprintf(fptr, "{:%f:, :%f:} ", e->trigger.cam_rails_points.get(v).x, e->trigger.cam_rails_points.get(v).y); 
+                    fprintf(fptr, "{:%f:, :%f:} ", e->trigger.cam_rails_points.get_value(v).x, e->trigger.cam_rails_points.get_value(v).y); 
                 }
                 fprintf(fptr, "] "); 
             }
@@ -931,7 +931,7 @@ i32 save_level(const char *level_name) {
             if (e->enemy.kill_switch.connected.count > 0) {
                 fprintf(fptr, "kill_switch_connected [ ");
                 for (i32 v = 0; v < e->enemy.kill_switch.connected.count; v++) {
-                    fprintf(fptr, ":%d: ", e->enemy.kill_switch.connected.get(v)); 
+                    fprintf(fptr, ":%d: ", e->enemy.kill_switch.connected.get_value(v)); 
                 }
                 fprintf(fptr, "] "); 
             }
@@ -941,7 +941,7 @@ i32 save_level(const char *level_name) {
             if (e->move_sequence.points.count > 0) {
                 fprintf(fptr, "move_sequence_points [ ");
                 for (i32 v = 0; v < e->move_sequence.points.count; v++) {
-                    fprintf(fptr, "{:%f:, :%f:} ", e->move_sequence.points.get(v).x, e->move_sequence.points.get(v).y); 
+                    fprintf(fptr, "{:%f:, :%f:} ", e->move_sequence.points.get_value(v).x, e->move_sequence.points.get_value(v).y); 
                 }
                 fprintf(fptr, "] "); 
             }
@@ -1040,8 +1040,8 @@ i32 save_level(const char *level_name) {
         
         if (e->flags & NOTE) {
             assert(e->note_index != -1);
-            fprintf(fptr, "note_content:\" %s \": ", current_level_context->notes.get_ptr(e->note_index)->content);
-            fprintf(fptr, "note_draw_in_game:%d: ", current_level_context->notes.get_ptr(e->note_index)->draw_in_game);
+            fprintf(fptr, "note_content:\" %s \": ", current_level_context->notes.get(e->note_index)->content);
+            fprintf(fptr, "note_draw_in_game:%d: ", current_level_context->notes.get(e->note_index)->draw_in_game);
         }
         
         fprintf(fptr, ";\n"); 
@@ -1077,32 +1077,32 @@ inline void save_level_by_name(const char *name) {
     save_level(name);
 }
 
-void fill_string(char *dest, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr) {
-    assert(line_arr.get(*index_ptr + 1).data[0] == '\"');
+void fill_string(char *dest, Array<Medium_Str> line_arr, i32 *index_ptr) {
+    assert(line_arr.get_value(*index_ptr + 1).data[0] == '\"');
     
     *index_ptr += 2;
     
-    for (; *index_ptr < line_arr.count && line_arr.get(*index_ptr).data[0] != '\"'; *index_ptr += 1) {
-        Medium_Str current_str = line_arr.get(*index_ptr);
+    for (; *index_ptr < line_arr.count && line_arr.get_value(*index_ptr).data[0] != '\"'; *index_ptr += 1) {
+        Medium_Str current_str = line_arr.get_value(*index_ptr);
         str_copy(dest, tprintf("%s %s", dest, current_str.data));
     }
 }
 
-void parse_lightmaps(Dynamic_Array<Lightmap_Data>* lightmaps, Dynamic_Array<Medium_Str>* splitted_line) {
-    assert(str_equal(splitted_line->get_ptr(0)->data, "lightmaps"));
-    assert(str_equal(splitted_line->get_ptr(1)->data, "["));
+void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<Medium_Str>* splitted_line) {
+    assert(str_equal(splitted_line->get(0)->data, "lightmaps"));
+    assert(str_equal(splitted_line->get(1)->data, "["));
     
     for (i32 i = 2; i < splitted_line->count; i++) {
-        Medium_Str* str = splitted_line->get_ptr(i);
+        Medium_Str* str = splitted_line->get(i);
         if (str_equal(str->data, "]")) {
             break;
         }
         
         assert(str_equal(str->data, "pos"));
         Lightmap_Data new_lightmap = {};
-        fill_vector2_from_string(&new_lightmap.position, splitted_line->get_ptr(i+1)->data, splitted_line->get_ptr(i+2)->data);
-        assert(str_equal(splitted_line->get_ptr(i+3)->data, "size"));
-        fill_vector2_from_string(&new_lightmap.game_size, splitted_line->get_ptr(i+4)->data, splitted_line->get_ptr(i+5)->data);
+        fill_vector2_from_string(&new_lightmap.position, splitted_line->get(i+1)->data, splitted_line->get(i+2)->data);
+        assert(str_equal(splitted_line->get(i+3)->data, "size"));
+        fill_vector2_from_string(&new_lightmap.game_size, splitted_line->get(i+4)->data, splitted_line->get(i+5)->data);
         i += 5;
         
         if (FileExists(get_lightmap_name(current_level_context->lightmaps.count))) {
@@ -1110,7 +1110,7 @@ void parse_lightmaps(Dynamic_Array<Lightmap_Data>* lightmaps, Dynamic_Array<Medi
             new_lightmap.has_loaded_texture = true;
         }
         
-        current_level_context->lightmaps.add(new_lightmap);
+        current_level_context->lightmaps.append(new_lightmap);
     }
 }
 
@@ -1151,13 +1151,13 @@ b32 load_level(const char *level_name) {
     
     setup_particles();
     
-    Dynamic_Array<Medium_Str> splitted_line = Dynamic_Array<Medium_Str>(64);
+    Array<Medium_Str> splitted_line = {0};
     
     b32 parsing_setup_data = false;
     b32 parsing_entities   = false;
     
     for (i32 line_index = 0; line_index < file.lines.count; line_index++) {
-        Long_Str line = file.lines.get(line_index);
+        Long_Str line = file.lines.get_value(line_index);
         
         if (str_equal(line.data, "Setup Data:")) {
             parsing_setup_data = true;
@@ -1177,12 +1177,12 @@ b32 load_level(const char *level_name) {
         
         for (i32 i = 0; i < splitted_line.count; i++) {
             if (parsing_setup_data) {
-                if (str_equal(splitted_line.get(i).data, "player_spawn_point")) {
-                    fill_vector2_from_string(&current_level_context->player_spawn_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+                if (str_equal(splitted_line.get_value(i).data, "player_spawn_point")) {
+                    fill_vector2_from_string(&current_level_context->player_spawn_point, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                     i += 2;
                     continue;
                 }
-                if (str_equal(splitted_line.get(i).data, "lightmaps")) {
+                if (str_equal(splitted_line.get_value(i).data, "lightmaps")) {
                     parse_lightmaps(&current_level_context->lightmaps, &splitted_line);
                 }
             }
@@ -1192,326 +1192,326 @@ b32 load_level(const char *level_name) {
             }
 
             if (0) {
-            } else if (str_equal(splitted_line.get(i).data, "name")) {
-                str_copy(entity_to_fill.name, splitted_line.get(i+1).data);  
+            } else if (str_equal(splitted_line.get_value(i).data, "name")) {
+                str_copy(entity_to_fill.name, splitted_line.get_value(i+1).data);  
                 i++;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "id")) {
-                fill_i32_from_string(&entity_to_fill.id, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "id")) {
+                fill_i32_from_string(&entity_to_fill.id, splitted_line.get_value(i+1).data);
                 i++;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "pos")) {
-                fill_vector2_from_string(&entity_to_fill.position, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "pos")) {
+                fill_vector2_from_string(&entity_to_fill.position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "scale")) {
-                fill_vector2_from_string(&entity_to_fill.scale, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "scale")) {
+                fill_vector2_from_string(&entity_to_fill.scale, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "pivot")) {
-                fill_vector2_from_string(&entity_to_fill.pivot, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "pivot")) {
+                fill_vector2_from_string(&entity_to_fill.pivot, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "rotation")) {
-                fill_f32_from_string(&entity_to_fill.rotation, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "rotation")) {
+                fill_f32_from_string(&entity_to_fill.rotation, splitted_line.get_value(i+1).data);
                 i += 1;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "color")) {
-                fill_vector4_from_string(&entity_to_fill.color, splitted_line.get(i+1).data, splitted_line.get(i+2).data, splitted_line.get(i+3).data, splitted_line.get(i+4).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "color")) {
+                fill_vector4_from_string(&entity_to_fill.color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "flags")) {
-                fill_u64_from_string(&entity_to_fill.flags, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "flags")) {
+                fill_u64_from_string(&entity_to_fill.flags, splitted_line.get_value(i+1).data);
                 i++;
                 
                 if (entity_to_fill.flags & LIGHT) {
                     // entity_to_fill.light_index = session_context.lights.count;
-                    // session_context.lights.add({});
+                    // session_context.lights.append({});
                     // init_entity_light(&entity_to_fill);
-                    for (i32 i = 0; i < current_level_context->lights.max_count; i++) {                    
-                        if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get(i).exists) {
+                    for (i32 i = 0; i < current_level_context->lights.capacity; i++) {                    
+                        if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get_value(i).exists) {
                             entity_to_fill.light_index = i;   
                         }
                     }
                 }
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "vertices")) {
+            } else if (str_equal(splitted_line.get_value(i).data, "vertices")) {
                 // fill_i32_from_string(&entity_to_fill.rotation);
                 fill_vertices_array_from_string(&entity_to_fill.vertices, splitted_line, &i);
                 // i--;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "unscaled_vertices")) {
+            } else if (str_equal(splitted_line.get_value(i).data, "unscaled_vertices")) {
                 // fill_i32_from_string(&entity_to_fill.rotation);
                 fill_vertices_array_from_string(&entity_to_fill.unscaled_vertices, splitted_line, &i);
                 //i--;
                 continue;
-            } else if (str_equal(splitted_line.get(i).data, "texture_name")) {
-                str_copy(entity_to_fill.texture_name, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "texture_name")) {
+                str_copy(entity_to_fill.texture_name, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "draw_order")) {
-                fill_i32_from_string(&entity_to_fill.draw_order, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "draw_order")) {
+                fill_i32_from_string(&entity_to_fill.draw_order, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_connected")) {
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_connected")) {
                 fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
-            } else if (str_equal(splitted_line.get(i).data, "kill_switch_connected")) {
+            } else if (str_equal(splitted_line.get_value(i).data, "kill_switch_connected")) {
                 fill_int_array_from_string(&entity_to_fill.enemy.kill_switch.connected, splitted_line, &i);
-            } else if (str_equal(splitted_line.get(i).data, "trigger_tracking")) {
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_tracking")) {
                 fill_int_array_from_string(&entity_to_fill.trigger.tracking, splitted_line, &i);
-            } else if (str_equal(splitted_line.get(i).data, "enemy_big_or_small_killable")) {
-                fill_b32_from_string(&entity_to_fill.enemy.big_sword_killable, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "enemy_big_or_small_killable")) {
+                fill_b32_from_string(&entity_to_fill.enemy.big_sword_killable, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "blocker_clockwise")) {
-                fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "blocker_clockwise")) {
+                fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "blocker_immortal")) {
-                fill_b32_from_string(&entity_to_fill.enemy.blocker_immortal, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "blocker_immortal")) {
+                fill_b32_from_string(&entity_to_fill.enemy.blocker_immortal, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "propeller_power")) {
-                fill_f32_from_string(&entity_to_fill.propeller.power, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "propeller_power")) {
+                fill_f32_from_string(&entity_to_fill.propeller.power, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "propeller_spin_sensitive")) {
-                fill_b32_from_string(&entity_to_fill.propeller.spin_sensitive, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "propeller_spin_sensitive")) {
+                fill_b32_from_string(&entity_to_fill.propeller.spin_sensitive, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "sword_kill_speed_modifier")) {
-                fill_f32_from_string(&entity_to_fill.enemy.sword_kill_speed_modifier, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "sword_kill_speed_modifier")) {
+                fill_f32_from_string(&entity_to_fill.enemy.sword_kill_speed_modifier, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_direction")) {
-                fill_vector2_from_string(&entity_to_fill.enemy.shoot_blocker_direction, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "shoot_blocker_direction")) {
+                fill_vector2_from_string(&entity_to_fill.enemy.shoot_blocker_direction, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
-            } else if (str_equal(splitted_line.get(i).data, "shoot_blocker_immortal")) {
-                fill_b32_from_string(&entity_to_fill.enemy.shoot_blocker_immortal, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "shoot_blocker_immortal")) {
+                fill_b32_from_string(&entity_to_fill.enemy.shoot_blocker_immortal, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "enemy_gives_ammo")) {
-                fill_b32_from_string(&entity_to_fill.enemy.gives_ammo, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "enemy_gives_ammo")) {
+                fill_b32_from_string(&entity_to_fill.enemy.gives_ammo, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "explosive_radius_multiplier")) {
-                fill_f32_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "explosive_radius_multiplier")) {
+                fill_f32_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_shadows_size_flag")) {
-                fill_i32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->shadows_size_flags, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_shadows_size_flag")) {
+                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->shadows_size_flags, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_backshadows_size_flag")) {
-                fill_i32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->backshadows_size_flags, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_backshadows_size_flag")) {
+                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->backshadows_size_flags, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_make_shadows")) {
-                fill_b32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->make_shadows, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_make_shadows")) {
+                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->make_shadows, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_make_backshadows")) {
-                fill_b32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->make_backshadows, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_make_backshadows")) {
+                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->make_backshadows, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_bake_shadows")) {
-                fill_b32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->bake_shadows, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_bake_shadows")) {
+                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->bake_shadows, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_radius")) {
-                fill_f32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->radius, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_radius")) {
+                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->radius, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_opacity")) {
-                fill_f32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->opacity, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_opacity")) {
+                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->opacity, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_power")) {
-                fill_f32_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->power, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_power")) {
+                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->power, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "light_color")) {
-                fill_vector4_from_string(&current_level_context->lights.get_ptr(entity_to_fill.light_index)->color, splitted_line.get(i+1).data, splitted_line.get(i+2).data, splitted_line.get(i+3).data, splitted_line.get(i+4).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "light_color")) {
+                fill_vector4_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_die_after_trigger")) {
-                fill_b32_from_string(&entity_to_fill.trigger.die_after_trigger, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_die_after_trigger")) {
+                fill_b32_from_string(&entity_to_fill.trigger.die_after_trigger, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_kill_player")) {
-                fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_kill_player")) {
+                fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_kill_enemies")) {
-                fill_b32_from_string(&entity_to_fill.trigger.kill_enemies, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_kill_enemies")) {
+                fill_b32_from_string(&entity_to_fill.trigger.kill_enemies, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_open_doors")) {
-                fill_b32_from_string(&entity_to_fill.trigger.open_doors, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_open_doors")) {
+                fill_b32_from_string(&entity_to_fill.trigger.open_doors, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_start_physics_simulation")) {
-                fill_b32_from_string(&entity_to_fill.trigger.start_physics_simulation, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_physics_simulation")) {
+                fill_b32_from_string(&entity_to_fill.trigger.start_physics_simulation, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_track_enemies")) {
-                fill_b32_from_string(&entity_to_fill.trigger.track_enemies, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_track_enemies")) {
+                fill_b32_from_string(&entity_to_fill.trigger.track_enemies, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_draw_lines_to_tracked")) {
-                fill_b32_from_string(&entity_to_fill.trigger.draw_lines_to_tracked, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_draw_lines_to_tracked")) {
+                fill_b32_from_string(&entity_to_fill.trigger.draw_lines_to_tracked, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_agro_enemies")) {
-                fill_b32_from_string(&entity_to_fill.trigger.agro_enemies, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_agro_enemies")) {
+                fill_b32_from_string(&entity_to_fill.trigger.agro_enemies, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_player_touch")) {
-                fill_b32_from_string(&entity_to_fill.trigger.player_touch, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_player_touch")) {
+                fill_b32_from_string(&entity_to_fill.trigger.player_touch, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_start_cam_rails_horizontal")) {
-                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_horizontal, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_cam_rails_horizontal")) {
+                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_horizontal, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_start_cam_rails_vertical")) {
-                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_vertical, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_cam_rails_vertical")) {
+                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_vertical, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_stop_cam_rails")) {
-                fill_b32_from_string(&entity_to_fill.trigger.stop_cam_rails, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_stop_cam_rails")) {
+                fill_b32_from_string(&entity_to_fill.trigger.stop_cam_rails, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_cam_rails_points")) {
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_cam_rails_points")) {
                 fill_vector2_array_from_string(&entity_to_fill.trigger.cam_rails_points, splitted_line, &i);
-            } else if (str_equal(splitted_line.get(i).data, "trigger_lock_camera")) {
-                fill_b32_from_string(&entity_to_fill.trigger.lock_camera, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_lock_camera")) {
+                fill_b32_from_string(&entity_to_fill.trigger.lock_camera, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_unlock_camera")) {
-                fill_b32_from_string(&entity_to_fill.trigger.unlock_camera, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_unlock_camera")) {
+                fill_b32_from_string(&entity_to_fill.trigger.unlock_camera, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_allow_player_shoot")) {
-                fill_b32_from_string(&entity_to_fill.trigger.allow_player_shoot, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_allow_player_shoot")) {
+                fill_b32_from_string(&entity_to_fill.trigger.allow_player_shoot, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_forbid_player_shoot")) {
-                fill_b32_from_string(&entity_to_fill.trigger.forbid_player_shoot, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_forbid_player_shoot")) {
+                fill_b32_from_string(&entity_to_fill.trigger.forbid_player_shoot, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_locked_camera_position")) {
-                fill_vector2_from_string(&entity_to_fill.trigger.locked_camera_position, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_locked_camera_position")) {
+                fill_vector2_from_string(&entity_to_fill.trigger.locked_camera_position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
-            } else if (str_equal(splitted_line.get(i).data, "spikes_on_right")) {
-                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_right, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "spikes_on_right")) {
+                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_right, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "spikes_on_left")) {
-                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_left, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "spikes_on_left")) {
+                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_left, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "physics_simulating")) {
-                fill_b32_from_string(&entity_to_fill.physics_object.simulating, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "physics_simulating")) {
+                fill_b32_from_string(&entity_to_fill.physics_object.simulating, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "on_rope")) {
-                fill_b32_from_string(&entity_to_fill.physics_object.on_rope, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "on_rope")) {
+                fill_b32_from_string(&entity_to_fill.physics_object.on_rope, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "physics_rotate_by_velocity")) {
-                fill_b32_from_string(&entity_to_fill.physics_object.rotate_by_velocity, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "physics_rotate_by_velocity")) {
+                fill_b32_from_string(&entity_to_fill.physics_object.rotate_by_velocity, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "physics_rope_point")) {
-                fill_vector2_from_string(&entity_to_fill.physics_object.rope_point, splitted_line.get(i+1).data, splitted_line.get(i+2).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "physics_rope_point")) {
+                fill_vector2_from_string(&entity_to_fill.physics_object.rope_point, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
-            } else if (str_equal(splitted_line.get(i).data, "physics_gravity_multiplier")) {
-                fill_f32_from_string(&entity_to_fill.physics_object.gravity_multiplier, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "physics_gravity_multiplier")) {
+                fill_f32_from_string(&entity_to_fill.physics_object.gravity_multiplier, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "physics_mass")) {
-                fill_f32_from_string(&entity_to_fill.physics_object.mass, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "physics_mass")) {
+                fill_f32_from_string(&entity_to_fill.physics_object.mass, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "segments_count")) {
-                fill_i32_from_string(&entity_to_fill.centipede.segments_count, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "segments_count")) {
+                fill_i32_from_string(&entity_to_fill.centipede.segments_count, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "door_open")) {
-                fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "door_open")) {
+                fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_load_level")) {
-                fill_b32_from_string(&entity_to_fill.trigger.load_level, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_load_level")) {
+                fill_b32_from_string(&entity_to_fill.trigger.load_level, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_play_replay")) {
-                fill_b32_from_string(&entity_to_fill.trigger.play_replay, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_play_replay")) {
+                fill_b32_from_string(&entity_to_fill.trigger.play_replay, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_level_name")) {
-                str_copy(entity_to_fill.trigger.level_name, splitted_line.get(i+1).data);  
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_level_name")) {
+                str_copy(entity_to_fill.trigger.level_name, splitted_line.get_value(i+1).data);  
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_replay_name")) {
-                str_copy(entity_to_fill.trigger.replay_name, splitted_line.get(i+1).data);  
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_replay_name")) {
+                str_copy(entity_to_fill.trigger.replay_name, splitted_line.get_value(i+1).data);  
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_play_sound")) {
-                fill_b32_from_string(&entity_to_fill.trigger.play_sound, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_play_sound")) {
+                fill_b32_from_string(&entity_to_fill.trigger.play_sound, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_change_zoom")) {
-                fill_b32_from_string(&entity_to_fill.trigger.change_zoom, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_change_zoom")) {
+                fill_b32_from_string(&entity_to_fill.trigger.change_zoom, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_zoom_value")) {
-                fill_f32_from_string(&entity_to_fill.trigger.zoom_value, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_zoom_value")) {
+                fill_f32_from_string(&entity_to_fill.trigger.zoom_value, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_sound_name")) {
-                str_copy(entity_to_fill.trigger.sound_name, splitted_line.get(i+1).data);  
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_sound_name")) {
+                str_copy(entity_to_fill.trigger.sound_name, splitted_line.get_value(i+1).data);  
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_shows_entities")) {
-                fill_b32_from_string(&entity_to_fill.trigger.shows_entities, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_shows_entities")) {
+                fill_b32_from_string(&entity_to_fill.trigger.shows_entities, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "trigger_starts_moving_sequence")) {
-                fill_b32_from_string(&entity_to_fill.trigger.starts_moving_sequence, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "trigger_starts_moving_sequence")) {
+                fill_b32_from_string(&entity_to_fill.trigger.starts_moving_sequence, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_moving")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.moving, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_moving")) {
+                fill_b32_from_string(&entity_to_fill.move_sequence.moving, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_loop")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.loop, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_loop")) {
+                fill_b32_from_string(&entity_to_fill.move_sequence.loop, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_rotate")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.rotate, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_rotate")) {
+                fill_b32_from_string(&entity_to_fill.move_sequence.rotate, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_speed_related_player_distance")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.speed_related_player_distance, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_speed_related_player_distance")) {
+                fill_b32_from_string(&entity_to_fill.move_sequence.speed_related_player_distance, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_min_distance")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.min_distance, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_min_distance")) {
+                fill_f32_from_string(&entity_to_fill.move_sequence.min_distance, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_max_distance")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_max_distance")) {
+                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_max_distance_speed")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance_speed, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_max_distance_speed")) {
+                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance_speed, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "hidden")) {
-                fill_b32_from_string(&entity_to_fill.hidden, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "hidden")) {
+                fill_b32_from_string(&entity_to_fill.hidden, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "spawn_enemy_when_no_ammo")) {
-                fill_b32_from_string(&entity_to_fill.spawn_enemy_when_no_ammo, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "spawn_enemy_when_no_ammo")) {
+                fill_b32_from_string(&entity_to_fill.spawn_enemy_when_no_ammo, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_explosive_count")) {
-                fill_i32_from_string(&entity_to_fill.jump_shooter.explosive_count, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_explosive_count")) {
+                fill_i32_from_string(&entity_to_fill.jump_shooter.explosive_count, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_projectile_flags")) {
-                fill_u64_from_string(&entity_to_fill.enemy.turret.projectile_settings.enemy_flags, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_flags")) {
+                fill_u64_from_string(&entity_to_fill.enemy.turret.projectile_settings.enemy_flags, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_shoot_sword_blocker_clockwise")) {
-                fill_b32_from_string(&entity_to_fill.enemy.turret.projectile_settings.blocker_clockwise, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_sword_blocker_clockwise")) {
+                fill_b32_from_string(&entity_to_fill.enemy.turret.projectile_settings.blocker_clockwise, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_homing_projectiles")) {
-                fill_b32_from_string(&entity_to_fill.enemy.turret.homing, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_homing_projectiles")) {
+                fill_b32_from_string(&entity_to_fill.enemy.turret.homing, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_shoot_every_tick")) {
-                fill_i32_from_string(&entity_to_fill.enemy.turret.shoot_every_tick, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_every_tick")) {
+                fill_i32_from_string(&entity_to_fill.enemy.turret.shoot_every_tick, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_start_tick_delay")) {
-                fill_i32_from_string(&entity_to_fill.enemy.turret.start_tick_delay, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_start_tick_delay")) {
+                fill_i32_from_string(&entity_to_fill.enemy.turret.start_tick_delay, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_projectile_speed")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.launch_speed, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_speed")) {
+                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.launch_speed, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_projectile_max_lifetime")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.max_lifetime, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_max_lifetime")) {
+                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.max_lifetime, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_shoot_width")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_width, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_width")) {
+                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_width, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_shoot_height")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_height, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_height")) {
+                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_height, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "turret_activated")) {
-                fill_b32_from_string(&entity_to_fill.enemy.turret.activated, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "turret_activated")) {
+                fill_b32_from_string(&entity_to_fill.enemy.turret.activated, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers")) {
-                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_sword_blockers")) {
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_sword_blockers_immortal")) {
-                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers_immortal, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_sword_blockers_immortal")) {
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers_immortal, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shoot_bullet_blockers")) {
-                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_bullet_blockers, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_bullet_blockers")) {
+                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_bullet_blockers, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_shots_count")) {
-                fill_i32_from_string(&entity_to_fill.jump_shooter.shots_count, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shots_count")) {
+                fill_i32_from_string(&entity_to_fill.jump_shooter.shots_count, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "jump_shooter_spread")) {
-                fill_f32_from_string(&entity_to_fill.jump_shooter.spread, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_spread")) {
+                fill_f32_from_string(&entity_to_fill.jump_shooter.spread, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_speed")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_speed")) {
+                fill_f32_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get(i).data, "move_sequence_points")) {
+            } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_points")) {
                 fill_vector2_array_from_string(&entity_to_fill.move_sequence.points, splitted_line, &i);
-            } else if (str_equal(splitted_line.get(i).data, "note_content")) {
-                //str_copy(note_to_fill.content, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "note_content")) {
+                //str_copy(note_to_fill.content, splitted_line.get_value(i+1).data);
                 fill_string(note_to_fill.content, splitted_line, &i);
-            } else if (str_equal(splitted_line.get(i).data, "note_draw_in_game")) {
-                fill_b32_from_string(&note_to_fill.draw_in_game, splitted_line.get(i+1).data);
+            } else if (str_equal(splitted_line.get_value(i).data, "note_draw_in_game")) {
+                fill_b32_from_string(&note_to_fill.draw_in_game, splitted_line.get_value(i+1).data);
                 i++;
             } else {
                 //assert(false);
@@ -1531,7 +1531,7 @@ b32 load_level(const char *level_name) {
             
             if (added_entity->flags & NOTE) {
                 assert(added_entity->note_index != -1);
-                Note *added_note = current_level_context->notes.get_ptr(added_entity->note_index);
+                Note *added_note = current_level_context->notes.get(added_entity->note_index);
                 str_copy(added_note->content, note_to_fill.content);
                 added_note->draw_in_game = note_to_fill.draw_in_game;
             }
@@ -1546,7 +1546,7 @@ b32 load_level(const char *level_name) {
     game_state = original_game_state;
     
     //free_string_array(&splitted_line);
-    splitted_line.free_arr();
+    splitted_line.free();
     unload_file(&file);
         
     loop_entities(init_loaded_entity);
@@ -1594,24 +1594,24 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
         return false;
     }
     
-    *col = collisions_buffer.get(current_index);
+    *col = collisions_buffer.get_value(current_index);
     *other = col->other_entity;
     return true;
 }
 
 #define ForCollisions(entity, flags) fill_collisions(entity, &collisions_buffer, flags); Entity *other = NULL; Collision col = {}; for (i32 col_index = 0; set_next_collision_stuff(col_index, &col, &other); col_index++)
 
-global_variable Dynamic_Array<Collision_Grid_Cell*> collision_cells_buffer = Dynamic_Array<Collision_Grid_Cell*>(128);
+global_variable Array<Collision_Grid_Cell*> collision_cells_buffer = {0};
 
 #define MAX_SPAWN_OBJECTS 128
 
-global_variable Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
+global_variable Static_Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Static_Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
 
 #define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK)
 
 Entity *spawn_object_by_name(const char* name, Vector2 position) {
     for (i32 i = 0; i < spawn_objects.count; i++) {
-        Spawn_Object *obj = spawn_objects.get_ptr(i);
+        Spawn_Object *obj = spawn_objects.get(i);
         if (str_equal(obj->name, name)) {
             Entity *e = add_entity(&obj->entity);
             e->position = position;
@@ -1631,18 +1631,18 @@ void bird_clear_formation(Bird_Enemy *bird) {
 }
 
 inline void free_particle_emitter(i32 index) {
-    assert(index >= 0 && index < current_level_context->particle_emitters.max_count);
+    assert(index >= 0 && index < current_level_context->particle_emitters.capacity);
     
     Particle_Emitter *emitter = get_particle_emitter(index);
     if (emitter) {
         for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++) {
-            current_level_context->particles.get_ptr(i)->enabled = false;
+            current_level_context->particles.get(i)->enabled = false;
         }
     } else {
         printf("L_WARNING: No emitter existing on free_particle_emitter. Index is %d\n", index);
     }
     
-    *current_level_context->particle_emitters.get_ptr(index) = {};
+    *current_level_context->particle_emitters.get(index) = {};
 }
 
 inline void free_particle_emitters(i32 *start_ptr, i32 count) {
@@ -1652,10 +1652,10 @@ inline void free_particle_emitters(i32 *start_ptr, i32 count) {
 }
 
 inline void free_entity_particle_emitters(Entity *entity) {
-    Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
+    Static_Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     // free_particle_emitters(emitters_indexes->data, emitters_indexes->count);
     for (i32 i = 0; i < emitters_indexes->count; i++) {    
-        Particle_Emitter *emitter = get_particle_emitter(emitters_indexes->get(i));
+        Particle_Emitter *emitter = get_particle_emitter(emitters_indexes->get_value(i));
         if (emitter) {
             emitter->should_extinct = true;
         }
@@ -1664,7 +1664,7 @@ inline void free_entity_particle_emitters(Entity *entity) {
 }
 
 void init_bird_emitters(Entity *entity) {
-    Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
+    Static_Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     free_entity_particle_emitters(entity);
     entity->bird_enemy.trail_emitter_index = add_entity_particle_emitter(entity, entity->flags & EXPLOSIVE ? &little_fire_emitter : &air_dust_emitter);
     enable_emitter(entity->bird_enemy.trail_emitter_index, entity->position);
@@ -1687,7 +1687,7 @@ void init_bird_entity(Entity *entity) {
     
     init_bird_emitters(entity);
         
-    //entity->emitter = entity->emitters.last_ptr();
+    //entity->emitter = entity->emitters.last();
     str_copy(entity->name, "enemy_bird"); 
     setup_color_changer(entity);
 }
@@ -1701,7 +1701,7 @@ void init_spawn_objects() {
     Spawn_Object block_base_object;
     copy_entity(&block_base_object.entity, &block_base_entity);
     str_copy(block_base_object.name, block_base_entity.name);
-    spawn_objects.add(block_base_object);
+    spawn_objects.append(block_base_object);
     
     Entity no_move_block_entity = Entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
     no_move_block_entity.color = PURPLE;
@@ -1711,7 +1711,7 @@ void init_spawn_objects() {
     Spawn_Object no_move_block_object;
     copy_entity(&no_move_block_object.entity, &no_move_block_entity);
     str_copy(no_move_block_object.name, no_move_block_entity.name);
-    spawn_objects.add(no_move_block_object);
+    spawn_objects.append(no_move_block_object);
     
     Entity note_entity = Entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
     note_entity.color = Fade(WHITE, 0.7f);
@@ -1723,7 +1723,7 @@ void init_spawn_objects() {
     Spawn_Object note_object;
     copy_entity(&note_object.entity, &note_entity);
     str_copy(note_object.name, note_entity.name);
-    spawn_objects.add(note_object);
+    spawn_objects.append(note_object);
     
     Entity dummy_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
     dummy_entity.color  = Fade(GREEN, 0.5f);
@@ -1734,7 +1734,7 @@ void init_spawn_objects() {
     Spawn_Object dummy_object;
     copy_entity(&dummy_object.entity, &dummy_entity);
     str_copy(dummy_object.name, dummy_entity.name);
-    spawn_objects.add(dummy_object);
+    spawn_objects.append(dummy_object);
     
     Entity platform_entity = Entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
     platform_entity.color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
@@ -1744,7 +1744,7 @@ void init_spawn_objects() {
     Spawn_Object platform_object;
     copy_entity(&platform_object.entity, &platform_entity);
     str_copy(platform_object.name, platform_entity.name);
-    spawn_objects.add(platform_object);
+    spawn_objects.append(platform_object);
     
     Entity enemy_ammo_pack_entity = Entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | AMMO_PACK);
     enemy_ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
@@ -1754,7 +1754,7 @@ void init_spawn_objects() {
     Spawn_Object enemy_ammo_pack_object;
     copy_entity(&enemy_ammo_pack_object.entity, &enemy_ammo_pack_entity);
     str_copy(enemy_ammo_pack_object.name, enemy_ammo_pack_entity.name);
-    spawn_objects.add(enemy_ammo_pack_object);
+    spawn_objects.append(enemy_ammo_pack_object);
     
     Entity big_sword_charge_giver_entity = Entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
     big_sword_charge_giver_entity.color = ColorBrightness(GREEN, 0.5f);
@@ -1764,7 +1764,7 @@ void init_spawn_objects() {
     Spawn_Object big_sword_charge_giver_object;
     copy_entity(&big_sword_charge_giver_object.entity, &big_sword_charge_giver_entity);
     str_copy(big_sword_charge_giver_object.name, big_sword_charge_giver_entity.name);
-    spawn_objects.add(big_sword_charge_giver_object);
+    spawn_objects.append(big_sword_charge_giver_object);
     
     Entity turret_direct_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
     turret_direct_entity.enemy.player_cannot_kill = true;
@@ -1782,7 +1782,7 @@ void init_spawn_objects() {
     Spawn_Object turret_direct_object;
     copy_entity(&turret_direct_object.entity, &turret_direct_entity);
     str_copy(turret_direct_object.name, turret_direct_entity.name);
-    spawn_objects.add(turret_direct_object);
+    spawn_objects.append(turret_direct_object);
     
     Entity turret_homing_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
     turret_homing_entity.enemy.player_cannot_kill = true;
@@ -1800,7 +1800,7 @@ void init_spawn_objects() {
     Spawn_Object turret_homing_object;
     copy_entity(&turret_homing_object.entity, &turret_homing_entity);
     str_copy(turret_homing_object.name, turret_homing_entity.name);
-    spawn_objects.add(turret_homing_object);
+    spawn_objects.append(turret_homing_object);
     
     Entity bird_entity = Entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     init_bird_entity(&bird_entity);
@@ -1808,7 +1808,7 @@ void init_spawn_objects() {
     Spawn_Object enemy_bird_object;
     copy_entity(&enemy_bird_object.entity, &bird_entity);
     str_copy(enemy_bird_object.name, bird_entity.name);
-    spawn_objects.add(enemy_bird_object);
+    spawn_objects.append(enemy_bird_object);
     
     Entity win_block_entity = Entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | MULTIPLE_HITS | NO_MOVE_BLOCK);
     win_block_entity.color_changer.start_color = win_block_entity.color;
@@ -1819,7 +1819,7 @@ void init_spawn_objects() {
     Spawn_Object win_block_object;
     copy_entity(&win_block_object.entity, &win_block_entity);
     str_copy(win_block_object.name, win_block_entity.name);
-    spawn_objects.add(win_block_object);
+    spawn_objects.append(win_block_object);
     
     Entity agro_area_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     agro_area_entity.color = Fade(VIOLET, 0.6f);
@@ -1831,7 +1831,7 @@ void init_spawn_objects() {
     Spawn_Object argo_area_object;
     copy_entity(&argo_area_object.entity, &agro_area_entity);
     str_copy(argo_area_object.name, agro_area_entity.name);
-    spawn_objects.add(argo_area_object);
+    spawn_objects.append(argo_area_object);
     
     Entity trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     trigger_entity.color = Fade(GREEN, 0.6f);
@@ -1841,7 +1841,7 @@ void init_spawn_objects() {
     Spawn_Object trigger_object;
     copy_entity(&trigger_object.entity, &trigger_entity);
     str_copy(trigger_object.name, trigger_entity.name);
-    spawn_objects.add(trigger_object);
+    spawn_objects.append(trigger_object);
     
     Entity kill_trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     kill_trigger_entity.trigger.kill_player = true;
@@ -1852,7 +1852,7 @@ void init_spawn_objects() {
     Spawn_Object kill_trigger_object;
     copy_entity(&kill_trigger_object.entity, &kill_trigger_entity);
     str_copy(kill_trigger_object.name, kill_trigger_entity.name);
-    spawn_objects.add(kill_trigger_object);
+    spawn_objects.append(kill_trigger_object);
     
     Entity kill_switch_entity = Entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
     kill_switch_entity.color = ColorBrightness(RED, 0.3f);
@@ -1862,7 +1862,7 @@ void init_spawn_objects() {
     Spawn_Object kill_switch_object;
     copy_entity(&kill_switch_object.entity, &kill_switch_entity);
     str_copy(kill_switch_object.name, kill_switch_entity.name);
-    spawn_objects.add(kill_switch_object);
+    spawn_objects.append(kill_switch_object);
     
     Entity enemy_barrier_entity = Entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | MULTIPLE_HITS);
     enemy_barrier_entity.color = ColorBrightness(GRAY, 0.2f);
@@ -1872,7 +1872,7 @@ void init_spawn_objects() {
     Spawn_Object enemy_barrier_object;
     copy_entity(&enemy_barrier_object.entity, &enemy_barrier_entity);
     str_copy(enemy_barrier_object.name, enemy_barrier_entity.name);
-    spawn_objects.add(enemy_barrier_object);
+    spawn_objects.append(enemy_barrier_object);
     
     Entity spikes_entity = Entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
     spikes_entity.trigger.kill_player = true;
@@ -1883,7 +1883,7 @@ void init_spawn_objects() {
     Spawn_Object spikes_object;
     copy_entity(&spikes_object.entity, &spikes_entity);
     str_copy(spikes_object.name, spikes_entity.name);
-    spawn_objects.add(spikes_object);
+    spawn_objects.append(spikes_object);
     
     Entity propeller_entity = Entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
     propeller_entity.color = Fade(BLUE, 0.4f);
@@ -1895,7 +1895,7 @@ void init_spawn_objects() {
     Spawn_Object propeller_object;
     copy_entity(&propeller_object.entity, &propeller_entity);
     str_copy(propeller_object.name, propeller_entity.name);
-    spawn_objects.add(propeller_object);
+    spawn_objects.append(propeller_object);
     
     Entity door_entity = Entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
     door_entity.trigger.player_touch = false;
@@ -1906,7 +1906,7 @@ void init_spawn_objects() {
     Spawn_Object door_object;
     copy_entity(&door_object.entity, &door_entity);
     str_copy(door_object.name, door_entity.name);
-    spawn_objects.add(door_object);
+    spawn_objects.append(door_object);
     
     Entity enemy_trigger_entity = Entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
     enemy_trigger_entity.trigger.player_touch = false;
@@ -1917,7 +1917,7 @@ void init_spawn_objects() {
     Spawn_Object enemy_trigger_object;
     copy_entity(&enemy_trigger_object.entity, &enemy_trigger_entity);
     str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
-    spawn_objects.add(enemy_trigger_object);
+    spawn_objects.append(enemy_trigger_object);
     
     Entity centipede_entity = Entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
     centipede_entity.move_sequence.moving = true;
@@ -1931,7 +1931,7 @@ void init_spawn_objects() {
     Spawn_Object centipede_object;
     copy_entity(&centipede_object.entity, &centipede_entity);
     str_copy(centipede_object.name, centipede_entity.name);
-    spawn_objects.add(centipede_object);
+    spawn_objects.append(centipede_object);
     
     Entity centipede_segment_entity = Entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
     centipede_segment_entity.need_to_save = false;
@@ -1942,7 +1942,7 @@ void init_spawn_objects() {
     Spawn_Object centipede_segment_object;
     copy_entity(&centipede_segment_object.entity, &centipede_segment_entity);
     str_copy(centipede_segment_object.name, centipede_segment_entity.name);
-    spawn_objects.add(centipede_segment_object);
+    spawn_objects.append(centipede_segment_object);
     
     Entity shoot_stoper_entity = Entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
     shoot_stoper_entity.color = ColorBrightness(BLACK, 0.3f);
@@ -1952,7 +1952,7 @@ void init_spawn_objects() {
     Spawn_Object shoot_stoper_object;
     copy_entity(&shoot_stoper_object.entity, &shoot_stoper_entity);
     str_copy(shoot_stoper_object.name, shoot_stoper_entity.name);
-    spawn_objects.add(shoot_stoper_object);
+    spawn_objects.append(shoot_stoper_object);
     
     Entity hit_booster_entity = Entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
@@ -1963,7 +1963,7 @@ void init_spawn_objects() {
     Spawn_Object hit_booster_object;
     copy_entity(&hit_booster_object.entity, &hit_booster_entity);
     str_copy(hit_booster_object.name, hit_booster_entity.name);
-    spawn_objects.add(hit_booster_object);
+    spawn_objects.append(hit_booster_object);
     
     // we use move sequence on jump shooter only to set jump points
     Entity jump_shooter_entity = Entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
@@ -1977,15 +1977,15 @@ void init_spawn_objects() {
     Spawn_Object jump_shooter_object;
     copy_entity(&jump_shooter_object.entity, &jump_shooter_entity);
     str_copy(jump_shooter_object.name, jump_shooter_entity.name);
-    spawn_objects.add(jump_shooter_object);
+    spawn_objects.append(jump_shooter_object);
 }
 
 struct Tile_Sheet {
     String sheet_name;
-    Dynamic_Array<Texture_Data> textures;
+    Array<Texture_Data> textures;
 };
 
-Dynamic_Array<Tile_Sheet> tile_sheets = Dynamic_Array<Tile_Sheet>(4);
+Array<Tile_Sheet> tile_sheets = {0};
 
 void add_spawn_object_from_texture(Texture texture, const char *name, const char *directory_name = 0) {
     Entity texture_entity = Entity({0, 0}, {(f32)texture.width * 0.25f, (f32)texture.height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
@@ -2000,7 +2000,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
     if (directory_name) {
         i32 tile_sheet_index = -1;
         for (i32 i = 0; i < tile_sheets.count; i++) {
-            if (tile_sheets.get_ptr(i)->sheet_name == directory_name) {
+            if (tile_sheets.get(i)->sheet_name == directory_name) {
                 tile_sheet_index = i;
                 break;
             }
@@ -2009,16 +2009,16 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
         Tile_Sheet *sheet = NULL;
         
         if (tile_sheet_index == -1) {
-            sheet = tile_sheets.add({});
+            sheet = tile_sheets.append({});
             sheet->sheet_name = init_string_from_str(directory_name);
-            sheet->textures = Dynamic_Array<Texture_Data>(16);
+            sheet->textures = {0};
         } else {
-            sheet = tile_sheets.get_ptr(tile_sheet_index);
+            sheet = tile_sheets.get(tile_sheet_index);
         }
         
         assert(sheet);
         
-        Texture_Data *new_data = sheet->textures.add({});
+        Texture_Data *new_data = sheet->textures.append({});
         str_copy(new_data->name, name);
         new_data->texture = texture;
     }
@@ -2029,7 +2029,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
     copy_entity(&texture_object.entity, &texture_entity);
     str_copy(texture_object.name, texture_entity.name);
     
-    spawn_objects.add(texture_object);
+    spawn_objects.append(texture_object);
 }
 
 Texture get_texture(const char *name) {
@@ -2039,8 +2039,8 @@ Texture get_texture(const char *name) {
     
     b32 found = false;
     for (i32 i = 0; i < loaded_textures.count; i++) {
-        if (str_equal(loaded_textures.get(i).name, trimped_name)) {
-            found_texture = loaded_textures.get(i).texture;
+        if (str_equal(loaded_textures.get_value(i).name, trimped_name)) {
+            found_texture = loaded_textures.get_value(i).texture;
             found = true;
         }
     }
@@ -2082,9 +2082,9 @@ void load_textures(const char* path, b32 in_root_textures_directory) {
         
         if (str_contains(data.name, "_normal_map")) {
             substring_before_line(data.name, "_normal_map");
-            normal_maps.add(data);
+            normal_maps.append(data);
         } else {
-            loaded_textures.add(data);
+            loaded_textures.append(data);
             add_spawn_object_from_texture(texture, name, in_root_textures_directory ? 0 : path);
         }
     }
@@ -2104,12 +2104,12 @@ void load_all_textures() {
 }
 
 inline void loop_entities(void (func)(Entity*)) {
-    for (i32 i = 0; i < current_level_context->entities.max_count; i++) {
+    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {
         if (!current_level_context->entities.has_index(i)) {
             continue;
         }
     
-        Entity *e = current_level_context->entities.get_ptr(i);
+        Entity *e = current_level_context->entities.get(i);
         if (!e->enabled) {
             continue;
         }
@@ -2130,25 +2130,25 @@ inline void init_loaded_entity(Entity *entity) {
 
 
 inline i32 table_next_avaliable(Hash_Table_Int<Entity> table, i32 index, FLAGS flags) {
-    for (i32 i = index; i < table.max_count; i++) {
-        if (table.has_index(i) && (flags == 0 || table.get_ptr(i)->flags & flags)) {
+    for (i32 i = index; i < table.capacity; i++) {
+        if (table.has_index(i) && (flags == 0 || table.get(i)->flags & flags)) {
             return i;
         }
     }
     
-    return table.max_count;
+    return table.capacity;
 }
 
 inline i32 next_entity_avaliable(Level_Context *level_context, i32 index, Entity **entity, FLAGS flags) {
-    for (i32 i = index; i < level_context->entities.max_count; i++) {
-        if (level_context->entities.has_index(i) && (flags == 0 || level_context->entities.get_ptr(i)->flags & flags)) {
-            *entity = level_context->entities.get_ptr(i);
+    for (i32 i = index; i < level_context->entities.capacity; i++) {
+        if (level_context->entities.has_index(i) && (flags == 0 || level_context->entities.get(i)->flags & flags)) {
+            *entity = level_context->entities.get(i);
             return i;
         }
     }
     
     *entity = NULL;
-    return level_context->entities.max_count;
+    return level_context->entities.capacity;
 }
 
 // inline void assign_texture(Entity *entity, Texture texture, const char *texture_name) {
@@ -2234,7 +2234,7 @@ Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light) {
     
     //Means we will copy ourselves, maybe someone changed size or any other shit
     if (!light_copy && entity->light_index > -1) {
-        light_copy = current_level_context->lights.get_ptr(entity->light_index);
+        light_copy = current_level_context->lights.get(entity->light_index);
     } else if (!light_copy) {
     }
     
@@ -2242,9 +2242,9 @@ Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light) {
         free_entity_light(entity);
     }
     
-    for (i32 i = 0; i < current_level_context->lights.max_count; i++) {
-        if (!current_level_context->lights.get_ptr(i)->exists && i >= session_context.entity_lights_start_index) {
-            new_light = current_level_context->lights.get_ptr(i);
+    for (i32 i = 0; i < current_level_context->lights.capacity; i++) {
+        if (!current_level_context->lights.get(i)->exists && i >= session_context.entity_lights_start_index) {
+            new_light = current_level_context->lights.get(i);
             entity->light_index = i;
             break;
         } else {
@@ -2284,7 +2284,7 @@ void init_entity(Entity *entity) {
             // We allow one normal map for different textures, but then texture should start with normal map name
             // and after normal map name *could* be '_'.
             // For example normal map "Brick_normal_map" will go to "Brick" and "Brick_v1", but not to "Brick1".
-            Texture_Data *normal_map = normal_maps.get_ptr(i);
+            Texture_Data *normal_map = normal_maps.get(i);
             if (str_start_with(entity->texture_name, normal_map->name)
                 && (entity->texture_name[str_len(normal_map->name)] == '_' || entity->texture_name[str_len(normal_map->name)] == '\0')) {
                 entity->have_normal_map = true;
@@ -2332,7 +2332,7 @@ void init_entity(Entity *entity) {
         entity->color_changer.change_time = 5.0f;
         Light explosive_light = {};
         if (entity->light_index != -1) {
-            explosive_light = current_level_context->lights.get(entity->light_index);
+            explosive_light = current_level_context->lights.get_value(entity->light_index);
         } 
         // explosive_light.make_backshadows = false; @WTF screen goes black in game mode with this shit. Should change the way lights stored and way we get access to them so don't bother, but wtf ebat (also render doc don't loading with this shit)
         if (entity->enemy.explosive_radius_multiplier >= 3) {
@@ -2452,17 +2452,17 @@ void init_entity(Entity *entity) {
         
         Centipede *centipede = &entity->centipede;
         centipede->segments_ids.clear();
-        // centipede->segments_ids.add(entity->id);
+        // centipede->segments_ids.append(entity->id);
         // centipede->segments.clear();
         for (i32 i = 0; i < centipede->segments_count; i++) {
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
             segment->centipede_head = entity;
             change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
-            centipede->segments_ids.add(segment->id);
+            centipede->segments_ids.append(segment->id);
             Entity *previous;
             if (i > 0) {
-                previous = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get(i-1));
+                previous = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get_value(i-1));
             } else {
                 previous = entity;
             }
@@ -2543,7 +2543,7 @@ void init_entity(Entity *entity) {
     if (entity->flags & LIGHT) {
         // Light old_light = {};
         // if (entity->light_index != -1) {
-        //     Light *current_light = current_level_context->lights.get_ptr(entity->light_index);           
+        //     Light *current_light = current_level_context->lights.get(entity->light_index);           
         //     UnloadRenderTexture(current_light->shadowmask_rt);
         //     UnloadRenderTexture(current_light->geometry_rt);
         //     UnloadRenderTexture(current_light->backshadows_rt);
@@ -2557,8 +2557,8 @@ void init_entity(Entity *entity) {
     
     // init trigger 
     if (entity->flags & TRIGGER) {
-        if (entity->trigger.cam_rails_points.max_count > 0 && !entity->trigger.start_cam_rails_horizontal && !entity->trigger.start_cam_rails_vertical) {
-            entity->trigger.cam_rails_points.free_arr();            
+        if (entity->trigger.cam_rails_points.capacity > 0 && !entity->trigger.start_cam_rails_horizontal && !entity->trigger.start_cam_rails_vertical) {
+            entity->trigger.cam_rails_points.free();            
         }
     }
     
@@ -2698,7 +2698,7 @@ void reload_level_files() {
         str_copy(level_name.data, name);
         substring_after_line(level_name.data, "levels\\");
         substring_before_symbol(level_name.data, '.');
-        console.level_files.add(level_name);
+        console.level_files.append(level_name);
     }
     UnloadDirectoryFiles(levels);
 }
@@ -2857,7 +2857,7 @@ void load_replay(const char *replay_name) {
         return;
     }
 
-    size_t read_result = fread(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.max_count, fptr);
+    size_t read_result = fread(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.capacity, fptr);
     level_replay.input_record.count = read_result;    
     level_replay.start_frame = session_context.game_frame_count;
     
@@ -2953,48 +2953,48 @@ void debug_toggle_draw_triggers() {
 void init_console() {
     reload_level_files();    
 
-    console.commands.add(make_console_command("hotkeys", print_hotkeys_to_console));
-    console.commands.add(make_console_command("hotkey",  print_hotkeys_to_console));
-    console.commands.add(make_console_command("key",     print_hotkeys_to_console));
-    console.commands.add(make_console_command("keys",    print_hotkeys_to_console));
-    console.commands.add(make_console_command("help",    print_hotkeys_to_console));
+    console.commands.append(make_console_command("hotkeys", print_hotkeys_to_console));
+    console.commands.append(make_console_command("hotkey",  print_hotkeys_to_console));
+    console.commands.append(make_console_command("key",     print_hotkeys_to_console));
+    console.commands.append(make_console_command("keys",    print_hotkeys_to_console));
+    console.commands.append(make_console_command("help",    print_hotkeys_to_console));
     
-    console.commands.add(make_console_command("debug",          print_debug_commands_to_console));
-    console.commands.add(make_console_command("player_speed",   debug_toggle_player_speed));
-    console.commands.add(make_console_command("entities_count", debug_print_entities_count));
-    console.commands.add(make_console_command("infinite_ammo",  debug_infinite_ammo));
-    console.commands.add(make_console_command("die",  kill_player));
-    console.commands.add(make_console_command("enemy_ai",       debug_enemy_ai));
-    console.commands.add(make_console_command("god_mode",       debug_god_mode));
-    console.commands.add(make_console_command("add_ammo",       debug_add_100_ammo));
-    console.commands.add(make_console_command("unlock_camera",  debug_unlock_camera));
-    console.commands.add(make_console_command("full_light",     debug_toggle_full_light));
-    console.commands.add(make_console_command("collision_grid", debug_toggle_collision_grid));
-    console.commands.add(make_console_command("draw_triggers", debug_toggle_draw_triggers));
+    console.commands.append(make_console_command("debug",          print_debug_commands_to_console));
+    console.commands.append(make_console_command("player_speed",   debug_toggle_player_speed));
+    console.commands.append(make_console_command("entities_count", debug_print_entities_count));
+    console.commands.append(make_console_command("infinite_ammo",  debug_infinite_ammo));
+    console.commands.append(make_console_command("die",  kill_player));
+    console.commands.append(make_console_command("enemy_ai",       debug_enemy_ai));
+    console.commands.append(make_console_command("god_mode",       debug_god_mode));
+    console.commands.append(make_console_command("add_ammo",       debug_add_100_ammo));
+    console.commands.append(make_console_command("unlock_camera",  debug_unlock_camera));
+    console.commands.append(make_console_command("full_light",     debug_toggle_full_light));
+    console.commands.append(make_console_command("collision_grid", debug_toggle_collision_grid));
+    console.commands.append(make_console_command("draw_triggers", debug_toggle_draw_triggers));
     
-    console.commands.add(make_console_command("save",     save_current_level, save_level_by_name));
-    console.commands.add(make_console_command("load",     NULL, load_level_by_name));
-    console.commands.add(make_console_command("level",    print_current_level, load_level_by_name));
-    console.commands.add(make_console_command("next",     try_load_next_level, NULL));
-    console.commands.add(make_console_command("previous", try_load_previous_level, NULL));
-    console.commands.add(make_console_command("reload",   reload_level, NULL));
+    console.commands.append(make_console_command("save",     save_current_level, save_level_by_name));
+    console.commands.append(make_console_command("load",     NULL, load_level_by_name));
+    console.commands.append(make_console_command("level",    print_current_level, load_level_by_name));
+    console.commands.append(make_console_command("next",     try_load_next_level, NULL));
+    console.commands.append(make_console_command("previous", try_load_previous_level, NULL));
+    console.commands.append(make_console_command("reload",   reload_level, NULL));
     
-    console.commands.add(make_console_command("save_lightmap", save_lightmaps_to_file, NULL));
+    console.commands.append(make_console_command("save_lightmap", save_lightmaps_to_file, NULL));
     
-    console.commands.add(make_console_command("restart_game",      restart_game, NULL));
-    console.commands.add(make_console_command("first",             restart_game, NULL));
-    console.commands.add(make_console_command("level_speedrun",    begin_level_speedrun, NULL));
-    console.commands.add(make_console_command("game_speedrun",     begin_game_speedrun, NULL));
-    console.commands.add(make_console_command("speedrun_disable",  disable_speedrun, NULL));
+    console.commands.append(make_console_command("restart_game",      restart_game, NULL));
+    console.commands.append(make_console_command("first",             restart_game, NULL));
+    console.commands.append(make_console_command("level_speedrun",    begin_level_speedrun, NULL));
+    console.commands.append(make_console_command("game_speedrun",     begin_game_speedrun, NULL));
+    console.commands.append(make_console_command("speedrun_disable",  disable_speedrun, NULL));
     
-    console.commands.add(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale));
+    console.commands.append(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale));
     
-    console.commands.add(make_console_command("create",    print_create_level_hint, create_level));
-    console.commands.add(make_console_command("new_level", print_create_level_hint, create_level));
+    console.commands.append(make_console_command("create",    print_create_level_hint, create_level));
+    console.commands.append(make_console_command("new_level", print_create_level_hint, create_level));
     
-    console.commands.add(make_console_command("play_replay", debug_toggle_play_replay, NULL));
-    console.commands.add(make_console_command("save_replay", save_temp_replay, save_replay));
-    console.commands.add(make_console_command("replay_load", load_temp_replay, load_replay));
+    console.commands.append(make_console_command("play_replay", debug_toggle_play_replay, NULL));
+    console.commands.append(make_console_command("save_replay", save_temp_replay, save_replay));
+    console.commands.append(make_console_command("replay_load", load_temp_replay, load_replay));
 }
 
 Music ambient_theme;
@@ -3039,17 +3039,17 @@ void load_sounds() {
         Sound_Handler handler = {};
         str_copy(handler.name, name);
         
-        for (i32 s = 0; s < handler.buffer.max_count; s++) {
-            handler.buffer.add(LoadSoundAlias(sound));
+        for (i32 s = 0; s < handler.buffer.capacity; s++) {
+            handler.buffer.append(LoadSoundAlias(sound));
         }
         
         // i64 hash = hash_str(name);
         //UnloadSound(sound);
         
-        sounds_array.add(handler);
+        sounds_array.append(handler);
         
         if (str_contains(name, "MissingSound")) {
-            missing_sound = sounds_array.last_ptr();
+            missing_sound = sounds_array.last();
         }
     }
     
@@ -3059,8 +3059,8 @@ void load_sounds() {
 void play_sound(Sound_Handler *handler) {
     assert(handler->buffer.count > 0);
     
-    Sound sound = handler->buffer.get(handler->current_index);
-    handler->current_index = (handler->current_index + 1) % handler->buffer.max_count;
+    Sound sound = handler->buffer.get_value(handler->current_index);
+    handler->current_index = (handler->current_index + 1) % handler->buffer.capacity;
     
     SetSoundVolume(sound, rnd(handler->base_volume - handler->volume_variation, handler->base_volume + handler->volume_variation));
     SetSoundPitch (sound, rnd(handler->base_pitch - handler->pitch_variation, handler->base_pitch + handler->pitch_variation));
@@ -3071,8 +3071,8 @@ void play_sound(Sound_Handler *handler) {
 void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f) {
     assert(handler->buffer.count > 0);
     
-    Sound sound = handler->buffer.get(handler->current_index);
-    handler->current_index = (handler->current_index + 1) % handler->buffer.max_count;
+    Sound sound = handler->buffer.get_value(handler->current_index);
+    handler->current_index = (handler->current_index + 1) % handler->buffer.capacity;
     
     //check vector to camera for volume and pan
     Vector2 to_position = position - current_level_context->cam.position;
@@ -3106,8 +3106,8 @@ void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1, f
     Sound_Handler *found_handler = NULL;
     
     for (i32 i = 0; i < sounds_array.count; i++) {
-        if (str_equal(sounds_array.get_ptr(i)->name, trimped_name)) {
-            found_handler = sounds_array.get_ptr(i);
+        if (str_equal(sounds_array.get(i)->name, trimped_name)) {
+            found_handler = sounds_array.get(i);
         }
     }
     if (!found_handler) {
@@ -3129,9 +3129,11 @@ inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pit
 void init_level_context(Level_Context *level_context) {
     assert(!level_context->inited);
 
+    //nocheckin see what arrays we should initialize
+
     //init context
-    for (i32 i = 0; i < level_context->lights.max_count; i++) {
-        Light *light = level_context->lights.get_ptr(i);
+    for (i32 i = 0; i < level_context->lights.capacity; i++) {
+        Light *light = level_context->lights.get(i);
         *(light) = {};
         
         if (i < session_context.temp_lights_count) {
@@ -3161,11 +3163,11 @@ void init_level_context(Level_Context *level_context) {
     
     level_context->inited = true;
     
-    for (i32 i = 0; i < level_context->particle_emitters.max_count; i++) {
-        *level_context->particle_emitters.get_ptr(i) = {};
+    for (i32 i = 0; i < level_context->particle_emitters.capacity; i++) {
+        *level_context->particle_emitters.get(i) = {};
     }
-    for (i32 i = 0; i < level_context->line_trails.max_count; i++) {
-        *level_context->line_trails.get_ptr(i) = {};
+    for (i32 i = 0; i < level_context->line_trails.capacity; i++) {
+        *level_context->line_trails.get(i) = {};
     }
 }
 
@@ -3496,7 +3498,7 @@ void fixed_game_update(f32 dt) {
             } else {
                 input.rnd_state = rnd_state;
                 input.player_position = player_entity->position;
-                level_replay.input_record.add({input});
+                level_replay.input_record.append({input});
             }
         } else {
             i32 frame = session_context.game_frame_count - level_replay.start_frame;
@@ -3504,8 +3506,8 @@ void fixed_game_update(f32 dt) {
                 // debug_set_time_scale(0);
                 session_context.playing_replay = false;
             } else {
-                replay_input = level_replay.input_record.get(frame).frame_input;
-                // core.time = level_replay.input_record.get(session_context.game_frame_count).frame_time_data;
+                replay_input = level_replay.input_record.get_value(frame).frame_input;
+                // core.time = level_replay.input_record.get_value(session_context.game_frame_count).frame_time_data;
                 rnd_state = replay_input.rnd_state;
             }
         }
@@ -3548,14 +3550,14 @@ void fixed_game_update(f32 dt) {
             
             if (state_context.cam_state.on_rails_horizontal || state_context.cam_state.on_rails_vertical) {
                 Entity *rails_trigger_entity = get_entity_by_id(state_context.cam_state.rails_trigger_id);
-                Dynamic_Array<Vector2> *rails_points = &rails_trigger_entity->trigger.cam_rails_points;
+                Array<Vector2> *rails_points = &rails_trigger_entity->trigger.cam_rails_points;
                 assert(rails_trigger_entity);
                 
                 b32 on_rails = rails_points->count >= 2;
                 if (on_rails) {
                     Vector2 rails_player_position = player_entity->position + target_position_velocity_addition;
-                    Vector2 point1 = rails_points->get(0);
-                    Vector2 point2 = rails_points->get(1);
+                    Vector2 point1 = rails_points->get_value(0);
+                    Vector2 point2 = rails_points->get_value(1);
                     #define SECTION_POS(point) (state_context.cam_state.on_rails_horizontal ? point.x : point.y)
                     f32 player_section_pos = state_context.cam_state.on_rails_horizontal ? rails_player_position.x : rails_player_position.y;
                     f32 last_section_pos = state_context.cam_state.on_rails_horizontal ? rails_points->last().x : rails_points->last().y;
@@ -3567,11 +3569,11 @@ void fixed_game_update(f32 dt) {
                         target_position = point1;    
                     } else if(is_going_right_or_up && player_section_pos > last_section_pos
                      || !is_going_right_or_up && player_section_pos < last_section_pos) {
-                        target_position = rails_points->last();
+                        target_position = rails_points->last_value();
                     } else {
                         for (i32 i = 0; i < rails_points->count - 1; i++) {                
-                            point1 = rails_points->get(is_going_right_or_up ? i : i+1);
-                            point2 = rails_points->get(is_going_right_or_up ? i+1 : i); 
+                            point1 = rails_points->get_value(is_going_right_or_up ? i : i+1);
+                            point2 = rails_points->get_value(is_going_right_or_up ? i+1 : i); 
                             if (player_section_pos >= SECTION_POS(point1) && player_section_pos <= SECTION_POS(point2)) {
                                 break;
                             }
@@ -3744,21 +3746,21 @@ void update_console() {
         
         b32 content_changed = false;
         for (i32 i = 0; i < console.commands.count && console.args.count == 1; i++) {
-            if (str_start_with(console.commands.get(i).name, console.args.get(0).data)) {
-                make_ui_text(console.commands.get(i).name, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
+            if (str_start_with(console.commands.get_value(i).name, console.args.get_value(0).data)) {
+                make_ui_text(console.commands.get_value(i).name, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
                 
                 if (IsKeyPressed(KEY_TAB) && console.args.count == 1) {
-                    set_focus_input_field(console.commands.get(i).name);
+                    set_focus_input_field(console.commands.get_value(i).name);
                     content_changed = true;
                 }
                 break;
             }
         }
         
-        if (console.args.count == 2 && (str_equal(console.args.get(0).data, "level") || str_equal(console.args.get(0).data, "load"))) {
+        if (console.args.count == 2 && (str_equal(console.args.get_value(0).data, "level") || str_equal(console.args.get_value(0).data, "load"))) {
             for (i32 i = 0; i < console.level_files.count; i++) {
-                if (str_contains(console.level_files.get(i).data, console.args.get(1).data)) {
-                    const char *new_console_content = tprintf("%s %s", console.args.get(0).data, console.level_files.get(i).data);
+                if (str_contains(console.level_files.get_value(i).data, console.args.get_value(1).data)) {
+                    const char *new_console_content = tprintf("%s %s", console.args.get_value(0).data, console.level_files.get_value(i).data);
                     
                     make_ui_text(new_console_content, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
                     
@@ -3773,7 +3775,7 @@ void update_console() {
         
         if (!content_changed) {
             if (IsKeyPressed(KEY_UP) && console.history_max > 0 && console.history.count > 0) {
-                set_focus_input_field(console.history.get(console.history.count - 1).data);
+                set_focus_input_field(console.history.get_value(console.history.count - 1).data);
                 console.history.count--;
                 content_changed = true;
             }
@@ -3781,7 +3783,7 @@ void update_console() {
                 if (console.history_max == console.history.count) {
                     clear_focus_input_field();
                 } else {
-                    set_focus_input_field(console.history.get(console.history.count).data);
+                    set_focus_input_field(console.history.get_value(console.history.count).data);
                     console.history.count++;
                 }
                 content_changed = true;
@@ -3800,10 +3802,10 @@ void update_console() {
             b32 found_command = false;
             
             for (i32 i = 0; i < console.commands.count && console.args.count > 0; i++) {
-                Console_Command command = console.commands.get(i);
-                if (str_equal(command.name, console.args.get(0).data)) {
+                Console_Command command = console.commands.get_value(i);
+                if (str_equal(command.name, console.args.get_value(0).data)) {
                     if (command.func_arg && console.args.count > 1) {
-                        command.func_arg(console.args.get(1).data);
+                        command.func_arg(console.args.get_value(1).data);
                     } else if (command.func) {
                         command.func();   
                     }
@@ -3818,7 +3820,7 @@ void update_console() {
             
             Medium_Str history_str;            
             str_copy(history_str.data, focus_input_field.content);
-            console.history.add(history_str);
+            console.history.append(history_str);
             console.history_max = console.history.count;
             
             clear_focus_input_field();
@@ -4232,8 +4234,8 @@ void update_color_changer(Entity *entity, f32 dt) {
         entity->color = lerp(changer->start_color, target_color, t);
         
         if (entity->light_index > -1) {
-            current_level_context->lights.get_ptr(entity->light_index)->color = lerp(Fade(target_color, 1), Fade(ColorBrightness(ORANGE, 0.3f), 0.9f), t);
-            current_level_context->lights.get_ptr(entity->light_index)->radius = get_explosion_radius(entity) * 2 * lerp(0.9f, 1.3f, t);
+            current_level_context->lights.get(entity->light_index)->color = lerp(Fade(target_color, 1), Fade(ColorBrightness(ORANGE, 0.3f), 0.9f), t);
+            current_level_context->lights.get(entity->light_index)->radius = get_explosion_radius(entity) * 2 * lerp(0.9f, 1.3f, t);
         }
     } else if (changer->interpolating) {
         entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
@@ -4267,33 +4269,33 @@ inline Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise) {
     return {-v.y * clockwise, v.x * clockwise};
 }
 
-inline void fill_arr_with_normals(Array<Vector2, MAX_VERTICES> *normals, Array<Vector2, MAX_VERTICES> vertices) {
+inline void fill_arr_with_normals(Static_Array<Vector2, MAX_VERTICES> *normals, Static_Array<Vector2, MAX_VERTICES> vertices) {
     //@INCOMPLETE now only for rects and triangles, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
     // Update 03.03.2025: Graham scan algorithm should do the job if we will really need it.
     
     if (vertices.count == 4) {
         //up
-        Vector2 edge1 = vertices.get(0) - vertices.get(1);
-        normals->add(normalized(get_rotated_vector_90(edge1, 1)));
+        Vector2 edge1 = vertices.get_value(0) - vertices.get_value(1);
+        normals->append(normalized(get_rotated_vector_90(edge1, 1)));
         //left
-        Vector2 edge2 = vertices.get(1) - vertices.get(3);
-        normals->add(normalized(get_rotated_vector_90(edge2, 1)));
+        Vector2 edge2 = vertices.get_value(1) - vertices.get_value(3);
+        normals->append(normalized(get_rotated_vector_90(edge2, 1)));
         //bottom
-        Vector2 edge3 = vertices.get(3) - vertices.get(2);
-        normals->add(normalized(get_rotated_vector_90(edge3, 1)));
+        Vector2 edge3 = vertices.get_value(3) - vertices.get_value(2);
+        normals->append(normalized(get_rotated_vector_90(edge3, 1)));
         //right
-        Vector2 edge4 = vertices.get(2) - vertices.get(0);
-        normals->add(normalized(get_rotated_vector_90(edge4, 1)));
+        Vector2 edge4 = vertices.get_value(2) - vertices.get_value(0);
+        normals->append(normalized(get_rotated_vector_90(edge4, 1)));
     } else if (vertices.count == 3) {
-        Vector2 edge1 = vertices.get(0) - vertices.get(1);
-        normals->add(normalized(get_rotated_vector_90(edge1, 1)));
+        Vector2 edge1 = vertices.get_value(0) - vertices.get_value(1);
+        normals->append(normalized(get_rotated_vector_90(edge1, 1)));
         
-        Vector2 edge2 = vertices.get(1) - vertices.get(2);
-        normals->add(normalized(get_rotated_vector_90(edge2, 1)));
+        Vector2 edge2 = vertices.get_value(1) - vertices.get_value(2);
+        normals->append(normalized(get_rotated_vector_90(edge2, 1)));
         
-        Vector2 edge3 = vertices.get(2) - vertices.get(0);
-        normals->add(normalized(get_rotated_vector_90(edge3, 1)));
+        Vector2 edge3 = vertices.get_value(2) - vertices.get_value(0);
+        normals->append(normalized(get_rotated_vector_90(edge3, 1)));
     } else {
         assert(false);
     }
@@ -4339,7 +4341,7 @@ inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *ent
     return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, final2, entity2->bounds.size);
 }
 
-Collision check_collision(Vector2 position1, Vector2 position2, Array<Vector2, MAX_VERTICES> vertices1, Array<Vector2, MAX_VERTICES> vertices2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}) {
+Collision check_collision(Vector2 position1, Vector2 position2, Static_Array<Vector2, MAX_VERTICES> vertices1, Static_Array<Vector2, MAX_VERTICES> vertices2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}) {
     Collision result = {};
     
     Bounds bounds1 = get_bounds(vertices1, pivot1);
@@ -4365,10 +4367,10 @@ Collision check_collision(Vector2 position1, Vector2 position2, Array<Vector2, M
         projections[0].y = -INFINITY;
         projections[1].y = -INFINITY;
         
-        Vector2 axis = global_normals.get(i);
+        Vector2 axis = global_normals.get_value(i);
 
         for (i32 shape = 0; shape < 2; shape++) {
-            Array<Vector2, MAX_VERTICES> vertices;
+            Static_Array<Vector2, MAX_VERTICES> vertices;
             Vector2 position;
             if (shape == 0) {
                 vertices = vertices1;
@@ -4379,7 +4381,7 @@ Collision check_collision(Vector2 position1, Vector2 position2, Array<Vector2, M
             }
             
             for (i32 j = 0; j < vertices.count; j++) {            
-                f32 p = dot(global(position, vertices.get(j)), axis);
+                f32 p = dot(global(position, vertices.get_value(j)), axis);
                 
                 f32 min = fmin(projections[shape].x, p);
                 f32 max = fmax(projections[shape].y, p);
@@ -4444,7 +4446,7 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
     return cell;
 }
 
-void fill_collision_cells(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Dynamic_Array<Collision_Grid_Cell*> *out_cells) {
+void fill_collision_cells(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision_Grid_Cell*> *out_cells) {
     out_cells->clear();
     Collision_Grid grid = session_context.collision_grid;
     Vector2 center = position + bounds.offset;
@@ -4455,26 +4457,26 @@ void fill_collision_cells(Vector2 position, Array<Vector2, MAX_VERTICES> vertice
         for (f32 v_pos = center.y - bounds.size.y * 0.5f; v_pos < center.y + bounds.size.y * 0.5f; v_pos += grid.cell_size.y) {    
             Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, v_pos});
             if (cell) {
-                out_cells->add(cell);
+                out_cells->append(cell);
             }
         }
         
         Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, center.y + bounds.size.y * 0.5f});
         if (cell) {
-            out_cells->add(cell);
+            out_cells->append(cell);
         }
     }
     
     for (f32 v_pos = center.y - bounds.size.y * 0.5f; v_pos < center.y + bounds.size.y * 0.5f; v_pos += grid.cell_size.y) {
         Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, v_pos});
         if (cell) {
-            out_cells->add(cell);
+            out_cells->append(cell);
         }
     }
     
     Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, center.y + bounds.size.y * 0.5f});
     if (cell) {
-        out_cells->add(cell);
+        out_cells->append(cell);
     }
 }
 
@@ -4482,27 +4484,27 @@ void update_entity_collision_cells(Entity *entity) {
     fill_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
     
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
-        Collision_Grid_Cell *cell = collision_cells_buffer.get(i);
+        Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
         
         if (cell && !cell->entities_ids.contains(entity->id)) {
-            cell->entities_ids.add(entity->id);
+            cell->entities_ids.append(entity->id);
         }
     }
 }
 
-global_variable Dynamic_Array<i32> added_collision_ids = Dynamic_Array<i32>();
+global_variable Array<i32> added_collision_ids = {0};
 
-void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Dynamic_Array<Collision> *result, FLAGS include_flags, i32 my_id) {
+void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision> *result, FLAGS include_flags, i32 my_id) {
     result->clear();
     
     fill_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
     added_collision_ids.clear();
     
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
-        Collision_Grid_Cell *cell = collision_cells_buffer.get(i);
+        Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
         
         for (i32 c = 0; c < cell->entities_ids.count; c++) {
-            Entity *other = get_entity_by_id(cell->entities_ids.get(c));
+            Entity *other = get_entity_by_id(cell->entities_ids.get_value(c));
             
             if (!other || other->destroyed || !other->enabled || other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && game_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id)) {
                 continue;
@@ -4511,15 +4513,15 @@ void fill_collisions(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Bo
             Collision col = check_collision(position, other->position, vertices, other->vertices, pivot, other->pivot);
             
             if (col.collided) {
-                added_collision_ids.add(other->id);
+                added_collision_ids.append(other->id);
                 col.other_entity = other;
-                result->add(col);
+                result->append(col);
             }
         }
     }
 }
 
-void fill_collisions(Entity *entity, Dynamic_Array<Collision> *result, FLAGS include_flags) {
+void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS include_flags) {
     if (entity->destroyed || !entity->enabled) {
         return;
     }
@@ -4527,12 +4529,12 @@ void fill_collisions(Entity *entity, Dynamic_Array<Collision> *result, FLAGS inc
     fill_collisions(entity->position, entity->vertices, entity->bounds, entity->pivot, result, include_flags, entity->id);
 }
 
-void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Dynamic_Array<Collision> *result, FLAGS include_flags) {
-    Array<Vector2, MAX_VERTICES> vertices = Array<Vector2, MAX_VERTICES>();
+void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<Collision> *result, FLAGS include_flags) {
+    Static_Array<Vector2, MAX_VERTICES> vertices = Static_Array<Vector2, MAX_VERTICES>();
     add_rect_vertices(&vertices, pivot);    
     for (i32 i = 0; i < vertices.count; i++) {
-        vertices.get_ptr(i)->x *= scale.x;
-        vertices.get_ptr(i)->y *= scale.y;
+        vertices.get(i)->x *= scale.x;
+        vertices.get(i)->y *= scale.y;
     }
     Bounds bounds = get_bounds(vertices, pivot);
     bounds.offset = Vector2_zero;
@@ -4549,7 +4551,7 @@ Entity *get_entity_by_index(i32 index) {
         return NULL;
     }
     
-    return current_level_context->entities.get_ptr(index);
+    return current_level_context->entities.get(index);
 }
 
 inline Entity *get_entity_by_id(i32 id, Level_Context *level_context) {
@@ -4585,7 +4587,7 @@ inline b32 entity_array_contains_id(Entity *arr, i32 count, i32 id) {
 
 Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, f32 step = 4, i32 my_id = -1) {
     f32 current_len = 0;
-    Array<Vector2, MAX_VERTICES> ray_vertices = Array<Vector2, MAX_VERTICES>();
+    Static_Array<Vector2, MAX_VERTICES> ray_vertices = Static_Array<Vector2, MAX_VERTICES>();
     
     b32 found = false;
     Collision result = {};
@@ -4597,17 +4599,17 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
         }
         Vector2 east_direction = get_rotated_vector_90(direction, -1);
         ray_vertices.clear();
-        ray_vertices.add(direction * current_len + east_direction * 0.5f);
-        ray_vertices.add(direction * current_len - east_direction * 0.5f);
-        ray_vertices.add(east_direction * 0.5f);
-        ray_vertices.add(east_direction * -0.5f);
+        ray_vertices.append(direction * current_len + east_direction * 0.5f);
+        ray_vertices.append(direction * current_len - east_direction * 0.5f);
+        ray_vertices.append(east_direction * 0.5f);
+        ray_vertices.append(east_direction * -0.5f);
         
         Bounds ray_bounds = get_bounds(ray_vertices, {0.5f, 1.0f});
     
         fill_collisions(start_position, ray_vertices, ray_bounds, {0.5f, 1.0f}, &collisions_buffer, include_flags, my_id);
     
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            result = collisions_buffer.get(i);
+            result = collisions_buffer.get_value(i);
             found = true;
             result.point = start_position + direction * current_len - direction * result.overlap;
             break;
@@ -4621,7 +4623,7 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
 }
 
 void assign_moving_vertex_entity(Entity *e, i32 vertex_index) {
-    Vector2 *vertex = e->vertices.get_ptr(vertex_index);
+    Vector2 *vertex = e->vertices.get(vertex_index);
 
     assign_selected_entity(e);
     editor.moving_vertex = vertex;
@@ -4633,8 +4635,8 @@ void assign_moving_vertex_entity(Entity *e, i32 vertex_index) {
 }
 
 void move_vertex(Entity *entity, Vector2 target_position, i32 vertex_index) {
-    Vector2 *vertex = entity->vertices.get_ptr(vertex_index);
-    Vector2 *unscaled_vertex = entity->unscaled_vertices.get_ptr(vertex_index);
+    Vector2 *vertex = entity->vertices.get(vertex_index);
+    Vector2 *unscaled_vertex = entity->unscaled_vertices.get(vertex_index);
     
     Vector2 local_target = local(entity, target_position);
 
@@ -4651,24 +4653,24 @@ void copy_entity(Entity *dest, Entity *src) {
 void add_undo_action(Undo_Action undo_action) {
     // Because we could go back and forth on current undo index with undo/redo. 
     // Hard to wrap mind about that without remembering how undos work, but that's should work.
-    Undo_Action *undo_slot = current_level_context->undo_actions.get_ptr(current_level_context->undo_actions.count);
-    undo_slot->changed_entities.free_arr();
+    Undo_Action *undo_slot = current_level_context->undo_actions.get(current_level_context->undo_actions.count);
+    undo_slot->changed_entities.free();
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(&undo_level_context);
     for (i32 i = 0; i < undo_slot->deleted_entities.count; i++) {
-        free_entity(undo_slot->deleted_entities.get_ptr(i));
+        free_entity(undo_slot->deleted_entities.get(i));
     }
-    undo_slot->deleted_entities.free_arr();
+    undo_slot->deleted_entities.free();
     
-    original_level_context->undo_actions.add(undo_action);
+    original_level_context->undo_actions.append(undo_action);
     
     if (original_level_context->undo_actions.count >= MAX_UNDOS) {
         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
-            original_level_context->undo_actions.get_ptr(i)->changed_entities.free_arr();
+            original_level_context->undo_actions.get(i)->changed_entities.free();
             for (i32 d = 0; d < undo_slot->deleted_entities.count; d++) {
-                free_entity(undo_slot->deleted_entities.get_ptr(d));
+                free_entity(undo_slot->deleted_entities.get(d));
             }
-            original_level_context->undo_actions.get_ptr(i)->deleted_entities.free_arr();
+            original_level_context->undo_actions.get(i)->deleted_entities.free();
         }
         original_level_context->undo_actions.remove_first_half();
     }
@@ -4692,7 +4694,7 @@ void undo_add_multiselect_position_change(Vector2 change) {
     undo_action.moved_entity_points = editor.multiselected_entities.count > 1 ? true : editor.move_entity_points;
 
     for (i32 i = 0; i < editor.multiselected_entities.count; i++) {
-        undo_action.changed_entities.add(editor.multiselected_entities.get(i));
+        undo_action.changed_entities.append(editor.multiselected_entities.get_value(i));
     }
     
     add_undo_action(undo_action);
@@ -4733,8 +4735,8 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
         undo_action.entity_was_deleted = true;
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&undo_level_context);
-        undo_action.deleted_entities.add(Entity(editor.selected_entity, true, original_level_context));
-        undo_action.changed_entities.add(editor.selected_entity->id);
+        undo_action.deleted_entities.append(Entity(editor.selected_entity, true, original_level_context));
+        undo_action.changed_entities.append(editor.selected_entity->id);
         switch_current_level_context(original_level_context);
         // copy_entity(&undo_action.deleted_entity, editor.selected_entity);
         // undo_action.entity_id = undo_action.deleted_entity.id;
@@ -4756,7 +4758,7 @@ void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *und
         undo_action->entity_was_deleted = true;
     }
     for (i32 i = 0; i < editor.multiselected_entities.count; i++) {
-        Entity *entity = get_entity_by_id(editor.multiselected_entities.get(i));
+        Entity *entity = get_entity_by_id(editor.multiselected_entities.get_value(i));
         if (!entity) {
             continue;    
         }
@@ -4765,8 +4767,8 @@ void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *und
         switch_current_level_context(&undo_level_context);
         
         if (undo_action) {
-            undo_action->deleted_entities.add(Entity(entity, true, original_level_context));
-            undo_action->changed_entities.add(entity->id);
+            undo_action->deleted_entities.append(Entity(entity, true, original_level_context));
+            undo_action->changed_entities.append(entity->id);
         }
         switch_current_level_context(original_level_context);
         editor_delete_entity(entity, false);
@@ -4792,8 +4794,8 @@ void editor_delete_entity(i32 entity_id, b32 add_undo) {
 
 void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action) {
     for (i32 i = 0; i < entity->vertices.count; i++) {
-        *undo_action->vertices_change.get_ptr(i) = entity->vertices.get(i) - editor.vertices_start.get(i);
-        *undo_action->unscaled_vertices_change.get_ptr(i) = entity->unscaled_vertices.get(i) - editor.unscaled_vertices_start.get(i);
+        *undo_action->vertices_change.get(i) = entity->vertices.get_value(i) - editor.vertices_start.get_value(i);
+        *undo_action->unscaled_vertices_change.get(i) = entity->unscaled_vertices.get_value(i) - editor.unscaled_vertices_start.get_value(i);
     }
     undo_action->vertices_change.count = entity->vertices.count;
     undo_action->unscaled_vertices_change.count = entity->unscaled_vertices.count;
@@ -4810,8 +4812,8 @@ void undo_remember_vertices_start(Entity *entity) {
     editor.vertices_start.clear();
     editor.unscaled_vertices_start.clear();
     for (i32 i = 0; i < entity->vertices.count; i++) {
-        *editor.vertices_start.get_ptr(i) = entity->vertices.get(i);
-        *editor.unscaled_vertices_start.get_ptr(i) = entity->unscaled_vertices.get(i);
+        *editor.vertices_start.get(i) = entity->vertices.get_value(i);
+        *editor.unscaled_vertices_start.get(i) = entity->unscaled_vertices.get_value(i);
     }
     editor.vertices_start.count = entity->vertices.count; 
     editor.unscaled_vertices_start.count = entity->unscaled_vertices.count; 
@@ -4913,42 +4915,42 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
     f32 h_pos_mult = 0.05f;
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & ULTRA_SMALL_LIGHT, "ultra_small_size_flag")) {
         *size_flags = ULTRA_SMALL_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
+        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
     }
     make_ui_text("(64): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "ultra_small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & SMALL_LIGHT, "small_size_flag")) {
         *size_flags = SMALL_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
+        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
     }
     make_ui_text("(128): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & MEDIUM_LIGHT, "medium_light_flag")) {
         *size_flags = MEDIUM_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
+        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
     }
     make_ui_text("(256): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "medium_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & BIG_LIGHT, "big_light_flag")) {
         *size_flags = BIG_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
+        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
     }
     make_ui_text("(512): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "big_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & HUGE_LIGHT, "huge_light_flag")) {
         *size_flags = HUGE_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
+        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
     }
     make_ui_text("(1024): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "huge_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & GIANT_LIGHT, "giant_light_flag")) {
         *size_flags = GIANT_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get_ptr(selected->light_index), true);
+        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
     }
     make_ui_text("(2048): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "giant_light_flag");
     h_pos_mult += 0.15f;
@@ -5096,7 +5098,7 @@ void update_editor_ui() {
             
             if (editor.multiselected_entities.count > 1) {
                 for (i32 i = 0; i < editor.multiselected_entities.count; i++) {                
-                    Entity *entity = get_entity_by_id(editor.multiselected_entities.get(i));
+                    Entity *entity = get_entity_by_id(editor.multiselected_entities.get_value(i));
                     entity->draw_order = to_i32(focus_input_field.content);
                 }
             } else {
@@ -5192,7 +5194,7 @@ void update_editor_ui() {
         
         if (selected->flags & NOTE) {
             f32 h_pos = 15;
-            Note *note = current_level_context->notes.get_ptr(selected->note_index);
+            Note *note = current_level_context->notes.get(selected->note_index);
             INSPECTOR_UI_TOGGLE("NOTE draw in game: ", "note_draw_in_game", note->draw_in_game, );
         }
         
@@ -5211,7 +5213,7 @@ void update_editor_ui() {
                 }
             );
             if (selected->flags & LIGHT && selected->light_index >= 0) {
-                Light *light = current_level_context->lights.get_ptr(selected->light_index);
+                Light *light = current_level_context->lights.get(selected->light_index);
                 
                 make_color_picker(inspector_position, inspector_size, v_pos, &light->color);
                 v_pos += height_add;
@@ -5611,7 +5613,7 @@ void update_editor_ui() {
         f32 alpha_multiplier = lerp(0.0f, 1.0f, clamp01(create_t * 2));
         
         for (i32 i = 0; i < spawn_objects.count; i++) {
-            Spawn_Object obj = spawn_objects.get(i);
+            Spawn_Object obj = spawn_objects.get_value(i);
             if (input_len > 0 && !str_contains(obj.name, focus_input_field.content)) {
                 continue;
             }
@@ -5677,7 +5679,7 @@ Entity *get_cursor_entity() {
     fill_collisions(&mouse_entity, &collisions_buffer, 0);
     
     for (i32 i = 0; i < collisions_buffer.count; i++) {
-        Entity *e = collisions_buffer.get(i).other_entity;
+        Entity *e = collisions_buffer.get_value(i).other_entity;
         if (editor.last_click_position == input.mouse_position) {
             //If we long enough on one entity we assume that we want to pick it up and not to cycle
             f32 time_since_last_click = core.time.app_time - editor.last_click_time;
@@ -5732,15 +5734,15 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     Vector2 closest_vertex_global = Vector2_zero;
     f32 distance_to_closest_vertex = INFINITY;
 
-    for (i32 i = 0; i < current_level_context->entities.max_count; i++) {        
-        Entity *e = current_level_context->entities.get_ptr(i);
+    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
+        Entity *e = current_level_context->entities.get(i);
         
         if (!e->enabled) {
             continue;
         }
 
         for (i32 v = 0; v < e->vertices.count; v++) {
-            Vector2 *vertex = e->vertices.get_ptr(v);
+            Vector2 *vertex = e->vertices.get(v);
             
             Vector2 vertex_global = global(e, *vertex);
                 
@@ -5779,12 +5781,12 @@ inline b32 is_vertex_on_mouse(Vector2 vertex_global) {
 void editor_move_entity_points(Entity *entity, Vector2 displacement) {
     if (entity->flags & MOVE_SEQUENCE) {
         for (i32 i = 0; i < entity->move_sequence.points.count; i++) {
-            *entity->move_sequence.points.get_ptr(i) += displacement;
+            *entity->move_sequence.points.get(i) += displacement;
         }
     }
     if (entity->flags & TRIGGER) {
         for (i32 i = 0; i < entity->trigger.cam_rails_points.count; i++) {
-            *entity->trigger.cam_rails_points.get_ptr(i) += displacement;
+            *entity->trigger.cam_rails_points.get(i) += displacement;
         }
     }
 }
@@ -5830,22 +5832,22 @@ void restore_deleted_entities(Undo_Action *action) {
     assert(action->deleted_entities.count == action->changed_entities.count);
     editor.multiselected_entities.clear();
     for (i32 i = 0; i < action->deleted_entities.count; i++) {            
-        i32 deleted_entity_id = action->changed_entities.get(i);
+        i32 deleted_entity_id = action->changed_entities.get_value(i);
         // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
         // he's taked that id - on undo we should remove him.
         assert(get_entity_by_id(deleted_entity_id) == NULL);
-        Entity *restored_entity = add_entity(action->deleted_entities.get_ptr(i), true, &undo_level_context);
+        Entity *restored_entity = add_entity(action->deleted_entities.get(i), true, &undo_level_context);
         restored_entity->id = deleted_entity_id;
         
         if (action->changed_entities.count > 1) {
-            editor.multiselected_entities.add(deleted_entity_id);
+            editor.multiselected_entities.append(deleted_entity_id);
         } else {
             editor.selected_entity = restored_entity;
         }
     }
 }
 
-inline i32 get_index_of_id(Dynamic_Array<i32> *arr, i32 id) {
+inline i32 get_index_of_id(Array<i32> *arr, i32 id) {
     return get_index_of_entity_id(arr->data, arr->count, id);
 }
 
@@ -5853,30 +5855,30 @@ void add_to_multiselection(i32 id, b32 add_to_undo) {
     i32 index = get_index_of_id(&editor.multiselected_entities, id);
     
     if (index == -1) {
-        editor.multiselected_entities.add(id);
+        editor.multiselected_entities.append(id);
         
         if (add_to_undo) {
             Undo_Action undo_action = {};
             undo_action.added_to_multiselection = true;
-            undo_action.changed_entities.add(id);
+            undo_action.changed_entities.append(id);
             add_undo_action(undo_action);
         }
     }
 }
 
-void add_to_multiselection(Dynamic_Array<i32> *ids, b32 add_to_undo) {
+void add_to_multiselection(Array<i32> *ids, b32 add_to_undo) {
     Undo_Action undo_action = {};
     undo_action.added_to_multiselection = true;
     
     for (i32 i = 0 ; i < ids->count; i++) {
-        i32 id = ids->get(i);
+        i32 id = ids->get_value(i);
         i32 index = get_index_of_id(&editor.multiselected_entities, id);
         
         if (index == -1) {
-            editor.multiselected_entities.add(id);
+            editor.multiselected_entities.append(id);
             
             if (add_to_undo) {
-                undo_action.changed_entities.add(id);
+                undo_action.changed_entities.append(id);
             }
         }
     }
@@ -5886,18 +5888,18 @@ void add_to_multiselection(Dynamic_Array<i32> *ids, b32 add_to_undo) {
     }
 }
 
-void remove_from_multiselection(Dynamic_Array<i32> *ids, b32 add_to_undo) {
+void remove_from_multiselection(Array<i32> *ids, b32 add_to_undo) {
     Undo_Action undo_action = {};
     undo_action.removed_from_multiselection = true;
 
     for (i32 i = 0; i < ids->count; i++) {
-        i32 id = ids->get(i);
+        i32 id = ids->get_value(i);
         i32 index_to_remove_from_multiselected = get_index_of_id(&editor.multiselected_entities, id);
         if (index_to_remove_from_multiselected != -1) {
             editor.multiselected_entities.remove(index_to_remove_from_multiselected);
             
             if (add_to_undo) {
-                undo_action.changed_entities.add(id);
+                undo_action.changed_entities.append(id);
             }
         }
     }
@@ -5915,7 +5917,7 @@ void remove_from_multiselection(i32 id, b32 add_to_undo) {
         if (add_to_undo) {
             Undo_Action undo_action = {};
             undo_action.removed_from_multiselection = true;
-            undo_action.changed_entities.add(id);
+            undo_action.changed_entities.append(id);
             add_undo_action(undo_action);
         }
     }
@@ -5928,7 +5930,7 @@ void clear_multiselected_entities(b32 add_to_undo) {
         Undo_Action undo_action = {};
         undo_action.removed_from_multiselection = true;
         for (i32 i = 0; i < editor.multiselected_entities.count; i++) {
-            undo_action.changed_entities.add(editor.multiselected_entities.get(i));
+            undo_action.changed_entities.append(editor.multiselected_entities.get_value(i));
         }
         add_undo_action(undo_action);
     }
@@ -5941,18 +5943,18 @@ b32 clicked_on_entity_edge(f32 rotation, Vector2 edge_center, b32 is_horizontal,
         return false;
     }
 
-    Array<Vector2, MAX_VERTICES> edge_vertices = Array<Vector2, MAX_VERTICES>();
+    Static_Array<Vector2, MAX_VERTICES> edge_vertices = Static_Array<Vector2, MAX_VERTICES>();
     add_rect_vertices(&edge_vertices, {0.5f, 0.5f});
     f32 selection_radius = fmaxf(3.0f, 1.5f / current_level_context->cam.cam2D.zoom) * radius_multiplier;
     for (i32 i = 0; i < edge_vertices.count; i++) {
         if (is_horizontal) {
-            edge_vertices.get_ptr(i)->x *= selection_radius;
-            edge_vertices.get_ptr(i)->y *= orthogonal_size;
+            edge_vertices.get(i)->x *= selection_radius;
+            edge_vertices.get(i)->y *= orthogonal_size;
         } else {
-            edge_vertices.get_ptr(i)->y *= selection_radius;
-            edge_vertices.get_ptr(i)->x *= orthogonal_size;
+            edge_vertices.get(i)->y *= selection_radius;
+            edge_vertices.get(i)->x *= orthogonal_size;
         }
-        rotate_around_point(edge_vertices.get_ptr(i), Vector2_zero, rotation);
+        rotate_around_point(edge_vertices.get(i), Vector2_zero, rotation);
     }
     
     b32 clicked_edge = IsMouseButtonPressed(MOUSE_BUTTON_LEFT) 
@@ -6155,8 +6157,8 @@ void update_editor() {
     }
     
     //editor entities loop
-    for (i32 i = 0; i < current_level_context->entities.max_count; i++) {        
-        Entity *e = current_level_context->entities.get_ptr(i);
+    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
+        Entity *e = current_level_context->entities.get(i);
         
         if (!e->enabled) {
             continue;
@@ -6168,7 +6170,7 @@ void update_editor() {
         
         // //editor vertices
         // for (i32 v = 0; v < e->vertices.count && need_move_vertices; v++) {
-        //     Vector2 *vertex = e->vertices.get_ptr(v);
+        //     Vector2 *vertex = e->vertices.get(v);
             
         //     Vector2 vertex_global = global(e, *vertex);
             
@@ -6210,7 +6212,7 @@ void update_editor() {
         // We don't want to move points if selected entity already is move sequence or if selected is trigger with cam rails.
         b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger.cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
         for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count && !cannot_move_points; p++) {
-            Vector2 *point = e->move_sequence.points.get_ptr(p);
+            Vector2 *point = e->move_sequence.points.get(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
                 *point = input.mouse_position;
             }
@@ -6218,7 +6220,7 @@ void update_editor() {
         
         //editor move cam rails points        
         for (i32 p = 0; e->flags & TRIGGER && (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger.cam_rails_points.count && !cannot_move_points; p++) {
-            Vector2 *point = e->trigger.cam_rails_points.get_ptr(p);
+            Vector2 *point = e->trigger.cam_rails_points.get(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
                 *point = input.mouse_position;
             }
@@ -6246,7 +6248,7 @@ void update_editor() {
         if (IsKeyPressed(KEY_G))  vertex_snap_index = 3;
         
         if (vertex_snap_index != -1 && vertex_snap_index < editor.selected_entity->vertices.count) {
-            Vector2 *vertex = editor.selected_entity->vertices.get_ptr(vertex_snap_index);
+            Vector2 *vertex = editor.selected_entity->vertices.get(vertex_snap_index);
             snap_vertex_to_closest(editor.selected_entity, vertex, vertex_snap_index);
         }
     }
@@ -6288,7 +6290,7 @@ void update_editor() {
                         clear_multiselected_entities(true);
                     }
                     assign_selected_entity(editor.cursor_entity);
-                    editor.place_cursor_entities.add(editor.selected_entity);
+                    editor.place_cursor_entities.append(editor.selected_entity);
                     
                     editor.selected_this_click = true;
                 }
@@ -6337,12 +6339,12 @@ void update_editor() {
         fill_collisions_rect(editor.multiselect_start_point, scale, pivot, &collisions_buffer, 0);
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Entity *other = collisions_buffer.get_ptr(i)->other_entity;
+            Entity *other = collisions_buffer.get(i)->other_entity;
             if (get_index_of_entity_id(editor.selection_multiselected_entities.data, editor.selection_multiselected_entities.count, other->id) != -1) {
                 continue;
             }
             
-            editor.selection_multiselected_entities.add(other->id);
+            editor.selection_multiselected_entities.append(other->id);
             
             if (!editor.excluding_multiselection) {
                 other->color_changer.frame_changing = true;
@@ -6397,7 +6399,7 @@ void update_editor() {
         }
 
         for (i32 entity_index = 0; entity_index < editor.multiselected_entities.count; entity_index++) {
-            Entity *entity = get_entity_by_id(editor.multiselected_entities.get(entity_index));
+            Entity *entity = get_entity_by_id(editor.multiselected_entities.get_value(entity_index));
             if (!entity) {
                 continue;
             }
@@ -6508,19 +6510,19 @@ void update_editor() {
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&copied_entities_level_context);
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
-            free_entity(editor.copied_entities.get_ptr(i));
+            free_entity(editor.copied_entities.get(i));
         }
         editor.copied_entities.clear();
         if (editor.multiselected_entities.count > 0) {
             for (i32 i = 0; i < editor.multiselected_entities.count; i++) {
-                Entity *entity_to_copy = get_entity_by_id(editor.multiselected_entities.get(i), original_level_context);   
+                Entity *entity_to_copy = get_entity_by_id(editor.multiselected_entities.get_value(i), original_level_context);   
                 // We keep id here so later we could verify different connected entities by ids. 
-                editor.copied_entities.add(Entity(entity_to_copy, true, original_level_context));
+                editor.copied_entities.append(Entity(entity_to_copy, true, original_level_context));
             }
             editor.copied_entities_center = editor.multiselected_entities_center;
         } else {
             Entity *entity_to_copy = get_entity_by_id(editor.selected_entity->id, original_level_context);   
-            editor.copied_entities.add(Entity(entity_to_copy, true, original_level_context));
+            editor.copied_entities.append(Entity(entity_to_copy, true, original_level_context));
             // copy_entity(&editor.copied_entity, editor.selected_entity);
             editor.copied_entities_center = entity_to_copy->position;
         }
@@ -6539,23 +6541,23 @@ void update_editor() {
             Undo_Action undo_action = {};
             undo_action.entity_was_spawned = true;
         
-            local_persist Dynamic_Array<i32> spawned_entities = Dynamic_Array<i32>(128);
+            local_persist Array<i32> spawned_entities = {0};
             spawned_entities.clear();
             clear_multiselected_entities(true);
             for (i32 i = 0; i < editor.copied_entities.count; i++) {
-                Entity *to_spawn = editor.copied_entities.get_ptr(i);
+                Entity *to_spawn = editor.copied_entities.get(i);
                 Entity *spawned = add_entity(to_spawn, false, &copied_entities_level_context);
-                spawned_entities.add(spawned->id);
+                spawned_entities.append(spawned->id);
                 spawned->position += paste_position - editor.copied_entities_center;
                 editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
                 
                 if (editor.copied_entities.count == 1) {
                     assign_selected_entity(spawned);
                 } else {
-                    editor.multiselected_entities.add(spawned->id);
+                    editor.multiselected_entities.append(spawned->id);
                 }
                 
-                undo_action.changed_entities.add(spawned->id);
+                undo_action.changed_entities.append(spawned->id);
             }
             assert(spawned_entities.count == editor.copied_entities.count);
             
@@ -6568,13 +6570,13 @@ void update_editor() {
             // have the same indexes as copied entities. If that was a bad explanation I've explained it also in do-list 
             // in 'Loading multiple levels' task.
             for (i32 i = 0; i < spawned_entities.count; i++) {
-                Entity *spawned =  get_entity_by_id(spawned_entities.get(i));
+                Entity *spawned =  get_entity_by_id(spawned_entities.get_value(i));
                 if (spawned->flags & TRIGGER) {
                     // We have original trigger connected and tracking in copied_entities.
                     spawned->trigger.connected.clear();                                      
                     spawned->trigger.tracking.clear();
                     // @CLEANUP: Will have to change here when we'll remove all of types from entity. Nothing scary.
-                    Entity *copied_trigger_entity = editor.copied_entities.get_ptr(i);
+                    Entity *copied_trigger_entity = editor.copied_entities.get(i);
                     // Here we want to go through all copied entities and find entities with ids from copied trigger.
                     // Then we want to add entity from spawned with the same index to connected and tracked of new trigger.
                     // That's confusing because it's just is. Not sure if it's even possible to make simpler.
@@ -6582,12 +6584,12 @@ void update_editor() {
                     //
                     // UPDATE after ~3 months - completely understandable. Making same thing for KILL_SWITCH now.
                     for (i32 x = 0; x < spawned_entities.count; x++) {
-                        Entity *other_copied_entity = editor.copied_entities.get_ptr(x);
+                        Entity *other_copied_entity = editor.copied_entities.get(x);
                         if (copied_trigger_entity->trigger.connected.contains(other_copied_entity->id)) {
-                            spawned->trigger.connected.add(spawned_entities.get(x));
+                            spawned->trigger.connected.append(spawned_entities.get_value(x));
                         }
                         if (copied_trigger_entity->trigger.tracking.contains(other_copied_entity->id)) {
-                            spawned->trigger.tracking.add(spawned_entities.get(x));
+                            spawned->trigger.tracking.append(spawned_entities.get_value(x));
                         }
                     }
                 }
@@ -6601,7 +6603,7 @@ void update_editor() {
                 // when we copy big chunks of level    
                 // without trigger and trigger connecting to new level parts that could be not even relevant to him.
                 if (spawned_entities.count < 10) {
-                    i32 originally_copied_id = editor.copied_entities.get_ptr(i)->id;
+                    i32 originally_copied_id = editor.copied_entities.get(i)->id;
                     i32 spawned_id = spawned->id;
                     ForEntities(entity, TRIGGER | KILL_SWITCH) {
                         // If this trigger or kill switch happened to be in copied - we do not assign anything new to him, 
@@ -6612,11 +6614,11 @@ void update_editor() {
                             continue;
                         }
                         if (entity->flags & TRIGGER && entity->trigger.connected.contains(originally_copied_id)) {
-                            entity->trigger.connected.add(spawned_id);
+                            entity->trigger.connected.append(spawned_id);
                         }
                         
                         if (entity->flags & KILL_SWITCH && entity->enemy.kill_switch.connected.contains(originally_copied_id)) {
-                            entity->enemy.kill_switch.connected.add(spawned_id);
+                            entity->enemy.kill_switch.connected.append(spawned_id);
                         }
                     }
                 }
@@ -6806,10 +6808,10 @@ void update_editor() {
                 fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY | TEXTURE);
                 
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
-                    Collision col = collisions_buffer.get(i);
+                    Collision col = collisions_buffer.get_value(i);
                     
                     if (wanna_assign && !wanna_remove && !selected->trigger.connected.contains(col.other_entity->id)) {
-                        selected->trigger.connected.add(col.other_entity->id);
+                        selected->trigger.connected.append(col.other_entity->id);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (selected->trigger.connected.contains(col.other_entity->id)) {
@@ -6829,10 +6831,10 @@ void update_editor() {
             if (wanna_assign_tracking_enemy) {
                 fill_collisions(&mouse_entity, &collisions_buffer, ENEMY | CENTIPEDE);
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
-                    Collision col = collisions_buffer.get(i);
+                    Collision col = collisions_buffer.get_value(i);
                     
                     if (!selected->trigger.tracking.contains(col.other_entity->id)) {
-                        selected->trigger.tracking.add(col.other_entity->id);
+                        selected->trigger.tracking.append(col.other_entity->id);
                     }
                 }
             }
@@ -6844,7 +6846,7 @@ void update_editor() {
             
             if (wanna_remove_cam_rails_point) {
                 for (i32 i = 0; i < selected->trigger.cam_rails_points.count; i++) {
-                    Vector2 point = selected->trigger.cam_rails_points.get(i);   
+                    Vector2 point = selected->trigger.cam_rails_points.get_value(i);   
                     
                     if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})) {       
                         selected->trigger.cam_rails_points.remove(i);
@@ -6853,7 +6855,7 @@ void update_editor() {
                 }
             }
             if (wanna_add_cam_rails_point) {
-                selected->trigger.cam_rails_points.add(input.mouse_position);
+                selected->trigger.cam_rails_points.append(input.mouse_position);
             }
             if (wanna_clear_cam_rails_points) {
                 selected->trigger.cam_rails_points.clear();
@@ -6869,10 +6871,10 @@ void update_editor() {
             if (wanna_assign || wanna_remove) {
                 fill_collisions(&mouse_entity, &collisions_buffer, ENEMY);
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
-                    Collision col = collisions_buffer.get(i);
+                    Collision col = collisions_buffer.get_value(i);
                     
                     if (wanna_assign && !wanna_remove && !kill_switch->connected.contains(col.other_entity->id)) {
-                        kill_switch->connected.add(col.other_entity->id);
+                        kill_switch->connected.append(col.other_entity->id);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (kill_switch->connected.contains(col.other_entity->id)) {
@@ -6935,7 +6937,7 @@ void update_editor() {
             
             if (wanna_remove) {
                 for (i32 i = 0; i < selected->move_sequence.points.count; i++) {
-                    Vector2 point = selected->move_sequence.points.get(i);   
+                    Vector2 point = selected->move_sequence.points.get_value(i);   
                     
                     if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})) {       
                         selected->move_sequence.points.remove(i);
@@ -6944,7 +6946,7 @@ void update_editor() {
                 }
             }
             if (wanna_add) {
-                selected->move_sequence.points.add(input.mouse_position);
+                selected->move_sequence.points.append(input.mouse_position);
             }
             if (wanna_clear) {
                 selected->move_sequence.points.clear();
@@ -6965,7 +6967,7 @@ void update_editor() {
         // So we removing changed entities from multiselection
         if (action->added_to_multiselection) {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get(i);
+                i32 id = action->changed_entities.get_value(i);
                 i32 index_in_multiselected = get_index_of_id(&editor.multiselected_entities, id);
                 if (index_in_multiselected != -1) {
                     editor.multiselected_entities.remove(index_in_multiselected);
@@ -6976,9 +6978,9 @@ void update_editor() {
         // So we adding it again
         if (action->removed_from_multiselection) {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get(i);
+                i32 id = action->changed_entities.get_value(i);
                 if (!editor.multiselected_entities.contains(id)) {
-                    editor.multiselected_entities.add(id);
+                    editor.multiselected_entities.append(id);
                 }
             }
         }        
@@ -6993,13 +6995,13 @@ void update_editor() {
             if (action->changed_entities.count > 0) {
                 editor.multiselected_entities.clear();
                 for (i32 i = 0; i < action->changed_entities.count; i++) {
-                    editor.multiselected_entities.add(action->changed_entities.get(i));
+                    editor.multiselected_entities.append(action->changed_entities.get_value(i));
                 }
                 editor_delete_multiselected_entities(false, action);
             }
         } else {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                Entity *changed_entity = get_entity_by_id(action->changed_entities.get(i));
+                Entity *changed_entity = get_entity_by_id(action->changed_entities.get_value(i));
                 // It should be there anyway i think, because even if we delete them - we should restore them firstly.
                 assert(changed_entity);
                 
@@ -7024,8 +7026,8 @@ void update_editor() {
                 undo_entity->draw_order -= action->draw_order_change;
                 
                 for (i32 i = 0; i < action->vertices_change.count; i++) {
-                    *undo_entity->vertices.get_ptr(i)          -= action->vertices_change.get(i);
-                    *undo_entity->unscaled_vertices.get_ptr(i) -= action->unscaled_vertices_change.get(i);
+                    *undo_entity->vertices.get(i)          -= action->vertices_change.get_value(i);
+                    *undo_entity->unscaled_vertices.get(i) -= action->unscaled_vertices_change.get_value(i);
                 }
                 rotate(undo_entity, 0);
                 
@@ -7038,14 +7040,14 @@ void update_editor() {
     b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
     if (need_make_redo) {
         current_level_context->undo_actions.count++;        
-        Undo_Action *action = current_level_context->undo_actions.last_ptr();
+        Undo_Action *action = current_level_context->undo_actions.last();
         
         // So we adding it again.
         if (action->added_to_multiselection) {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get(i);
+                i32 id = action->changed_entities.get_value(i);
                 if (!editor.multiselected_entities.contains(id)) {
-                    editor.multiselected_entities.add(id);
+                    editor.multiselected_entities.append(id);
                 }
             }
         }
@@ -7053,7 +7055,7 @@ void update_editor() {
         // So we removing it again
         if (action->removed_from_multiselection) {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get(i);
+                i32 id = action->changed_entities.get_value(i);
                 i32 index_in_multiselected = get_index_of_id(&editor.multiselected_entities, id);
                 if (index_in_multiselected != -1) {
                     editor.multiselected_entities.remove(index_in_multiselected);
@@ -7063,7 +7065,7 @@ void update_editor() {
         
         if (action->entity_was_deleted) { //so we need delete this again
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 entity_id_to_delete = action->changed_entities.get(i);
+                i32 entity_id_to_delete = action->changed_entities.get_value(i);
                 assert(get_entity_by_id(entity_id_to_delete));
                 editor_delete_entity(get_entity_by_id(entity_id_to_delete), false);
             }
@@ -7079,7 +7081,7 @@ void update_editor() {
             }
         } else {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                Entity *changed_entity = get_entity_by_id(action->changed_entities.get(i));
+                Entity *changed_entity = get_entity_by_id(action->changed_entities.get_value(i));
                 // It should be there anyway i think, because even if we delete them - we should restore them firstly.
                 assert(changed_entity);
                 
@@ -7104,8 +7106,8 @@ void update_editor() {
                 undo_entity->draw_order += action->draw_order_change;
                 
                 for (i32 i = 0; i < action->vertices_change.count; i++) {
-                    *undo_entity->vertices.get_ptr(i)          += action->vertices_change.get(i);
-                    *undo_entity->unscaled_vertices.get_ptr(i) += action->unscaled_vertices_change.get(i);
+                    *undo_entity->vertices.get(i)          += action->vertices_change.get_value(i);
+                    *undo_entity->unscaled_vertices.get(i) += action->unscaled_vertices_change.get_value(i);
                 }
                 rotate(undo_entity, 0);
                 
@@ -7120,16 +7122,16 @@ void update_editor() {
             // We don't really want to save tile sheet name on every entity, so we just take a little performance hit of 
             // going through every texture of every tile sheet to look up the current tile texture.
             for (i32 i = 0; i < tile_sheets.count; i++) {
-                Tile_Sheet *sheet = tile_sheets.get_ptr(i);
+                Tile_Sheet *sheet = tile_sheets.get(i);
                 for (i32 j = 0; j < sheet->textures.count; j++) {
-                    const char *sheet_texture_name = sheet->textures.get_ptr(j)->name;
+                    const char *sheet_texture_name = sheet->textures.get(j)->name;
                     if (str_equal(sheet_texture_name, editor.selected_entity->texture_name)) {
                         i32 increment_direction = IsKeyPressed(KEY_PERIOD) ? 1 : -1;
                         i32 next_index = (j + increment_direction);
                         if (next_index >= sheet->textures.count) next_index = 0;
                         if (next_index < 0) next_index = sheet->textures.count - 1;
                         
-                        Texture_Data *next_data = sheet->textures.get_ptr(next_index);
+                        Texture_Data *next_data = sheet->textures.get(next_index);
                         editor.selected_entity->texture = next_data->texture;
                         str_copy(editor.selected_entity->texture_name, next_data->name);
                         init_entity(editor.selected_entity);
@@ -7174,7 +7176,7 @@ void change_color(Entity *entity, Color new_color) {
     setup_color_changer(entity);
 }
 
-Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot) {
+Bounds get_bounds(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot) {
     f32 top_vertex    = -INFINITY;
     f32 bottom_vertex =  INFINITY;
     f32 right_vertex  = -INFINITY;
@@ -7183,7 +7185,7 @@ Bounds get_bounds(Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot) {
     Vector2 middle_position;
     
     for (i32 i = 0; i < vertices.count; i++) {
-        Vector2 *vertex = vertices.get_ptr(i);
+        Vector2 *vertex = vertices.get(i);
         
         if (vertex->y > top_vertex) {
             top_vertex = vertex->y;
@@ -7211,8 +7213,8 @@ inline void calculate_bounds(Entity *entity) {
 
 void calculate_vertices(Entity *entity) {
     for (i32 i = 0; i < entity->vertices.count; i++) {
-        Vector2 *vertex = entity->vertices.get_ptr(i);
-        Vector2 unscaled_vertex = entity->unscaled_vertices.get(i);
+        Vector2 *vertex = entity->vertices.get(i);
+        Vector2 unscaled_vertex = entity->unscaled_vertices.get_value(i);
         
         f32 up_dot    = dot(entity->up,    unscaled_vertex);
         f32 right_dot = dot(entity->right, unscaled_vertex);
@@ -7279,9 +7281,9 @@ void rotate_to(Entity *entity, f32 new_rotation) {
     normalize(&entity->right);
     
     for (i32 i = 0; i < entity->vertices.count; i++) {
-        Vector2 *vertex = entity->vertices.get_ptr(i);
+        Vector2 *vertex = entity->vertices.get(i);
         rotate_around_point(vertex, {0, 0}, entity->rotation - old_rotation);
-        rotate_around_point(entity->unscaled_vertices.get_ptr(i), {0, 0}, entity->rotation - old_rotation);
+        rotate_around_point(entity->unscaled_vertices.get(i), {0, 0}, entity->rotation - old_rotation);
     }
     
     calculate_bounds(entity);
@@ -7639,7 +7641,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
     fill_collisions(sword, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE);
     
     for (i32 i = 0; i < collisions_buffer.count; i++) {
-        Collision col = collisions_buffer.get(i);
+        Collision col = collisions_buffer.get_value(i);
         Entity *other = col.other_entity;
         
         // blocker block
@@ -8168,7 +8170,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     // player left wall
     fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
     for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++) {
-        Collision col = collisions_buffer.get(i);
+        Collision col = collisions_buffer.get_value(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
             player_data->velocity.y = wall_vertical_boost;
@@ -8200,7 +8202,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     // player right wall
     fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
     for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++) {
-        Collision col = collisions_buffer.get(i);
+        Collision col = collisions_buffer.get_value(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
             player_data->velocity.y = wall_vertical_boost;
@@ -8240,7 +8242,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     b32 is_ground_huge_collision_speed = false;
     b32 found_no_move_block = false;
     for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++) {
-        Collision col = collisions_buffer.get(i);
+        Collision col = collisions_buffer.get_value(i);
         Entity *other = col.other_entity;
         assert(col.collided);
         
@@ -8375,7 +8377,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     b32 is_body_huge_collision_speed = false;
     b32 on_propeller = false;
     for (i32 i = 0; i < collisions_buffer.count; i++) {
-        Collision col = collisions_buffer.get(i);
+        Collision col = collisions_buffer.get_value(i);
         Entity *other = col.other_entity;
         assert(col.collided);
         
@@ -8539,7 +8541,7 @@ inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity
     fill_collisions(entity, &collisions_buffer, entity->collision_flags);
     
     for (i32 i = 0; i < collisions_buffer.count; i++) {
-        Collision col = collisions_buffer.get(i);
+        Collision col = collisions_buffer.get_value(i);
         respond_func(entity, col);
     }
 }
@@ -9032,8 +9034,8 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     }
     
     for (i32 i = start_index; i < max_count_to_seek; i++) {
-        if (!current_level_context->lights.get_ptr(i)->exists) {
-            light = current_level_context->lights.get_ptr(i);
+        if (!current_level_context->lights.get(i)->exists) {
+            light = current_level_context->lights.get(i);
             break;
         }
     }
@@ -9092,7 +9094,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         if (enemy_entity->flags & KILL_SWITCH) {
             Kill_Switch *kill_switch = &enemy->kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity_by_id(kill_switch->connected.get(i));
+                Entity *connected = get_entity_by_id(kill_switch->connected.get_value(i));
                 if (!connected) {
                     continue;
                 }
@@ -9119,7 +9121,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             play_sound("BigExplosion", enemy_entity->position, 0.5f);
             
             i32 light_size_flag = SMALL_LIGHT;
-            if (enemy_entity->light_index != -1) light_size_flag = current_level_context->lights.get(enemy_entity->light_index).shadows_size_flags;
+            if (enemy_entity->light_index != -1) light_size_flag = current_level_context->lights.get_value(enemy_entity->light_index).shadows_size_flags;
             add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy->explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f), light_size_flag);
             
             f32 explosion_add_speed = 80;
@@ -9185,7 +9187,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 if (!head->all_segments_dead) {
                     head->all_segments_dead = true;
                     for (i32 i = 0; i < head->segments_ids.count; i++) {
-                        Entity *segment = get_entity_by_id(head->segments_ids.get(i));
+                        Entity *segment = get_entity_by_id(head->segments_ids.get_value(i));
                         if (segment && segment->id != enemy_entity->id) {
                             kill_enemy(segment, segment->position, segment->up);
                         } else if (!segment) {
@@ -9500,7 +9502,7 @@ void calculate_projectile_collisions(Entity *entity) {
         b32 damaged_enemy = false;
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Collision col = collisions_buffer.get(i);
+            Collision col = collisions_buffer.get_value(i);
             Entity *other = col.other_entity;
             
             // Dying player rifle projectile is just slow shit and that happens only after bounce. So we destroy it at any collision.
@@ -9509,7 +9511,7 @@ void calculate_projectile_collisions(Entity *entity) {
                 return;
             }
             
-            if (projectile->already_hit_ids.count >= projectile->already_hit_ids.max_count || projectile->already_hit_ids.contains(other->id)) {
+            if (projectile->already_hit_ids.count >= projectile->already_hit_ids.capacity || projectile->already_hit_ids.contains(other->id)) {
                 continue;
             }
             
@@ -9521,7 +9523,7 @@ void calculate_projectile_collisions(Entity *entity) {
             f32 hitstop_add = 0;
             
             if (other->flags & ENEMY && is_enemy_can_take_damage(other, false) && !projectile->dying) {
-                projectile->already_hit_ids.add(other->id);
+                projectile->already_hit_ids.append(other->id);
                 b32 killed = false;
                 b32 can_damage = true;
                 
@@ -9635,7 +9637,7 @@ void calculate_projectile_collisions(Entity *entity) {
         Enemy *enemy = &entity->enemy;
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Collision col = collisions_buffer.get(i);
+            Collision col = collisions_buffer.get_value(i);
             Entity *other = col.other_entity;
             
             if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT) {
@@ -9665,7 +9667,7 @@ void calculate_projectile_collisions(Entity *entity) {
         Enemy *enemy = &entity->enemy;
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Collision col = collisions_buffer.get(i);
+            Collision col = collisions_buffer.get_value(i);
             Entity *other = col.other_entity;
             
             if (other->flags & PLAYER) {
@@ -9736,7 +9738,7 @@ void update_projectile(Entity *entity, f32 dt) {
     f32 max_move_len = entity->scale.y * 0.5f;
     
     for (i32 i = 0; i < entity->particle_emitters_indexes.count; i++) {
-        Particle_Emitter *emitter = get_particle_emitter(entity->particle_emitters_indexes.get(i));
+        Particle_Emitter *emitter = get_particle_emitter(entity->particle_emitters_indexes.get_value(i));
         if (emitter) {
             if (sqr_distance_to_player >= 500 * 500) {
                 disable_emitter(emitter);
@@ -9814,7 +9816,7 @@ void update_sticky_texture(Entity *entity, f32 dt) {
 inline void trigger_editor_verify_connected(Entity *entity) {
     for (i32 i = 0; i < entity->trigger.connected.count; i++) {   
         // So if entiity was somehow destoyed, annighilated.
-        if (!current_level_context->entities.has_key(entity->trigger.connected.get(i))) {
+        if (!current_level_context->entities.has_key(entity->trigger.connected.get_value(i))) {
             entity->trigger.connected.remove(i);
             i--;
             continue;
@@ -9822,7 +9824,7 @@ inline void trigger_editor_verify_connected(Entity *entity) {
     }
     
     for (i32 ii = 0; ii < entity->trigger.tracking.count; ii++) {
-        i32 id = entity->trigger.tracking.get(ii);
+        i32 id = entity->trigger.tracking.get_value(ii);
         if (!current_level_context->entities.has_key(id)) {
             entity->trigger.tracking.remove(ii);
             ii--;
@@ -9855,7 +9857,7 @@ void update_editor_entity(Entity *e) {
         if (e->light_index == -1) {
             printf("WARNING: Entity with flag LIGHT don't have corresponding light index (name: %s; id: %d)\n", e->name, e->id);
         } else {
-            Light *light = current_level_context->lights.get_ptr(e->light_index);
+            Light *light = current_level_context->lights.get(e->light_index);
             light->position = e->position;
         }
     }
@@ -9897,7 +9899,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     if (connected->flags & CENTIPEDE) {
         assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
         for (i32 i = 0; i < connected->centipede.segments_count; i++) {
-            Entity *segment = get_entity_by_id(connected->centipede.segments_ids.get(i));
+            Entity *segment = get_entity_by_id(connected->centipede.segments_ids.get_value(i));
             assert(segment);
             segment->hidden = connected->hidden;
             if (should_agro) {
@@ -9945,7 +9947,7 @@ i32 update_trigger(Entity *e) {
     if (e->trigger.kill_enemies) {
         fill_collisions(e, &collisions_buffer, ENEMY);
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Collision col = collisions_buffer.get(i);
+            Collision col = collisions_buffer.get_value(i);
             kill_enemy(col.other_entity, col.point, col.normal);            
         }
     }
@@ -9953,7 +9955,7 @@ i32 update_trigger(Entity *e) {
     if (/*e->trigger.track_enemies*/ e->trigger.tracking.count > 0 && !e->trigger.triggered) {
         b32 found_enemy = false;
         for (i32 i = 0; i < e->trigger.tracking.count; i++) {
-            i32 id = e->trigger.tracking.get(i);
+            i32 id = e->trigger.tracking.get_value(i);
             if (!current_level_context->entities.has_key(id)) {
                 e->trigger.tracking.remove(i);
                 i--;
@@ -10065,7 +10067,7 @@ i32 update_trigger(Entity *e) {
         }
         
         for (i32 i = 0; i < e->trigger.connected.count; i++) {
-            i32 id = e->trigger.connected.get(i);
+            i32 id = e->trigger.connected.get_value(i);
             if (!current_level_context->entities.has_key(id)) {
                 e->trigger.connected.remove(i);
                 i--;
@@ -10113,7 +10115,7 @@ void activate_door(Entity *entity, b32 is_open) {
 }
 
 Collision get_nearest_ground_collision(Vector2 point, f32 radius) {
-    Array<Vector2, MAX_VERTICES> vertices;
+    Static_Array<Vector2, MAX_VERTICES> vertices;
     f32 radius_step = 4;
     f32 current_radius = 0;
     
@@ -10121,8 +10123,8 @@ Collision get_nearest_ground_collision(Vector2 point, f32 radius) {
     while (current_radius <= radius) {
         current_radius += radius_step        ;
         for (i32 i = 0; i < vertices.count; i++) {
-            *vertices.get_ptr(i) = normalized(vertices.get(i)) * current_radius;
-            rotate_around_point(vertices.get_ptr(i), {0, 0}, 33);
+            *vertices.get(i) = normalized(vertices.get_value(i)) * current_radius;
+            rotate_around_point(vertices.get(i), {0, 0}, 33);
         }
         
         Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
@@ -10130,7 +10132,7 @@ Collision get_nearest_ground_collision(Vector2 point, f32 radius) {
         fill_collisions(point, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Collision col = collisions_buffer.get(i);
+            Collision col = collisions_buffer.get_value(i);
             if (col.collided) {
                 return col;
             }
@@ -10148,15 +10150,15 @@ void update_move_sequence(Entity *entity, f32 dt) {
         return;
     }
     
-    if (!sequence->loop && sequence->current_index >= sequence->points.count-1 && sqr_magnitude(entity->position - sequence->points.get(sequence->current_index)) <= EPSILON) {
+    if (!sequence->loop && sequence->current_index >= sequence->points.count-1 && sqr_magnitude(entity->position - sequence->points.get_value(sequence->current_index)) <= EPSILON) {
         sequence->moved_last_frame = Vector2_zero;
         return;
     }
     
-    Vector2 target  = sequence->points.get((sequence->current_index + 1) % sequence->points.count);
+    Vector2 target = sequence->points.get_value((sequence->current_index + 1) % sequence->points.count);
     
     if (sequence->current_index >= sequence->points.count-1 && !sequence->loop) {
-        target = sequence->points.last();
+        target = sequence->points.last_value();
     }
     
     f32 speed = sequence->speed;
@@ -10172,7 +10174,7 @@ void update_move_sequence(Entity *entity, f32 dt) {
             Jump_Shooter *shooter = &entity->jump_shooter;
             shooter->move_points.clear();
             for (i32 i = 0; i < sequence->points.count; i++) {
-                Vector2 point = sequence->points.get(i);
+                Vector2 point = sequence->points.get_value(i);
                 Collision nearest_ground = get_nearest_ground_collision(point, 20);
                             
                 if (nearest_ground.collided) {
@@ -10182,20 +10184,20 @@ void update_move_sequence(Entity *entity, f32 dt) {
                     Collision ray_collision = raycast(point, dir, len, GROUND, 1); 
                     
                     if (ray_collision.collided) {
-                        shooter->move_points.add({ray_collision.point, ray_collision.normal});
+                        shooter->move_points.append({ray_collision.point, ray_collision.normal});
                     } else {
                         print("WARNING: Jump shooter, one of it's points can't find good ground to land. Will add bad ground point");
-                        shooter->move_points.add({nearest_ground.point, nearest_ground.normal});
+                        shooter->move_points.append({nearest_ground.point, nearest_ground.normal});
                     }
                 } else {
                     print("WARNING: Jump shooter, one of it's points can't find any ground to land. Will add air point");
-                    shooter->move_points.add({point, Vector2_up});
+                    shooter->move_points.append({point, Vector2_up});
                 }
             }
             
             
-            change_up(entity, shooter->move_points.get(0).normal);
-            entity->position = shooter->move_points.get(0).position + entity->up * entity->scale.y * (1.0f - entity->pivot.y);
+            change_up(entity, shooter->move_points.get_value(0).normal);
+            entity->position = shooter->move_points.get_value(0).position + entity->up * entity->scale.y * (1.0f - entity->pivot.y);
         } else {
             sequence->velocity = normalized(target - entity->position) * speed;
             sequence->wish_position = entity->position;
@@ -10463,11 +10465,11 @@ inline b32 update_entity(Entity *e, f32 dt) {
     }
     
     for (i32 em = 0; em < e->particle_emitters_indexes.count; em++) {
-        Particle_Emitter *emitter = get_particle_emitter(e->particle_emitters_indexes.get(em));
+        Particle_Emitter *emitter = get_particle_emitter(e->particle_emitters_indexes.get_value(em));
         if (emitter && emitter->follow_entity) {
             emitter->position = e->position;
         }
-        // update_emitter(e->emitters.get_ptr(em), dt);
+        // update_emitter(e->emitters.get(em), dt);
     }
     
     // update sticky texture
@@ -10514,7 +10516,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         
         i32 alive_count = 0;
         for (i32 i = 0; i < centipede->segments_count; i++) {
-            Entity *segment = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get(i));
+            Entity *segment = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get_value(i));
             
             if (!segment->enemy.dead_man) {
                 alive_count++;
@@ -10536,7 +10538,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             add_fire_light_to_entity(e);
             
             for (i32 i = 0; i < centipede->segments_count; i++) {
-                Entity *segment = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get(i));
+                Entity *segment = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get_value(i));
                 
                 segment->flags = ENEMY | BIRD_ENEMY;
                 segment->move_sequence.moving = false;
@@ -10714,7 +10716,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 f32 angle = -shooter->spread * 0.5f;
                 f32 angle_step = shooter->spread / shooter->shots_count;
                 
-                local_persist Array<i32, 64> explosive_indexes;
+                local_persist Static_Array<i32, 64> explosive_indexes;
                 explosive_indexes.clear();
                 
                 for (i32 i = 0; i < shooter->explosive_count; i++) {
@@ -10722,7 +10724,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                     while (explosive_indexes.contains(explosive_index)) {
                         explosive_index = (explosive_index+1) % shooter->shots_count;
                     }
-                    explosive_indexes.add(explosive_index);
+                    explosive_indexes.append(explosive_index);
                 }
                 
                 i32 explosive_shots = 0;
@@ -10805,7 +10807,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             f32 picking_point_time = core.time.game_time - shooter->states.picking_point_start_time;
             f32 picking_point_t = clamp01(picking_point_time / shooter->max_picking_point_time);
             
-            Move_Point next_point = shooter->move_points.get((shooter->current_index + 1) % shooter->move_points.count);
+            Move_Point next_point = shooter->move_points.get_value((shooter->current_index + 1) % shooter->move_points.count);
             
             Vector2 vec_to_point = next_point.position - e->position;
             Vector2 dir = normalized(vec_to_point);
@@ -10857,7 +10859,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 kill_enemy(e, e->position, e->up);
             }
             
-            Move_Point target_point = shooter->move_points.get((shooter->current_index + 1) % shooter->move_points.count);
+            Move_Point target_point = shooter->move_points.get_value((shooter->current_index + 1) % shooter->move_points.count);
             Vector2 vec_to_point = target_point.position - e->position;
             Vector2 dir = normalized(vec_to_point);
             f32 len = magnitude(vec_to_point);
@@ -10912,12 +10914,14 @@ void update_entities(f32 dt) {
         update_all_collision_cells();        
     }
     
-    for (i32 entity_index = 0; entity_index < entities->max_count; entity_index++) {
+    //nocheckin init entities array for sure. And think about how to store them so we don't have to go through all the entities.
+    // Maybe arena should do here.
+    for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
         if (!entities->has_index(entity_index)) {
             continue;
         }
     
-        Entity *e = entities->get_ptr(entity_index);
+        Entity *e = entities->get(entity_index);
         
         if (e->flags & PLAYER) {
             if (need_destroy_player) {
@@ -10945,7 +10949,7 @@ void update_entities(f32 dt) {
         if (e->flags & KILL_SWITCH) {
             Kill_Switch *kill_switch = &e->enemy.kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity_by_id(kill_switch->connected.get(i));
+                Entity *connected = get_entity_by_id(kill_switch->connected.get_value(i));
                 if (!connected) {
                     kill_switch->connected.remove(i);
                     i--;
@@ -11215,7 +11219,7 @@ void fill_entities_draw_queue() {
             }
                 
             for (i32 ii = 0; ii < entity->move_sequence.points.count; ii++) {
-                Vector2 point = entity->move_sequence.points.get(ii);
+                Vector2 point = entity->move_sequence.points.get_value(ii);
                 
                 Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.2f);
                 
@@ -11236,9 +11240,9 @@ void fill_entities_draw_queue() {
                     }
                 }
                 if (ii < entity->move_sequence.points.count - 1) {
-                    make_line(point, entity->move_sequence.points.get(ii+1), color);
+                    make_line(point, entity->move_sequence.points.get_value(ii+1), color);
                 } else if (entity->move_sequence.loop) {
-                    make_line(point, entity->move_sequence.points.get(0), color);
+                    make_line(point, entity->move_sequence.points.get_value(0), color);
                 }
             }
         }
@@ -11276,7 +11280,7 @@ void fill_entities_draw_queue() {
                 
                 if (trigger->start_cam_rails_horizontal || trigger->start_cam_rails_vertical) {
                     for (i32 ii = 0; ii < trigger->cam_rails_points.count; ii++) {
-                        Vector2 point = trigger->cam_rails_points.get(ii);
+                        Vector2 point = trigger->cam_rails_points.get_value(ii);
                         
                         Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
                         
@@ -11285,7 +11289,7 @@ void fill_entities_draw_queue() {
                             draw_game_text(point - Vector2_up, tprintf("%d", ii), 18 / current_level_context->cam.cam2D.zoom, RED);
                         }
                         if (ii < trigger->cam_rails_points.count - 1) {
-                            make_line(point, trigger->cam_rails_points.get(ii+1), color);
+                            make_line(point, trigger->cam_rails_points.get_value(ii+1), color);
                         } 
                     }
                 }
@@ -11294,7 +11298,7 @@ void fill_entities_draw_queue() {
             b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id || (IsKeyDown(KEY_LEFT_ALT) && should_draw_editor_hints());
             f32 since_triggered = core.time.game_time - trigger->triggered_time;
             for (i32 ii = 0; ii < trigger->connected.count; ii++) {
-                Entity *connected = get_entity_by_id(trigger->connected.get(ii));
+                Entity *connected = get_entity_by_id(trigger->connected.get_value(ii));
                 
                 if (!connected) {
                     continue;
@@ -11330,7 +11334,7 @@ void fill_entities_draw_queue() {
                 }
             }
             for (i32 ii = 0; ii < trigger->tracking.count; ii++) {
-                i32 id = trigger->tracking.get(ii);
+                i32 id = trigger->tracking.get_value(ii);
                 Entity *tracked_entity = get_entity_by_id(id);
                 if (!tracked_entity) {
                     continue;
@@ -11350,7 +11354,7 @@ void fill_entities_draw_queue() {
         if (entity->flags & KILL_SWITCH) {
             Kill_Switch *kill_switch = &entity->enemy.kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity_by_id(kill_switch->connected.get(i));                
+                Entity *connected = get_entity_by_id(kill_switch->connected.get_value(i));                
                 if (!connected) {
                     continue;
                 }
@@ -11410,7 +11414,7 @@ void fill_entities_draw_queue() {
             entity->visible = true;
         }
         
-        session_context.entities_draw_queue.add(*entity);
+        session_context.entities_draw_queue.append(*entity);
     }
     
     qsort(session_context.entities_draw_queue.data, session_context.entities_draw_queue.count, sizeof(Entity), compare_entities_draw_order);
@@ -11418,7 +11422,7 @@ void fill_entities_draw_queue() {
 
 #define MAX_LINE_STRIP_POINTS 1024
 
-Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
+Static_Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
 
 void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 width, f32 height) {
     if (drawing_state != CAMERA_DRAWING) {
@@ -11439,7 +11443,7 @@ void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 wi
     b32 spike = false;
     for (f32 ii = -frequency; ii <= len + frequency; ii += frequency) {
         Vector2 position = start_position + dir * ii + (spike ? vertical_addition : Vector2_zero);
-        line_strip_points.add(position);
+        line_strip_points.append(position);
         spike = !spike;
         
         // Vector2 a = start_position + dir * ii;
@@ -11493,7 +11497,7 @@ void draw_entity(Entity *e) {
                 if (game_state == GAME && !state_context.in_pause_editor) {
                     if (e->flags & LIGHT) {
                         assert(e->light_index != -1);
-                        Light *light = current_level_context->lights.get_ptr(e->light_index);
+                        Light *light = current_level_context->lights.get(e->light_index);
                         if (light->bake_shadows) {
                             should_draw = false;
                         }
@@ -11513,7 +11517,7 @@ void draw_entity(Entity *e) {
     // draw note
     if (e->flags & NOTE) {
         assert(e->note_index != -1);
-        Note *note = current_level_context->notes.get_ptr(e->note_index);
+        Note *note = current_level_context->notes.get(e->note_index);
         if (game_state == EDITOR || state_context.in_pause_editor) {
             make_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
             // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
@@ -11771,21 +11775,21 @@ void draw_entity(Entity *e) {
         Vector2 dir = normalized(vec);
         f32 len = magnitude(vec);
         
-        line_strip_points.add(start_position - e->up * e->scale.y);
+        line_strip_points.append(start_position - e->up * e->scale.y);
         
         b32 move = false;
         for (f32 ii = 0; ii <= len - frequency * 0.8f; ii += frequency * 0.8f) {
-            line_strip_points.add(start_position + dir * ii);
-            line_strip_points.add(start_position + dir * (ii + frequency * 0.8f));
-            line_strip_points.add(start_position + dir * (ii + frequency * 0.9f) + vertical_removal);
-            line_strip_points.add(start_position + dir * (ii + frequency));
+            line_strip_points.append(start_position + dir * ii);
+            line_strip_points.append(start_position + dir * (ii + frequency * 0.8f));
+            line_strip_points.append(start_position + dir * (ii + frequency * 0.9f) + vertical_removal);
+            line_strip_points.append(start_position + dir * (ii + frequency));
         
             move = !move;
             
             ii += frequency * 0.2f;
         }
         
-        line_strip_points.add(end_position - e->up * e->scale.y);
+        line_strip_points.append(end_position - e->up * e->scale.y);
         
         draw_game_line_strip(line_strip_points.data, line_strip_points.count, BROWN);
     }
@@ -11862,10 +11866,10 @@ void draw_entities() {
     fill_entities_draw_queue();
 
     //Hash_Table_Int<Entity> *entities = &current_level_context->entities;
-    Dynamic_Array<Entity> *entities = &session_context.entities_draw_queue;
+    Array<Entity> *entities = &session_context.entities_draw_queue;
     
     for (i32 entity_index = 0; entity_index < entities->count; entity_index++) {
-        Entity *e = entities->get_ptr(entity_index);
+        Entity *e = entities->get(entity_index);
         
         if (game_state == GAME && !session_context.updated_today) {
             //
@@ -11894,8 +11898,8 @@ void draw_entities() {
 void draw_game_space_editor() {
     Hash_Table_Int<Entity> *entities = &current_level_context->entities;
 
-    for (i32 i = 0; i < entities->max_count; i++) {
-        Entity *e = entities->get_ptr(i);
+    for (i32 i = 0; i < entities->capacity; i++) {
+        Entity *e = entities->get(i);
         
         if (!current_level_context->entities.has_index(i)) {
             continue;
@@ -11911,7 +11915,7 @@ void draw_game_space_editor() {
         // draw vertices
         if (draw_circles_on_vertices) {
             for (i32 v = 0; v < e->vertices.count; v++) {
-                Vector2 global_vertex_position = global(e, e->vertices.get(v));
+                Vector2 global_vertex_position = global(e, e->vertices.get_value(v));
                 if (editor.selected_entity && editor.selected_entity->id == e->id) {
                     const char *text = v == 0 ? "T" : (v == 1 ? "Y" : (v == 2 ? "F" : "G"));
                     draw_game_text(global_vertex_position, text, 22.0f / current_level_context->cam.cam2D.zoom, YELLOW);
@@ -11919,7 +11923,7 @@ void draw_game_space_editor() {
                 draw_game_circle(global_vertex_position, 1.0f * (0.4f / current_level_context->cam.cam2D.zoom), PINK);
                 //draw unscaled vertices
                 if (IsKeyDown(KEY_LEFT_SHIFT)) {    
-                    draw_game_circle(global(e, e->unscaled_vertices.get(v)), 1.0f * 0.4f, PURPLE);
+                    draw_game_circle(global(e, e->unscaled_vertices.get_value(v)), 1.0f * 0.4f, PURPLE);
                 }
             }
         }
@@ -11947,8 +11951,8 @@ void draw_game_space_editor() {
             fill_arr_with_normals(&global_normals, e->vertices);
             
             for (i32 n = 0; n < global_normals.count; n++) {
-                Vector2 start = e->position + global_normals.get(n) * 4; 
-                Vector2 end   = e->position + global_normals.get(n) * 8; 
+                Vector2 start = e->position + global_normals.get_value(n) * 4; 
+                Vector2 end   = e->position + global_normals.get_value(n) * 8; 
                 make_line(start, end, 0.5f, PURPLE);
                 draw_game_rect(end, {1, 1}, {0.5f, 0.5f}, PURPLE * 0.9f);
             }
@@ -11971,15 +11975,15 @@ void draw_game_space_editor() {
 
 void draw_particles() {
     //@TODO: When we'll start considering particles draw order we'll want this to work with entity drawing.
-    for (int emitter_index = 0; emitter_index < current_level_context->particle_emitters.max_count; emitter_index++) {
-        Particle_Emitter *emitter = current_level_context->particle_emitters.get_ptr(emitter_index);
+    for (int emitter_index = 0; emitter_index < current_level_context->particle_emitters.capacity; emitter_index++) {
+        Particle_Emitter *emitter = current_level_context->particle_emitters.get(emitter_index);
         //@OPTIMIZATION: Make emitter occlusion culling.
         if (!emitter->occupied/* || !emitter.visible*/) {
             continue;              
         }
         
         for (i32 emitter_index = emitter->particles_start_index; emitter_index < emitter->particles_max_index; emitter_index++) {
-            Particle particle = current_level_context->particles.get(emitter_index);
+            Particle particle = current_level_context->particles.get_value(emitter_index);
             if (!particle.enabled) {
                 continue;   
             }
@@ -12011,11 +12015,11 @@ void draw_particles() {
                             drawed_count += 1;
                             i32 index  = (i % LINE_TRAIL_MAX_POINTS);
                             f32 color_t = clamp01((f32)drawed_count / (f32)line_trail->positions.count);
-                            draw_game_line(line_trail->positions.get(index), line_trail->positions.get((index + 1) % LINE_TRAIL_MAX_POINTS), 0.5f, lerp(Fade(particle.color, 0), particle.color, color_t));
+                            draw_game_line(line_trail->positions.get_value(index), line_trail->positions.get_value((index + 1) % LINE_TRAIL_MAX_POINTS), 0.5f, lerp(Fade(particle.color, 0), particle.color, color_t));
                     }
                     
                     i32 last_index = (line_trail->start_index + line_trail->positions.count - 1) % LINE_TRAIL_MAX_POINTS;
-                    draw_game_line(line_trail->positions.get(last_index), particle.position, 0.5f, particle.color);
+                    draw_game_line(line_trail->positions.get_value(last_index), particle.position, 0.5f, particle.color);
                 } else {
                     printf("WARNING: For some reason particle have line trail index, but we could not get line trail by that index: %d (Or it's don't occupied)\n", particle.line_trail_index);
                 }
@@ -12063,7 +12067,7 @@ void draw_ui(const char *tag) {
     i32 tag_len = str_len(tag);
 
     for (i32 i = 0; i < ui_context.elements.count; i++) {
-        Ui_Element element = ui_context.elements.get(i);
+        Ui_Element element = ui_context.elements.get_value(i);
         
         if (tag_len > 0 && !str_equal(element.tag, tag)) {
             continue;
@@ -12082,7 +12086,7 @@ void draw_ui(const char *tag) {
         }
     }
     for (i32 i = 0; i < ui_context.elements.count; i++) {
-        Ui_Element element = ui_context.elements.get(i);
+        Ui_Element element = ui_context.elements.get_value(i);
         
         if (tag_len > 0 && !str_equal(element.tag, tag)) {
             continue;
@@ -12115,7 +12119,7 @@ void draw_ui(const char *tag) {
     }
 
     for (i32 i = 0; i < input_fields.count; i++) {
-        Input_Field input_field = input_fields.get(i);
+        Input_Field input_field = input_fields.get_value(i);
         
         if (tag_len > 0 && !str_equal(input_field.tag, tag)) {
             continue;
@@ -12175,7 +12179,7 @@ void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivo
     im_texture.rotation = rotation;
     im_texture.color    = color;
     
-    render.textures_to_draw.add(im_texture);
+    render.textures_to_draw.append(im_texture);
 }
 
 void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color) {
@@ -12187,7 +12191,7 @@ void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color
     line.target_position = target_position;
     line.color = color;
     line.thick = thick;
-    render.lines_to_draw.add(line);
+    render.lines_to_draw.append(line);
 }
 
 inline void make_line(Vector2 start_position, Vector2 target_position, Color color) {
@@ -12207,7 +12211,7 @@ void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, 
     rect.pivot = pivot;
     rect.thick = thick;
     rect.color = color;
-    render.rect_lines_to_draw.add(rect);
+    render.rect_lines_to_draw.append(rect);
 }
 
 inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color) {
@@ -12217,7 +12221,7 @@ inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Colo
     make_rect_lines(position, scale, pivot, 0, color);
 }
 
-inline void make_outline(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Color color) {
+inline void make_outline(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color) {
     if (!should_add_immediate_stuff()) {
         return;
     }
@@ -12226,7 +12230,7 @@ inline void make_outline(Vector2 position, Array<Vector2, MAX_VERTICES> vertices
     outline.position = position;
     outline.vertices = vertices;
     outline.color = color;
-    render.outlines_to_draw.add(outline);
+    render.outlines_to_draw.append(outline);
 }
 
 void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color) {
@@ -12239,7 +12243,7 @@ void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 seg
     ring.outer_radius = outer_radius;
     ring.segments = segments;
     ring.color = color;
-    render.ring_lines_to_draw.add(ring);
+    render.ring_lines_to_draw.append(ring);
 }
 
 void draw_screen_space_editor() {
@@ -12248,7 +12252,7 @@ void draw_screen_space_editor() {
     f32 v = screen_height * 0.05f;
     f32 h = screen_width * 0.35f;
     for (i32 i = debug.log_messages_short.count - 1; i >= 0; i--) {
-        Log_Message *log = debug.log_messages_short.get_ptr(i);
+        Log_Message *log = debug.log_messages_short.get(i);
         
         f32 lifetime = core.time.app_time - log->birth_time;
         
@@ -12272,7 +12276,7 @@ void draw_screen_space_editor() {
 
 void draw_immediate_stuff() {
     for (i32 i = 0; i < render.lines_to_draw.count; i++) {
-        Line line = render.lines_to_draw.get(i);
+        Line line = render.lines_to_draw.get_value(i);
         if (line.thick == 0) {
             draw_game_line(line.start_position, line.target_position, line.color);
         } else {
@@ -12281,12 +12285,12 @@ void draw_immediate_stuff() {
     }
     
     for (i32 i = 0; i < render.ring_lines_to_draw.count; i++) {
-        Ring_Lines ring = render.ring_lines_to_draw.get(i);
+        Ring_Lines ring = render.ring_lines_to_draw.get_value(i);
         draw_game_ring_lines(ring.center, ring.inner_radius, ring.outer_radius, ring.segments, ring.color);
     }
     
     for (i32 i = 0; i < render.rect_lines_to_draw.count; i++) {
-        Rect_Lines rect = render.rect_lines_to_draw.get(i);
+        Rect_Lines rect = render.rect_lines_to_draw.get_value(i);
         if (rect.thick == 0) {
             draw_game_rect_lines(rect.position, rect.scale, rect.pivot, rect.color);
         } else {
@@ -12295,12 +12299,12 @@ void draw_immediate_stuff() {
     }
     
     for (i32 i = 0; i < render.textures_to_draw.count; i++) {
-        Immediate_Texture im_texture = render.textures_to_draw.get(i);
+        Immediate_Texture im_texture = render.textures_to_draw.get_value(i);
         draw_game_texture(im_texture.texture, im_texture.position, im_texture.scale, im_texture.pivot, im_texture.rotation, im_texture.color);
     }
     
     for (i32 i = 0; i < render.outlines_to_draw.count; i++) {
-        Outline outline = render.outlines_to_draw.get(i);
+        Outline outline = render.outlines_to_draw.get_value(i);
         // Obviously should make this a real outlines and not line strip.
         draw_game_line_strip(outline.position, outline.vertices, outline.color);
     }
@@ -12335,7 +12339,7 @@ inline f32 get_light_zoom(f32 radius) {
 }
 
 inline void add_light_to_draw_queue(Light light) {
-    render.lights_draw_queue.add(light);
+    render.lights_draw_queue.append(light);
 }
 
 void new_render() {
@@ -12346,7 +12350,7 @@ void new_render() {
     BeginMode2D(current_level_context->cam.cam2D);
         ClearBackground(BLACK);
         for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.count; lightmap_index++) {
-            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
+            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get(lightmap_index);
             Texture lightmap_texture = lightmap_data->lightmap_texture;
             
             if (!lightmap_data->has_loaded_texture) {
@@ -12372,7 +12376,7 @@ void new_render() {
 
             // ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD) {
             for (i32 i = 0; i < session_context.entities_draw_queue.count; i++) {
-                Entity *entity = session_context.entities_draw_queue.get_ptr(i);
+                Entity *entity = session_context.entities_draw_queue.get(i);
                 if (entity->hidden || should_not_draw_entity(entity, current_level_context->cam)) {
                     continue;
                 }
@@ -12388,8 +12392,8 @@ void new_render() {
 
     local_persist Texture smooth_circle_texture = white_pixel_texture;
     
-    for (i32 light_index = 0; light_index < current_level_context->lights.max_count; light_index++) {
-        Light *light_ptr = current_level_context->lights.get_ptr(light_index);
+    for (i32 light_index = 0; light_index < current_level_context->lights.capacity; light_index++) {
+        Light *light_ptr = current_level_context->lights.get(light_index);
         
         if (!light_ptr->exists || light_ptr->bake_shadows) {
             continue;
@@ -12427,7 +12431,7 @@ void new_render() {
             light_ptr->power  = perlin_rnd * 1.0f + 0.5f;
         }
         
-        Light light = current_level_context->lights.get(light_index);
+        Light light = current_level_context->lights.get_value(light_index);
         
         // Vector2 light_position = light.position;
         Vector2 lightmap_game_scale = {light.radius, light.radius};
@@ -12534,7 +12538,7 @@ void new_render() {
     BeginTextureMode(global_illumination_rt); {
     BeginShaderMode(smooth_edges_shader); {
     for (i32 i = 0; i <  render.lights_draw_queue.count; i++) {
-        Light light = render.lights_draw_queue.get(i);
+        Light light = render.lights_draw_queue.get_value(i);
         Vector2 lightmap_game_scale = {light.radius, light.radius};
             Texture shadowmask_texture = light.make_shadows ? light.shadowmask_rt.texture : white_transparent_pixel_texture;
         
@@ -12590,7 +12594,7 @@ void new_render() {
     
     if (player_entity && debug.draw_player_collisions) {
         for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Collision col = collisions_buffer.get(i);
+            Collision col = collisions_buffer.get_value(i);
             
             make_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
             draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
@@ -12618,7 +12622,7 @@ void new_render() {
     if (debug.view_only_lightmaps) {
         BeginMode2D(current_level_context->cam.cam2D);
         for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.count; lightmap_index++) {
-            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get_ptr(lightmap_index);
+            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get(lightmap_index);
             
             Texture lightmap_texture = lightmap_data->lightmap_texture;
             
@@ -12775,8 +12779,8 @@ Entity* add_entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_c
     Entity e = Entity(copy, keep_id, copy_entity_level_context);
     
     e.level_context = current_level_context;
-    current_level_context->entities.add(e.id, e);
-    return current_level_context->entities.last_ptr();
+    current_level_context->entities.append(e.id, e);
+    return current_level_context->entities.last();
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
@@ -12784,8 +12788,8 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
     check_avaliable_ids_and_set_if_found(&e.id);
     e.level_context = current_level_context;
-    current_level_context->entities.add(e.id, e);
-    return current_level_context->entities.last_ptr();
+    current_level_context->entities.append(e.id, e);
+    return current_level_context->entities.last();
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags) {
@@ -12793,8 +12797,8 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Text
     e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
     e.level_context = current_level_context;
     check_avaliable_ids_and_set_if_found(&e.id);
-    current_level_context->entities.add(e.id, e);
-    return current_level_context->entities.last_ptr();
+    current_level_context->entities.append(e.id, e);
+    return current_level_context->entities.last();
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
@@ -12809,8 +12813,8 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
     e.id = id;
     e.level_context = current_level_context;
     check_avaliable_ids_and_set_if_found(&e.id);
-    current_level_context->entities.add(e.id, e);
-    return current_level_context->entities.last_ptr();
+    current_level_context->entities.append(e.id, e);
+    return current_level_context->entities.last();
 }
 
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
@@ -12820,7 +12824,7 @@ Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotati
     return e;
 }
 
-Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Array<Vector2, MAX_VERTICES> vertices) {
+Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Static_Array<Vector2, MAX_VERTICES> vertices) {
     Entity *e = add_entity(id, pos, scale, pivot, rotation, color, flags);    
     e->vertices = vertices;
     setup_color_changer(e);
@@ -12918,12 +12922,12 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
     draw_rect_lines(screen_pos, scale * current_level_context->cam.unit_size, color);
 }
 
-Array<Vector2, 2048> screen_positions_buffer = Array<Vector2, 2048>();
+Static_Array<Vector2, 2048> screen_positions_buffer = Static_Array<Vector2, 2048>();
 
 inline void draw_game_line_strip(Entity *entity, Color color) {
     screen_positions_buffer.clear();
     for (i32 i = 0; i < entity->vertices.count; i++) {
-        screen_positions_buffer.add(world_to_screen(global(entity, entity->vertices.get(i))));
+        screen_positions_buffer.append(world_to_screen(global(entity, entity->vertices.get_value(i))));
     }
     
     draw_line_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
@@ -12932,26 +12936,26 @@ inline void draw_game_line_strip(Entity *entity, Color color) {
 inline void draw_game_line_strip(Vector2 *points, i32 count, Color color) {
     screen_positions_buffer.clear();
     for (i32 i = 0; i < count; i++) {
-        screen_positions_buffer.add(world_to_screen(points[i]));
+        screen_positions_buffer.append(world_to_screen(points[i]));
     }
     
     draw_line_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
 }
 
-inline void draw_game_line_strip(Vector2 position, Array<Vector2, MAX_VERTICES> vertices, Color color) {
-    local_persist Array<Vector2, MAX_VERTICES> global_vertices_buffer = Array<Vector2, MAX_VERTICES>();
+inline void draw_game_line_strip(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color) {
+    local_persist Static_Array<Vector2, MAX_VERTICES> global_vertices_buffer = Static_Array<Vector2, MAX_VERTICES>();
     global_vertices_buffer.clear();
     
     for (i32 i = 0; i < vertices.count; i++) {
-        global_vertices_buffer.add(vertices.get(i) + position);
+        global_vertices_buffer.append(vertices.get_value(i) + position);
     }
     draw_game_line_strip(global_vertices_buffer.data, global_vertices_buffer.count, color);
 }
 
-void draw_game_triangle_strip(Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color) {
+void draw_game_triangle_strip(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color) {
     screen_positions_buffer.clear();
     for (i32 i = 0; i < vertices.count; i++) {
-        screen_positions_buffer.add(world_to_screen(global(position, vertices.get(i))));
+        screen_positions_buffer.append(world_to_screen(global(position, vertices.get_value(i))));
     }
     
     draw_triangle_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);

@@ -21,7 +21,7 @@ struct Input_Field{
     b32 changed = false;
 };
 
-global_variable Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Array<Input_Field, MAX_INPUT_FIELDS>();
+global_variable Static_Array<Input_Field, MAX_INPUT_FIELDS> input_fields = Static_Array<Input_Field, MAX_INPUT_FIELDS>();
 global_variable Input_Field focus_input_field;
 global_variable b32 just_focused = false;
 
@@ -53,9 +53,9 @@ void update_input_field(){
         focus_input_field.in_focus = false;
         Input_Field *next;
         if (IsKeyDown(KEY_LEFT_SHIFT)){
-            next = input_fields.get_ptr((focus_input_field.index - 1) < 0 ? input_fields.count - 1 : focus_input_field.index - 1);
+            next = input_fields.get((focus_input_field.index - 1) < 0 ? input_fields.count - 1 : focus_input_field.index - 1);
         } else{
-            next = input_fields.get_ptr((focus_input_field.index + 1) % input_fields.count);
+            next = input_fields.get((focus_input_field.index + 1) % input_fields.count);
         }
         next->in_focus = true;
         copy_input_field(&focus_input_field, next);
@@ -191,7 +191,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         input_field.index = input_fields.count;
         copy_input_field(&input_field, &focus_input_field);
         
-        input_fields.add(input_field);
+        input_fields.append(input_field);
         
         if (IsKeyPressed(KEY_ENTER)){
             if (remove_focus_after_enter){
@@ -223,7 +223,7 @@ b32 make_input_field(const char *content, Vector2 position, Vector2 size, const 
         clicked_ui = true;
     }
     
-    input_fields.add(input_field);
+    input_fields.append(input_field);
     
     return false;
 }

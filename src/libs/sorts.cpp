@@ -4,7 +4,7 @@
 //#include <string.h>
 
 #include "String.cpp"
-#include "array.cpp"
+#include "array_old.cpp"
 
 void print_arr(int *arr, int count){
     printf("[");

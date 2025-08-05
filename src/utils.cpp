@@ -157,10 +157,10 @@ void print(const char *str){
 //     }
 // }
 
-void print(Dynamic_Array<Vector2> *arr){
+void print(Array<Vector2> *arr){
     printf("[");
     for (int i = 0; i < arr->count; i++){
-        printf("{%.4f, %.4f}", arr->get(i).x, arr->get(i).y);
+        printf("{%.4f, %.4f}", arr->get_value(i).x, arr->get_value(i).y);
         
         if (i < arr->count - 1){
             printf(",");
@@ -191,41 +191,41 @@ const char* to_string(Color color){
     return TextFormat("{%d, %d, %d, %d}", color.r, color.g, color.b, color.a);
 }
 
-struct Old_Arr{  
-    u8 *data;
-    size_t size;
-    int count;
-    int max_count;
-};
+// struct Old_Arr{  
+//     u8 *data;
+//     size_t size;
+//     int count;
+//     int capacity;
+// };
 
-Old_Arr array_init(size_t size, int count = 10){
-    Old_Arr array = {};
-    array.size = size;
-    array.data = (u8 *)malloc(count * size);
-    array.max_count = count;
+// Old_Arr array_init(size_t size, int count = 10){
+//     Old_Arr array = {};
+//     array.size = size;
+//     array.data = (u8 *)malloc(count * size);
+//     array.capacity = count;
     
-    return array;
-}
+//     return array;
+// }
 
-void array_free(Old_Arr *array){
-    free(array->data);
-}
+// void array_free(Old_Arr *array){
+//     free(array->data);
+// }
 
-u8 *array_get(Old_Arr *array, int index){
-    return (array->data) + index * array->size;
-}
+// u8 *array_get_pointer(Old_Arr *array, int index){
+//     return (array->data) + index * array->size;
+// }
 
-// void array_add(Old_Arr *array, void *value){
+// void array_append(Old_Arr *array, void *value){
 //     if (array->count >= array->max_count) return;
-//     u8* element = array_get(array, array->count);
+//     u8* element = array_get_pointer(array, array->count);
 //     memmove(element, value, array->size);
 //     array->count++;
 // }
 
 // void array_remove(Old_Arr *array, int index){
 //     for (int i = index; i < array->count - 1; i++){
-//         u8 *current_element = array_get(array, i);
-//         u8 *next_element = array_get(array, i + 1);
+//         u8 *current_element = array_get_pointer(array, i);
+//         u8 *next_element = array_get_pointer(array, i + 1);
 //         memmove(current_element, next_element, array->size);
 //     }
     
@@ -287,49 +287,49 @@ void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_
     vec_ptr->a = to_f32(w_str);
 }
 
-void fill_vertices_array_from_string(Array<Vector2, MAX_VERTICES> *vertices, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
-    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
-    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+void fill_vertices_array_from_string(Static_Array<Vector2, MAX_VERTICES> *vertices, Array<Medium_Str> line_arr, i32 *index_ptr){
+    assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
+    assert(is_digit_or_minus(line_arr.get_value(*index_ptr + 2).data[0]));
     
     *index_ptr += 2;
     
-    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
-        Medium_Str current = line_arr.get((*index_ptr));
-        Medium_Str next    = line_arr.get((*index_ptr) + 1);
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get_value(*index_ptr).data[0] != ']'; *index_ptr += 2){
+        Medium_Str current = line_arr.get_value((*index_ptr));
+        Medium_Str next    = line_arr.get_value((*index_ptr) + 1);
         
-        fill_vector2_from_string(vertices->get_ptr(vertices->count), current.data, next.data);
+        fill_vector2_from_string(vertices->get(vertices->count), current.data, next.data);
         vertices->count++;
     }
 }
 
-void fill_vector2_array_from_string(Dynamic_Array<Vector2> *points, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
-    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
-    assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+void fill_vector2_array_from_string(Array<Vector2> *points, Array<Medium_Str> line_arr, i32 *index_ptr){
+    assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
+    assert(is_digit_or_minus(line_arr.get_value(*index_ptr + 2).data[0]));
     
     *index_ptr += 2;
     
-    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 2){
-        Medium_Str current = line_arr.get((*index_ptr));
-        Medium_Str next    = line_arr.get((*index_ptr) + 1);
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get_value(*index_ptr).data[0] != ']'; *index_ptr += 2){
+        Medium_Str current = line_arr.get_value((*index_ptr));
+        Medium_Str next    = line_arr.get_value((*index_ptr) + 1);
         
-        points->add({});
-        fill_vector2_from_string(points->last_ptr(), current.data, next.data);
+        points->append({});
+        fill_vector2_from_string(points->last(), current.data, next.data);
     }
 }
 
-void fill_int_array_from_string(Dynamic_Array<int> *arr, Dynamic_Array<Medium_Str> line_arr, i32 *index_ptr){
-    assert(line_arr.get(*index_ptr + 1).data[0] == '[');
-    //assert(is_digit_or_minus(line_arr.get(*index_ptr + 2).data[0]));
+void fill_int_array_from_string(Array<int> *arr, Array<Medium_Str> line_arr, i32 *index_ptr){
+    assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
+    //assert(is_digit_or_minus(line_arr.get_pointer(*index_ptr + 2).data[0]));
     
     *index_ptr += 2;
     
-    for (; *index_ptr < line_arr.count - 1 && line_arr.get(*index_ptr).data[0] != ']'; *index_ptr += 1){
-        Medium_Str current = line_arr.get((*index_ptr));
-        //Medium_Str next    = line_arr.get((*index_ptr) + 1);
+    for (; *index_ptr < line_arr.count - 1 && line_arr.get_value(*index_ptr).data[0] != ']'; *index_ptr += 1){
+        Medium_Str current = line_arr.get_value((*index_ptr));
+        //Medium_Str next    = line_arr.get_pointer((*index_ptr) + 1);
         i32 value = -1;
         fill_i32_from_string(&value, current.data);  
-        arr->add(value);
-        //fill_vector2_from_string(arr->get_ptr(arr->count), current.data, next.data);
+        arr->append(value);
+        //fill_vector2_from_string(arr->get_pointer(arr->count), current.data, next.data);
         //arr->count++;
     }
 }
