@@ -339,26 +339,26 @@ int bezie(int *numbers, int n, float t){
     return result;
 }
 
-int bezie_colors(uint32_t *colors, int colors_count, float fraction)
-{
-    int *reds   = (int *)malloc(colors_count * sizeof(int));    
-    int *greens = (int *)malloc(colors_count * sizeof(int));    
-    int *blues  = (int *)malloc(colors_count * sizeof(int));    
+// int bezie_colors(uint32_t *colors, int colors_count, float fraction)
+// {
+//     int *reds   = (int *)malloc(colors_count * sizeof(int));    
+//     int *greens = (int *)malloc(colors_count * sizeof(int));    
+//     int *blues  = (int *)malloc(colors_count * sizeof(int));    
     
-    for (int i = 0; i < colors_count; i++){
-        reds  [i] = (colors[i] >> 16) & 0xff;
-        greens[i] = (colors[i] >> 8)  & 0xff;
-        blues [i] =  colors[i]        & 0xff;
-    }
+//     for (int i = 0; i < colors_count; i++){
+//         reds  [i] = (colors[i] >> 16) & 0xff;
+//         greens[i] = (colors[i] >> 8)  & 0xff;
+//         blues [i] =  colors[i]        & 0xff;
+//     }
     
-    int result =  bezie(reds, colors_count, fraction)   << 16 |
-                  bezie(greens, colors_count, fraction) << 8  |
-                  bezie(blues, colors_count, fraction);
-    free(reds);
-    free(greens);
-    free(blues);
-    return result;
-}
+//     int result =  bezie(reds, colors_count, fraction)   << 16 |
+//                   bezie(greens, colors_count, fraction) << 8  |
+//                   bezie(blues, colors_count, fraction);
+//     free(reds);
+//     free(greens);
+//     free(blues);
+//     return result;
+// }
 
 int lerp_colors(uint32_t *colors, int colors_count, float fraction){
     //clamp(&fraction, (float)0, (float)0.9999999);

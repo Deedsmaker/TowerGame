@@ -32,7 +32,7 @@ void test_str1(){
     
     str.free_str();
     //free_string_array(&splitted);
-    splitted.free();
+    splitted.free_data();
 }
 
 void test_str2(){

@@ -287,45 +287,45 @@ void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_
     vec_ptr->a = to_f32(w_str);
 }
 
-void fill_vertices_array_from_string(Static_Array<Vector2, MAX_VERTICES> *vertices, Array<Medium_Str> line_arr, i32 *index_ptr){
+void fill_vertices_array_from_string(Static_Array<Vector2, MAX_VERTICES> *vertices, Array<String> line_arr, i32 *index_ptr){
     assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
     assert(is_digit_or_minus(line_arr.get_value(*index_ptr + 2).data[0]));
     
     *index_ptr += 2;
     
     for (; *index_ptr < line_arr.count - 1 && line_arr.get_value(*index_ptr).data[0] != ']'; *index_ptr += 2){
-        Medium_Str current = line_arr.get_value((*index_ptr));
-        Medium_Str next    = line_arr.get_value((*index_ptr) + 1);
+        String current = line_arr.get_value((*index_ptr));
+        String next    = line_arr.get_value((*index_ptr) + 1);
         
         fill_vector2_from_string(vertices->get(vertices->count), current.data, next.data);
         vertices->count++;
     }
 }
 
-void fill_vector2_array_from_string(Array<Vector2> *points, Array<Medium_Str> line_arr, i32 *index_ptr){
+void fill_vector2_array_from_string(Array<Vector2> *points, Array<String> line_arr, i32 *index_ptr){
     assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
     assert(is_digit_or_minus(line_arr.get_value(*index_ptr + 2).data[0]));
     
     *index_ptr += 2;
     
     for (; *index_ptr < line_arr.count - 1 && line_arr.get_value(*index_ptr).data[0] != ']'; *index_ptr += 2){
-        Medium_Str current = line_arr.get_value((*index_ptr));
-        Medium_Str next    = line_arr.get_value((*index_ptr) + 1);
+        String current = line_arr.get_value((*index_ptr));
+        String next    = line_arr.get_value((*index_ptr) + 1);
         
         points->append({});
         fill_vector2_from_string(points->last(), current.data, next.data);
     }
 }
 
-void fill_int_array_from_string(Array<int> *arr, Array<Medium_Str> line_arr, i32 *index_ptr){
+void fill_int_array_from_string(Array<int> *arr, Array<String> line_arr, i32 *index_ptr){
     assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
     //assert(is_digit_or_minus(line_arr.get_pointer(*index_ptr + 2).data[0]));
     
     *index_ptr += 2;
     
     for (; *index_ptr < line_arr.count - 1 && line_arr.get_value(*index_ptr).data[0] != ']'; *index_ptr += 1){
-        Medium_Str current = line_arr.get_value((*index_ptr));
-        //Medium_Str next    = line_arr.get_pointer((*index_ptr) + 1);
+        String current = line_arr.get_value((*index_ptr));
+        //String next    = line_arr.get_pointer((*index_ptr) + 1);
         i32 value = -1;
         fill_i32_from_string(&value, current.data);  
         arr->append(value);

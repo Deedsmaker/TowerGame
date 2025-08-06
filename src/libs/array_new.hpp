@@ -19,7 +19,7 @@ void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_c
             }
         }
         
-        *data = malloc(*capacity * element_size);
+        *data = calloc(1, *capacity * element_size);
         // old_data could be not present if we growing for the first time (so data was null).
         if (old_data) {
             memcpy(*data, old_data, current_count * element_size);
@@ -31,6 +31,8 @@ void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_c
 
 template<typename T>
 struct Array {
+    Allocator *allocator;
+    
     T *data;  
     i32 count;
     i32 capacity;
@@ -103,7 +105,7 @@ struct Array {
         return find(&to_find);
     }
     
-    void free() {
+    void free_data() {
         assert(data);
         free(data);
         data = NULL;
@@ -128,7 +130,7 @@ void init_array(Array<T> *array, i32 capacity) {
     assert(array->data == NULL && "We probably should init array only when it is not initialized");
     array->capacity = capacity;
     
-    array->data = (T*) malloc(capacity * sizeof(T));
+    array->data = (T*) calloc(1, capacity * sizeof(T));
 }
 
 template<typename T, i32 C>
@@ -230,38 +232,38 @@ struct Static_Array {
     }
 };
 
-#define for_chunk_array(element, type, arr) type *element = NULL; for (i32 i = arr->next_avaliable(arr, 0, &element); i < arr->chunks_count * arr->chunk_size && element; i = arr->next_avaliable(arr, i + 1, &element)) 
+#define for_chunk_array(chunk_value, type, arr) type *chunk_value = NULL; for (i32 i = arr->next_avaliable(0, &chunk_value); i < arr->chunks_count * arr->chunk_size && chunk_value; i = arr->next_avaliable(i + 1, &chunk_value)) 
 
 template<typename T>
 struct Chunk_Array {
-    struct Array_Chunk_Element {
+    struct Chunk_Element {
         T value;  
         b32 occupied;
     };
-    struct Array_Chunk {
-        Array_Chunk_Element *chunk_data;  
+    struct Chunk {
+        Chunk_Element *elements;  
         i32 occupied_count;
         
-        Array_Chunk *next;
+        Chunk *next;
     };
     Allocator *allocator;
-    Array_Chunk *first_chunk;
+    Chunk *first_chunk;
     i32 chunk_size = 32;
     i32 chunks_count;
 
-    inline b32 index_in_chunk(i32 index, Array_Chunk *chunk, i32 chunk_index) {
+    inline b32 index_in_chunk(i32 index, Chunk *chunk, i32 chunk_index) {
         return index >= chunk_index * chunk_size && index < (chunk_index + 1) * chunk_size;
     }
     
     i32 next_avaliable(i32 start_index, T **element) {
         i32 start_chunk_index = start_index / chunk_size;
-        Array_Chunk *chunk = first_chunk;
+        Chunk *chunk = first_chunk;
         for (i32 i = 1; i < start_chunk_index; i++) chunk = chunk->next;
         
         i32 start_index_in_chunk = start_index - start_chunk_index * chunk_size;
         for (i32 i = start_chunk_index; i < chunks_count; i++) {
             for (i32 j = i == start_chunk_index ? start_index_in_chunk : 0; j < chunk_size; j++) {
-                Array_Chunk_Element *array_element = &chunk->chunk_data[j];
+                Chunk_Element *array_element = &chunk->elements[j];
                 if (array_element->occupied) {
                     *element = &array_element->value;
                     return j + i * chunk_size;
@@ -279,12 +281,12 @@ struct Chunk_Array {
     inline T *get(i32 index) {
         assert((index >= 0 && index < chunk_size * chunks_count) && "Index out of bounds!");
         
-        Array_Chunk *chunk = first_chunk;
+        Chunk *chunk = first_chunk;
         for (i32 i = 0; i < chunks_count; i++) {
             if (i > 0) chunk = chunk->next;
             if (index_in_chunk(index, chunk, i)) {
                 // That chunk could be not currently occupied. Not sure what we should do about that.
-                return &chunk->chunk_data[index - (i * chunk_size)].value;
+                return &chunk->elements[index - (i * chunk_size)].value;
             }
         }
         
@@ -296,24 +298,49 @@ struct Chunk_Array {
         return *get(index);
     }
     
-    //nocheckin implement.
-    i32 find_free_space_and_grow_if_need(i32 appended_count) {
-        for_chunk_array(element, T, this) {   
-                       
+    i32 find_free_space_and_grow_if_need() {
+        if (!first_chunk) {
+            first_chunk = (Chunk *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+            chunks_count += 1;
+            return 0;
+        }
+    
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
+        
+            if (chunk->occupied_count >= chunk_size) continue;
+        
+            for (i32 j = 0; j < chunk_size; j++) {
+                Chunk_Element *element = &chunk->elements[j];
+                if (!element->occupied) {
+                    return j + i * chunk_size;
+                }
+            }
         }
         
-        return -1;
+        assert(chunk && "We should not set this chunk variable to null, because here it should be our last chunk so we could create next.");
+        // If we're here then we did not found any free space in existing chunks, so we creating new chunk.
+        
+        // Right now "chunk" variable should be last chunk.
+        chunk->next = (Chunk *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+        chunks_count += 1;
+        
+        // So we returning the first index of newly created chunk. If it was second chunk and chunk_size is 32 - we're returning 32.
+        return chunks_count * (chunk_size - 1);
     }
     
     T *append(T value) {
-        i32 add_index = find_free_space_and_grow_if_need(1);
+        if (chunk_size == 0) chunk_size = 32;
+    
+        i32 add_index = find_free_space_and_grow_if_need();
         assert(add_index >= 0);
     
-        Array_Chunk *chunk = first_chunk;
+        Chunk *chunk = first_chunk;
         for (i32 i = 0; i < chunks_count; i++) {
             if (i > 0) chunk = chunk->next;
             if (index_in_chunk(add_index, chunk, i)) {
-                Array_Chunk_Element *chunk_element = &chunk->chunk_data[add_index - (i * chunk_size)];
+                Chunk_Element *chunk_element = &chunk->elements[add_index - (i * chunk_size)];
                 chunk_element->occupied = true;
                 chunk_element->value = value;
                 chunk->occupied_count += 1;
@@ -327,11 +354,11 @@ struct Chunk_Array {
     }
     
     void remove(i32 index) {
-        Array_Chunk *chunk = first_chunk;
+        Chunk *chunk = first_chunk;
         for (i32 i = 0; i < chunks_count; i++) {
             if (i > 0) chunk = chunk->next;
             if (index_in_chunk(index, chunk, i)) {
-                Array_Chunk_Element *chunk_element = &chunk->chunk_data[index - (i * chunk_size)];
+                Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
                 
                 chunk_element->occupied = false;
                 chunk->occupied_count -= 1;
@@ -344,38 +371,54 @@ struct Chunk_Array {
         assert(false && "Tried to remove index that is not present in chunk array");
     }
     
-    // b32 contains(T *to_found) {
-    //     for (i32 i = 0; i < count; i++) {
+    inline b32 contains(T *to_find) {
+        return find(to_find) >= 0;
+    }
+    
+    inline b32 contains(T to_find) {
+        return contains(&to_find);
+    }
+    
+    i32 find(T *to_find) {    
+        for_chunk_array(value, T, this) {
+            if (*value == *to_find) {
+                return i;
+            }
+        }
+        
+        return -1;
+    }
+    inline i32 find(T to_find) {
+        return find(&to_find);
+    }
+    
+    void clear() {
+        if (!first_chunk) return;
+        
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
             
-    //     }
-    //     for_array(i, this) {
-    //         if (*get(i) == *to_found) {
-    //             return true;
-    //         }
-    //     }
+            for (i32 j = 0; j < chunk_size; j++) {
+                Chunk_Element *element = &chunk->elements[j];
+                element->occupied = false;
+            }
+            
+            chunk->occupied_count = 0;
+        }
+    }
+    
+    void free_data() {
+        // Our allocator currently is just arena and we don't free individual elemnts in arena.
+        if (allocator || !first_chunk) return;
         
-    //     return false;
-    // }
-    
-    // inline b32 contains(T to_found) {
-    //     return contains(&to_found);
-    // }
-    
-    // i32 find(T *to_find) {    
-    //     for_array(i, this) {
-    //         if (*get(i) == *to_find) {
-    //             return i;
-    //         }
-    //     }
-        
-    //     return -1;
-    // }
-    // inline i32 find(T to_find) {
-    //     return find(&to_find);
-    // }
-    
-    // void clear() {
-    //     count = 0;
-    // }
+        Chunk *current = first_chunk;
+        Chunk *next;
+        while (current) {
+            next = current->next;
+            free(current);
+            current = next;
+        }
+    }
 };
 

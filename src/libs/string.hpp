@@ -378,7 +378,7 @@ struct String {
         
         if (capacity == 0){
             capacity = add_count + 1;           
-            data = (char*)malloc(capacity * sizeof(char));
+            data = (char*)calloc(1, capacity * sizeof(char));
             data[0] = 0;
         }
         
@@ -391,7 +391,7 @@ struct String {
             }
             str_copy(old_data, data);
             
-            data = (char*)malloc(capacity * sizeof(char));
+            data = (char*)calloc(1, capacity * sizeof(char));
             
             str_copy(data, old_data);
             free(old_data);
@@ -409,7 +409,7 @@ struct String {
             capacity *= 2;
             str_copy(old_data, data);
             
-            data = (char*)malloc(capacity * sizeof(char));
+            data = (char*)calloc(1, capacity * sizeof(char));
             
             str_copy(data, old_data);
             free(old_data);
@@ -491,7 +491,7 @@ String make_substring(String original_string, int start_index, int end_index, Al
     return new_string;
 }
 
-String temp_string(const char *text, ...) {
+String tstring(const char *text, ...) {
     String result_string = {.allocator = &temp_allocator};
     result_string.data = alloc(result_string.allocator, 1024);
     
@@ -519,7 +519,7 @@ String init_string(){
     new_string.count = 0;
     new_string.capacity = 16;
     
-    new_string.data = (char*)malloc(new_string.capacity * sizeof(char));
+    new_string.data = (char*)calloc(1, new_string.capacity * sizeof(char));
     new_string.data[0] = '\0';
     return new_string;
 }
@@ -533,7 +533,7 @@ String init_string_from_str(const char *_data){
         new_string.capacity = 16;
     }
     
-    new_string.data = (char*)malloc(new_string.capacity * sizeof(char));
+    new_string.data = (char*)calloc(1, new_string.capacity * sizeof(char));
     
     str_copy(new_string.data, _data);
     
@@ -546,7 +546,7 @@ String copy_string(String *str_to_copy){
     new_string.count = str_to_copy->count;
     new_string.capacity = str_to_copy->capacity;
     
-    new_string.data = (char*)malloc(new_string.capacity * sizeof(char));
+    new_string.data = (char*)calloc(1, new_string.capacity * sizeof(char));
     str_copy(new_string.data, str_to_copy->data);
     
     return new_string;
@@ -626,7 +626,7 @@ void split_string(Array<String> *result_array, String to_split, String separator
             if (to_split.data[i] == separators.data[s]) {
                 // That check exists for continuous separators.
                 if (ground_index < i) {                
-                    result_array->append(make_substring(to_split, ground_index, i, &temp_allocator));
+                    result_array->append(make_substring(to_split, ground_index, i, result_array->allocator));
                 }
                     
                 ground_index = i + 1;
@@ -635,8 +635,8 @@ void split_string(Array<String> *result_array, String to_split, String separator
     }
 }
 
-Array<String> split_string(String to_split, String separators) {
-    Array<String> result = {0};     
+Array<String> split_string(String to_split, String separators, Allocator *allocator) {
+    Array<String> result = {.allocator = allocator};     
     split_string(&result, to_split, separators);    
     return result;
 }

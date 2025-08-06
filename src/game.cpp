@@ -205,11 +205,11 @@ void free_entity_light(Entity *e) {
 void free_entity(Entity *e) {
     if (e->flags & TRIGGER) {
         if (e->trigger.connected.capacity > 0) {
-            e->trigger.connected.free();
+            e->trigger.connected.free_data();
         }
         
         if (e->trigger.cam_rails_points.capacity > 0) {
-            e->trigger.cam_rails_points.free();
+            e->trigger.cam_rails_points.free_data();
         }
     }
     
@@ -219,7 +219,7 @@ void free_entity(Entity *e) {
     
     // free kill switch
     if (e->flags & KILL_SWITCH) {
-        e->enemy.kill_switch.connected.free();    
+        e->enemy.kill_switch.connected.free_data();    
     }
     
     if (e->flags & CENTIPEDE) {
@@ -257,11 +257,11 @@ void free_entity(Entity *e) {
     
     // @CLEANUP: Why exactly we don't free that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
     // if (e->flags & MOVE_SEQUENCE) {
-    //     e->move_sequence.points.free();
+    //     e->move_sequence.points.free_data();
     // }
     
     // if (e->flags & JUMP_SHOOTER) {
-    //     e->jump_shooter.move_points.free();
+    //     e->jump_shooter.move_points.free_data();
     // }
     
     // free light
@@ -1058,7 +1058,7 @@ i32 save_level(const char *level_name) {
         }
         str_copy(current_level_context->level_name, name);
         reload_level_files();
-        builder_append(&console.content_builder, temp_string("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time));
+        builder_append(&console.content_builder, tstring("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time));
         printf("level saved: \"%s\"; \n", level_path);
     }
     
@@ -1077,23 +1077,23 @@ inline void save_level_by_name(const char *name) {
     save_level(name);
 }
 
-void fill_string(char *dest, Array<Medium_Str> line_arr, i32 *index_ptr) {
-    assert(line_arr.get_value(*index_ptr + 1).data[0] == '\"');
+void fill_string(char *dest, Array<String> *line_arr, i32 *index_ptr) {
+    assert(line_arr->get_value(*index_ptr + 1).data[0] == '\"');
     
     *index_ptr += 2;
     
-    for (; *index_ptr < line_arr.count && line_arr.get_value(*index_ptr).data[0] != '\"'; *index_ptr += 1) {
-        Medium_Str current_str = line_arr.get_value(*index_ptr);
+    for (; *index_ptr < line_arr->count && line_arr->get_value(*index_ptr).data[0] != '\"'; *index_ptr += 1) {
+        String current_str = line_arr->get_value(*index_ptr);
         str_copy(dest, tprintf("%s %s", dest, current_str.data));
     }
 }
 
-void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<Medium_Str>* splitted_line) {
+void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<String> *splitted_line) {
     assert(str_equal(splitted_line->get(0)->data, "lightmaps"));
     assert(str_equal(splitted_line->get(1)->data, "["));
     
     for (i32 i = 2; i < splitted_line->count; i++) {
-        Medium_Str* str = splitted_line->get(i);
+        String* str = splitted_line->get(i);
         if (str_equal(str->data, "]")) {
             break;
         }
@@ -1115,6 +1115,8 @@ void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<Medium_Str>* splitte
 }
 
 b32 load_level(const char *level_name) {
+    clear_allocator(&temp_allocator);
+
     Game_State original_game_state = game_state;
     game_state = EDITOR;
     
@@ -1124,10 +1126,10 @@ b32 load_level(const char *level_name) {
     str_copy(name, get_substring_before_symbol(level_name, '.'));
     
     const char *level_path = tprintf("levels/%s.level", name);
-    File file = load_file(level_path, "r");
+    File file = load_file(level_path, "r", &temp_allocator);
     
     if (!file.loaded) {
-        builder_append(&console.content_builder, temp_string("Could not load level: %s\n", name));
+        builder_append(&console.content_builder, tstring("Could not load level: %s\n", name));
         return false;
     }
     
@@ -1151,26 +1153,31 @@ b32 load_level(const char *level_name) {
     
     setup_particles();
     
-    Array<Medium_Str> splitted_line = {0};
+    Array<String> splitted_line = {.allocator = &temp_allocator};
     
     b32 parsing_setup_data = false;
     b32 parsing_entities   = false;
     
-    for (i32 line_index = 0; line_index < file.lines.count; line_index++) {
-        Long_Str line = file.lines.get_value(line_index);
+    for_chunk_array(line, String, (&file.lines)) {
         
-        if (str_equal(line.data, "Setup Data:")) {
+    // }
+    // for (i32 line_index = 0; line_index < file.lines.count; line_index++) {
+        // Long_Str line = file.lines.get_value(line_index);
+        
+        if (str_equal(line->data, "Setup Data:")) {
             parsing_setup_data = true;
             parsing_entities = false;
         }
         
-        if (str_equal(line.data, "Entities:")) {
+        if (str_equal(line->data, "Entities:")) {
             parsing_setup_data = false;
             parsing_entities = true;
             continue;
         }
         
-        split_str(line.data, ":{}, ;", &splitted_line);
+        splitted_line.clear(); //nocheckin check if this is should be here.
+        // split_string(line->data, ":{}, ;", &splitted_line);
+        split_string(&splitted_line, *line, tstring(":{}, ;"));
         
         Entity entity_to_fill = Entity();
         Note note_to_fill = {};
@@ -1509,7 +1516,7 @@ b32 load_level(const char *level_name) {
                 fill_vector2_array_from_string(&entity_to_fill.move_sequence.points, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "note_content")) {
                 //str_copy(note_to_fill.content, splitted_line.get_value(i+1).data);
-                fill_string(note_to_fill.content, splitted_line, &i);
+                fill_string(note_to_fill.content, &splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "note_draw_in_game")) {
                 fill_b32_from_string(&note_to_fill.draw_in_game, splitted_line.get_value(i+1).data);
                 i++;
@@ -1546,7 +1553,7 @@ b32 load_level(const char *level_name) {
     game_state = original_game_state;
     
     //free_string_array(&splitted_line);
-    splitted_line.free();
+    splitted_line.free_data();
     unload_file(&file);
         
     loop_entities(init_loaded_entity);
@@ -1584,6 +1591,9 @@ b32 load_level(const char *level_name) {
     
     current_level_context->cam.position = current_level_context->player_spawn_point;
     current_level_context->cam.target = current_level_context->player_spawn_point;
+    
+    clear_allocator(&temp_allocator);
+    
     return true;
 } // end load level end
 
@@ -2119,7 +2129,7 @@ inline void loop_entities(void (func)(Entity*)) {
 }
 
 void print_to_console(const char *text) {
-    builder_append(&console.content_builder, temp_string("\t>%s\n", text));
+    builder_append(&console.content_builder, tstring("\t>%s\n", text));
 }
 
 inline void init_loaded_entity(Entity *entity) {
@@ -2558,7 +2568,7 @@ void init_entity(Entity *entity) {
     // init trigger 
     if (entity->flags & TRIGGER) {
         if (entity->trigger.cam_rails_points.capacity > 0 && !entity->trigger.start_cam_rails_horizontal && !entity->trigger.start_cam_rails_vertical) {
-            entity->trigger.cam_rails_points.free();            
+            entity->trigger.cam_rails_points.free_data();            
         }
     }
     
@@ -2773,27 +2783,27 @@ void debug_print_entities_count() {
     ForEntities(entity, 0) {
         count++;
     }
-    builder_append(&console.content_builder, temp_string("\t>Entities count: %d\n", count));
+    builder_append(&console.content_builder, tstring("\t>Entities count: %d\n", count));
 }
 
 void debug_infinite_ammo() {
     debug.infinite_ammo = !debug.infinite_ammo;
-    builder_append(&console.content_builder, temp_string("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled"));
+    builder_append(&console.content_builder, tstring("\t>Infinite ammo %s\n", debug.infinite_ammo ? "enabled" : "disabled"));
 }
 
 void debug_enemy_ai() {
     debug.enemy_ai = !debug.enemy_ai;
-    builder_append(&console.content_builder, temp_string("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled"));
+    builder_append(&console.content_builder, tstring("\t>Enemy ai %s\n", debug.enemy_ai ? "enabled" : "disabled"));
 }
 
 void debug_god_mode() {
     debug.god_mode = !debug.god_mode;
-    builder_append(&console.content_builder, temp_string("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled"));
+    builder_append(&console.content_builder, tstring("\t>God mode %s\n", debug.god_mode ? "enabled" : "disabled"));
 }
 
 void debug_toggle_full_light() {
     debug.full_light = !debug.full_light;
-    builder_append(&console.content_builder, temp_string("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled"));
+    builder_append(&console.content_builder, tstring("\t>Full light is %s\n", debug.full_light ? "enabled" : "disabled"));
 }
 
 void debug_toggle_lightmap_view() {
@@ -2809,7 +2819,7 @@ void debug_toggle_lightmap_view() {
 
 void debug_toggle_collision_grid() {
     debug.draw_collision_grid = !debug.draw_collision_grid;
-    builder_append(&console.content_builder, temp_string("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled"));
+    builder_append(&console.content_builder, tstring("\t>Collision grid is %s\n", debug.draw_collision_grid ? "enabled" : "disabled"));
 }
 
 void debug_set_default_time_scale() {
@@ -2833,7 +2843,7 @@ void save_replay(const char *replay_name) {
     size_t write_result = fwrite(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.count, fptr);
     
     if (write_result != -1) {
-        builder_append(&console.content_builder, temp_string("\t>Temp replay named %s is saved\n", name));
+        builder_append(&console.content_builder, tstring("\t>Temp replay named %s is saved\n", name));
     }
 }
 
@@ -2867,7 +2877,7 @@ void load_replay(const char *replay_name) {
         // enter_game_state(current_level_context, true);
         play_loaded_replay();
     
-        builder_append(&console.content_builder, temp_string("\t>Replay named %s is loaded\n", name));
+        builder_append(&console.content_builder, tstring("\t>Replay named %s is loaded\n", name));
     }
 }
 
@@ -2884,7 +2894,7 @@ void debug_toggle_play_replay() {
         play_loaded_replay();
     }
     
-    builder_append(&console.content_builder, temp_string("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled"));
+    builder_append(&console.content_builder, tstring("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled"));
 }
 
 void restart_game() {
@@ -3560,7 +3570,7 @@ void fixed_game_update(f32 dt) {
                     Vector2 point2 = rails_points->get_value(1);
                     #define SECTION_POS(point) (state_context.cam_state.on_rails_horizontal ? point.x : point.y)
                     f32 player_section_pos = state_context.cam_state.on_rails_horizontal ? rails_player_position.x : rails_player_position.y;
-                    f32 last_section_pos = state_context.cam_state.on_rails_horizontal ? rails_points->last().x : rails_points->last().y;
+                    f32 last_section_pos = state_context.cam_state.on_rails_horizontal ? rails_points->last_value().x : rails_points->last_value().y;
                     b32 is_going_right_or_up = SECTION_POS(point2) > SECTION_POS(point1);
                     
                     if (0) {
@@ -3742,7 +3752,8 @@ void update_console() {
         Color color = lerp(WHITE * 0, GRAY, console.open_progress * console.open_progress);
         
         console.args.clear();
-        split_str(focus_input_field.content, " ", &console.args);
+        // split_str(focus_input_field.content, " ", &console.args);
+        split_string(&console.args, tstring(focus_input_field.content), tstring(" "));
         
         b32 content_changed = false;
         for (i32 i = 0; i < console.commands.count && console.args.count == 1; i++) {
@@ -3791,12 +3802,13 @@ void update_console() {
         }
         
         if (make_input_field("", {0.0f, (f32)screen_height * 0.5f}, {(f32)screen_width, focus_input_field.font_size}, "console_input_field", color, false)) {
-            builder_append(&console.content_builder, temp_string("%s\n", focus_input_field.content));
+            builder_append(&console.content_builder, tstring("%s\n", focus_input_field.content));
             
             //if we used hint while input, for example
             if (content_changed) {
                 console.args.clear();
-                split_str(focus_input_field.content, " ", &console.args);
+                // split_str(focus_input_field.content, " ", &console.args);
+                split_string(&console.args, tstring(focus_input_field.content), tstring(" "));
             }
             
             b32 found_command = false;
@@ -4654,23 +4666,23 @@ void add_undo_action(Undo_Action undo_action) {
     // Because we could go back and forth on current undo index with undo/redo. 
     // Hard to wrap mind about that without remembering how undos work, but that's should work.
     Undo_Action *undo_slot = current_level_context->undo_actions.get(current_level_context->undo_actions.count);
-    undo_slot->changed_entities.free();
+    undo_slot->changed_entities.free_data();
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(&undo_level_context);
     for (i32 i = 0; i < undo_slot->deleted_entities.count; i++) {
         free_entity(undo_slot->deleted_entities.get(i));
     }
-    undo_slot->deleted_entities.free();
+    undo_slot->deleted_entities.free_data();
     
     original_level_context->undo_actions.append(undo_action);
     
     if (original_level_context->undo_actions.count >= MAX_UNDOS) {
         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
-            original_level_context->undo_actions.get(i)->changed_entities.free();
+            original_level_context->undo_actions.get(i)->changed_entities.free_data();
             for (i32 d = 0; d < undo_slot->deleted_entities.count; d++) {
                 free_entity(undo_slot->deleted_entities.get(d));
             }
-            original_level_context->undo_actions.get(i)->deleted_entities.free();
+            original_level_context->undo_actions.get(i)->deleted_entities.free_data();
         }
         original_level_context->undo_actions.remove_first_half();
     }
@@ -8049,6 +8061,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         
         rotate(sword, 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
         calculate_sword_collisions(sword, player_entity);
+        
         while(need_to_rotate > sword_min_rotation_amount) {
             rotate(sword, sword_min_rotation_amount * player_data->sword_spin_direction);
             calculate_sword_collisions(sword, player_entity);

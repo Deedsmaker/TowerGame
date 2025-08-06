@@ -7,52 +7,55 @@ struct File{
     //When we will need to keep file open this will be changed
     //FILE *fptr;
     b32 loaded = false;
-    char name[MEDIUM_STR_LEN];
-    Array<String> lines = {0};
+    String name;
+    Chunk_Array<String> lines = {0};
+    Allocator *allocator;
 };
 
-File load_file(const char *name, const char *mode){
-    File file;
-    //file.name = (char*)malloc(str_len(name) * sizeof(char));
-    str_copy(file.name, name);
-    //nocheckin maybe reserve it here.
-    // file.lines = Array<Long_Str>(128);
+File load_file(const char *name, const char *mode, Allocator *allocator){
+    File loaded_file = {0};
+    loaded_file.lines = {.allocator = allocator};
+    //loaded_file.name = (char*)malloc(str_len(name) * sizeof(char));
+    // str_copy(loaded_files.name, name);
+    loaded_file.name = make_string(allocator, name);
     
     FILE *fptr = fopen(name, mode);
     
-    //const unsigned MAX_LENGTH = 5000;
-    char buffer[LONG_STR_LEN];
+    char buffer[4096];
     
     if (fptr == NULL){
-        printf("NO FILE LOADING TODAY: %s\n", name);
+        printf("Could not load file: %s\n", name);
     }
 
-    while (fptr != NULL && fgets(buffer, LONG_STR_LEN, fptr)){
+    while (fptr != NULL && fgets(buffer, 4096, fptr)){
         //String str = init_string_from_str(buffer);
         
-        size_t buffer_len = str_len(buffer);
+        // size_t buffer_len = str_len(buffer);
         
-        if (buffer[buffer_len-1] == '\n'){
-            buffer_len--;
-            buffer[buffer_len] = '\0';
-        }
+        // if (buffer[buffer_len-1] == '\n'){
+        //     buffer_len--;
+        //     buffer[buffer_len] = '\0';
+        // }
         
-        file.lines.append({});
-        str_copy(file.lines.last()->data, buffer);
+        loaded_file.lines.append(make_string(allocator, buffer));
+        // str_copy(loaded_file.lines.last()->data, buffer);
     }
     
     if (fptr){
         fclose(fptr);
-        file.loaded = true;
+        loaded_file.loaded = true;
     }
     
-    return file;
+    return loaded_file;
 }
 
 void unload_file(File *file){
-    //free_string_array(&file->lines);
-    file->lines.free();
-    //free(file->name);
+    for_chunk_array(string, String, (&file->lines)) {
+        string->free_str();
+    }
+    
+    file->lines.free_data();
+    file->name.free_str();
 }
 
 

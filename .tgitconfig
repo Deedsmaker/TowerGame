@@ -1,5 +1,5 @@
 [hook "prepush"]
 [hook "precommit"]
-	cmdline = D:\\Code\\pre_push_no__check__in_hook.bat
+	cmdline = D:\\Code\\pre_commit_no__check__in_hook.bat
 	wait = true
 	show = true

@@ -1057,7 +1057,7 @@ struct Level_Context{
     i32 original_win_blocks_count = 0;
     i32 current_win_blocks_count = 0;
 
-    Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>();
+    Hash_Table_Int<Entity>          entities  = Hash_Table_Int<Entity>(10000);
       
     Array<Particle>         particles = {0};
     Array<Particle_Emitter> particle_emitters  = {0};
@@ -1429,7 +1429,7 @@ struct Debug{
     Array<Log_Message> log_messages_short = {0};
 };
 
-struct Console_Command{
+struct Console_Command {
     char name[MEDIUM_STR_LEN];
     void (*func)() = NULL;
     void (*func_arg)(const char*) = NULL;
@@ -1438,7 +1438,7 @@ struct Console_Command{
 struct Console {   
     b32 is_open = false;
     Array<Console_Command> commands;
-    Array<Medium_Str> args;
+    Array<String> args;
     
     Array<Medium_Str> level_files;
     

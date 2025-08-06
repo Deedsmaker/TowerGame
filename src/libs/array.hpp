@@ -238,7 +238,7 @@ struct Hash_Table_Int{
     Hash_Table_Int(int count = 10000){
         capacity = count;
         
-        data = (Table_Data<T>*)malloc(capacity * sizeof(Table_Data<T>));
+        data = (Table_Data<T>*)calloc(1, capacity * sizeof(Table_Data<T>));
 
         for (int i = 0; i < capacity; i++) {
             data[i].key = -1;
