@@ -1015,7 +1015,7 @@ enum Death_Instinct_Reason{
 
 #define MAX_LINE_TRAILS 256
 
-#define MAX_UNDOS 256
+#define MAX_UNDOS 2048
 
 struct Undo_Action{
     //Entity *entity;
@@ -1045,7 +1045,7 @@ struct Undo_Action{
 };
 
 struct Level_Context{
-    Static_Array<Undo_Action, MAX_UNDOS> undo_actions = {0};
+    Array <Undo_Action> undo_actions = {0};
     Cam cam = {};
 
     b32 inited = false;
@@ -1293,10 +1293,21 @@ enum Entity_Edge_Type{
     BOTTOM_EDGE
 };
 
+struct Multiselection {
+    b32 excluding = false;
+    b32 selecting = false;
+    
+    Vector2 start_point;
+    Array<i32> selection_entities = {0};
+    Array<i32> entities = {0};
+    Vector2 center;
+    Vector2 total_displacement_for_undo;
+};
+
 struct Editor{
     f32 in_editor_time = 0;
 
-    Static_Array<Entity*, 30> place_cursor_entities = {0};
+    Array <Entity *> place_cursor_entities = {0};
     
     // Static_Array<Undo_Action, MAX_UNDOS> undo_actions = {0};
     int max_undos_added;
@@ -1322,8 +1333,8 @@ struct Editor{
     Vector2 dragging_start_mouse_offset = Vector2_zero;
     Vector2 scaling_start;
     f32     rotating_start;
-    Static_Array<Vector2, MAX_VERTICES> vertices_start = {0};
-    Static_Array<Vector2, MAX_VERTICES> unscaled_vertices_start = {0};
+    Static_Array <Vector2, MAX_VERTICES> vertices_start = {0};
+    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_start = {0};
     
     b32 is_scaling_entity = false;
     b32 is_rotating_entity = false;
@@ -1341,6 +1352,7 @@ struct Editor{
     Vector2 moving_edge_start_entity_position = Vector2_zero;
     Vector2 moving_edge_start_entity_scale = Vector2_zero;
     
+    Multiselection multiselection = {0};
     b32 excluding_multiselection = false;
     b32 multiselecting = false;
     Vector2 multiselect_start_point = Vector2_zero;

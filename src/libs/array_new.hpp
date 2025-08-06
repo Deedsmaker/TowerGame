@@ -105,6 +105,15 @@ struct Array {
         return find(&to_find);
     }
     
+    T pop_value(){
+        assert(count > 0);
+        return data[--count];
+    }
+    T* pop(){
+        assert(count > 0);
+        return &data[--count];
+    }
+    
     void free_data() {
         if (data) {
             free(data);
@@ -180,7 +189,6 @@ struct Static_Array {
     
         return data[--count];
     }
-    
     T* pop(){
         assert(count > 0);
     
