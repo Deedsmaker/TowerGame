@@ -991,7 +991,7 @@ struct Core{
 
 #define MAX_ENTITIES 10000
 
-struct Speedrun_Timer{
+struct Speedrun_Timer {
     b32 level_timer_active = false;    
     b32 game_timer_active  = false;
     
@@ -1000,7 +1000,7 @@ struct Speedrun_Timer{
     f32 time = 0;
 };
 
-struct Note{
+struct Note {
     b32 occupied = false;
     char content[2048] = "\0";
     
@@ -1438,7 +1438,7 @@ struct Console_Command {
 struct Console {   
     b32 is_open = false;
     Array<Console_Command> commands;
-    Array<String> args;
+    Array<String> args = {0};
     
     Array<Medium_Str> level_files;
     

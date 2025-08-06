@@ -8,13 +8,13 @@ struct File{
     //FILE *fptr;
     b32 loaded = false;
     String name;
-    Chunk_Array<String> lines = {0};
+    Array<String> lines = {0};
     Allocator *allocator;
 };
 
 File load_file(const char *name, const char *mode, Allocator *allocator){
     File loaded_file = {0};
-    loaded_file.lines = {.allocator = allocator, .chunk_size = 128};
+    init_array(&loaded_file.lines, 128, allocator);
     //loaded_file.name = (char*)malloc(str_len(name) * sizeof(char));
     // str_copy(loaded_files.name, name);
     loaded_file.name = make_string(allocator, name);
@@ -50,8 +50,8 @@ File load_file(const char *name, const char *mode, Allocator *allocator){
 }
 
 void unload_file(File *file){
-    for_chunk_array(string, String, (&file->lines)) {
-        string->free_data();
+    for_array(i, (&file->lines)) {
+        file->lines.get(i)->free_data();
     }
     
     file->lines.free_data();

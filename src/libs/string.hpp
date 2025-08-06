@@ -301,8 +301,8 @@ const char *tprintf(const char *text, ...){
     va_end(args);
     
     if (byte_count >= MEDIUM_STR_LEN){
-        char *trunc_buffer = current_buffer + MEDIUM_STR_LEN - 10;
-        sprintf(trunc_buffer, "OVERFLOWW");
+        char *trunc_buffer = current_buffer + MEDIUM_STR_LEN - 15;
+        sprintf(trunc_buffer, "OVERFLOWWstati");
     }
     
     increment_temp_line_index();
@@ -370,8 +370,7 @@ f32 to_f32(const char *text){
 struct String {
     Allocator *allocator = NULL;
     char *data;
-    size_t count = 0;
-    size_t capacity = 0;
+    i32 count = 0;
     
     b32 operator==(String str1){
         if (count != str1.count) return false;
@@ -406,17 +405,13 @@ struct String {
 
 String make_string(Allocator *allocator, const char *text, ...){
     String result_string = {.allocator = allocator};
-    result_string.data = alloc(result_string.allocator, 1024);
     
     va_list args;
     va_start(args, text);
-    i32 byte_count = vsnprintf(result_string.data, 1024, text, args);
+    i32 byte_count = vsnprintf(result_string.data, 0, text, args);
+    result_string.data = alloc(result_string.allocator, byte_count + 1);
+    vsnprintf(result_string.data, byte_count + 1, text, args);
     va_end(args);
-    
-    if (byte_count >= 1024){
-        char *trunc_buffer = result_string.data + 1024 - 10;
-        sprintf(trunc_buffer, "OVERFLOWW");
-    }
     
     result_string.count = byte_count;
     
@@ -430,7 +425,7 @@ String make_substring(String original_string, int start_index, int end_index, Al
         return new_string;
     }
     
-    new_string.count = end_index - start_index;
+    new_string.count = end_index - start_index + 1; // +1 because if end_index - start_index == 0 we need to add that exact index to substring etc..
     
     new_string.data = alloc(new_string.allocator,  new_string.count + 1); // +1 for null termination.
     // @TODO: think about null termination.
@@ -441,38 +436,29 @@ String make_substring(String original_string, int start_index, int end_index, Al
 
 String tstring(const char *text, ...) {
     String result_string = {.allocator = &temp_allocator};
-    result_string.data = alloc(result_string.allocator, 1024);
     
     va_list args;
     va_start(args, text);
-    i32 byte_count = vsnprintf(result_string.data, 1024, text, args);
+    i32 byte_count = vsnprintf(result_string.data, 0, text, args);
+    result_string.data = alloc(result_string.allocator, byte_count + 1);
+    vsnprintf(result_string.data, byte_count + 1, text, args);
     va_end(args);
-    
-    if (byte_count >= 1024){
-        char *trunc_buffer = result_string.data + 1024 - 10;
-        sprintf(trunc_buffer, "OVERFLOWW");
-    }
     
     result_string.count = byte_count;
     
     return result_string;
 }
 
-String S() {
-    return {0};
-}
+// String copy_string(String to_copy){
+//     String new_string;
 
-String copy_string(String *str_to_copy){
-    String new_string;
-
-    new_string.count = str_to_copy->count;
-    new_string.capacity = str_to_copy->capacity;
+//     new_string.count = to_copy->count;
     
-    new_string.data = (char*)calloc(1, new_string.capacity * sizeof(char));
-    str_copy(new_string.data, str_to_copy->data);
+//     new_string.data = (char*)calloc(1, new_string.capacity * sizeof(char));
+//     str_copy(new_string.data, to_copy->data);
     
-    return new_string;
-}
+//     return new_string;
+// }
 
 struct Medium_Str{
     char data[MEDIUM_STR_LEN];  
@@ -559,12 +545,18 @@ void split_string(Array<String> *result_array, String to_split, String separator
             if (to_split.data[i] == separators.data[s]) {
                 // That check exists for continuous separators.
                 if (ground_index < i) {                
-                    result_array->append(make_substring(to_split, ground_index, i, result_array->allocator));
+                    result_array->append(make_substring(to_split, ground_index, i - 1, result_array->allocator)); // i - 1 because make_substring include end index and we don't want to add separator to string.
                 }
                     
                 ground_index = i + 1;
             }
         }
+    }
+    
+    // At that point ground index should be equal to (last separator + 1) and we need to add last substring to array.
+    // So if last separator was last symbol - ground_index would be equal to to_split.count.
+    if (ground_index <= to_split.count - 1) {
+        result_array->append(make_substring(to_split, ground_index, to_split.count - 1, result_array->allocator));
     }
 }
 

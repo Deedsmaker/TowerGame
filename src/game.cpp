@@ -22,7 +22,7 @@ global_variable Array<Collision> collisions_buffer; // Should probably reserve d
 
 #define ForEntitiesInContext(context, entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(context, 0, &entity, flags); index < current_level_context->entities.capacity && entity; index = next_entity_avaliable(context, index+1, &entity, flags)) 
 
-#define ArrayOfStructsToDefaultValues(arr) for (i32 arr_index = 0; arr_index < arr.capacity; arr_index++) { (*arr.get(arr_index)) = {};}
+#define ArrayOfStructsToDefaultValues(arr) for (i32 arr_index = 0; arr_index < arr.count; arr_index++) { (*arr.get(arr_index)) = {0};}
 
 //#define For(arr, type, value) for(i32 ii = 0; ii < arr.count; ii++) { type value = arr.get_value(ii);
 
@@ -712,7 +712,6 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         // So when se init entities - we clear particle emitters, because they will be added again. 
         // When we don't init entities - we copy emitters (and entity indexes are staying the same).
         
-        // nocheckin if we want to just clear emitters why we just 
         ArrayOfStructsToDefaultValues(current_level_context->particle_emitters);       
     }
     
@@ -757,6 +756,9 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
 }
 
 void clear_level_context(Level_Context *level_context) {
+    // Remember that currently we init level context only in very beginnning, so nobody should set inited to false.
+    assert(level_context->inited);
+
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(level_context);
     ForEntities(entity, 0) {
@@ -1130,7 +1132,7 @@ b32 load_level(const char *level_name) {
     str_copy(name, get_substring_before_symbol(level_name, '.'));
     
     const char *level_path = tprintf("levels/%s.level", name);
-    File file = load_file(level_path, "r", &temp_allocator);
+    File file = load_file(level_path, "r", HEAP_ALLOCATOR);
     
     if (!file.loaded) {
         builder_append(&console.content_builder, tstring("Could not load level: %s\n", name));
@@ -1157,16 +1159,13 @@ b32 load_level(const char *level_name) {
     
     setup_particles();
     
-    Array<String> splitted_line = {.allocator = &temp_allocator};
+    Array<String> splitted_line = {.allocator = HEAP_ALLOCATOR};
     
     b32 parsing_setup_data = false;
     b32 parsing_entities   = false;
     
-    for_chunk_array(line, String, (&file.lines)) {
-        
-    // }
-    // for (i32 line_index = 0; line_index < file.lines.count; line_index++) {
-        // Long_Str line = file.lines.get_value(line_index);
+    for (i32 line_index = 0; line_index < file.lines.count; line_index++) {
+        String *line = file.lines.get(line_index);
         
         if (str_contains(line->data, "Setup Data:")) {
             parsing_setup_data = true;
@@ -1179,7 +1178,10 @@ b32 load_level(const char *level_name) {
             continue;
         }
         
-        splitted_line.clear(); //nocheckin check if this is should be here.
+        for_array(i, (&splitted_line)) {
+            splitted_line.get(i)->free_data();
+        }
+        splitted_line.clear();
         // split_string(line->data, ":{}, ;", &splitted_line);
         split_string(&splitted_line, *line, tstring(":{}, ;"));
         
@@ -1187,6 +1189,10 @@ b32 load_level(const char *level_name) {
         Note note_to_fill = {};
         
         for (i32 i = 0; i < splitted_line.count; i++) {
+            if (splitted_line.get_value(i) == "\n") {
+                continue;
+            }
+        
             if (parsing_setup_data) {
                 if (str_contains(splitted_line.get_value(i).data, "player_spawn_point")) {
                     fill_vector2_from_string(&current_level_context->player_spawn_point, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
@@ -1622,7 +1628,6 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
 
 global_variable Array<Collision_Grid_Cell*> collision_cells_buffer = {0};
 
-// nocheckin probably init this.
 global_variable Array<Spawn_Object> spawn_objects = {0};
 
 #define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK)
@@ -2972,6 +2977,9 @@ void debug_toggle_draw_triggers() {
 }
 
 void init_console() {
+    init_array(&console.args, 8, HEAP_ALLOCATOR);
+    init_array(&console.commands, 128, HEAP_ALLOCATOR);
+
     reload_level_files();    
 
     console.commands.append(make_console_command("hotkeys", print_hotkeys_to_console));
@@ -3150,11 +3158,11 @@ inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pit
 void init_level_context(Level_Context *level_context) {
     assert(!level_context->inited);
 
-    //nocheckin see what arrays we should initialize
-
-    init_array(&level_context->particles, MAX_PARTICLES);
-    init_array(&level_context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS);
-    init_array(&level_context->lights, 1024);
+    init_array(&level_context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
+    init_array(&level_context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
+    init_array(&level_context->lights, 1024, HEAP_ALLOCATOR);
+    
+    init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
 
     //init context
     for (i32 i = 0; i < level_context->lights.capacity; i++) {
@@ -3196,6 +3204,9 @@ void init_level_context(Level_Context *level_context) {
     }
     for (i32 i = 0; i < level_context->line_trails.capacity; i++) {
         level_context->line_trails.append({0});
+    }
+    for (i32 i = 0; i < level_context->notes.capacity; i++) {
+        level_context->notes.append({0});
     }
 }
 
@@ -3788,7 +3799,7 @@ void update_console() {
             }
         }
         
-        if (console.args.count == 2 && (str_equal(console.args.get_value(0).data, "level") || str_equal(console.args.get_value(0).data, "load"))) {
+        if (console.args.count == 2 && (console.args.get_value(0) == "level" || console.args.get_value(0) == "load")) {
             for (i32 i = 0; i < console.level_files.count; i++) {
                 if (str_contains(console.level_files.get_value(i).data, console.args.get_value(1).data)) {
                     const char *new_console_content = tprintf("%s %s", console.args.get_value(0).data, console.level_files.get_value(i).data);
@@ -7000,7 +7011,7 @@ void update_editor() {
     }
     
     if (current_level_context->undo_actions.count > 0 && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Z) && !IsKeyDown(KEY_LEFT_SHIFT)) {
-        Undo_Action *action = current_level_context->undo_actions.pop_ptr();
+        Undo_Action *action = current_level_context->undo_actions.pop();
         
         focus_input_field.in_focus = false;
         
@@ -10957,8 +10968,6 @@ void update_entities(f32 dt) {
         update_all_collision_cells();        
     }
     
-    //nocheckin init entities array for sure. And think about how to store them so we don't have to go through all the entities.
-    // Maybe arena should do here.
     for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
         if (!entities->has_index(entity_index)) {
             continue;

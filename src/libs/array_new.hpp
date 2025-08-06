@@ -106,9 +106,12 @@ struct Array {
     }
     
     void free_data() {
-        assert(data);
-        free(data);
-        data = NULL;
+        if (data) {
+            free(data);
+            data = NULL;
+        } else {
+            assert(capacity == 0 && count == 0);
+        }
         capacity = 0;
         count = 0;
     }
@@ -126,7 +129,7 @@ struct Array {
 };
 
 template<typename T>
-void init_array(Array<T> *array, i32 capacity) {
+void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
     assert(array->data == NULL && "We probably should init array only when it is not initialized");
     array->capacity = capacity;
     
@@ -172,14 +175,13 @@ struct Static_Array {
         count--;
     }
     
-    //nocheckin change names to pop and pop_value.
-    T pop(){
+    T pop_value(){
         assert(count > 0);
     
         return data[--count];
     }
     
-    T* pop_ptr(){
+    T* pop(){
         assert(count > 0);
     
         return &data[--count];
@@ -278,7 +280,7 @@ struct Chunk_Array {
     }
 
     
-    inline T *get(i32 index) {
+    T *get(i32 index) {
         assert((index >= 0 && index < chunk_size * chunks_count) && "Index out of bounds!");
         
         Chunk *chunk = first_chunk;

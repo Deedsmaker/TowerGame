@@ -9,6 +9,8 @@ struct Allocator {
     char *start = NULL;
 };
 
+#define HEAP_ALLOCATOR NULL
+
 // NULL on default allocator means it will be just malloc.
 Allocator temp_allocator    = {};
 Allocator level_allocator   = {};

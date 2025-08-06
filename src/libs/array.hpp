@@ -146,7 +146,6 @@
 //         count = 0;
 //     }
     
-//     //nocheckin names
 //     T get_value(int index){
 //         return data[index];
 //     }

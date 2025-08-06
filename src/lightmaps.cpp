@@ -132,9 +132,6 @@ void bake_lightmaps_if_need(){
     
     // We do this calculations only on very first bake progress, right after button press.
     // Because here we're drawing all the emitters/occlusions/normal_maps that will be used for calculating GI.
-    //
-    // nocheckin see if we should init lightmaps array.
-    //
     for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.capacity && need_to_bake; lightmap_index++){
         if (lightmap_index != currently_baking_index){
             continue;

@@ -1,10 +1,5 @@
 #pragma once
 
-#define MAX_BUTTONS 128
-#define MAX_UI_IMAGES 128
-#define MAX_UI_TEXTS 128
-#define MAX_UI_ELEMENTS 256
-
 #define UI_FLAGS u32
 
 enum Ui_Flags{
@@ -52,10 +47,10 @@ struct Ui_Context{
     // Static_Array<Button, MAX_BUTTONS>     buttons   = Static_Array<Button, MAX_BUTTONS>();
     // Static_Array<Ui_Image, MAX_UI_IMAGES> ui_images = Static_Array<Ui_Image, MAX_UI_IMAGES>();
     // Static_Array<Ui_Text, MAX_UI_TEXTS>   ui_texts  = Static_Array<Ui_Text, MAX_UI_TEXTS>();
-    Static_Array<Ui_Element, MAX_UI_ELEMENTS> elements = Static_Array<Ui_Element, MAX_UI_ELEMENTS>();
+    Array<Ui_Element> elements = {0};
 };
 
-global_variable Ui_Context ui_context = {};
+global_variable Ui_Context ui_context = {0};
 
 Ui_Element* last_ui_element = NULL;
 
