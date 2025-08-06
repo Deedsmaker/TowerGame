@@ -19,15 +19,18 @@ void init_allocator(Allocator *allocator, size_t size) {
 
     allocator->reserved = size;
     allocator->watermark = 0;
-    allocator->start = (char *)malloc(size);
+    allocator->start = (char *)calloc(1, size);
 }
 
 char *alloc(Allocator *allocator, size_t size) {
-    if (!allocator) return (char *)malloc(size);
+    if (!allocator) return (char *)calloc(1, size);
     
     assert(allocator->watermark + size < allocator->reserved && "We don't handle situation where memory arena consumed more than it could handle. Alloc more on the start or think about your behaviour.");
     
     char *result = allocator->start + allocator->watermark;
+    for (i32 i = 0; i < size; i++) {
+        result[i] = 0;   
+    }
     allocator->watermark += size;
     
     return result;

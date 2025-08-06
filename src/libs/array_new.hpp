@@ -300,7 +300,8 @@ struct Chunk_Array {
     
     i32 find_free_space_and_grow_if_need() {
         if (!first_chunk) {
-            first_chunk = (Chunk *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+            first_chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
+            first_chunk->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
             chunks_count += 1;
             return 0;
         }
@@ -323,7 +324,8 @@ struct Chunk_Array {
         // If we're here then we did not found any free space in existing chunks, so we creating new chunk.
         
         // Right now "chunk" variable should be last chunk.
-        chunk->next = (Chunk *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+        chunk->next = (Chunk *)alloc(allocator, sizeof(Chunk));
+        chunk->next->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
         chunks_count += 1;
         
         // So we returning the first index of newly created chunk. If it was second chunk and chunk_size is 32 - we're returning 32.

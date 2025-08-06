@@ -49,31 +49,6 @@ b32 window_minimized = false;
 #include "game.cpp"
 
 int main(){
-    //nocheckin testing new array
-    Array<i32> test_arr = {0};
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(43);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    test_arr.append(3);
-    
-    test_arr.remove_first_half();
-    test_arr.remove(test_arr.find(43));    
-    
-    printf("found: %d\n", test_arr.contains(43));
-    printf("index: %d\n", test_arr.find(43));
-    
     SetTraceLogLevel(LOG_WARNING);
 
     InitWindow(screen_width, screen_height, "Pure Action");

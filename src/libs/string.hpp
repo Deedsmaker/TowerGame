@@ -373,53 +373,6 @@ struct String {
     size_t count = 0;
     size_t capacity = 0;
     
-    void operator+=(const char *add_str){
-        size_t add_count = str_len(add_str);
-        
-        if (capacity == 0){
-            capacity = add_count + 1;           
-            data = (char*)calloc(1, capacity * sizeof(char));
-            data[0] = 0;
-        }
-        
-        //+1 to safely put '\0' at end
-        if (count + add_count + 1 > capacity){
-            char *old_data = data;
-            
-            while (count + add_count + 1 > capacity){
-                capacity *= 2;
-            }
-            str_copy(old_data, data);
-            
-            data = (char*)calloc(1, capacity * sizeof(char));
-            
-            str_copy(data, old_data);
-            free(old_data);
-        }
-        
-        str_copy(data + count, add_str);
-        count += add_count; 
-        data[count] = '\0';
-    }
-    
-    void operator+=(char ch){
-        //+1 to safely put '\0' at end
-        if (count + 2 > capacity){
-            char *old_data = data;
-            capacity *= 2;
-            str_copy(old_data, data);
-            
-            data = (char*)calloc(1, capacity * sizeof(char));
-            
-            str_copy(data, old_data);
-            free(old_data);
-        }
-        
-        data[count] = ch;
-        count++;; 
-        data[count] = '\0';
-    }
-    
     b32 operator==(String str1){
         if (count != str1.count) return false;
         
@@ -442,12 +395,7 @@ struct String {
         return true;
     }
     
-    void clear(){
-        count = 0;   
-        data[0] = '\0';
-    }
-    
-    void free_str(){
+    void free_data(){
         // If allocator is persist we don't free that one because Allocator is just arena for the time being.
         if (!allocator){
             free(data);
@@ -514,32 +462,6 @@ String S() {
     return {0};
 }
 
-String init_string(){  
-    String new_string;
-    new_string.count = 0;
-    new_string.capacity = 16;
-    
-    new_string.data = (char*)calloc(1, new_string.capacity * sizeof(char));
-    new_string.data[0] = '\0';
-    return new_string;
-}
-
-String init_string_from_str(const char *_data){
-    String new_string;
-    new_string.count = str_len(_data);
-    new_string.capacity = new_string.count;
-    
-    if (new_string.capacity < 16){
-        new_string.capacity = 16;
-    }
-    
-    new_string.data = (char*)calloc(1, new_string.capacity * sizeof(char));
-    
-    str_copy(new_string.data, _data);
-    
-    return new_string;
-}
-
 String copy_string(String *str_to_copy){
     String new_string;
 
@@ -571,21 +493,28 @@ struct String_Builder {
     i32 capacity = 0;
 };
 
-void builder_init(String_Builder *builder, i32 capacity) {
+void init_string_builder(String_Builder *builder, i32 capacity) {
     assert(!builder->data);
     assert(builder->capacity == 0);
     builder->data = alloc(builder->allocator, capacity);
     builder->capacity = capacity;
+    builder->count = 0;
 }
 
-// @TODO: I would like to get rid of null ternimation on strings, but while we working with Raylib that would be to harsh of a job.
-static inline void builder_grow_if_need(String_Builder *builder, String *appended_string) {
+String_Builder make_string_builder(i32 capacity, Allocator *allocator) {
+    String_Builder builder = {.allocator = allocator};
+    init_string_builder(&builder, capacity);
+    return builder;
+}
+
+// @TODO: I would like to get rid of null ternimation on strings, but while we working with Raylib that could be hard.
+static inline void builder_grow_if_need(String_Builder *builder, String appended_string) {
     assert(builder->data && builder->capacity > 0);
     
-    if (builder->count + appended_string->count + 1 > builder->capacity) {
+    if (builder->count + appended_string.count + 1 > builder->capacity) {
         char *old_data = builder->data;
         
-        while(builder->count + appended_string->count + 1 > builder->capacity) {
+        while(builder->count + appended_string.count + 1 > builder->capacity) {
             builder->capacity *= 2;
         }
         
@@ -597,9 +526,9 @@ static inline void builder_grow_if_need(String_Builder *builder, String *appende
 }
 
 void builder_append(String_Builder *builder, String appended_string) {
-    if (!builder->data) builder_init(builder, 16384);
+    if (!builder->data) init_string_builder(builder, 2048);
     
-    builder_grow_if_need(builder, &appended_string);    
+    builder_grow_if_need(builder, appended_string);    
     
     mem_copy(builder->data + builder->count, appended_string.data, appended_string.count * sizeof(char));
     builder->count += appended_string.count;
@@ -611,6 +540,10 @@ void builder_free(String_Builder *builder) {
     free_data_in_allocator(builder->allocator, builder->data);
 }
 
+inline String make_string_from_builder(String_Builder *builder, Allocator *allocator) {
+    // @TODO: This works while we're using null termination.
+    return make_string(allocator, builder->data);
+}
 
 #include "array_new.hpp"
 

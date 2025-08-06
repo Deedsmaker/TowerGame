@@ -711,6 +711,8 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         // Particle emitters get's added on each entity init.
         // So when se init entities - we clear particle emitters, because they will be added again. 
         // When we don't init entities - we copy emitters (and entity indexes are staying the same).
+        
+        // nocheckin if we want to just clear emitters why we just 
         ArrayOfStructsToDefaultValues(current_level_context->particle_emitters);       
     }
     
@@ -762,10 +764,12 @@ void clear_level_context(Level_Context *level_context) {
         *entity = {};
     }
 
-    level_context->entities.clear();
-    level_context->particles.clear();
+    // level_context->entities.clear();
+    // level_context->particles.clear();
     // level_context->emitters.clear();
     
+    // We do that instead of clearing because this things are using it's full capacity and not count. Count should be equal
+    // to capactiy for them. That probably should change some time.
     ArrayOfStructsToDefaultValues(level_context->particle_emitters);
     ArrayOfStructsToDefaultValues(level_context->particles);
     ArrayOfStructsToDefaultValues(level_context->notes);
@@ -1164,12 +1168,12 @@ b32 load_level(const char *level_name) {
     // for (i32 line_index = 0; line_index < file.lines.count; line_index++) {
         // Long_Str line = file.lines.get_value(line_index);
         
-        if (str_equal(line->data, "Setup Data:")) {
+        if (str_contains(line->data, "Setup Data:")) {
             parsing_setup_data = true;
             parsing_entities = false;
         }
         
-        if (str_equal(line->data, "Entities:")) {
+        if (str_contains(line->data, "Entities:")) {
             parsing_setup_data = false;
             parsing_entities = true;
             continue;
@@ -1184,17 +1188,22 @@ b32 load_level(const char *level_name) {
         
         for (i32 i = 0; i < splitted_line.count; i++) {
             if (parsing_setup_data) {
-                if (str_equal(splitted_line.get_value(i).data, "player_spawn_point")) {
+                if (str_contains(splitted_line.get_value(i).data, "player_spawn_point")) {
                     fill_vector2_from_string(&current_level_context->player_spawn_point, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                     i += 2;
                     continue;
                 }
-                if (str_equal(splitted_line.get_value(i).data, "lightmaps")) {
+                if (str_contains(splitted_line.get_value(i).data, "lightmaps")) {
                     parse_lightmaps(&current_level_context->lightmaps, &splitted_line);
                 }
             }
         
             if (!parsing_entities) {
+                continue;
+            }
+
+            if (i >= splitted_line.count - 1) {
+                printf("Save data identifier goes without it's value. That's save file error.\n");
                 continue;
             }
 
@@ -1613,9 +1622,8 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
 
 global_variable Array<Collision_Grid_Cell*> collision_cells_buffer = {0};
 
-#define MAX_SPAWN_OBJECTS 128
-
-global_variable Static_Array<Spawn_Object, MAX_SPAWN_OBJECTS> spawn_objects = Static_Array<Spawn_Object, MAX_SPAWN_OBJECTS>();
+// nocheckin probably init this.
+global_variable Array<Spawn_Object> spawn_objects = {0};
 
 #define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK)
 
@@ -2020,7 +2028,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
         
         if (tile_sheet_index == -1) {
             sheet = tile_sheets.append({});
-            sheet->sheet_name = init_string_from_str(directory_name);
+            sheet->sheet_name = make_string(NULL, directory_name);
             sheet->textures = {0};
         } else {
             sheet = tile_sheets.get(tile_sheet_index);
@@ -2063,10 +2071,13 @@ Texture get_texture(const char *name) {
 }
 
 void load_textures(const char* path, b32 in_root_textures_directory) {
-    String path_string = init_string_from_str(path);
-    if (!str_end_with(path_string.data, "\\")) {
-        path_string += "\\";
+    String_Builder path_builder = make_string_builder(256, &temp_allocator);
+    builder_append(&path_builder, tstring(path));
+    if (!str_end_with(path_builder.data, "\\")) {
+        builder_append(&path_builder, tstring("\\"));
     }
+
+    String path_string = make_string_from_builder(&path_builder, &temp_allocator);
 
     FilePathList textures = LoadDirectoryFiles(path);
     for (i32 i = 0; i < textures.count; i++) {
@@ -2100,7 +2111,7 @@ void load_textures(const char* path, b32 in_root_textures_directory) {
     }
     UnloadDirectoryFiles(textures);
     
-    path_string.free_str();
+    path_string.free_data();
 }
 
 void load_all_textures() {
@@ -3141,10 +3152,14 @@ void init_level_context(Level_Context *level_context) {
 
     //nocheckin see what arrays we should initialize
 
+    init_array(&level_context->particles, MAX_PARTICLES);
+    init_array(&level_context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS);
+    init_array(&level_context->lights, 1024);
+
     //init context
     for (i32 i = 0; i < level_context->lights.capacity; i++) {
-        Light *light = level_context->lights.get(i);
-        *(light) = {};
+        Light *light = level_context->lights.append({0});
+        // *(light) = {};
         
         if (i < session_context.temp_lights_count) {
             light->make_shadows             = true;
@@ -3173,11 +3188,14 @@ void init_level_context(Level_Context *level_context) {
     
     level_context->inited = true;
     
+    for (i32 i = 0; i < level_context->particles.capacity; i++) {
+        level_context->particles.append({0});
+    }
     for (i32 i = 0; i < level_context->particle_emitters.capacity; i++) {
-        *level_context->particle_emitters.get(i) = {};
+        level_context->particle_emitters.append({0});
     }
     for (i32 i = 0; i < level_context->line_trails.capacity; i++) {
-        *level_context->line_trails.get(i) = {};
+        level_context->line_trails.append({0});
     }
 }
 
@@ -3201,12 +3219,14 @@ void init_game() {
     initing_game = true;
     
     // init arenas.
-    init_allocator(&temp_allocator, Megabytes(1));
+    init_allocator(&temp_allocator, Megabytes(4));
     
     str_copy(loaded_level_context.name, "loaded_level_context");
     // str_copy(editor_level_context.name, "editor_level_context");
     str_copy(game_level_context.name, "game_level_context");
     str_copy(checkpoint_level_context.name, "checkpoint_level_context");
+    str_copy(undo_level_context.name, "undo_level_context");
+    str_copy(copied_entities_level_context.name, "copied_entities_level_context");
     
     // Now we need to init all level contexts once 
     init_level_context(&loaded_level_context);
@@ -3216,8 +3236,8 @@ void init_game() {
     init_level_context(&copied_entities_level_context);
     
     for (i32 i = 0; i < MAX_LOADED_LEVELS; i++) {
-        init_level_context(&loaded_levels_contexts[i]);
         str_copy(loaded_levels_contexts[i].name, tprintf("editor_level_context_%d", i));
+        init_level_context(&loaded_levels_contexts[i]);
     }
     editor_level_context = &loaded_levels_contexts[0];
     
@@ -4665,24 +4685,32 @@ void copy_entity(Entity *dest, Entity *src) {
 void add_undo_action(Undo_Action undo_action) {
     // Because we could go back and forth on current undo index with undo/redo. 
     // Hard to wrap mind about that without remembering how undos work, but that's should work.
-    Undo_Action *undo_slot = current_level_context->undo_actions.get(current_level_context->undo_actions.count);
-    undo_slot->changed_entities.free_data();
+    //
+    // UPDATE: (06.07.2025) after almost a year: Because what? wtf.
+    // BECAUSE is probably about why we free arrays here. That's because otherwise we would need to 
+    // do that for every undo in front when we undo and then changed something so we can't do redo anymore 
+    // and any undos in front become invalid. 
+    // That's idiotic. I'll change free_data() to just clear() because we're reusing it anyways.
+    // And that whole undo system should die anyways as we know.
+    
+    Undo_Action *new_undo = current_level_context->undo_actions.append({0});
+    new_undo->changed_entities.clear();
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(&undo_level_context);
-    for (i32 i = 0; i < undo_slot->deleted_entities.count; i++) {
-        free_entity(undo_slot->deleted_entities.get(i));
+    for (i32 i = 0; i < new_undo->deleted_entities.count; i++) {
+        free_entity(new_undo->deleted_entities.get(i));
     }
-    undo_slot->deleted_entities.free_data();
+    new_undo->deleted_entities.clear();
     
     original_level_context->undo_actions.append(undo_action);
     
     if (original_level_context->undo_actions.count >= MAX_UNDOS) {
         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
-            original_level_context->undo_actions.get(i)->changed_entities.free_data();
-            for (i32 d = 0; d < undo_slot->deleted_entities.count; d++) {
-                free_entity(undo_slot->deleted_entities.get(d));
+            original_level_context->undo_actions.get(i)->changed_entities.clear();
+            for (i32 d = 0; d < new_undo->deleted_entities.count; d++) {
+                free_entity(new_undo->deleted_entities.get(d));
             }
-            original_level_context->undo_actions.get(i)->deleted_entities.free_data();
+            original_level_context->undo_actions.get(i)->deleted_entities.clear();
         }
         original_level_context->undo_actions.remove_first_half();
     }
@@ -7051,8 +7079,10 @@ void update_editor() {
     // redo logic
     b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_Z);
     if (need_make_redo) {
+        // @TODO: That's unstable. Will change that with undo system redone. Probably should use some different data structure
+        // for that. Or not.
         current_level_context->undo_actions.count++;        
-        Undo_Action *action = current_level_context->undo_actions.last();
+        Undo_Action *action = current_level_context->undo_actions.append({});
         
         // So we adding it again.
         if (action->added_to_multiselection) {

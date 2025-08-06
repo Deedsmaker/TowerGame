@@ -30,7 +30,7 @@ void test_str1(){
     
     printf("test_str1 cool!\n");
     
-    str.free_str();
+    str.free_data();
     //free_string_array(&splitted);
     splitted.free_data();
 }

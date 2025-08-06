@@ -297,8 +297,7 @@ void fill_vertices_array_from_string(Static_Array<Vector2, MAX_VERTICES> *vertic
         String current = line_arr.get_value((*index_ptr));
         String next    = line_arr.get_value((*index_ptr) + 1);
         
-        fill_vector2_from_string(vertices->get(vertices->count), current.data, next.data);
-        vertices->count++;
+        fill_vector2_from_string(vertices->append({0}), current.data, next.data);
     }
 }
 

@@ -14,7 +14,7 @@ struct File{
 
 File load_file(const char *name, const char *mode, Allocator *allocator){
     File loaded_file = {0};
-    loaded_file.lines = {.allocator = allocator};
+    loaded_file.lines = {.allocator = allocator, .chunk_size = 128};
     //loaded_file.name = (char*)malloc(str_len(name) * sizeof(char));
     // str_copy(loaded_files.name, name);
     loaded_file.name = make_string(allocator, name);
@@ -51,11 +51,11 @@ File load_file(const char *name, const char *mode, Allocator *allocator){
 
 void unload_file(File *file){
     for_chunk_array(string, String, (&file->lines)) {
-        string->free_str();
+        string->free_data();
     }
     
     file->lines.free_data();
-    file->name.free_str();
+    file->name.free_data();
 }
 
 
