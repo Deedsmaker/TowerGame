@@ -1,533 +1,436 @@
 #pragma once
 
+#include <assert.h>
+
 #include <string.h>
 
-// template<typename T>
-// struct Dynamic_Array_old {
-//     T *data = NULL;
-//     int count = 0;
-//     int capacity = 0;
+#define for_array(index, array) for (i32 index = 0; index < array->count; index++)
 
-//     Dynamic_Array_old(int _capacity){
-//         capacity = _capacity;
-//         count = 0;
-//         data = (T*)malloc(_capacity * sizeof(T));
-//     }
-    
-//     Dynamic_Array_old(){
-//         capacity = 0;
-//         count = 0;
-//         //data = (T*)malloc(capacity * sizeof(T));
-//     }
-    
-//     T get(int index){
-//         return data[index];
-//     }
-    
-//     T* get(int index){
-//         return &data[index];
-//     }
-    
-//     T* append(T value){
-//         //if (count >= capacity) return;
+void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_count, i32 appended_count) {
+    i32 new_count = current_count + appended_count;
+    if (new_count > *capacity) {
+        void *old_data = *data;
         
-//         if (capacity == 0){
-//             capacity = 2;
-//             data = (T*)malloc(capacity * sizeof(T));
-//         }
+        while (new_count > *capacity) {
+            if (*capacity == 0) {
+                *capacity = 8;
+            } else {
+                *capacity *= 2;
+            }
+        }
         
-//         if (count >= capacity){     
-//             assert(capacity > 0);
+        *data = calloc(1, *capacity * element_size);
+        // old_data could be not present if we growing for the first time (so data was null).
+        if (old_data) {
+            memcpy(*data, old_data, current_count * element_size);
+            free(old_data);
+        }
         
-//             capacity *= 2;
-            
-//             T *old_data = data;//(T*)malloc(count * sizeof(T));
-//             // mem_copy(old_data, data, count * sizeof(T));
-            
-//             data = (T*)malloc(capacity * sizeof(T));
-//             mem_copy(data, old_data, count * sizeof(T));
-            
-//             free(old_data);
-//         }
-        
-//         // T* element = get(count);
-//         // mem_copy(element, value, sizeof(T));
-//         data[count] = value;
-//         count++;
-        
-//         return last_ptr();
-//     }
-    
-//     void remove(int index){
-//         if (index == count - 1){
-//             count--;
-//             return;
-//         }
-    
-//         // for (int i = index; i < count - 1; i++){
-//         //     // T *current_element = get(i);
-//         //     // T *next_element    = get(i + 1);
-//         //     //mem_copy(get(i), get(i+1), sizeof(T));
-            
-            
-//         // }
-        
-//         memmove(get(index), get(index+1), sizeof(T) * (count - index - 1));
-        
-//         //mem_copy(get(index), last_ptr(), sizeof(T));
-        
-//         count--;
-//     }
-    
-//     void remove_first_half(){
-//         i32 half_count = (i32)((f32)count * 0.5f);
-//         i32 even_correction = count % 2 == 0 ? -1 : 0;
-//         mem_copy(get(0), get(half_count + even_correction), half_count * sizeof(T));
-        
-//         count = half_count;
-//     }
-    
-//     int find(T to_find){
-//         for (int i = 0; i < count; i++){ 
-//             if (data[i] == to_find){
-//                 return i;
-//             }
-//         }
-        
-//         return -1;
-//     }
-    
-//     T last(){
-//         return data[count-1];
-//     }
-    
-//     T* last_ptr(){
-//         return &data[count-1];
-//     }
-    
-//     void clear(){
-//         // free(data);
-//         // data = (T*)malloc(capacity * sizeof(T));
-//         count = 0;
-//     }
-    
-//     void free(){
-//         if (data){
-//             free(data);
-//         }
-//         capacity = 0;
-//         count = 0;
-//     }
-    
-//     b32 contains(T to_found){
-//         for (int i = 0; i < count; i++){
-//             if (get(i) == to_found){
-//                 return true;
-//             }
-//         }
-        
-//         return false;
-//     }
-
-    
-//     // ~Array_old(){
-//     //     free(data);   
-//     // }
-// };
-
-// template<typename T, int C>
-// struct Array_old{
-//     T data[C];
-//     int count = 0;
-//     int capacity = 0;
-
-//     Array_old(){
-//         capacity = C;
-//         count = 0;
-//     }
-    
-//     T get_value(int index){
-//         return data[index];
-//     }
-    
-//     T* get(int index){
-//         return &data[index];
-//     }
-    
-//     T* append(T value){
-//         // assert(count < capacity);     
-        
-//         if (count >= capacity){
-//             printf("WARNING: in static array was added more than YOU SHOULD DOG\n");
-//             return NULL;
-//         } else{
-//             data[count++] = value;
-//         }
-        
-//         return last();
-//     }
-    
-//     void remove(int index){
-//         if (index == count - 1){
-//             count--;
-//             return;
-//         }
-        
-//         memmove(get(index), get(index+1), sizeof(T) * (count - index - 1));
-//         count--;
-//     }
-    
-//     void remove_first_half(){
-//         int half_count = (int)((float)count * 0.5f);
-//         int even_correction = count % 2 == 0 ? -1 : 0;
-//         mem_copy(get(0), get(half_count + even_correction), half_count * sizeof(T));
-        
-//         count = half_count;
-//     }
-    
-//     T pop(){
-//         assert(count > 0);
-    
-//         return data[--count];
-//     }
-    
-//     T* pop_ptr(){
-//         assert(count > 0);
-    
-//         return &data[--count];
-//     }
-    
-//     T last_value(){
-//         return data[count-1];
-//     }
-    
-//     T* last(){
-//         return &data[count-1];
-//     }
-    
-//     void clear(){
-//         count = 0;
-//     }
-    
-//     b32 contains(T to_found){
-//         for (int i = 0; i < count; i++){
-//             if (get_value(i) == to_found){
-//                 return true;
-//             }
-//         }
-        
-//         return false;
-//     }
-// };
+    }
+}
 
 template<typename T>
-struct Table_Data{
-    i64 key = -1;
-    T value;
+struct Array {
+    Allocator *allocator;
+    
+    T *data;  
+    i32 count;
+    i32 capacity;
+    
+    inline T *get(i32 index) {
+        assert((index >= 0 && index < count) && "Index out of bounds!");
+        
+        return &data[index];
+    }
+    
+    inline T get_value(i32 index) {
+        assert((index >= 0 && index < count) && "Index out of bounds!");
+        
+        return data[index];
+    }
+    
+    T *append(T value) {
+        grow_if_need((void **)(&data), sizeof(T), &capacity, count, 1);
+        
+        data[count] = value;
+        count += 1;
+        
+        return last();
+    }
+    
+    void remove(i32 index) {
+        assert((index >= 0 && index < count) && "Index out of bounds!");
+        
+        if (index == count - 1) {
+            count -= 1;            
+            return;
+        }
+        
+        memmove(get(index), get(index+1), sizeof(T) * (count - index - 1));
+        count--;
+    }
+    
+    void remove_first_half(){
+        int half_count = (int)((float)count * 0.5f);
+        int even_correction = count % 2 == 0 ? -1 : 0;
+        mem_copy(get(0), get(half_count + even_correction), half_count * sizeof(T));
+        
+        count = half_count;
+    }
+    
+    b32 contains(T *to_found) {
+        for_array(i, this) {
+            if (*get(i) == *to_found) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    inline b32 contains(T to_found) {
+        return contains(&to_found);
+    }
+    
+    i32 find(T *to_find) {    
+        for_array(i, this) {
+            if (*get(i) == *to_find) {
+                return i;
+            }
+        }
+        
+        return -1;
+    }
+    inline i32 find(T to_find) {
+        return find(&to_find);
+    }
+    
+    T pop_value(){
+        assert(count > 0);
+        return data[--count];
+    }
+    T* pop(){
+        assert(count > 0);
+        return &data[--count];
+    }
+    
+    void free_data() {
+        if (data) {
+            free(data);
+            data = NULL;
+        } else {
+            assert(capacity == 0 && count == 0);
+        }
+        capacity = 0;
+        count = 0;
+    }
+    
+    void clear() {
+        count = 0;
+    }
+    
+    inline T *last() {
+        return &data[count - 1];
+    }
+    inline T last_value() {
+        return data[count - 1];
+    }
 };
 
 template<typename T>
-struct Hash_Table_Int{
-    Table_Data<T> *data;
-    //int count = 0;
-    int capacity = 1000;
-    int total_added_count = 0;
-    i64 last_added_key = -1;
+void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
+    assert(array->data == NULL && "We probably should init array only when it is not initialized");
+    array->capacity = capacity;
+    
+    array->data = (T*) calloc(1, capacity * sizeof(T));
+}
 
-    Hash_Table_Int(int count = 10000){
-        capacity = count;
+template<typename T, i32 C>
+struct Static_Array {
+    T data[C];  
+    i32 count;
+    i32 capacity = C;
+    
+    inline T *get(i32 index) {
+        assert((index >= 0 && index < count) && "Index out of bounds!");
         
-        data = (Table_Data<T>*)calloc(1, capacity * sizeof(Table_Data<T>));
-
-        for (int i = 0; i < capacity; i++) {
-            data[i].key = -1;
-        }
-        //count = 0;
+        return &data[index];
     }
     
-    b32 has_key(int key){
-        if (key == -1){
-            return false;
-        }
-    
-        return data[key%capacity].key != -1;
+    inline T get_value(i32 index) {
+        assert((index >= 0 && index < count) && "Index out of bounds!");
+        
+        return data[index];
     }
     
-    b32 has_key(i64 key){
-        if (key == -1){
-            return false;
-        }
+    T *append(T value) {
+        assert(count < capacity && "Appending in static array more than we can.");
     
-        return data[key%capacity].key != -1;
+        data[count] = value;
+        count += 1;
+        
+        return last();
     }
     
-    b32 has_index(int index){
-        if (index == -1){
-            return false;
-        }
-    
-        return data[index].key != -1;
-    }
-    
-    void remove_key(int key){
-        data[key%capacity].key = -1;
-    }
-    
-    void remove_key(i64 key){
-        data[key%capacity].key = -1;
-    }
-    
-    void remove_index(int index){
-        data[index].key = -1;
-    }
-    
-    T get_value(int index){
-        return data[index].value;
-    }
-    
-    T* get(int index){
-        return &data[index].value;
-    }
-    
-    T get_by_key(i64 key){
-        return data[key%capacity].value;
-    }
-    
-    T* get_by_key_ptr(i64 key){
-        if (!has_key(key)){
-            return NULL;
-        }
-
-        return &data[key%capacity].value;
-    }
-    
-    b32 append(int key, T value){
-        //assert(count < capacity);     
-        //assert(!has_key(key));        
-        if (has_key(key)){
-            return false;
+    void remove(i32 index) {
+        assert((index >= 0 && index < count) && "Index out of bounds!");
+        
+        if (index == count - 1) {
+            count -= 1;            
+            return;
         }
         
-        data[key%capacity].value = value;
-        data[key%capacity].key = key;
-        
-        last_added_key = key;
-        total_added_count++;
-        return true;
+        memmove(get(index), get(index+1), sizeof(T) * (count - index - 1));
+        count--;
     }
     
-    b32 append(i64 key, T value){
-        //assert(count < capacity);     
-        //assert(!has_key(key));        
-        if (has_key(key)){
-            return false;
+    T pop_value(){
+        assert(count > 0);
+    
+        return data[--count];
+    }
+    T* pop(){
+        assert(count > 0);
+    
+        return &data[--count];
+    }
+    
+    void remove_first_half(){
+        int half_count = (int)((float)count * 0.5f);
+        int even_correction = count % 2 == 0 ? -1 : 0;
+        mem_copy(get(0), get(half_count + even_correction), half_count * sizeof(T));
+        
+        count = half_count;
+    }
+    
+    b32 contains(T *to_found) {
+        for_array(i, this) {
+            if (*get(i) == *to_found) {
+                return true;
+            }
         }
         
-        data[key%capacity].value = value;
-        data[key%capacity].key = key;
-        
-        last_added_key = key;
-        total_added_count++;
-        return true;
+        return false;
     }
     
-    // T pop(){
-    //     assert(count > 0);
-    
-    //     return data[--count];
-    // }
-    
-    // T* pop_ptr(){
-    //     assert(count > 0);
-    
-    //     return &data[--count];
-    // }
-    
-    T last_value(){
-        return data[last_added_key%capacity].value;
+    inline b32 contains(T to_found) {
+        return contains(&to_found);
     }
     
-    T *last(){
-        return &data[last_added_key%capacity].value;
-    }
-    
-    void clear(){
-        for (int i = 0; i < capacity; i++){
-            // if (data[i].key != -1){
-                data[i].key = -1;
-            // }
+    i32 find(T *to_find) {    
+        for_array(i, this) {
+            if (*get(i) == *to_find) {
+                return i;
+            }
         }
         
-        total_added_count = 0;
-        last_added_key = -1;
+        return -1;
+    }
+    inline i32 find(T to_find) {
+        return find(&to_find);
+    }
+    
+    void clear() {
+        count = 0;
+    }
+    
+    inline T *last() {
+        return &data[count - 1];
+    }
+    inline T last_value() {
+        return data[count - 1];
     }
 };
 
+#define for_chunk_array(chunk_value, type, arr) type *chunk_value = NULL; for (i32 i = arr->next_avaliable(0, &chunk_value); i < arr->chunks_count * arr->chunk_size && chunk_value; i = arr->next_avaliable(i + 1, &chunk_value)) 
 
-// template<typename T>
-// void copy_array(Dynamic_Array_old<T> *dest, Dynamic_Array_old<T> *src){
-//     //*dest = *src;
-//     dest->clear();
-    
-//     for (int i = 0; i < src->count; i++){
-//         dest->append(src->get(i));
-//     }
-    
-//     //dest->data = (T*)malloc(dest->count * sizeof(T));
-//     //mem_copy(dest->data, src->data, dest->count * sizeof(T));
-// }
-
-// void split_str(char *str, const char *separators, Dynamic_Array_old<Medium_Str> *result){
-//     result->clear();
-
-//     size_t len = str_len(str);
-//     size_t separators_len = str_len(separators);
-    
-//     char temp_str[MEDIUM_STR_LEN];
-    
-//     int start_index = 0;
-//     int current_index = 0;
-    
-//     for (int i = 0; i < len; i++){
-//         char ch = str[i];
+template<typename T>
+struct Chunk_Array {
+    struct Chunk_Element {
+        T value;  
+        b32 occupied;
+    };
+    struct Chunk {
+        Chunk_Element *elements;  
+        i32 occupied_count;
         
-//         int need_separate = 0;
-//         for (int s = 0; s < separators_len; s++){
-//             if (ch == separators[s]){
-//                 need_separate = 1;
-//                 break;
-//             }
-//         }
+        Chunk *next;
+    };
+    Allocator *allocator;
+    Chunk *first_chunk;
+    i32 chunk_size = 32;
+    i32 chunks_count;
+
+    inline b32 index_in_chunk(i32 index, Chunk *chunk, i32 chunk_index) {
+        return index >= chunk_index * chunk_size && index < (chunk_index + 1) * chunk_size;
+    }
+    
+    i32 next_avaliable(i32 start_index, T **element) {
+        i32 start_chunk_index = start_index / chunk_size;
+        Chunk *chunk = first_chunk;
+        for (i32 i = 1; i < start_chunk_index; i++) chunk = chunk->next;
         
-//         if (need_separate){
-//             if (current_index - start_index != 0){
-//                 size_t added_len = (current_index - start_index);
-//                 assert(added_len < MEDIUM_STR_LEN - 1);
+        i32 start_index_in_chunk = start_index - start_chunk_index * chunk_size;
+        for (i32 i = start_chunk_index; i < chunks_count; i++) {
+            for (i32 j = i == start_chunk_index ? start_index_in_chunk : 0; j < chunk_size; j++) {
+                Chunk_Element *array_element = &chunk->elements[j];
+                if (array_element->occupied) {
+                    *element = &array_element->value;
+                    return j + i * chunk_size;
+                }
+            }
             
-//                 mem_copy(temp_str, str + start_index, added_len * sizeof(char));
-//                 temp_str[added_len] = '\0';
+            chunk = chunk->next;
+        }
+    
+        *element = NULL;
+        return chunks_count * chunk_size;
+    }
+
+    
+    T *get(i32 index) {
+        assert((index >= 0 && index < chunk_size * chunks_count) && "Index out of bounds!");
+        
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
+            if (index_in_chunk(index, chunk, i)) {
+                // That chunk could be not currently occupied. Not sure what we should do about that.
+                return &chunk->elements[index - (i * chunk_size)].value;
+            }
+        }
+        
+        assert(false && "That should not happen.");
+        return NULL;
+    }
+    
+    inline T get_value(i32 index) {
+        return *get(index);
+    }
+    
+    i32 find_free_space_and_grow_if_need() {
+        if (!first_chunk) {
+            first_chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
+            first_chunk->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+            chunks_count += 1;
+            return 0;
+        }
+    
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
+        
+            if (chunk->occupied_count >= chunk_size) continue;
+        
+            for (i32 j = 0; j < chunk_size; j++) {
+                Chunk_Element *element = &chunk->elements[j];
+                if (!element->occupied) {
+                    return j + i * chunk_size;
+                }
+            }
+        }
+        
+        assert(chunk && "We should not set this chunk variable to null, because here it should be our last chunk so we could create next.");
+        // If we're here then we did not found any free space in existing chunks, so we creating new chunk.
+        
+        // Right now "chunk" variable should be last chunk.
+        chunk->next = (Chunk *)alloc(allocator, sizeof(Chunk));
+        chunk->next->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+        chunks_count += 1;
+        
+        // So we returning the first index of newly created chunk. If it was second chunk and chunk_size is 32 - we're returning 32.
+        return chunks_count * (chunk_size - 1);
+    }
+    
+    T *append(T value) {
+        if (chunk_size == 0) chunk_size = 32;
+    
+        i32 add_index = find_free_space_and_grow_if_need();
+        assert(add_index >= 0);
+    
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
+            if (index_in_chunk(add_index, chunk, i)) {
+                Chunk_Element *chunk_element = &chunk->elements[add_index - (i * chunk_size)];
+                chunk_element->occupied = true;
+                chunk_element->value = value;
+                chunk->occupied_count += 1;
+                assert(chunk->occupied_count <= chunk_size);
+                return &chunk_element->value;
+            }
+        }
+        
+        assert(false && "Failed to add elemnt to chunk array");        
+        return NULL;
+    }
+    
+    void remove(i32 index) {
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
+            if (index_in_chunk(index, chunk, i)) {
+                Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
                 
-//                 result->append({});
-//                 str_copy(result->last_ptr()->data, temp_str);
-//             }
+                chunk_element->occupied = false;
+                chunk->occupied_count -= 1;
+                assert(chunk->occupied_count > 0);
+                
+                return;
+            }
+        }
+        
+        assert(false && "Tried to remove index that is not present in chunk array");
+    }
+    
+    inline b32 contains(T *to_find) {
+        return find(to_find) >= 0;
+    }
+    
+    inline b32 contains(T to_find) {
+        return contains(&to_find);
+    }
+    
+    i32 find(T *to_find) {    
+        for_chunk_array(value, T, this) {
+            if (*value == *to_find) {
+                return i;
+            }
+        }
+        
+        return -1;
+    }
+    inline i32 find(T to_find) {
+        return find(&to_find);
+    }
+    
+    void clear() {
+        if (!first_chunk) return;
+        
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
             
-//             start_index = current_index + 1;
-//         }
+            for (i32 j = 0; j < chunk_size; j++) {
+                Chunk_Element *element = &chunk->elements[j];
+                element->occupied = false;
+            }
             
-//         current_index++;
-//     }
+            chunk->occupied_count = 0;
+        }
+    }
     
-//     if (current_index - start_index != 0){
-//         size_t added_len = (current_index - start_index);
-//         assert(added_len < MEDIUM_STR_LEN - 1);
-    
-//         mem_copy(temp_str, str + start_index, added_len * sizeof(char));
-//         temp_str[added_len] = '\0';
+    void free_data() {
+        // Our allocator currently is just arena and we don't free individual elemnts in arena.
+        if (allocator || !first_chunk) return;
         
-//         result->append({});
-//         str_copy(result->last_ptr()->data, temp_str);
-
-//         // result->append({});
-//         // mem_copy(result->last_ptr()->data, str + start_index, (current_index - start_index) * sizeof(char));
-//     }
-// }
-
-// void split_str(char *str, const char *separators, Dynamic_Array_old<Long_Str> *result){
-//     result->clear();
-
-//     size_t len = str_len(str);
-//     size_t separators_len = str_len(separators);
-    
-//     int start_index = 0;
-//     int current_index = 0;
-    
-//     for (int i = 0; i < len; i++){
-//         char ch = str[i];
-        
-//         int need_separate = 0;
-//         for (int s = 0; s < separators_len; s++){
-//             if (ch == separators[s]){
-//                 need_separate = 1;
-//                 break;
-//             }
-//         }
-        
-//         if (need_separate){
-//             if (current_index - start_index != 0){
-//                 result->append({});
-                
-//                 assert((current_index - start_index
-                
-//                 char temp_str[LONG_STR_LEN];
-//                 mem_copy(temp_str, str + start_index, (current_index - start_index) * sizeof(char));
-//                 size_t temp_str_len = str_len(temp_str);
-//                 temp_str[temp_str_len] = '\0';
-//                 temp_str_len++;
-                
-//                 mem_copy(result->last_ptr()->data, temp_str, temp_str_len * sizeof(char));
-                
-//                 start_index = current_index + 1;
-//             }
-            
-//         current_index++;
-//     }
-    
-//     if (current_index - start_index != 0){
-//         result->append({});
-//         mem_copy(result->last_ptr()->data, str + start_index, (current_index - start_index) * sizeof(char));
-//     }
-// }
-
-// void split_str(String str, const char *separators, int separators_count, Dynamic_Array_old<String> *result){
-//     for (int i = 0; i < result->count; i++){
-//         result->get(i)->free_str();
-//     }
-
-//     result->clear();
-
-//     String current_string = init_string();
-    
-//     for (int i = 0; i < str.count; i++){
-//         char ch = str.data[i];
-        
-//         int need_separate = 0;
-//         for (int s = 0; s < separators_count; s++){
-//             if (ch == separators[s]){
-//                 need_separate = 1;
-//                 break;
-//             }
-//         }
-        
-//         if (need_separate){
-//             if (current_string.count != 0){
-//                 String copied_string = copy_string(&current_string);
-//                 result->append(copied_string);
-                
-//                 current_string.clear();
-//             }
-//         } else{
-//             current_string += ch;   
-//         }
-//     }
-    
-//     if (current_string.count != 0){
-//         result->append(current_string);
-//     }
-// }
-
-// Dynamic_Array_old<String> split_str(String str, const char *separators, int separators_count){
-//     Dynamic_Array_old<String> result = Dynamic_Array_old<String>(10);
-    
-//     split_str(str, separators, separators_count, &result);
-    
-//     return result;
-// }
-
-// void free_string_array(Dynamic_Array_old<String> *arr){
-//     for (int i = 0; i < arr->count; i++){
-//         arr->get(i)->free_str();
-//     }
-    
-//     arr->free();
-// }
+        Chunk *current = first_chunk;
+        Chunk *next;
+        while (current) {
+            next = current->next;
+            free(current);
+            current = next;
+        }
+    }
+};
 

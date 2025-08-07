@@ -531,7 +531,7 @@ inline String make_string_from_builder(String_Builder *builder, Allocator *alloc
     return make_string(allocator, builder->data);
 }
 
-#include "array_new.hpp"
+#include "array.hpp"
 
 void split_string(Array<String> *result_array, String to_split, String separators) {
     if (separators.count <= 0) {    

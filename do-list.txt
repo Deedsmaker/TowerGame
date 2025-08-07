@@ -1,7 +1,7 @@
 [X]! Fix build times (if that's even real). (Real weird reason with static array undo).
 [ ]! Fix undo.
 [ ]! Fix lights loading
-[ ]! Fix move sequence points.
+[X]! Fix move sequence points.
 
 [ ] Starting a level from a hub.
     [ ] Starting a level by breaking level starter.

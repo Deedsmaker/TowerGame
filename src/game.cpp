@@ -10319,38 +10319,8 @@ void update_move_sequence(Entity *entity, f32 dt) {
     }
     
     if (sequence->just_born) {
-        if (entity->flags & JUMP_SHOOTER) {
-            Jump_Shooter *shooter = &entity->jump_shooter;
-            shooter->move_points.clear();
-            for (i32 i = 0; i < sequence->points.count; i++) {
-                Vector2 point = sequence->points.get_value(i);
-                Collision nearest_ground = get_nearest_ground_collision(point, 20);
-                            
-                if (nearest_ground.collided) {
-                    Vector2 point_to_collision = nearest_ground.point - point;
-                    Vector2 dir = normalized(point_to_collision);
-                    f32 len     = magnitude(point_to_collision);
-                    Collision ray_collision = raycast(point, dir, len, GROUND, 1); 
-                    
-                    if (ray_collision.collided) {
-                        shooter->move_points.append({ray_collision.point, ray_collision.normal});
-                    } else {
-                        print("WARNING: Jump shooter, one of it's points can't find good ground to land. Will add bad ground point");
-                        shooter->move_points.append({nearest_ground.point, nearest_ground.normal});
-                    }
-                } else {
-                    print("WARNING: Jump shooter, one of it's points can't find any ground to land. Will add air point");
-                    shooter->move_points.append({point, Vector2_up});
-                }
-            }
-            
-            
-            change_up(entity, shooter->move_points.get_value(0).normal);
-            entity->position = shooter->move_points.get_value(0).position + entity->up * entity->scale.y * (1.0f - entity->pivot.y);
-        } else {
-            sequence->velocity = normalized(target - entity->position) * speed;
-            sequence->wish_position = entity->position;
-        }
+        sequence->velocity = normalized(target - entity->position) * speed;
+        sequence->wish_position = entity->position;
         
         sequence->just_born = false;
     }

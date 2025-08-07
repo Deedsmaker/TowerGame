@@ -21,7 +21,7 @@ Consts consts = {};
 
 struct Line_Trail{
     b32 occupied = false;
-    Static_Array<Vector2, LINE_TRAIL_MAX_POINTS> positions = {0};
+    Static_Array <Vector2, LINE_TRAIL_MAX_POINTS> positions = {0};
     Vector2 last_added_position = Vector2_zero;
     i32 start_index = 0;
 };
@@ -124,7 +124,7 @@ struct Particle_Emitter{
     char tag_16[16] = "Untagged";    
 
     // These just 'copy' emitters.
-    Static_Array<Particle_Emitter*, 6> additional_emitters = {0};
+    Static_Array <Particle_Emitter*, 6> additional_emitters = {0};
     Particle_Emitter *particle_trail_emitter = NULL;
 
     i32 connected_entity_id = -1;
@@ -224,7 +224,7 @@ struct Texture_Data{
 
 struct Sound_Handler{
     char name[64] = "\0";
-    Static_Array<Sound, MAX_SINGLE_SOUND> buffer = {0};
+    Static_Array <Sound, MAX_SINGLE_SOUND> buffer = {0};
     
     i32 current_index = 0;
     
@@ -339,7 +339,7 @@ struct Turret{
 };
 
 struct Kill_Switch{
-    Array<i32> connected = {};   
+    Array <i32> connected = {0};   
 };
 
 struct Enemy{
@@ -441,14 +441,14 @@ struct Jump_Shooter{
     
     b32 shoot_bullet_blockers = false;
     
-    Array<Move_Point> move_points;
+    Array <Move_Point> move_points;
     
     i32 trail_emitter_index = -1;
     i32 flying_emitter_index = -1;
 };
 
-struct Move_Sequence{
-    Array<Vector2> points;  
+struct Move_Sequence {
+    Array <Vector2> points = {0};  
     b32 moving = false;
     f32 speed = 10;
     Vector2 velocity = Vector2_zero;
@@ -487,8 +487,8 @@ enum Trigger_Action_Type{
 };
 
 struct Trigger{
-    Array<i32> connected;
-    Array<i32> tracking;
+    Array <i32> connected = {0};
+    Array <i32> tracking = {0};
     
     b32 die_after_trigger = false;
     
@@ -510,7 +510,7 @@ struct Trigger{
     b32 start_cam_rails_horizontal = false;
     b32 start_cam_rails_vertical = false;
     b32 stop_cam_rails = false;
-    Array<Vector2> cam_rails_points = {0};
+    Array <Vector2> cam_rails_points = {0};
     
     b32 change_zoom = false;
     f32 zoom_value = 0.35f;
@@ -604,7 +604,7 @@ struct Centipede_Segment{
 };
 
 struct Centipede {
-    Static_Array<i32, MAX_CENTIPEDE_SEGMENTS> segments_ids = {0};
+    Static_Array <i32, MAX_CENTIPEDE_SEGMENTS> segments_ids = {0};
     
     i32 segments_count = 32;
     b32 spikes_on_right = false;
@@ -669,7 +669,7 @@ struct Bounds{
 };
 
 struct Player{
-    // Static_Array<Collision, MAX_COLLISIONS> collisions = {0};
+    // Static_Array <Collision, MAX_COLLISIONS> collisions = {0};
     i32 stun_emitter_index = -1;
     
     struct Timers{
@@ -793,7 +793,7 @@ struct Projectile{
     
     i32 trail_emitter_index = -1;
     
-    Static_Array<i32, 8> already_hit_ids = {0};
+    Static_Array <i32, 8> already_hit_ids = {0};
     f32 last_light_spawn_time = -112;
 };
 
@@ -805,7 +805,7 @@ struct Entity{
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture texture, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
-    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Static_Array<Vector2, MAX_VERTICES> _vertices);
+    Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Static_Array <Vector2, MAX_VERTICES> _vertices);
     Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context = NULL, b32 should_init_entity = true);
 
     i32 id = -1;
@@ -829,8 +829,8 @@ struct Entity{
     
     b32 destroyed = 0;
     
-    Static_Array<Vector2, MAX_VERTICES> unscaled_vertices = {0};
-    Static_Array<Vector2, MAX_VERTICES> vertices = {0};
+    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
+    Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
@@ -860,7 +860,7 @@ struct Entity{
     Enemy enemy;
     Bird_Enemy bird_enemy;
     Projectile projectile;
-    Static_Array<i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
+    Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
     Sticky_Texture sticky_texture;
     Propeller propeller;
     Door door;
@@ -936,7 +936,7 @@ struct Spawn_Object{
 #define MAX_COLLISION_CELL_OBJECTS 256
 
 struct Collision_Grid_Cell{
-    Static_Array<i32, MAX_COLLISION_CELL_OBJECTS> entities_ids = {0};
+    Static_Array <i32, MAX_COLLISION_CELL_OBJECTS> entities_ids = {0};
 };
 
 struct Collision_Grid{  
@@ -1025,21 +1025,21 @@ struct Undo_Action{
     b32 removed_from_multiselection = false;
 
     // Entity deleted_entity;
-    Array<Entity> deleted_entities = {0};
+    Array <Entity> deleted_entities = {0};
     b32    entity_was_deleted = false;
     
     
     Entity spawned_entity;
     b32    entity_was_spawned = false;
     
-    Array<i32> changed_entities = {0};
+    Array <i32> changed_entities = {0};
     
     b32 moved_entity_points = false;
     
     Vector2 position_change = {0, 0};  
     Vector2 scale_change = {0, 0};
-    Static_Array<Vector2, MAX_VERTICES> vertices_change = {0};
-    Static_Array<Vector2, MAX_VERTICES> unscaled_vertices_change = {0};
+    Static_Array <Vector2, MAX_VERTICES> vertices_change = {0};
+    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_change = {0};
     f32 rotation_change = 0;
     i32 draw_order_change = 0;
 };
@@ -1059,17 +1059,17 @@ struct Level_Context{
 
     Hash_Table_Int<Entity> entities = Hash_Table_Int<Entity>(10000);
       
-    Array<Particle>         particles = {0};
-    Array<Particle_Emitter> particle_emitters  = {0};
-    Array<Line_Trail> line_trails = {0};
+    Array <Particle>         particles = {0};
+    Array <Particle_Emitter> particle_emitters  = {0};
+    Array <Line_Trail> line_trails = {0};
     
-    Array<Note> notes = {0};
+    Array <Note> notes = {0};
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
-    Array<Light> lights = {0};
+    Array <Light> lights = {0};
     
-    Array<Lightmap_Data> lightmaps = {0};
+    Array <Lightmap_Data> lightmaps = {0};
     b32 lightmaps_render_textures_loaded = false;
 };
 
@@ -1139,9 +1139,9 @@ struct State_Context{
 };
 
 struct Session_Context{
-    Array<Entity> entities_draw_queue = {0};
+    Array <Entity> entities_draw_queue = {0};
     
-    // Array<Light> temp_lights = {0};
+    // Array <Light> temp_lights = {0};
     
     i32 temp_lights_count = 512;
     //big lights are also in temp lights, it's first N 
@@ -1206,18 +1206,18 @@ struct Immediate_Texture{
 
 struct Outline{
     Vector2 position = Vector2_zero;
-    Static_Array<Vector2, MAX_VERTICES> vertices = {0};
+    Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     Color color = PINK;
 };
 
 struct Render{
-    Array<Line> lines_to_draw                   = {0};
-    Array<Ring_Lines> ring_lines_to_draw        = {0};
-    Array<Rect_Lines> rect_lines_to_draw        = {0};
-    Array<Immediate_Texture> textures_to_draw   = {0};
-    Array<Outline> outlines_to_draw             = {0};
+    Array <Line> lines_to_draw                   = {0};
+    Array <Ring_Lines> ring_lines_to_draw        = {0};
+    Array <Rect_Lines> rect_lines_to_draw        = {0};
+    Array <Immediate_Texture> textures_to_draw   = {0};
+    Array <Outline> outlines_to_draw             = {0};
     
-    Array<Light> lights_draw_queue = {0};
+    Array <Light> lights_draw_queue = {0};
 
     Shader lights_shader;
     Shader test_shader;
@@ -1273,7 +1273,7 @@ struct Replay_Frame_Data{
 
 struct Level_Replay{
     i32 start_frame = 0;    
-    Array<Replay_Frame_Data> input_record = {0};
+    Array <Replay_Frame_Data> input_record = {0};
 };
 
 // struct Level{
@@ -1298,8 +1298,8 @@ struct Multiselection {
     b32 selecting = false;
     
     Vector2 start_point;
-    Array<i32> selection_entities = {0};
-    Array<i32> entities = {0};
+    Array <i32> selection_entities = {0};
+    Array <i32> entities = {0};
     Vector2 center;
     Vector2 total_displacement_for_undo;
 };
@@ -1309,7 +1309,7 @@ struct Editor{
 
     Array <Entity *> place_cursor_entities = {0};
     
-    // Static_Array<Undo_Action, MAX_UNDOS> undo_actions = {0};
+    // Static_Array <Undo_Action, MAX_UNDOS> undo_actions = {0};
     int max_undos_added;
 
     b32 update_cam_view_position = true;
@@ -1357,14 +1357,14 @@ struct Editor{
     b32 multiselecting = false;
     Vector2 multiselect_start_point = Vector2_zero;
     // This first one for when we actually currently selecting, so we can un-select if rect is not on entity anymore.
-    Array<i32> selection_multiselected_entities = {0};
+    Array <i32> selection_multiselected_entities = {0};
     // And this one is actual multiselected.
-    Array<i32> multiselected_entities = {0};
+    Array <i32> multiselected_entities = {0};
     Vector2 multiselected_entities_center = Vector2_zero;
     Vector2 multiselect_total_displacement_for_undo = Vector2_zero;
     
     Vector2 copied_entities_center = Vector2_zero;
-    Array<Entity> copied_entities = {0};
+    Array <Entity> copied_entities = {0};
     
     Entity copied_entity;
     b32 is_copied;
@@ -1438,7 +1438,7 @@ struct Debug{
     
     b32 dragging_player = false;
     
-    Array<Log_Message> log_messages_short = {0};
+    Array <Log_Message> log_messages_short = {0};
 };
 
 struct Console_Command {
@@ -1449,12 +1449,12 @@ struct Console_Command {
 
 struct Console {   
     b32 is_open = false;
-    Array<Console_Command> commands;
-    Array<String> args = {0};
+    Array <Console_Command> commands = {0};
+    Array <String> args = {0};
     
-    Array<Medium_Str> level_files;
+    Array <Medium_Str> level_files = {0};
     
-    Array<Medium_Str> history;
+    Array <Medium_Str> history = {0};
     int history_max = 0;
     
     // String str = String();
