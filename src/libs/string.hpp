@@ -216,7 +216,7 @@ b32 str_end_with(char *str, const char *end_with){
     return true;
 }
 
-b32 str_contains(const char *str, const char *contains){
+b32 str_contains_old(const char *str, const char *contains){
     size_t len = str_len(str);
     size_t contains_len = str_len(contains);
     
@@ -243,32 +243,46 @@ b32 str_contains(const char *str, const char *contains){
     return match_count == contains_len;
 }
 
-int str_contains_another(const char *string, const char *contains) {
-    size_t string_length = strlen(string);
-    size_t contains_length = strlen(contains);
+// This implementation seems more readable/understandable for some reason. 
+// Maybe because we're not using more variables (like match_count in old one).
+b32 str_contains_new(const char *string, const char *contains) {
+    size_t string_length = str_len(string);
+    size_t contains_length = str_len(contains);
     
     if (contains_length > string_length) return 0;
     
     for (int i = 0; i < string_length; i++) {
-        if (string[i] != contains[0]) continue;
-        if (contains_length == 1) return 1;
-        // So if it's last symbol in string and contains length is more than 1 we can't go any further.
-        if (i == string_length - 1) return 0;
+        if (to_lower(string[i]) != to_lower(contains[0])) continue;
+        if (contains_length == 1) return true;
+        // // So if it's last symbol in string and contains length is more than 1 we can't go any further.
+        // if (i == string_length - 1) return 0;
+        if (string_length - i < contains_length) return false; // So contains is just has more symbols than left in string.
         
         i += 1;
         for (int j = 1; j < contains_length; j++) {
-            if (string[i] == contains[j]) {
-                if (j == contains_length - 1) return 1; // So we're checked every contains symbol and did not exit this loop - that means contains is fully persist in string.
+            if (to_lower(string[i]) == to_lower(contains[j])) {
+                if (j == contains_length - 1) return true; // So we're checked every contains symbol and did not exit this loop - that means contains is fully persist in string.
                 
                 i += 1;
-                if (i >= string_length) return 0; // String ended before we've got through all of contains.
+                // if (i >= string_length) return false; // String ended before we've got through all of contains.
             } else {
                 break;
             }
         }
     }
     
-    return 0;
+    return false;
+}
+
+inline b32 str_contains(const char *string, const char *contains) {
+#if DEBUG_BUILD
+    b32 old_result = str_contains_old(string, contains);
+    b32 new_result = str_contains_new(string, contains);
+    assert(old_result == new_result && "New str_contains implementation is different from old!");
+    return new_result;
+#else
+    return str_contains_new(string, contains);
+#endif
 }
 
 // b32 str_contains(const char *str, const char *contains){

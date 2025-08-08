@@ -1549,7 +1549,8 @@ b32 load_level(const char *level_name) {
             }
             
             setup_color_changer(&entity_to_fill);
-            Entity *added_entity = add_entity(&entity_to_fill, true);
+            // Entity *added_entity = add_entity(&entity_to_fill, true);
+            Entity *added_entity = loaded_entities.append(entity_to_fill);
             
             if (added_entity->flags & NOTE) {
                 assert(added_entity->note_index != -1);
@@ -1563,6 +1564,65 @@ b32 load_level(const char *level_name) {
             
             calculate_bounds(added_entity);
         }
+    }
+    
+    struct Old_New_Entity_Pair {
+        Entity *new_entity = 0;  
+        Entity *old_entity = 0;
+    };
+    
+    Array<Old_New_Entity_Pair> entity_pairs = {.allocator = &temp_allocator};
+    
+    // This code needs for loading because entity ids in level save file will not be the same 
+    // as entity ids after loading.
+    // That's because we're storing our entities in chunk array and entity id is actually just index
+    // in that chunk array. In chunk array removing object and growing is not moving pointers, 
+    // so after work on level we could have a large gaps of empty slots (for example we have chunk size
+    // of 128 and we're just adding entities and last entity id is 555. Then we're deleting all 
+    // entities from 100 to 554 id and we have a huge huge gap, but last entity still saves with id 
+    // of 555 and some entities is referring to that entity).
+    //
+    // Then on loading we don't want to generate that huge gap again - we actually just want to store 
+    // them linearly (even though in chunks). That means we're going to change id of entities.
+    // 
+    // Changing entity ids is not as trivial as I've imagined in beginning. 
+    // First of all - all entities that was in level save file is stored in loaded_entities. They 
+    // have their original ids. 
+    // We're going through all of loaded_entities and spawning new entities with new ids and storing 
+    // them together in entity_pairs so old and new have the same indexes.
+    for_array(i, (&loaded_entities)) {
+        Entity *loaded_entity = loaded_entities.get(i);
+        Entity *new_entity = add_entity(loaded_entity, false);
+        
+        entity_pairs.append({.new_entity = new_entity, .old_entity = loaded_entity});
+    }
+    
+    // Now we want to update all ids on newly created entities so they don't refferring to old ids.
+    // 
+    // We're going through all pairs and clearing array of entities_pointing_to_me on new_entity, 
+    // because ids in there are from save file and will don't correspond with new entiteis.
+    // After clearing we're going thoguth all of the loaded_entities again (indicies of loaded_entities
+    // and entity_pairs will point to save loaded_entity or old_entity, because of how we was adding 
+    // them before) and if old_entity->entities_pointing_at_me contains this another_loaded entity
+    // id - we're adding id of entity with same index from entity_pairs, so now all new entities
+    // know correct ids of entities who points at them.
+    for_array(i, (&entity_pairs)) {
+        Old_New_Entity_Pair *pair = entity_pairs.get(i);
+        pair->new_entity->entities_pointing_to_me.clear();
+        
+        for_array(j, (&loaded_entities)) {
+            if (i == j) continue;
+            
+            Entity *another_loaded = loaded_entities.get(j);
+            if (pair->old_entity->entities_pointing_at_me.contains(another_loaded->id)) {
+                pair->new_entity->entities_pointing_at_me.append(pair->get(j)->new_entity->id);
+            }
+        }
+        
+        // Now new entities know who pointing at them, but they still have wrong ids of, for example, 
+        // connected entities (for triggers). So now we'll figure this out.
+        
+        
     }
     
     game_state = original_game_state;
@@ -3163,6 +3223,8 @@ void init_level_context(Level_Context *level_context) {
     init_array(&level_context->lights, 1024, HEAP_ALLOCATOR);
     
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
+    
+    init_array(&level_context->entities, 512, HEAP_ALLOCATOR);
 
     //init context
     for (i32 i = 0; i < level_context->lights.capacity; i++) {

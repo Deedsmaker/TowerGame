@@ -797,7 +797,7 @@ struct Projectile{
     f32 last_light_spawn_time = -112;
 };
 
-struct Entity{
+struct Entity {
     Entity();
     Entity(Vector2 _pos);
     Entity(Vector2 _pos, Vector2 _scale);
@@ -832,6 +832,8 @@ struct Entity{
     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     
+    Array<i32> entities_pointing_at_me = {0};
+    
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
     
@@ -854,7 +856,7 @@ struct Entity{
     b32 spawn_enemy_when_no_ammo = false;
     i32 spawned_enemy_id = -1;
     
-    Entity *centipede_head;
+    Entity *centipede_head = NULL;
     
     Text_Drawer text_drawer;
     Enemy enemy;
@@ -1057,7 +1059,7 @@ struct Level_Context{
     i32 original_win_blocks_count = 0;
     i32 current_win_blocks_count = 0;
 
-    Hash_Table_Int<Entity> entities = Hash_Table_Int<Entity>(10000);
+    Array<Entity> entities = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};
