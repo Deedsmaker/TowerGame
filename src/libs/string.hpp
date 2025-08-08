@@ -243,6 +243,34 @@ b32 str_contains(const char *str, const char *contains){
     return match_count == contains_len;
 }
 
+int str_contains_another(const char *string, const char *contains) {
+    size_t string_length = strlen(string);
+    size_t contains_length = strlen(contains);
+    
+    if (contains_length > string_length) return 0;
+    
+    for (int i = 0; i < string_length; i++) {
+        if (string[i] != contains[0]) continue;
+        if (contains_length == 1) return 1;
+        // So if it's last symbol in string and contains length is more than 1 we can't go any further.
+        if (i == string_length - 1) return 0;
+        
+        i += 1;
+        for (int j = 1; j < contains_length; j++) {
+            if (string[i] == contains[j]) {
+                if (j == contains_length - 1) return 1; // So we're checked every contains symbol and did not exit this loop - that means contains is fully persist in string.
+                
+                i += 1;
+                if (i >= string_length) return 0; // String ended before we've got through all of contains.
+            } else {
+                break;
+            }
+        }
+    }
+    
+    return 0;
+}
+
 // b32 str_contains(const char *str, const char *contains){
 //     return str_contains_const(str, contains);
 // }
