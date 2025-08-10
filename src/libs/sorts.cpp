@@ -4,7 +4,6 @@
 //#include <string.h>
 
 #include "String.cpp"
-#include "array_old.cpp"
 
 void print_arr(int *arr, int count){
     printf("[");
@@ -56,12 +55,12 @@ void q_sort(int *arr, int low, int high){
     q_sort(arr, partition_index + 1, high);
 }
 
-void sort(int *arr, int arr_count){
+inline void sort(int *arr, int arr_count){
     q_sort(arr, 0, arr_count - 1);
 }
 
-int main(){
-    const int count = 10000;
+// int main(){
+//     const int count = 10000;
     
-    printf("NULL: %p\n", NULL);
-}
+//     printf("NULL: %p\n", NULL);
+// }

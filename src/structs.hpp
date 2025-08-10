@@ -797,6 +797,18 @@ struct Projectile{
     f32 last_light_spawn_time = -112;
 };
 
+enum Pointing_At_Me_Type {
+    Pointing_Invalid = 0,
+    Pointing_Trigger_Connected,
+    Pointing_Trigger_Tracking,
+    Pointing_Kill_Switch_Connected
+};
+
+struct Pointing_At_Me_Info {
+    i32 id = 0;  
+    Pointing_At_Me_Type type;
+};
+
 struct Entity {
     Entity();
     Entity(Vector2 _pos);
@@ -832,7 +844,7 @@ struct Entity {
     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     
-    Array<i32> entities_pointing_at_me = {0};
+    Array <i32> entities_pointing_at_me = {0};
     
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
@@ -1059,7 +1071,7 @@ struct Level_Context{
     i32 original_win_blocks_count = 0;
     i32 current_win_blocks_count = 0;
 
-    Array<Entity> entities = {0};
+    Chunk_Array <Entity> entities = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};

@@ -1,4 +1,4 @@
-[ ]! Finish business with new entity array/id loading etc. Also Don't forget to think about verifying that we don't forget to check some id connected shit.
+[ ]! Finish business with new entity array/id loading etc. Also Don't forget to think about verifying that we don't forget to check some id connected shit. nocheckin make notify about entity destruction and checking pointing_at_me in debug mode.
 
 [X]! Fix build times (if that's even real). (Real weird reason with static array undo).
 [ ]! Fix undo.

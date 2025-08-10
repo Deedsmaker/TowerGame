@@ -242,7 +242,9 @@ struct Static_Array {
     }
 };
 
-#define for_chunk_array(chunk_value, type, arr) type *chunk_value = NULL; for (i32 i = arr->next_avaliable(0, &chunk_value); i < arr->chunks_count * arr->chunk_size && chunk_value; i = arr->next_avaliable(i + 1, &chunk_value)) 
+#define for_chunk_array_value(chunk_value, type, arr) type *chunk_value = NULL; for (i32 i = arr->next_avaliable_value(0, &chunk_value); i < arr->chunks_count * arr->chunk_size && chunk_value; i = arr->next_avaliable_value(i + 1, &chunk_value)) 
+
+#define for_chunk_array(index, arr) for (i32 index = arr->next_avaliable_index(0); index < arr->chunks_count * arr->chunk_size; index = arr->next_avaliable_index(index + 1)) 
 
 template<typename T>
 struct Chunk_Array {
@@ -265,7 +267,15 @@ struct Chunk_Array {
         return index >= chunk_index * chunk_size && index < (chunk_index + 1) * chunk_size;
     }
     
-    i32 next_avaliable(i32 start_index, T **element) {
+    inline i32 next_avaliable_value(i32 start_index, T **element) {
+        i32 index = next_avaliable_index(start_index);
+        if (index < chunks_count * chunk_size) *element = get(index);
+        else element = NULL; 
+        
+        return index;
+    }
+    
+    inline i32 next_avaliable_index(i32 start_index) {
         i32 start_chunk_index = start_index / chunk_size;
         Chunk *chunk = first_chunk;
         for (i32 i = 1; i < start_chunk_index; i++) chunk = chunk->next;
@@ -275,7 +285,6 @@ struct Chunk_Array {
             for (i32 j = i == start_chunk_index ? start_index_in_chunk : 0; j < chunk_size; j++) {
                 Chunk_Element *array_element = &chunk->elements[j];
                 if (array_element->occupied) {
-                    *element = &array_element->value;
                     return j + i * chunk_size;
                 }
             }
@@ -283,10 +292,8 @@ struct Chunk_Array {
             chunk = chunk->next;
         }
     
-        *element = NULL;
         return chunks_count * chunk_size;
     }
-
     
     T *get(i32 index) {
         assert((index >= 0 && index < chunk_size * chunks_count) && "Index out of bounds!");
@@ -342,7 +349,7 @@ struct Chunk_Array {
         return chunks_count * (chunk_size - 1);
     }
     
-    T *append(T value) {
+    T *append(T value, i32 *added_index = NULL) {
         if (chunk_size == 0) chunk_size = 32;
     
         i32 add_index = find_free_space_and_grow_if_need();
@@ -353,6 +360,9 @@ struct Chunk_Array {
             if (i > 0) chunk = chunk->next;
             if (index_in_chunk(add_index, chunk, i)) {
                 Chunk_Element *chunk_element = &chunk->elements[add_index - (i * chunk_size)];
+                
+                if (added_index) *added_index = add_index;
+                
                 chunk_element->occupied = true;
                 chunk_element->value = value;
                 chunk->occupied_count += 1;
@@ -392,7 +402,7 @@ struct Chunk_Array {
     }
     
     i32 find(T *to_find) {    
-        for_chunk_array(value, T, this) {
+        for_chunk_array_value(value, T, this) {
             if (*value == *to_find) {
                 return i;
             }
@@ -432,5 +442,41 @@ struct Chunk_Array {
             current = next;
         }
     }
+    
+    void init_chunk(Chunk *chunk) {
+        chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
+        chunk->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+    }
 };
 
+template <typename T>
+void init_chunk_array(Chunk_Array <T> *arr, i32 chunk_size, Allocator *allocator) {
+    assert(arr->chunks_count == 0);
+    arr->allocator = allocator;
+    arr->chunk_size = chunk_size;
+    arr->init_chunk(arr->first_chunk);
+}
+
+template <typename T>
+Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy) {
+    Chunk_Array<T> result = {.allocator = to_copy->allocator};
+       
+    if (!to_copy->first_chunk) return result;
+    
+    result.chunk_size = to_copy->chunk_size;
+    result.chunks_count = to_copy->chunks_count;
+    
+    auto *copy_chunk = to_copy->first_chunk;
+    auto *my_chunk = result.first_chunk;
+    for (i32 i = 0; i < to_copy->chunks_count; i++) {
+        result.init_chunk(my_chunk);
+        my_chunk->occupied_count = copy_chunk->occupied_count;
+        
+        for (i32 j = 0; j < to_copy->chunk_size; j++) {
+            my_chunk->elements[j] = copy_chunk->elements[j];
+        }
+             
+        my_chunk = my_chunk->next;
+        copy_chunk = copy_chunk->next;
+    }
+}

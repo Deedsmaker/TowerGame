@@ -18,9 +18,9 @@ global_variable Array<Collision> collisions_buffer; // Should probably reserve d
 
 // #define ForEntities(entityext_avaliable(table, 0);  xx < table.capacity; xx = table_next_avaliable(table, xx+0))
 
-#define ForEntities(entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(current_level_context, 0, &entity, flags); index < current_level_context->entities.capacity && entity; index = next_entity_avaliable(current_level_context, index+1, &entity, flags)) 
+#define ForEntities(entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(current_level_context, 0, &entity, flags); index < current_level_context->entities.chunks_count * current_level_context->entities.chunk_size && entity; index = next_entity_avaliable(current_level_context, index+1, &entity, flags)) 
 
-#define ForEntitiesInContext(context, entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(context, 0, &entity, flags); index < current_level_context->entities.capacity && entity; index = next_entity_avaliable(context, index+1, &entity, flags)) 
+#define ForEntitiesInContext(context, entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(context, 0, &entity, flags); index < context->entities.chunks_count * context->entities.chunk_size && entity; index = next_entity_avaliable(context, index+1, &entity, flags)) 
 
 #define ArrayOfStructsToDefaultValues(arr) for (i32 arr_index = 0; arr_index < arr.count; arr_index++) { (*arr.get(arr_index)) = {0};}
 
@@ -180,7 +180,7 @@ void free_light(Light *light) {
         light->exists = false;
         
         if (light->connected_entity_id != -1) {
-            Entity *connected_entity = get_entity_by_id(light->connected_entity_id);
+            Entity *connected_entity = get_entity(light->connected_entity_id);
             if (connected_entity) {
                 connected_entity->light_index = -1;
             }
@@ -229,7 +229,7 @@ void free_entity(Entity *e) {
             // Probably that doesn't matter because while game-looping we're just destroy them and when we're clearing context 
             // we'll call it anyway, but nonetheless we should be able to just call free_entity without trouble in such case.
             // Will see into that when will rewrite entities.
-            Entity *segment = get_entity_by_id(e->centipede.segments_ids.get_value(i));
+            Entity *segment = get_entity(e->centipede.segments_ids.get_value(i));
             segment->destroyed = true;
             segment->enabled = false;
         }
@@ -239,16 +239,16 @@ void free_entity(Entity *e) {
     
     // free physics objctt
     if (e->flags & PHYSICS_OBJECT) {
-        Entity *rope_entity = get_entity_by_id(e->physics_object.rope_id);
+        Entity *rope_entity = get_entity(e->physics_object.rope_id);
         if (e->physics_object.on_rope) {
             if (rope_entity) {
                 rope_entity->destroyed = true;
             }
-            Entity *up_rope_point_entity = get_entity_by_id(e->physics_object.up_rope_point_id);
+            Entity *up_rope_point_entity = get_entity(e->physics_object.up_rope_point_id);
             if (up_rope_point_entity) {
                 up_rope_point_entity->destroyed = true;
             }
-            Entity *down_rope_point_entity = get_entity_by_id(e->physics_object.down_rope_point_id);
+            Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
             if (down_rope_point_entity) {
                 down_rope_point_entity->destroyed = true;
             }
@@ -456,8 +456,8 @@ Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32
     id = copy->id;
     
     if (!keep_id) {
-        id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
-        check_avaliable_ids_and_set_if_found(&id);
+        // id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
+        // check_avaliable_ids_and_set_if_found(&id);
     }
     
     position = copy->position;
@@ -723,22 +723,29 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         }
     }
     
-    for (i32 i = 0; i < src->entities.capacity; i++) {
-        Table_Data<Entity> data = {};
+    // for (i32 i = 0; i < src->entities.capacity; i++) {
+    //     Table_Data<Entity> data = {};
         
-        data.key = src->entities.data[i].key;
-        if (data.key != -1) {
-            data.value = Entity(&src->entities.data[i].value, true, src, should_init_entities);
-            data.value.level_context = current_level_context;
-        } else {
-            data.value = {};
-        }
-        dest->entities.data[i] = data;
-    }
+    //     data.key = src->entities.data[i].key;
+    //     if (data.key != -1) {
+    //         data.value = Entity(&src->entities.data[i].value, true, src, should_init_entities);
+    //         data.value.level_context = current_level_context;
+    //     } else {
+    //         data.value = {};
+    //     }
+    //     dest->entities.data[i] = data;
+    // }
     
-    dest->entities.capacity = src->entities.capacity;
-    dest->entities.total_added_count = src->entities.total_added_count;
-    dest->entities.last_added_key = src->entities.last_added_key;
+    // dest->entities.capacity = src->entities.capacity;
+    // dest->entities.total_added_count = src->entities.total_added_count;
+    // dest->entities.last_added_key = src->entities.last_added_key;
+    
+    // nocheckin check this copying
+    dest->entities = copy_chunk_array(&src->entities);
+    for_chunk_array(i, (&dest->entities)) {
+        *dest->entities.get(i) = Entity(src->entities.get(i), true, src, should_init_entities);
+        dest->entities.get(i)->level_context = current_level_context;
+    }
     
     for (i32 i = 0; i < src->line_trails.capacity; i++) {
         dest->line_trails.data[i] = src->line_trails.get_value(i);
@@ -747,7 +754,8 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     assert(src->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
     assert(dest->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
     dest->lightmaps.clear();
-    for (i32 i = 0; i < src->lightmaps.count; i++) {
+    //nocheckin changed lightmaps.count to lightmaps.capacity because we're clearing before.
+    for (i32 i = 0; i < src->lightmaps.capacity; i++) {
         dest->lightmaps.append(src->lightmaps.get_value(i));
     }
     
@@ -825,11 +833,8 @@ i32 save_level(const char *level_name) {
     }
 
     fprintf(fptr, "Entities:\n");
-    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
-        if (!current_level_context->entities.has_index(i)) {
-            continue;
-        }
-    
+    // for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
+    for_chunk_array(i, (&current_level_context->entities)) {
         Entity *e = current_level_context->entities.get(i);
         
         if (!e->need_to_save) {
@@ -1120,6 +1125,11 @@ void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<String> *splitted_li
     }
 }
 
+struct Old_New_Entity_Pair {
+    Entity *new_entity = 0;  
+    Entity *old_entity = 0;
+};
+
 b32 load_level(const char *level_name) {
     clear_allocator(&temp_allocator);
 
@@ -1159,7 +1169,8 @@ b32 load_level(const char *level_name) {
     
     setup_particles();
     
-    Array<String> splitted_line = {.allocator = HEAP_ALLOCATOR};
+    Array <String> splitted_line = {.allocator = HEAP_ALLOCATOR};
+    Array <Entity> loaded_entities = {.allocator = HEAP_ALLOCATOR};
     
     b32 parsing_setup_data = false;
     b32 parsing_entities   = false;
@@ -1566,11 +1577,6 @@ b32 load_level(const char *level_name) {
         }
     }
     
-    struct Old_New_Entity_Pair {
-        Entity *new_entity = 0;  
-        Entity *old_entity = 0;
-    };
-    
     Array<Old_New_Entity_Pair> entity_pairs = {.allocator = &temp_allocator};
     
     // This code needs for loading because entity ids in level save file will not be the same 
@@ -1608,22 +1614,48 @@ b32 load_level(const char *level_name) {
     // know correct ids of entities who points at them.
     for_array(i, (&entity_pairs)) {
         Old_New_Entity_Pair *pair = entity_pairs.get(i);
-        pair->new_entity->entities_pointing_to_me.clear();
+        pair->new_entity->entities_pointing_at_me.clear();
         
         for_array(j, (&loaded_entities)) {
             if (i == j) continue;
             
             Entity *another_loaded = loaded_entities.get(j);
             if (pair->old_entity->entities_pointing_at_me.contains(another_loaded->id)) {
-                pair->new_entity->entities_pointing_at_me.append(pair->get(j)->new_entity->id);
+                pair->new_entity->entities_pointing_at_me.append(entity_pairs.get(j)->new_entity->id);
             }
         }
         
-        // Now new entities know who pointing at them, but they still have wrong ids of, for example, 
+        // Now new entitiy know who pointing at him, but they still have wrong ids of, for example, 
         // connected entities (for triggers). So now we'll figure this out.
         
-        
+        for_array(j, (&pair->new_entity->entities_pointing_at_me)) {
+            i32 new_id = pair->new_entity->entities_pointing_at_me.get_value(j);
+            i32 old_id = pair->old_entity->entities_pointing_at_me.get_value(j);
+            Entity *pointing_entity = get_entity(new_id);
+            
+            if (pointing_entity->flags & TRIGGER) {
+                Trigger *trigger = &pointing_entity->trigger;
+                for_array(c, (&trigger->connected)) {
+                    i32 *connected_id = trigger->connected.get(c);
+                    if (*connected_id == old_id) *connected_id = new_id;
+                }
+                for_array(c, (&trigger->tracking)) {
+                    i32 *tracking_id = trigger->tracking.get(c);
+                    if (*tracking_id == old_id) *tracking_id = new_id;
+                }
+            }
+            
+            if (pointing_entity->flags & KILL_SWITCH) {
+                Kill_Switch *kill_switch = &pointing_entity->enemy.kill_switch;
+                for_array(c, (&kill_switch->connected)) {
+                    i32 *connected_id = kill_switch->connected.get(c);
+                    if (*connected_id == old_id) *connected_id = new_id;
+                }
+            }
+        }
     }
+    
+    loaded_entities.free_data();
     
     game_state = original_game_state;
     
@@ -1631,7 +1663,9 @@ b32 load_level(const char *level_name) {
     splitted_line.free_data();
     unload_file(&file);
         
-    loop_entities(init_loaded_entity);
+    ForEntities(loaded_entity, 0) {
+        init_loaded_entity(loaded_entity);
+    }
     
     setup_context_cam(current_level_context);
     current_level_context->cam.cam2D.zoom = 0.35f;
@@ -2189,21 +2223,6 @@ void load_all_textures() {
     hitmark_small_texture           = get_texture("hitmark_small");
 }
 
-inline void loop_entities(void (func)(Entity*)) {
-    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {
-        if (!current_level_context->entities.has_index(i)) {
-            continue;
-        }
-    
-        Entity *e = current_level_context->entities.get(i);
-        if (!e->enabled) {
-            continue;
-        }
-        
-        func(e);
-    }
-}
-
 void print_to_console(const char *text) {
     builder_append(&console.content_builder, tstring("\t>%s\n", text));
 }
@@ -2215,26 +2234,22 @@ inline void init_loaded_entity(Entity *entity) {
 }
 
 
-inline i32 table_next_avaliable(Hash_Table_Int<Entity> table, i32 index, FLAGS flags) {
-    for (i32 i = index; i < table.capacity; i++) {
-        if (table.has_index(i) && (flags == 0 || table.get(i)->flags & flags)) {
-            return i;
-        }
+inline i32 next_entity_avaliable(Level_Context *level_context, i32 start_index, Entity **entity, FLAGS flags) {
+    // for (i32 i = start_index; i < level_context->entities.capacity; i++) {
+    //     if (level_context->entities.has_index(i) && (flags == 0 || level_context->entities.get(i)->flags & flags)) {
+    //         *entity = level_context->entities.get(i);
+    //         return i;
+    //     }
+    // }
+    
+    // *entity = NULL;
+    // return level_context->entities.capacity;
+    start_index = level_context->entities.next_avaliable_value(start_index, entity);
+    while (*entity && !((*entity)->flags & flags)) {
+        start_index = level_context->entities.next_avaliable_value(start_index + 1, entity);
     }
     
-    return table.capacity;
-}
-
-inline i32 next_entity_avaliable(Level_Context *level_context, i32 index, Entity **entity, FLAGS flags) {
-    for (i32 i = index; i < level_context->entities.capacity; i++) {
-        if (level_context->entities.has_index(i) && (flags == 0 || level_context->entities.get(i)->flags & flags)) {
-            *entity = level_context->entities.get(i);
-            return i;
-        }
-    }
-    
-    *entity = NULL;
-    return level_context->entities.capacity;
+    return start_index;
 }
 
 // inline void assign_texture(Entity *entity, Texture texture, const char *texture_name) {
@@ -2456,8 +2471,9 @@ void init_entity(Entity *entity) {
     
     if (entity->flags & BLOCKER && game_state == GAME) {
         // init blocker
-        if (entity->enemy.blocker_sticky_id != -1 && current_level_context->entities.has_key(entity->enemy.blocker_sticky_id)) {
-            current_level_context->entities.get_by_key_ptr(entity->enemy.blocker_sticky_id)->destroyed = true;
+        if (entity->enemy.blocker_sticky_id != -1) {
+            //nocheckin check if null?
+            get_entity(entity->enemy.blocker_sticky_id)->destroyed = true;
         }
         
         if (!entity->enemy.blocker_immortal) {
@@ -2482,8 +2498,9 @@ void init_entity(Entity *entity) {
     
     if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME) {
         // init sword size required
-        if (entity->enemy.sword_required_sticky_id != -1 && current_level_context->entities.has_key(entity->enemy.sword_required_sticky_id)) {
-            current_level_context->entities.get_by_key_ptr(entity->enemy.sword_required_sticky_id)->destroyed = true;
+        if (entity->enemy.sword_required_sticky_id != -1) {
+            //nocheckin check if null?
+            get_entity(entity->enemy.sword_required_sticky_id)->destroyed = true;
         }
         
         Texture texture = entity->enemy.big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
@@ -2528,8 +2545,6 @@ void init_entity(Entity *entity) {
     if (entity->flags & DOOR) {
         entity->flags |= TRIGGER;
         entity->trigger.player_touch = false;
-        //entity->door.open_sound = sounds_array.get_by_key_ptr(hash_str("OpenDoor"));
-        //entity->door.is_open = false;
     }
     
     if (entity->flags & CENTIPEDE && game_state == GAME) {
@@ -2548,7 +2563,7 @@ void init_entity(Entity *entity) {
             centipede->segments_ids.append(segment->id);
             Entity *previous;
             if (i > 0) {
-                previous = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get_value(i-1));
+                previous = get_entity(centipede->segments_ids.get_value(i-1));
             } else {
                 previous = entity;
             }
@@ -2574,7 +2589,7 @@ void init_entity(Entity *entity) {
                 rope_entity->need_to_save = false;
                 entity->physics_object.rope_id = rope_entity->id;
             } else {
-                rope_entity = get_entity_by_id(entity->physics_object.rope_id);
+                rope_entity = get_entity(entity->physics_object.rope_id);
             }
             
             // spawn rope point and check
@@ -2585,7 +2600,7 @@ void init_entity(Entity *entity) {
                 up_rope_point_entity->need_to_save = false;
                 entity->physics_object.up_rope_point_id = up_rope_point_entity->id;
             } else {
-                up_rope_point_entity = get_entity_by_id(entity->physics_object.up_rope_point_id);
+                up_rope_point_entity = get_entity(entity->physics_object.up_rope_point_id);
             }
             
             Entity *down_rope_point_entity = NULL;
@@ -2595,7 +2610,7 @@ void init_entity(Entity *entity) {
                 down_rope_point_entity->need_to_save = false;
                 entity->physics_object.down_rope_point_id = down_rope_point_entity->id;
             } else {
-                down_rope_point_entity =  get_entity_by_id(entity->physics_object.down_rope_point_id);
+                down_rope_point_entity =  get_entity(entity->physics_object.down_rope_point_id);
             }
         }
     }
@@ -3224,7 +3239,7 @@ void init_level_context(Level_Context *level_context) {
     
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
     
-    init_array(&level_context->entities, 512, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
 
     //init context
     for (i32 i = 0; i < level_context->lights.capacity; i++) {
@@ -3385,10 +3400,11 @@ void destroy_player() {
     player_entity->destroyed = true;
     player_entity->enabled   = false;
     
-    assert(current_level_context->entities.has_key(player_data->connected_entities_ids.ground_checker_id));
-    get_entity_by_id(player_data->connected_entities_ids.ground_checker_id)->destroyed = true;
-    assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
-    get_entity_by_id(player_data->connected_entities_ids.sword_entity_id)->destroyed = true;
+    //nocheckin check if null?
+    // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.ground_checker_id));
+    get_entity(player_data->connected_entities_ids.ground_checker_id)->destroyed = true;
+    // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
+    get_entity(player_data->connected_entities_ids.sword_entity_id)->destroyed = true;
     
     player_entity = NULL;
 }
@@ -3652,7 +3668,7 @@ void fixed_game_update(f32 dt) {
             Vector2 target_position = player_entity->position + Vector2_up * 20 + target_position_velocity_addition;
             
             if (state_context.cam_state.on_rails_horizontal || state_context.cam_state.on_rails_vertical) {
-                Entity *rails_trigger_entity = get_entity_by_id(state_context.cam_state.rails_trigger_id);
+                Entity *rails_trigger_entity = get_entity(state_context.cam_state.rails_trigger_id);
                 Array<Vector2> *rails_points = &rails_trigger_entity->trigger.cam_rails_points;
                 assert(rails_trigger_entity);
                 
@@ -4137,7 +4153,7 @@ void update_game() {
     if (is_in_death_instinct() && is_death_instinct_threat_active() && game_state == GAME) {
         f32 time_since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
         
-        Entity *threat_entity = get_entity_by_id(state_context.death_instinct.threat_entity_id);
+        Entity *threat_entity = get_entity(state_context.death_instinct.threat_entity_id);
         Vector2 cam_position = player_entity->position + (threat_entity->position - player_entity->position) * 0.5f;
         
         if (state_context.death_instinct.last_reason == ENEMY_ATTACKING) {
@@ -4609,7 +4625,7 @@ void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> verti
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
         
         for (i32 c = 0; c < cell->entities_ids.count; c++) {
-            Entity *other = get_entity_by_id(cell->entities_ids.get_value(c));
+            Entity *other = get_entity(cell->entities_ids.get_value(c));
             
             if (!other || other->destroyed || !other->enabled || other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && game_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id)) {
                 continue;
@@ -4649,25 +4665,14 @@ void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<
     fill_collisions(position, vertices, bounds, pivot, result, include_flags);   
 }
 
-Entity *get_entity_by_index(i32 index) {
-    if (!current_level_context->entities.has_index(index)) {
-        //log error
-        print("Attempt to get empty entity by index");
-        return NULL;
-    }
+inline Entity *get_entity(i32 id, Level_Context *level_context) {
+    if (!level_context) level_context = current_level_context;
+    assert(id > -1 && "Invalid entity id!");
+    // We should think about that - can we constrain get_entity to always give entity so we're don't allow getting a non-existing
+    // id. nocheckin
+    // If we will allow getting NULL from here - we should add is_occupied() to chunk array and we should check it in here.
     
-    return current_level_context->entities.get(index);
-}
-
-inline Entity *get_entity_by_id(i32 id, Level_Context *level_context) {
-    if (!level_context) {
-        level_context = current_level_context;
-    }
-    if (id == -1 || !level_context->entities.has_key(id)) {
-        return NULL;
-    }
-    
-    return level_context->entities.get_by_key_ptr(id);
+    return level_context->entities.get(id);
 }
 
 i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find) {
@@ -4871,7 +4876,7 @@ void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *und
         undo_action->entity_was_deleted = true;
     }
     for (i32 i = 0; i < editor.multiselection.entities.count; i++) {
-        Entity *entity = get_entity_by_id(editor.multiselection.entities.get_value(i));
+        Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
         if (!entity) {
             continue;    
         }
@@ -4901,8 +4906,9 @@ inline void editor_delete_multiselected_entities() {
 }
 
 void editor_delete_entity(i32 entity_id, b32 add_undo) {
-    assert(current_level_context->entities.has_key(entity_id));
-    editor_delete_entity(current_level_context->entities.get_by_key_ptr(entity_id), add_undo);
+    // assert(current_level_context->entities.has_key(entity_id));
+    //nocheckin should check if exist?
+    editor_delete_entity(get_entity(entity_id), add_undo);
 }
 
 void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action) {
@@ -5211,7 +5217,7 @@ void update_editor_ui() {
             
             if (editor.multiselection.entities.count > 1) {
                 for (i32 i = 0; i < editor.multiselection.entities.count; i++) {                
-                    Entity *entity = get_entity_by_id(editor.multiselection.entities.get_value(i));
+                    Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
                     entity->draw_order = to_i32(focus_input_field.content);
                 }
             } else {
@@ -5847,7 +5853,8 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     Vector2 closest_vertex_global = Vector2_zero;
     f32 distance_to_closest_vertex = INFINITY;
 
-    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
+    // for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
+    for_chunk_array(i, (&current_level_context->entities)) {
         Entity *e = current_level_context->entities.get(i);
         
         if (!e->enabled) {
@@ -5948,7 +5955,7 @@ void restore_deleted_entities(Undo_Action *action) {
         i32 deleted_entity_id = action->changed_entities.get_value(i);
         // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
         // he's taked that id - on undo we should remove him.
-        assert(get_entity_by_id(deleted_entity_id) == NULL);
+        assert(get_entity(deleted_entity_id) == NULL);
         Entity *restored_entity = add_entity(action->deleted_entities.get(i), true, &undo_level_context);
         restored_entity->id = deleted_entity_id;
         
@@ -6174,7 +6181,7 @@ void try_move_entity_edges(Entity *e) {
 
 void rotate_multiselected(f32 to_rotate) {
     for (i32 i = 0; i < editor.multiselection.entities.count; i++) {                
-        Entity *entity = get_entity_by_id(editor.multiselection.entities.get_value(i));
+        Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
         
         f32 next_rotation = round_to_factor(entity->rotation + to_rotate, 15);
         to_rotate = next_rotation - entity->rotation;
@@ -6336,7 +6343,7 @@ void update_editor() {
     }
     
     //editor entities loop
-    for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
+    for_chunk_array(i, (&current_level_context->entities)) {
         Entity *e = current_level_context->entities.get(i);
         
         if (!e->enabled) {
@@ -6578,7 +6585,7 @@ void update_editor() {
         }
 
         for (i32 entity_index = 0; entity_index < multiselection->entities.count; entity_index++) {
-            Entity *entity = get_entity_by_id(multiselection->entities.get_value(entity_index));
+            Entity *entity = get_entity(multiselection->entities.get_value(entity_index));
             if (!entity) {
                 continue;
             }
@@ -6694,13 +6701,13 @@ void update_editor() {
         editor.copied_entities.clear();
         if (multiselection->entities.count > 0) {
             for (i32 i = 0; i < multiselection->entities.count; i++) {
-                Entity *entity_to_copy = get_entity_by_id(multiselection->entities.get_value(i), original_level_context);   
+                Entity *entity_to_copy = get_entity(multiselection->entities.get_value(i), original_level_context);   
                 // We keep id here so later we could verify different connected entities by ids. 
                 editor.copied_entities.append(Entity(entity_to_copy, true, original_level_context));
             }
             editor.copied_entities_center = multiselection->center;
         } else {
-            Entity *entity_to_copy = get_entity_by_id(editor.selected_entity->id, original_level_context);   
+            Entity *entity_to_copy = get_entity(editor.selected_entity->id, original_level_context);   
             editor.copied_entities.append(Entity(entity_to_copy, true, original_level_context));
             // copy_entity(&editor.copied_entity, editor.selected_entity);
             editor.copied_entities_center = entity_to_copy->position;
@@ -6749,7 +6756,7 @@ void update_editor() {
             // have the same indexes as copied entities. If that was a bad explanation I've explained it also in do-list 
             // in 'Loading multiple levels' task.
             for (i32 i = 0; i < spawned_entities.count; i++) {
-                Entity *spawned =  get_entity_by_id(spawned_entities.get_value(i));
+                Entity *spawned =  get_entity(spawned_entities.get_value(i));
                 if (spawned->flags & TRIGGER) {
                     // We have original trigger connected and tracking in copied_entities.
                     spawned->trigger.connected.clear();                                      
@@ -7197,7 +7204,7 @@ void update_editor() {
             }
         } else {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                Entity *changed_entity = get_entity_by_id(action->changed_entities.get_value(i));
+                Entity *changed_entity = get_entity(action->changed_entities.get_value(i));
                 // It should be there anyway i think, because even if we delete them - we should restore them firstly.
                 assert(changed_entity);
                 
@@ -7208,8 +7215,9 @@ void update_editor() {
             }
             
             if (action->entity_id != -1) {
-                assert(current_level_context->entities.has_key(action->entity_id));
-                Entity *undo_entity = current_level_context->entities.get_by_key_ptr(action->entity_id);
+                // assert(current_level_context->entities.has_key(action->entity_id));
+                //nocheckin check if exist?
+                Entity *undo_entity = get_entity(action->entity_id);
     
                 undo_entity->position   -= action->position_change;
                 if (action->moved_entity_points) {
@@ -7272,8 +7280,8 @@ void update_editor() {
         if (action->entity_was_deleted) { //so we need delete this again
             for (i32 i = 0; i < action->changed_entities.count; i++) {
                 i32 entity_id_to_delete = action->changed_entities.get_value(i);
-                assert(get_entity_by_id(entity_id_to_delete));
-                editor_delete_entity(get_entity_by_id(entity_id_to_delete), false);
+                assert(get_entity(entity_id_to_delete));
+                editor_delete_entity(get_entity(entity_id_to_delete), false);
             }
         } else if (action->entity_was_spawned) { //so we need spawn this again
             if (action->entity_id != -1) {
@@ -7287,7 +7295,7 @@ void update_editor() {
             }
         } else {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
-                Entity *changed_entity = get_entity_by_id(action->changed_entities.get_value(i));
+                Entity *changed_entity = get_entity(action->changed_entities.get_value(i));
                 // It should be there anyway i think, because even if we delete them - we should restore them firstly.
                 assert(changed_entity);
                 
@@ -7298,8 +7306,9 @@ void update_editor() {
             }
             
             if (action->entity_id != -1) {
-                assert(current_level_context->entities.has_key(action->entity_id));
-                Entity *undo_entity = current_level_context->entities.get_by_key_ptr(action->entity_id);
+                // assert(current_level_context->entities.has_key(action->entity_id));
+                //nocheckin check if exist?
+                Entity *undo_entity = get_entity(action->entity_id);
                 
                 undo_entity->position   += action->position_change;
                 if (action->moved_entity_points) {
@@ -7684,7 +7693,7 @@ inline b32 can_sword_damage_enemy(Entity *enemy_entity) {
 }
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
-    Entity *sword = get_entity_by_id(player_data->connected_entities_ids.sword_entity_id);
+    Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
     enemy_velocity->x = player_data->sword_spin_direction * 50 + enemy_velocity->x;
     
@@ -7945,10 +7954,10 @@ void resolve_physics_collision(Vector2 *my_velocity, f32 my_mass, Vector2 *their
 }
 
 inline void update_player_connected_entities_positions(Entity *player_entity) {
-    Entity *ground_checker     = get_entity_by_id(player_data->connected_entities_ids.ground_checker_id);
-    Entity *left_wall_checker  = get_entity_by_id(player_data->connected_entities_ids.left_wall_checker_id);
-    Entity *right_wall_checker = get_entity_by_id(player_data->connected_entities_ids.right_wall_checker_id);
-    Entity *sword              = get_entity_by_id(player_data->connected_entities_ids.sword_entity_id);
+    Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
+    Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
+    Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
+    Entity *sword              = get_entity(player_data->connected_entities_ids.sword_entity_id);
     
     ground_checker->position     = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
     left_wall_checker->position  = player_entity->position - player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
@@ -7980,10 +7989,10 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         return;
     }
     
-    Entity *ground_checker     = get_entity_by_id(player_data->connected_entities_ids.ground_checker_id);
-    Entity *left_wall_checker  = get_entity_by_id(player_data->connected_entities_ids.left_wall_checker_id);
-    Entity *right_wall_checker = get_entity_by_id(player_data->connected_entities_ids.right_wall_checker_id);
-    Entity *sword              = get_entity_by_id(player_data->connected_entities_ids.sword_entity_id);
+    Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
+    Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
+    Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
+    Entity *sword              = get_entity(player_data->connected_entities_ids.sword_entity_id);
     
     update_player_connected_entities_positions(player_entity);    
     
@@ -9305,7 +9314,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         if (enemy_entity->flags & KILL_SWITCH) {
             Kill_Switch *kill_switch = &enemy->kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity_by_id(kill_switch->connected.get_value(i));
+                Entity *connected = get_entity(kill_switch->connected.get_value(i));
                 if (!connected) {
                     continue;
                 }
@@ -9398,7 +9407,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 if (!head->all_segments_dead) {
                     head->all_segments_dead = true;
                     for (i32 i = 0; i < head->segments_ids.count; i++) {
-                        Entity *segment = get_entity_by_id(head->segments_ids.get_value(i));
+                        Entity *segment = get_entity(head->segments_ids.get_value(i));
                         if (segment && segment->id != enemy_entity->id) {
                             kill_enemy(segment, segment->position, segment->up);
                         } else if (!segment) {
@@ -9594,7 +9603,7 @@ inline f32 get_death_instinct_radius(Vector2 threat_scale) {
 }
 
 b32 is_death_instinct_threat_active() {
-    Entity *threat_entity = get_entity_by_id(state_context.death_instinct.threat_entity_id);
+    Entity *threat_entity = get_entity(state_context.death_instinct.threat_entity_id);
     b32 entity_alive = threat_entity && !threat_entity->destroyed && !threat_entity->enemy.dead_man;
     
     f32 since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
@@ -9633,7 +9642,7 @@ inline b32 is_death_instinct_in_cooldown() {
 void stop_death_instinct() {
     f32 time_since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
 
-    Entity *threat_entity = get_entity_by_id(state_context.death_instinct.threat_entity_id);
+    Entity *threat_entity = get_entity(state_context.death_instinct.threat_entity_id);
 
     b32 is_threat_status_gives_cooldown = true;
     if (state_context.death_instinct.last_reason == ENEMY_ATTACKING) {
@@ -9994,7 +10003,7 @@ void update_projectile(Entity *entity, f32 dt) {
 void update_sticky_texture(Entity *entity, f32 dt) {
     Sticky_Texture *st = &entity->sticky_texture;
     
-    Entity *follow_entity = get_entity_by_id(st->follow_id);
+    Entity *follow_entity = get_entity(st->follow_id);
     b32 need_to_follow = st->need_to_follow && follow_entity && follow_entity->enabled;
     f32 lifetime = core.time.game_time - st->birth_time;
     f32 lifetime_t = 0;
@@ -10024,24 +10033,25 @@ void update_sticky_texture(Entity *entity, f32 dt) {
     st->need_to_follow = need_to_follow;
 }
 
+//nocheckin think about checking and verifying.
 inline void trigger_editor_verify_connected(Entity *entity) {
-    for (i32 i = 0; i < entity->trigger.connected.count; i++) {   
-        // So if entiity was somehow destoyed, annighilated.
-        if (!current_level_context->entities.has_key(entity->trigger.connected.get_value(i))) {
-            entity->trigger.connected.remove(i);
-            i--;
-            continue;
-        }
-    }
+    // for (i32 i = 0; i < entity->trigger.connected.count; i++) {   
+    //     // So if entiity was somehow destoyed, annighilated.
+    //     if (!current_level_context->entities.has_key(entity->trigger.connected.get_value(i))) {
+    //         entity->trigger.connected.remove(i);
+    //         i--;
+    //         continue;
+    //     }
+    // }
     
-    for (i32 ii = 0; ii < entity->trigger.tracking.count; ii++) {
-        i32 id = entity->trigger.tracking.get_value(ii);
-        if (!current_level_context->entities.has_key(id)) {
-            entity->trigger.tracking.remove(ii);
-            ii--;
-            continue;
-        }
-    }
+    // for (i32 ii = 0; ii < entity->trigger.tracking.count; ii++) {
+    //     i32 id = entity->trigger.tracking.get_value(ii);
+    //     if (!current_level_context->entities.has_key(id)) {
+    //         entity->trigger.tracking.remove(ii);
+    //         ii--;
+    //         continue;
+    //     }
+    // }
 }
 
 void update_editor_entity(Entity *e) {
@@ -10110,7 +10120,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     if (connected->flags & CENTIPEDE) {
         assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
         for (i32 i = 0; i < connected->centipede.segments_count; i++) {
-            Entity *segment = get_entity_by_id(connected->centipede.segments_ids.get_value(i));
+            Entity *segment = get_entity(connected->centipede.segments_ids.get_value(i));
             assert(segment);
             segment->hidden = connected->hidden;
             if (should_agro) {
@@ -10167,13 +10177,15 @@ i32 update_trigger(Entity *e) {
         b32 found_enemy = false;
         for (i32 i = 0; i < e->trigger.tracking.count; i++) {
             i32 id = e->trigger.tracking.get_value(i);
-            if (!current_level_context->entities.has_key(id)) {
-                e->trigger.tracking.remove(i);
-                i--;
-                continue;
-            }
+            //nocheckin think about verifying.
+            // if (!current_level_context->entities.has_key(id)) {
+            //     e->trigger.tracking.remove(i);
+            //     i--;
+            //     continue;
+            // }
             
-            Entity *tracking_entity = current_level_context->entities.get_by_key_ptr(id);
+            //nocheckin check if exist?
+            Entity *tracking_entity = get_entity(id);
 
             if (!tracking_entity->enemy.dead_man) {
                 found_enemy = true;
@@ -10279,13 +10291,15 @@ i32 update_trigger(Entity *e) {
         
         for (i32 i = 0; i < e->trigger.connected.count; i++) {
             i32 id = e->trigger.connected.get_value(i);
-            if (!current_level_context->entities.has_key(id)) {
-                e->trigger.connected.remove(i);
-                i--;
-                continue;
-            }
+            //nocheckin think about verifying.
+            // if (!current_level_context->entities.has_key(id)) {
+            //     e->trigger.connected.remove(i);
+            //     i--;
+            //     continue;
+            // }
             
-            Entity *connected_entity = current_level_context->entities.get_by_key_ptr(id);
+            //nocheckin check if exist?
+            Entity *connected_entity = get_entity(id);
                         
             trigger_entity(e, connected_entity);
         }
@@ -10549,9 +10563,9 @@ inline b32 update_entity(Entity *e, f32 dt) {
     if (e->flags & PHYSICS_OBJECT) {
         // update rope stuff
          if (e->physics_object.on_rope) {
-            Entity *rope_entity            = get_entity_by_id(e->physics_object.rope_id);
-            Entity *up_rope_point_entity   = get_entity_by_id(e->physics_object.up_rope_point_id);
-            Entity *down_rope_point_entity = get_entity_by_id(e->physics_object.down_rope_point_id);
+            Entity *rope_entity            = get_entity(e->physics_object.rope_id);
+            Entity *up_rope_point_entity   = get_entity(e->physics_object.up_rope_point_id);
+            Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
             
             // If any part of rope is missing - we destroy them all.
             if (!rope_entity || !up_rope_point_entity || !down_rope_point_entity) {
@@ -10697,7 +10711,8 @@ inline b32 update_entity(Entity *e, f32 dt) {
         
         i32 alive_count = 0;
         for (i32 i = 0; i < centipede->segments_count; i++) {
-            Entity *segment = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get_value(i));
+            //nocheckin check if exist?
+            Entity *segment = get_entity(centipede->segments_ids.get_value(i));
             
             if (!segment->enemy.dead_man) {
                 alive_count++;
@@ -10719,7 +10734,8 @@ inline b32 update_entity(Entity *e, f32 dt) {
             add_fire_light_to_entity(e);
             
             for (i32 i = 0; i < centipede->segments_count; i++) {
-                Entity *segment = current_level_context->entities.get_by_key_ptr(centipede->segments_ids.get_value(i));
+                //nocheckin check if exist?
+                Entity *segment = get_entity(centipede->segments_ids.get_value(i));
                 
                 segment->flags = ENEMY | BIRD_ENEMY;
                 segment->move_sequence.moving = false;
@@ -11078,6 +11094,32 @@ inline b32 update_entity(Entity *e, f32 dt) {
     return true;
 } //update entity end
 
+void notify_destruction(Entity *entity) {
+    for_array(i, (&entity->entities_pointing_at_me)) {
+        // Entity *pointing_entity = get_entity
+        // @TODO: Right now it think that we should keep that pointing_at_me thing and store in that array flag about type 
+        // of pointing (trigger connected, trigger tracking, kill switch connected etc. basically for every type.
+        // Here we will be checking in switch type of pointing where on default could be assert(false) and we will basically
+        // know that we did not forget to add something. 
+        // That will highly restrict us and maybe will add some friction, but we will know 
+        // that at any given moment all entities have correct referring ids and get_entity will never return NULL.
+        //
+        // Also that means that responsibility to remove id from entity that pointing at me is completely on that function
+        // and entities that actually pointing at me will always have valid ids.
+        //
+        // But don't forget that when entity that pointing at me is destroyed itself it should go to me and remove 
+        // it's id from here.
+        //
+        // Actually right now I realized that we're not exactly *should* have type of pointing, because when entity is 
+        // destroyed it should remove reference to itself from every instance of pointing, but type will help us 
+        // know that we don't forget to check anything so we should try that.
+        //
+        // Maybe we could go without type - we will just check all we know and if we did not find anything where this 
+        // entity id is stored - we're asserting. Thing that bugs me is that we really will not know how exactly this entity
+        // is pointing at us and that maybe will create bugs. But maybe all of this we could catch with asserts.
+    }
+}
+
 void update_entities(f32 dt) {
     // update turrets ticks
     state_context.turret_state.ticked_this_frame = false;
@@ -11089,17 +11131,14 @@ void update_entities(f32 dt) {
         state_context.turret_state.ticked_this_frame = true;
     }
 
-    Hash_Table_Int<Entity> *entities = &current_level_context->entities;
+    Chunk_Array<Entity> *entities = &current_level_context->entities;
     
     if (core.time.app_time - state_context.timers.last_collision_cells_clear_time >= 0.2f) {
         update_all_collision_cells();        
     }
     
-    for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
-        if (!entities->has_index(entity_index)) {
-            continue;
-        }
-    
+    // for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
+    for_chunk_array(entity_index, entities) {
         Entity *e = entities->get(entity_index);
         
         if (e->flags & PLAYER) {
@@ -11111,11 +11150,12 @@ void update_entities(f32 dt) {
         
         if (e->destroyed) {
             free_entity(e);
-            entities->remove_index(entity_index);    
+            notify_destruction(e);
+            entities->remove(e->id);    
             continue;
         }
         
-        if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (!current_level_context->entities.has_key(e->spawned_enemy_id) || e->spawned_enemy_id == -1)) {
+        if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { //nocheckin think about storing entity references.
             Entity *spawned = spawn_object_by_name("ammo_pack", e->position);
             e->spawned_enemy_id = spawned->id;
         }
@@ -11128,7 +11168,7 @@ void update_entities(f32 dt) {
         if (e->flags & KILL_SWITCH) {
             Kill_Switch *kill_switch = &e->enemy.kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity_by_id(kill_switch->connected.get_value(i));
+                Entity *connected = get_entity(kill_switch->connected.get_value(i));
                 if (!connected) {
                     kill_switch->connected.remove(i);
                     i--;
@@ -11477,7 +11517,7 @@ void fill_entities_draw_queue() {
             b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id || (IsKeyDown(KEY_LEFT_ALT) && should_draw_editor_hints());
             f32 since_triggered = core.time.game_time - trigger->triggered_time;
             for (i32 ii = 0; ii < trigger->connected.count; ii++) {
-                Entity *connected = get_entity_by_id(trigger->connected.get_value(ii));
+                Entity *connected = get_entity(trigger->connected.get_value(ii));
                 
                 if (!connected) {
                     continue;
@@ -11514,7 +11554,7 @@ void fill_entities_draw_queue() {
             }
             for (i32 ii = 0; ii < trigger->tracking.count; ii++) {
                 i32 id = trigger->tracking.get_value(ii);
-                Entity *tracked_entity = get_entity_by_id(id);
+                Entity *tracked_entity = get_entity(id);
                 if (!tracked_entity) {
                     continue;
                 }
@@ -11533,7 +11573,7 @@ void fill_entities_draw_queue() {
         if (entity->flags & KILL_SWITCH) {
             Kill_Switch *kill_switch = &entity->enemy.kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity_by_id(kill_switch->connected.get_value(i));                
+                Entity *connected = get_entity(kill_switch->connected.get_value(i));                
                 if (!connected) {
                     continue;
                 }
@@ -11551,7 +11591,7 @@ void fill_entities_draw_queue() {
         // always draw sticky texture
         if (entity->flags & STICKY_TEXTURE) {
             Sticky_Texture *st = &entity->sticky_texture;
-            Entity *follow_entity = get_entity_by_id(entity->sticky_texture.follow_id);
+            Entity *follow_entity = get_entity(entity->sticky_texture.follow_id);
             
             // We make lights only for immortal sticky textures - like blocker sign.
             if (follow_entity && st->max_lifetime <= 0) {
@@ -11571,7 +11611,8 @@ void fill_entities_draw_queue() {
             }
         
             if (st->draw_line && st->need_to_follow && player_entity) {
-                Entity *follow_entity = current_level_context->entities.get_by_key_ptr(st->follow_id);
+                //nocheckin check if exist?
+                Entity *follow_entity = get_entity(st->follow_id);
                 Color line_color = st->line_color;
                 if (follow_entity && follow_entity->flags & ENEMY && st->max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)) {
                     line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
@@ -11649,9 +11690,7 @@ inline b32 should_draw_editor_hints() {
 }
 
 void draw_entity(Entity *e) {
-    if (!e || !current_level_context->entities.has_key(e->id)) {
-        return;
-    }
+    //nocheckin here we were checking if entity exist for some reason.
 
     if (!e->enabled) {
         return;
@@ -12075,15 +12114,12 @@ void draw_entities() {
 }
 
 void draw_game_space_editor() {
-    Hash_Table_Int<Entity> *entities = &current_level_context->entities;
+    Chunk_Array<Entity> *entities = &current_level_context->entities;
 
-    for (i32 i = 0; i < entities->capacity; i++) {
+    // for (i32 i = 0; i < entities->capacity; i++) {
+    for_chunk_array(i, entities) {
         Entity *e = entities->get(i);
         
-        if (!current_level_context->entities.has_index(i)) {
-            continue;
-        }
-    
         if (!e->enabled || e->flags == -1) {
             continue;
         }
@@ -12578,7 +12614,7 @@ void new_render() {
             continue;
         }
         
-        Entity *connected_entity = get_entity_by_id(light_ptr->connected_entity_id);
+        Entity *connected_entity = get_entity(light_ptr->connected_entity_id);
         
         // update temp lights
         if (light_index < session_context.temp_lights_count) {
@@ -12944,40 +12980,27 @@ void setup_color_changer(Entity *entity) {
     entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
 }
 
-void check_avaliable_ids_and_set_if_found(i32 *id) {
-    i32 try_count = 0;
-    while ((current_level_context->entities.has_key(*id) && try_count <= MAX_ENTITIES) || *id <= 10) {
-        *id = ((*id) + 1) % MAX_ENTITIES;
-        try_count += 1;
-    }
-    
-    assert(try_count < 1000);
-}
-
 Entity* add_entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context) {
     Entity e = Entity(copy, keep_id, copy_entity_level_context);
     
     e.level_context = current_level_context;
-    current_level_context->entities.append(e.id, e);
-    return current_level_context->entities.last();
+    return current_level_context->entities.append(e);
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
-    check_avaliable_ids_and_set_if_found(&e.id);
+    // e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
+    // check_avaliable_ids_and_set_if_found(&e.id);
     e.level_context = current_level_context;
-    current_level_context->entities.append(e.id, e);
-    return current_level_context->entities.last();
+    return current_level_context->entities.append(e, &e.id);
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags) {
     Entity e = Entity(pos, scale, pivot, rotation, texture, flags);    
-    e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
+    // e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
     e.level_context = current_level_context;
-    check_avaliable_ids_and_set_if_found(&e.id);
-    current_level_context->entities.append(e.id, e);
-    return current_level_context->entities.last();
+    // check_avaliable_ids_and_set_if_found(&e.id);
+    return current_level_context->entities.append(e, &e.id);
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
@@ -12989,11 +13012,10 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Colo
 
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    e.id = id;
+    // e.id = id;
     e.level_context = current_level_context;
-    check_avaliable_ids_and_set_if_found(&e.id);
-    current_level_context->entities.append(e.id, e);
-    return current_level_context->entities.last();
+    // check_avaliable_ids_and_set_if_found(&e.id);
+    return current_level_context->entities.append(e, &e.id);
 }
 
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {

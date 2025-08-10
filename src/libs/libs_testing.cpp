@@ -9,7 +9,6 @@
 
 #include "my_math.cpp"
 #include "string.hpp"
-#include "array_old.hpp"
 #include "files.hpp"
 
 void test_str1(){

@@ -35,8 +35,7 @@ Bounds get_cam_bounds(Cam cam, f32 zoom);
 Cam get_cam_for_resolution(i32 width, i32 height);
 inline f32 get_light_zoom(f32 radius);
 
-inline Entity *get_entity_by_id(i32 id, Level_Context *level_context = NULL);
-Entity *get_entity_by_index(i32 index);
+inline Entity *get_entity(i32 id, Level_Context *level_context = NULL);
 
 Vector2 get_entity_velocity(Entity *entity);
 
@@ -136,7 +135,6 @@ b32 check_col_circles(Circle a, Circle b);
 void print_to_console(const char *text);
 void print_hotkeys_to_console();
 
-inline int table_next_avaliable(Hash_Table_Int<Entity> table, int index, FLAGS flags = 0);
 inline int next_entity_avaliable(Level_Context *level_context, int index, Entity **entity, FLAGS flags);
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
