@@ -740,7 +740,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     // dest->entities.total_added_count = src->entities.total_added_count;
     // dest->entities.last_added_key = src->entities.last_added_key;
     
-    // nocheckin check this copying
+    // @TODO: check this copying
     dest->entities = copy_chunk_array(&src->entities);
     for_chunk_array(i, (&dest->entities)) {
         *dest->entities.get(i) = Entity(src->entities.get(i), true, src, should_init_entities);
@@ -754,7 +754,8 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     assert(src->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
     assert(dest->lightmaps_render_textures_loaded == false && "Lightmaps render textures should be unloaded right after baking.");
     dest->lightmaps.clear();
-    //nocheckin changed lightmaps.count to lightmaps.capacity because we're clearing before.
+    
+    // @TODO: check this because I changed lightmaps.count to lightmaps.capacity because we're clearing before.
     for (i32 i = 0; i < src->lightmaps.capacity; i++) {
         dest->lightmaps.append(src->lightmaps.get_value(i));
     }
@@ -771,10 +772,13 @@ void clear_level_context(Level_Context *level_context) {
     switch_current_level_context(level_context);
     ForEntities(entity, 0) {
         free_entity(entity);
-        *entity = {};
+        *entity = {0};
     }
-
-    // level_context->entities.clear();
+    
+    level_context->entities.clear();
+    // Id 0 is invalid for good reasons, so we're adding it here.
+    level_context->entities.append({0});
+    
     // level_context->particles.clear();
     // level_context->emitters.clear();
     
@@ -2472,7 +2476,6 @@ void init_entity(Entity *entity) {
     if (entity->flags & BLOCKER && game_state == GAME) {
         // init blocker
         if (entity->enemy.blocker_sticky_id != -1) {
-            //nocheckin check if null?
             get_entity(entity->enemy.blocker_sticky_id)->destroyed = true;
         }
         
@@ -2499,7 +2502,6 @@ void init_entity(Entity *entity) {
     if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME) {
         // init sword size required
         if (entity->enemy.sword_required_sticky_id != -1) {
-            //nocheckin check if null?
             get_entity(entity->enemy.sword_required_sticky_id)->destroyed = true;
         }
         
@@ -3240,6 +3242,8 @@ void init_level_context(Level_Context *level_context) {
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
+    // // Id 0 on entity is invalid for good reasons, so we're adding it here.
+    // level_context->entities.push_back({0});
 
     //init context
     for (i32 i = 0; i < level_context->lights.capacity; i++) {
@@ -3271,7 +3275,6 @@ void init_level_context(Level_Context *level_context) {
         }
     }
     
-    level_context->inited = true;
     
     for (i32 i = 0; i < level_context->particles.capacity; i++) {
         level_context->particles.append({0});
@@ -3285,6 +3288,14 @@ void init_level_context(Level_Context *level_context) {
     for (i32 i = 0; i < level_context->notes.capacity; i++) {
         level_context->notes.append({0});
     }
+    
+    level_context->inited = true;
+    
+    // We're clearing level context right after initialization becase init happens only at the very beginning and next
+    // level context is ready for new work right after clearing, so that's saves us some duplicate initialization 
+    // and guarantees for that level context is the same as it will be in the middle of program execution
+    // when it  will be just cleared and used again.
+    clear_level_context(level_context);
 }
 
 Shader load_shader(const char *vertex, const char *fragment) {
@@ -3400,7 +3411,6 @@ void destroy_player() {
     player_entity->destroyed = true;
     player_entity->enabled   = false;
     
-    //nocheckin check if null?
     // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.ground_checker_id));
     get_entity(player_data->connected_entities_ids.ground_checker_id)->destroyed = true;
     // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
@@ -4668,9 +4678,9 @@ void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<
 inline Entity *get_entity(i32 id, Level_Context *level_context) {
     if (!level_context) level_context = current_level_context;
     assert(id > -1 && "Invalid entity id!");
-    // We should think about that - can we constrain get_entity to always give entity so we're don't allow getting a non-existing
-    // id. nocheckin
-    // If we will allow getting NULL from here - we should add is_occupied() to chunk array and we should check it in here.
+    
+    // Right now we trying to constrain all ids and guarantee that id is valid, so here is no external checks.
+    // (guarantee is happening becuase of how we set and track ids on connected entities in file entity_ids.cpp and everywhere).
     
     return level_context->entities.get(id);
 }
@@ -4907,7 +4917,6 @@ inline void editor_delete_multiselected_entities() {
 
 void editor_delete_entity(i32 entity_id, b32 add_undo) {
     // assert(current_level_context->entities.has_key(entity_id));
-    //nocheckin should check if exist?
     editor_delete_entity(get_entity(entity_id), add_undo);
 }
 
@@ -7216,7 +7225,6 @@ void update_editor() {
             
             if (action->entity_id != -1) {
                 // assert(current_level_context->entities.has_key(action->entity_id));
-                //nocheckin check if exist?
                 Entity *undo_entity = get_entity(action->entity_id);
     
                 undo_entity->position   -= action->position_change;
@@ -7307,7 +7315,6 @@ void update_editor() {
             
             if (action->entity_id != -1) {
                 // assert(current_level_context->entities.has_key(action->entity_id));
-                //nocheckin check if exist?
                 Entity *undo_entity = get_entity(action->entity_id);
                 
                 undo_entity->position   += action->position_change;
@@ -10033,7 +10040,7 @@ void update_sticky_texture(Entity *entity, f32 dt) {
     st->need_to_follow = need_to_follow;
 }
 
-//nocheckin think about checking and verifying.
+// @TODO: Remove it probably because all ids should be valid always.
 inline void trigger_editor_verify_connected(Entity *entity) {
     // for (i32 i = 0; i < entity->trigger.connected.count; i++) {   
     //     // So if entiity was somehow destoyed, annighilated.
@@ -10177,14 +10184,7 @@ i32 update_trigger(Entity *e) {
         b32 found_enemy = false;
         for (i32 i = 0; i < e->trigger.tracking.count; i++) {
             i32 id = e->trigger.tracking.get_value(i);
-            //nocheckin think about verifying.
-            // if (!current_level_context->entities.has_key(id)) {
-            //     e->trigger.tracking.remove(i);
-            //     i--;
-            //     continue;
-            // }
             
-            //nocheckin check if exist?
             Entity *tracking_entity = get_entity(id);
 
             if (!tracking_entity->enemy.dead_man) {
@@ -10291,14 +10291,7 @@ i32 update_trigger(Entity *e) {
         
         for (i32 i = 0; i < e->trigger.connected.count; i++) {
             i32 id = e->trigger.connected.get_value(i);
-            //nocheckin think about verifying.
-            // if (!current_level_context->entities.has_key(id)) {
-            //     e->trigger.connected.remove(i);
-            //     i--;
-            //     continue;
-            // }
             
-            //nocheckin check if exist?
             Entity *connected_entity = get_entity(id);
                         
             trigger_entity(e, connected_entity);
@@ -10711,7 +10704,6 @@ inline b32 update_entity(Entity *e, f32 dt) {
         
         i32 alive_count = 0;
         for (i32 i = 0; i < centipede->segments_count; i++) {
-            //nocheckin check if exist?
             Entity *segment = get_entity(centipede->segments_ids.get_value(i));
             
             if (!segment->enemy.dead_man) {
@@ -10734,7 +10726,6 @@ inline b32 update_entity(Entity *e, f32 dt) {
             add_fire_light_to_entity(e);
             
             for (i32 i = 0; i < centipede->segments_count; i++) {
-                //nocheckin check if exist?
                 Entity *segment = get_entity(centipede->segments_ids.get_value(i));
                 
                 segment->flags = ENEMY | BIRD_ENEMY;
@@ -11094,32 +11085,6 @@ inline b32 update_entity(Entity *e, f32 dt) {
     return true;
 } //update entity end
 
-void notify_destruction(Entity *entity) {
-    for_array(i, (&entity->entities_pointing_at_me)) {
-        // Entity *pointing_entity = get_entity
-        // @TODO: Right now it think that we should keep that pointing_at_me thing and store in that array flag about type 
-        // of pointing (trigger connected, trigger tracking, kill switch connected etc. basically for every type.
-        // Here we will be checking in switch type of pointing where on default could be assert(false) and we will basically
-        // know that we did not forget to add something. 
-        // That will highly restrict us and maybe will add some friction, but we will know 
-        // that at any given moment all entities have correct referring ids and get_entity will never return NULL.
-        //
-        // Also that means that responsibility to remove id from entity that pointing at me is completely on that function
-        // and entities that actually pointing at me will always have valid ids.
-        //
-        // But don't forget that when entity that pointing at me is destroyed itself it should go to me and remove 
-        // it's id from here.
-        //
-        // Actually right now I realized that we're not exactly *should* have type of pointing, because when entity is 
-        // destroyed it should remove reference to itself from every instance of pointing, but type will help us 
-        // know that we don't forget to check anything so we should try that.
-        //
-        // Maybe we could go without type - we will just check all we know and if we did not find anything where this 
-        // entity id is stored - we're asserting. Thing that bugs me is that we really will not know how exactly this entity
-        // is pointing at us and that maybe will create bugs. But maybe all of this we could catch with asserts.
-    }
-}
-
 void update_entities(f32 dt) {
     // update turrets ticks
     state_context.turret_state.ticked_this_frame = false;
@@ -11155,7 +11120,7 @@ void update_entities(f32 dt) {
             continue;
         }
         
-        if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { //nocheckin think about storing entity references.
+        if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
             Entity *spawned = spawn_object_by_name("ammo_pack", e->position);
             e->spawned_enemy_id = spawned->id;
         }
@@ -11611,7 +11576,6 @@ void fill_entities_draw_queue() {
             }
         
             if (st->draw_line && st->need_to_follow && player_entity) {
-                //nocheckin check if exist?
                 Entity *follow_entity = get_entity(st->follow_id);
                 Color line_color = st->line_color;
                 if (follow_entity && follow_entity->flags & ENEMY && st->max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)) {
@@ -11690,8 +11654,6 @@ inline b32 should_draw_editor_hints() {
 }
 
 void draw_entity(Entity *e) {
-    //nocheckin here we were checking if entity exist for some reason.
-
     if (!e->enabled) {
         return;
     }

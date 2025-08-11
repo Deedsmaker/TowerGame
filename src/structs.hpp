@@ -844,6 +844,7 @@ struct Entity {
     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     
+    Array <i32> connected_entities = {0};
     Array <i32> entities_pointing_at_me = {0};
     
     Vector2 up = {0, 1};
