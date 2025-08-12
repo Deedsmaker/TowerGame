@@ -315,14 +315,14 @@ struct Multiple_Hits{
     f32 timer = 0;
 };
 
-struct Projectile_Settings{
+struct Projectile_Settings {
     FLAGS enemy_flags = 0;
     b32 blocker_clockwise = false;
     f32 launch_speed = 150.0f;
     f32 max_lifetime = 7.0f;
 };
 
-struct Turret{
+struct Turret {
     b32 activated = true;
     i32 shoot_every_tick = 3;
     i32 start_tick_delay = 0;
@@ -338,11 +338,11 @@ struct Turret{
     Projectile_Settings projectile_settings = {};
 };
 
-struct Kill_Switch{
+struct Kill_Switch {
     Array <i32> connected = {0};   
 };
 
-struct Enemy{
+struct Enemy {
     b32 dead_man = false;  
     b32 in_agro = false;
     b32 in_stun = false;
@@ -668,7 +668,7 @@ struct Bounds{
     Vector2 offset;
 };
 
-struct Player{
+struct Player {
     // Static_Array <Collision, MAX_COLLISIONS> collisions = {0};
     i32 stun_emitter_index = -1;
     

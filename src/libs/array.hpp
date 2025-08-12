@@ -2,11 +2,9 @@
 
 #include <assert.h>
 
-#include <string.h>
-
 #define for_array(index, array) for (i32 index = 0; index < array->count; index++)
 
-void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_count, i32 appended_count) {
+inline void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_count, i32 appended_count) {
     i32 new_count = current_count + appended_count;
     if (new_count > *capacity) {
         void *old_data = *data;
@@ -71,8 +69,8 @@ struct Array {
     }
     
     void remove_first_half(){
-        int half_count = (int)((float)count * 0.5f);
-        int even_correction = count % 2 == 0 ? -1 : 0;
+        i32 half_count = (i32)((f32)count * 0.5f);
+        i32 even_correction = count % 2 == 0 ? -1 : 0;
         mem_copy(get(0), get(half_count + even_correction), half_count * sizeof(T));
         
         count = half_count;
@@ -196,8 +194,8 @@ struct Static_Array {
     }
     
     void remove_first_half(){
-        int half_count = (int)((float)count * 0.5f);
-        int even_correction = count % 2 == 0 ? -1 : 0;
+        i32 half_count = (i32)((f32)count * 0.5f);
+        i32 even_correction = count % 2 == 0 ? -1 : 0;
         mem_copy(get(0), get(half_count + even_correction), half_count * sizeof(T));
         
         count = half_count;
