@@ -598,7 +598,7 @@ struct Bird_Enemy{
 
 #define MAX_CENTIPEDE_SEGMENTS 64
 
-struct Centipede_Segment{
+struct Centipede_Segment {
     i32 head_id = -1;
     i32 previous_id = -1;
 };
@@ -882,6 +882,7 @@ struct Entity {
     Trigger trigger;
     Move_Sequence move_sequence;
     Centipede centipede;
+    Centipede_Segment centipede_segment;
     Physics_Object physics_object;
     Jump_Shooter jump_shooter;
     i32 note_index = -1;

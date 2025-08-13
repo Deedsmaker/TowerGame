@@ -48,7 +48,7 @@ void free_allocator(Allocator *allocator) {
     
 void free_data_in_allocator(Allocator *allocator, void *data) {
     // Currently allocator is just Memory Arena, so we can't just free data in it.
-    // That's why we call default 'free' when allocator is NULL - that's mean it was allocated with just malloc.
+    // That's why we call default 'free' when allocator is NULL - that's mean it was allocated with just calloc.
     if (!allocator) {
         free(data);
     }

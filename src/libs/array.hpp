@@ -1,6 +1,7 @@
 #pragma once
 
 #include <assert.h>
+#include <string.h>
 
 #define for_array(index, array) for (i32 index = 0; index < array->count; index++)
 
@@ -66,6 +67,25 @@ struct Array {
         
         memmove(get(index), get(index+1), sizeof(T) * (count - index - 1));
         count--;
+    }
+    
+    inline void remove_first_encountered(T *value) {
+        remove(find(value));
+    }
+    inline void remove_first_encountered(T value) {
+        remove_first_encountered(&value);
+    }
+    
+    inline void remove_all_encountered(T *value) {
+        for_array(i, this) {
+            if (*get(i) == *value) {
+                remove(i);
+                i--;
+            }
+        }
+    }
+    inline void remove_all_encountered(T value) {
+        remove_all_encountered(&value);
     }
     
     void remove_first_half(){
@@ -140,7 +160,19 @@ void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
     assert(array->data == NULL && "We probably should init array only when it is not initialized");
     array->capacity = capacity;
     
-    array->data = (T*) calloc(1, capacity * sizeof(T));
+    array->data = (T*) alloc(allocator, capacity * sizeof(T));
+}
+
+template <typename T>
+Array <T> copy_array(Array<T> *to_copy) {
+    Array <T> result = {.allocator = to_copy->allocator};
+    init_array(&result, to_copy->capacity, to_copy->allocator);
+    
+    for_array(i, to_copy) {
+        result.append(*to_copy->get(i));
+    }
+    
+    return result;
 }
 
 template<typename T, i32 C>
@@ -477,4 +509,6 @@ Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy) {
         my_chunk = my_chunk->next;
         copy_chunk = copy_chunk->next;
     }
+    
+    return result;
 }
