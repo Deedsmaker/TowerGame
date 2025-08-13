@@ -1,6 +1,6 @@
 #pragma once
 
-inline bool remove_id_reference_from_entity(Entity *entity, i32 to_remove) {
+inline bool completely_remove_id_reference_from_entity(Entity *entity, i32 to_remove) {
     b32 handled_all_references = true;
     // Here we're going to remove *to_remove* id from entity->connected_entities and from every specific entity type id reference.
     for_array(id_index, (&entity->connected_entities)) {
@@ -137,7 +137,7 @@ inline void notify_destruction_to_connected_entities(Entity *destroyed_entity) {
         // entity id is stored - we're asserting. Thing that bugs me is that we really will not know how exactly this entity
         // is pointing at us and that maybe will create bugs. But maybe all of this we could catch with asserts.
         
-        remove_id_reference_from_entity(get_entity(destroyed_entity->entities_pointing_at_me.get_value(i)), destroyed_entity->id);
+        completely_remove_id_reference_from_entity(get_entity(destroyed_entity->entities_pointing_at_me.get_value(i)), destroyed_entity->id);
     }
     
     // Now telling entiteis that we're connected to that we're no longer walking this earth.
@@ -147,11 +147,15 @@ inline void notify_destruction_to_connected_entities(Entity *destroyed_entity) {
     
     while (destroyed_entity->connected_entities.count > 0) {
         // It's not just a for loop because nocheckin explain.
-        if (remove_id_reference_from_entity(destroyed_entity, destroyed_entity->connected_entities.get_value(0))) {
+        if (completely_remove_id_reference_from_entity(destroyed_entity, destroyed_entity->connected_entities.get_value(0))) {
         } else {
             // That's a fail case. That means that we forgot to handle something, but actually we'll probably still remove
             // id from connected entities, so we'll never be here. nocheckin explain better after implementation.
         }
+    }
+    
+    if (destroyed_entity->light_index > -1) {    
+        get_light(destroyed_entity->light_index)->connected_entity_id = -1;
     }
     
     //nocheckin also probably should notify particle emitters and lights because they're holding references to entity.
@@ -169,7 +173,7 @@ inline i32 register_entity_id_reference(Entity *entity, i32 connected_id) {
     return *entity->connected_entities.append(connected_id);
 }
 
-inline void unregister_one_entity_id_reference(Entity *entity, i32 id) {
+inline void unregister_one_entity_id_reference_from_connected(Entity *entity, i32 id) {
     assert(entity->id != id);   
     
     Entity *currently_connected_entity = get_entity(id);
@@ -178,11 +182,10 @@ inline void unregister_one_entity_id_reference(Entity *entity, i32 id) {
     entity->connected_entities.remove_first_encountered(id);
 }
 
-inline void unregister_entity_ids_reference(Entity *entity, Array<i32> *ids) {
+inline void unregister_entity_ids_reference_from_connected(Entity *entity, Array<i32> *ids) {
     assert(!ids->contains(entity->id));   
     
-    Entity *currently_connected_entity = get_entity(id);
-    currently_connected_entity->entities_pointing_at_me.remove_first_encountered(entity->id);
-    
-    entity->connected_entities.remove_first_encountered(id);
+    for_array(i, ids) {
+        unregister_one_entity_id_reference_from_connected(entity, ids->get_value(i));
+    }
 }

@@ -240,22 +240,22 @@ void free_entity(Entity *e) {
     }
     
     // free physics objctt
-    if (e->flags & PHYSICS_OBJECT) {
-        Entity *rope_entity = get_entity(e->physics_object.rope_id);
-        if (e->physics_object.on_rope) {
-            if (rope_entity) {
-                rope_entity->destroyed = true;
-            }
-            Entity *up_rope_point_entity = get_entity(e->physics_object.up_rope_point_id);
-            if (up_rope_point_entity) {
-                up_rope_point_entity->destroyed = true;
-            }
-            Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
-            if (down_rope_point_entity) {
-                down_rope_point_entity->destroyed = true;
-            }
-        }
-    }
+    // if (e->flags & PHYSICS_OBJECT) {
+    //     Entity *rope_entity = get_entity(e->physics_object.rope_id);
+    //     if (e->physics_object.on_rope) {
+    //         if (rope_entity) {
+    //             rope_entity->destroyed = true;
+    //         }
+    //         Entity *up_rope_point_entity = get_entity(e->physics_object.up_rope_point_id);
+    //         if (up_rope_point_entity) {
+    //             up_rope_point_entity->destroyed = true;
+    //         }
+    //         Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
+    //         if (down_rope_point_entity) {
+    //             down_rope_point_entity->destroyed = true;
+    //         }
+    //     }
+    // }
     
     // @CLEANUP: Why exactly we don't free that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
     // if (e->flags & MOVE_SEQUENCE) {
@@ -1198,7 +1198,7 @@ b32 load_level(const char *level_name) {
             continue;
         }
         
-        for_array(i, (&splitted_line)) {
+        for_array(i, &splitted_line) {
             splitted_line.get(i)->free_data();
         }
         splitted_line.clear();
@@ -1573,6 +1573,7 @@ b32 load_level(const char *level_name) {
             Entity *added_entity = loaded_entities.append(entity_to_fill);
             
             if (added_entity->flags & NOTE) {
+                added_entity->note_index = add_note("");
                 assert(added_entity->note_index != -1);
                 Note *added_note = current_level_context->notes.get(added_entity->note_index);
                 str_copy(added_note->content, note_to_fill.content);
@@ -1605,7 +1606,7 @@ b32 load_level(const char *level_name) {
     // have their original ids. 
     // We're going through all of loaded_entities and spawning new entities with new ids and storing 
     // them together in entity_pairs so old and new have the same indexes.
-    for_array(i, (&loaded_entities)) {
+    for_array(i, &loaded_entities) {
         Entity *loaded_entity = loaded_entities.get(i);
         Entity *new_entity = add_entity(loaded_entity, false);
         
@@ -1621,7 +1622,7 @@ b32 load_level(const char *level_name) {
     // them before) and if old_entity->entities_pointing_at_me contains this another_loaded entity
     // id - we're adding id of entity with same index from entity_pairs, so now all new entities
     // know correct ids of entities who points at them.
-    for_array(i, (&entity_pairs)) {
+    for_array(i, &entity_pairs) {
         Old_New_Entity_Pair *pair = entity_pairs.get(i);
         pair->new_entity->entities_pointing_at_me.clear();
         
@@ -2253,9 +2254,10 @@ inline i32 next_entity_avaliable(Level_Context *level_context, i32 start_index, 
     
     // *entity = NULL;
     // return level_context->entities.capacity;
-    start_index = level_context->entities.next_avaliable_value(start_index, entity);
-    while (*entity && !((*entity)->flags & flags)) {
-        start_index = level_context->entities.next_avaliable_value(start_index + 1, entity);
+    start_index = level_context->entities.next_occupied_value(start_index, entity);
+    // That cycle here only because we need to check flags and skip entities that does not match.
+    while (*entity && (!((*entity)->flags & flags) && flags != 0)) {
+        start_index = level_context->entities.next_occupied_value(start_index + 1, entity);
     }
     
     return start_index;
@@ -3239,6 +3241,8 @@ inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pit
 
 void init_level_context(Level_Context *level_context) {
     assert(!level_context->inited);
+
+    current_level_context = level_context;
 
     init_array(&level_context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
     init_array(&level_context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
@@ -4680,6 +4684,13 @@ void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<
     fill_collisions(position, vertices, bounds, pivot, result, include_flags);   
 }
 
+inline Light *get_light(i32 index, Level_Context *level_context) {        
+    if (!level_context) level_context = current_level_context;
+    assert(index > -1);
+    
+    return level_context->lights.get(index);
+}
+
 inline Entity *get_entity(i32 id, Level_Context *level_context) {
     if (!level_context) level_context = current_level_context;
     assert(id > -1 && "Invalid entity id!");
@@ -5048,42 +5059,42 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
     f32 h_pos_mult = 0.05f;
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & ULTRA_SMALL_LIGHT, "ultra_small_size_flag")) {
         *size_flags = ULTRA_SMALL_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
+        init_entity_light(selected, get_light(selected->light_index), true);
     }
     make_ui_text("(64): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "ultra_small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & SMALL_LIGHT, "small_size_flag")) {
         *size_flags = SMALL_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
+        init_entity_light(selected, get_light(selected->light_index), true);
     }
     make_ui_text("(128): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & MEDIUM_LIGHT, "medium_light_flag")) {
         *size_flags = MEDIUM_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
+        init_entity_light(selected, get_light(selected->light_index), true);
     }
     make_ui_text("(256): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "medium_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & BIG_LIGHT, "big_light_flag")) {
         *size_flags = BIG_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
+        init_entity_light(selected, get_light(selected->light_index), true);
     }
     make_ui_text("(512): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "big_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & HUGE_LIGHT, "huge_light_flag")) {
         *size_flags = HUGE_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
+        init_entity_light(selected, get_light(selected->light_index), true);
     }
     make_ui_text("(1024): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "huge_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & GIANT_LIGHT, "giant_light_flag")) {
         *size_flags = GIANT_LIGHT;
-        init_entity_light(selected, current_level_context->lights.get(selected->light_index), true);
+        init_entity_light(selected, get_light(selected->light_index), true);
     }
     make_ui_text("(2048): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "giant_light_flag");
     h_pos_mult += 0.15f;
@@ -5346,7 +5357,7 @@ void update_editor_ui() {
                 }
             );
             if (selected->flags & LIGHT && selected->light_index >= 0) {
-                Light *light = current_level_context->lights.get(selected->light_index);
+                Light *light = get_light(selected->light_index);
                 
                 make_color_picker(inspector_position, inspector_size, v_pos, &light->color);
                 v_pos += height_add;
@@ -6773,7 +6784,10 @@ void update_editor() {
                 Entity *spawned =  get_entity(spawned_entities.get_value(i));
                 if (spawned->flags & TRIGGER) {
                     // We have original trigger connected and tracking in copied_entities.
+                    //nocheckin should unregister those
+                    unregister_entity_ids_reference_from_connected(spawned, &spawned->trigger.connected);
                     spawned->trigger.connected.clear();                                      
+                    unregister_entity_ids_reference_from_connected(spawned, &spawned->trigger.tracking);
                     spawned->trigger.tracking.clear();
                     // @CLEANUP: Will have to change here when we'll remove all of types from entity. Nothing scary.
                     Entity *copied_trigger_entity = editor.copied_entities.get(i);
@@ -7024,10 +7038,10 @@ void update_editor() {
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (selected->trigger.connected.contains(col.other_entity->id)) {
-                            unregister_one_entity_id_reference(selected, col.other_entity->id);
+                            unregister_one_entity_id_reference_from_connected(selected, col.other_entity->id);
                             selected->trigger.connected.remove_first_encountered(col.other_entity->id);
                         } else if (selected->trigger.tracking.contains(col.other_entity->id)) {
-                            unregister_one_entity_id_reference(selected, col.other_entity->id);
+                            unregister_one_entity_id_reference_from_connected(selected, col.other_entity->id);
                             selected->trigger.tracking.remove_first_encountered(col.other_entity->id);
                         }
                         break;
@@ -7089,7 +7103,7 @@ void update_editor() {
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (kill_switch->connected.contains(col.other_entity->id)) {
-                            unregister_one_entity_id_reference(selected, col.other_entity->id);
+                            unregister_one_entity_id_reference_from_connected(selected, col.other_entity->id);
                             kill_switch->connected.remove_first_encountered(col.other_entity->id);
                         }
                         break;
@@ -10093,7 +10107,7 @@ void update_editor_entity(Entity *e) {
         if (e->light_index == -1) {
             printf("WARNING: Entity with flag LIGHT don't have corresponding light index (name: %s; id: %d)\n", e->name, e->id);
         } else {
-            Light *light = current_level_context->lights.get(e->light_index);
+            Light *light = get_light(e->light_index);
             light->position = e->position;
         }
     }
@@ -11685,7 +11699,7 @@ void draw_entity(Entity *e) {
                 if (game_state == GAME && !state_context.in_pause_editor) {
                     if (e->flags & LIGHT) {
                         assert(e->light_index != -1);
-                        Light *light = current_level_context->lights.get(e->light_index);
+                        Light *light = get_light(e->light_index);
                         if (light->bake_shadows) {
                             should_draw = false;
                         }
@@ -12578,7 +12592,7 @@ void new_render() {
     local_persist Texture smooth_circle_texture = white_pixel_texture;
     
     for (i32 light_index = 0; light_index < current_level_context->lights.capacity; light_index++) {
-        Light *light_ptr = current_level_context->lights.get(light_index);
+        Light *light_ptr = get_light(light_index);
         
         if (!light_ptr->exists || light_ptr->bake_shadows) {
             continue;

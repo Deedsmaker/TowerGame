@@ -885,8 +885,8 @@ struct Entity {
     Centipede_Segment centipede_segment;
     Physics_Object physics_object;
     Jump_Shooter jump_shooter;
-    i32 note_index = -1;
     
+    i32 note_index = -1;
     i32 light_index = -1;
 };
 

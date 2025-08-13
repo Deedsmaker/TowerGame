@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 
-#define for_array(index, array) for (i32 index = 0; index < array->count; index++)
+#define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
 
 inline void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_count, i32 appended_count) {
     i32 new_count = current_count + appended_count;
@@ -297,15 +297,21 @@ struct Chunk_Array {
         return index >= chunk_index * chunk_size && index < (chunk_index + 1) * chunk_size;
     }
     
-    inline i32 next_avaliable_value(i32 start_index, T **element) {
-        i32 index = next_avaliable_index(start_index);
+    // should_be_occupied here because sometimes we want to find avaliable space and sometime we want to find occupied space
+    // so that's just for code reusing and it stands by the name of next_*avaliable*_value just because it was written first
+    // before I thought about that and that's not scary because that comment is exist.
+    inline i32 next_avaliable_value(i32 start_index, T **element, b32 should_be_occupied = false) {
+        i32 index = next_avaliable_index(start_index, should_be_occupied);
         if (index < chunks_count * chunk_size) *element = get(index);
         else element = NULL; 
         
         return index;
     }
+    inline i32 next_occupied_value(i32 start_index, T **element) {
+        return next_avaliable_value(start_index, element, true);
+    }
     
-    inline i32 next_avaliable_index(i32 start_index) {
+    inline i32 next_avaliable_index(i32 start_index, b32 should_be_occupied = false) {
         i32 start_chunk_index = start_index / chunk_size;
         Chunk *chunk = first_chunk;
         for (i32 i = 1; i < start_chunk_index; i++) chunk = chunk->next;
@@ -314,7 +320,8 @@ struct Chunk_Array {
         for (i32 i = start_chunk_index; i < chunks_count; i++) {
             for (i32 j = i == start_chunk_index ? start_index_in_chunk : 0; j < chunk_size; j++) {
                 Chunk_Element *array_element = &chunk->elements[j];
-                if (array_element->occupied) {
+                b32 should_return = should_be_occupied ? array_element->occupied : !array_element->occupied;
+                if (should_return) {
                     return j + i * chunk_size;
                 }
             }
