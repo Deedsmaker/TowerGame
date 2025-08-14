@@ -173,7 +173,8 @@ void load_anim(Array<Texture> *frames, const char *name);
 
 Entity* add_text(Vector2 pos, f32 size, const char *text);
 
-void copy_entity(Entity *dest, Entity *src);
+Entity copy_entity(Entity *to_copy, b32 do_deep_copy = false, Level_Context *level_context_for_deep_copy = NULL);
+inline void copy_entity(Entity *dest, Entity *to_copy, b32 do_deep_copy = false, Level_Context *level_context_for_deep_copy = NULL);
 void copy_light(Light *dest, Light *src);
 
 inline Particle_Emitter *get_sword_kill_particle_emitter(Entity *enemy_entity);
@@ -206,7 +207,8 @@ void check_avaliable_ids_and_set_if_found(i32 *id);
 
 Entity *add_player_entity(Player *data);
 
-Entity* add_entity(Entity *copy, b32 keep_id = false, Level_Context *copy_entity_level_context = NULL);
+Entity* copy_and_add_entity(Entity *to_copy);
+Entity* copy_and_insert_entity(Entity *to_copy, i32 index);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags);

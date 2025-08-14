@@ -818,14 +818,14 @@ struct Entity {
     Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture texture, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
     Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Static_Array <Vector2, MAX_VERTICES> _vertices);
-    Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context = NULL, b32 should_init_entity = true);
+    // Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context = NULL, b32 should_init_entity = true);
 
     i32 id = -1;
     b32 need_to_save = true;
     b32 visible = true;
     b32 hidden = false;
     
-    Level_Context *level_context;
+    Level_Context *level_context = NULL;
     
     char name[128] = "unknown_name";
 
@@ -836,8 +836,6 @@ struct Entity {
     
     b32 have_normal_map = false;
     Texture normal_map_texture = {};
-    
-    Vector2 scaling_multiplier = {1, 1};
     
     b32 destroyed = 0;
     

@@ -160,7 +160,9 @@ void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
     assert(array->data == NULL && "We probably should init array only when it is not initialized");
     array->capacity = capacity;
     
-    array->data = (T*) alloc(allocator, capacity * sizeof(T));
+    if (capacity > 0) {
+        array->data = (T*) alloc(allocator, capacity * sizeof(T));
+    }
 }
 
 template <typename T>
@@ -272,9 +274,9 @@ struct Static_Array {
     }
 };
 
-#define for_chunk_array_value(chunk_value, type, arr) type *chunk_value = NULL; for (i32 i = arr->next_avaliable_value(0, &chunk_value); i < arr->chunks_count * arr->chunk_size && chunk_value; i = arr->next_avaliable_value(i + 1, &chunk_value)) 
+#define for_chunk_array_value(chunk_value, type, arr) type *chunk_value = NULL; for (i32 i = (arr)->next_occupied_value(0, &chunk_value); i < (arr)->chunks_count * (arr)->chunk_size && chunk_value; i = (arr)->next_occupied_value(i + 1, &chunk_value)) 
 
-#define for_chunk_array(index, arr) for (i32 index = arr->next_avaliable_index(0); index < arr->chunks_count * arr->chunk_size; index = arr->next_avaliable_index(index + 1)) 
+#define for_chunk_array(index, arr) for (i32 index = (arr)->next_avaliable_index(0, true); index < (arr)->chunks_count * (arr)->chunk_size; index = (arr)->next_avaliable_index(index + 1, true)) 
 
 template<typename T>
 struct Chunk_Array {
@@ -313,6 +315,12 @@ struct Chunk_Array {
     
     inline i32 next_avaliable_index(i32 start_index, b32 should_be_occupied = false) {
         i32 start_chunk_index = start_index / chunk_size;
+        
+        if (!first_chunk) {
+            init_chunk(&first_chunk);  
+            chunks_count += 1;
+        } 
+        
         Chunk *chunk = first_chunk;
         for (i32 i = 1; i < start_chunk_index; i++) chunk = chunk->next;
         
@@ -354,8 +362,7 @@ struct Chunk_Array {
     
     i32 find_free_space_and_grow_if_need() {
         if (!first_chunk) {
-            first_chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
-            first_chunk->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+            init_chunk(&first_chunk);
             chunks_count += 1;
             return 0;
         }
@@ -408,7 +415,30 @@ struct Chunk_Array {
             }
         }
         
-        assert(false && "Failed to add elemnt to chunk array");        
+        assert(false && "Failed to add element to chunk array.");        
+        return NULL;
+    }
+    
+    T *insert(T value, i32 index) {
+        assert(index >= 0 && index < chunks_count * chunk_size);
+        
+        Chunk *chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count; i++) {
+            if (i > 0) chunk = chunk->next;
+            if (index_in_chunk(index, chunk, i)) {
+                Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
+                assert(!chunk_element->occupied);
+                
+                chunk_element->occupied = true;
+                chunk_element->value = value;
+                chunk->occupied_count += 1;
+                
+                assert(chunk->occupied_count <= chunk_size);
+                return &chunk_element->value;
+            }
+        }
+        
+        assert(false && "Failed to insert element to chunk array. Probably we did not have enough chunks.");        
         return NULL;
     }
     
@@ -480,9 +510,9 @@ struct Chunk_Array {
         }
     }
     
-    void init_chunk(Chunk *chunk) {
-        chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
-        chunk->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+    inline void init_chunk(Chunk **chunk) {
+        *chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
+        (*chunk)->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
     }
 };
 
@@ -491,7 +521,8 @@ void init_chunk_array(Chunk_Array <T> *arr, i32 chunk_size, Allocator *allocator
     assert(arr->chunks_count == 0);
     arr->allocator = allocator;
     arr->chunk_size = chunk_size;
-    arr->init_chunk(arr->first_chunk);
+    arr->init_chunk(&arr->first_chunk);
+    arr->chunks_count += 1;    
 }
 
 template <typename T>
@@ -504,16 +535,16 @@ Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy) {
     result.chunks_count = to_copy->chunks_count;
     
     auto *copy_chunk = to_copy->first_chunk;
-    auto *my_chunk = result.first_chunk;
+    auto **my_chunk = &result.first_chunk;
     for (i32 i = 0; i < to_copy->chunks_count; i++) {
         result.init_chunk(my_chunk);
-        my_chunk->occupied_count = copy_chunk->occupied_count;
+        (*my_chunk)->occupied_count = copy_chunk->occupied_count;
         
         for (i32 j = 0; j < to_copy->chunk_size; j++) {
-            my_chunk->elements[j] = copy_chunk->elements[j];
+            (*my_chunk)->elements[j] = copy_chunk->elements[j];
         }
              
-        my_chunk = my_chunk->next;
+        my_chunk = &(*my_chunk)->next;
         copy_chunk = copy_chunk->next;
     }
     
