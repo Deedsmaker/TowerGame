@@ -434,38 +434,6 @@ Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Text
     level_context = current_level_context;
 }
 
-Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags) {
-    flags    = _flags;
-    id       = _id;
-    position = _pos;
-    pivot    = _pivot;
-    
-    pick_vertices(this);
-    
-    rotation = 0;
-    rotate_to(this, _rotation);
-    change_scale(this, _scale);
-    setup_color_changer(this);
-    
-    level_context = current_level_context;
-}
-
-Entity::Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Static_Array<Vector2, MAX_VERTICES> _vertices) {
-    flags    = _flags;
-    id = _id;
-    position = _pos;
-    pivot = _pivot;
-    
-    vertices = _vertices;
-    
-    rotation = 0;
-    rotate_to(this, _rotation);
-    change_scale(this, _scale);
-    setup_color_changer(this);
-    
-    level_context = current_level_context;
-}
-
 // Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32 should_init_entity) {
     // if (!copy_level_context) copy_level_context = current_level_context;
 
@@ -862,8 +830,8 @@ i32 save_level(const char *level_name) {
 
     fprintf(fptr, "Entities:\n");
     // for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
-    for_chunk_array(i, (&current_level_context->entities)) {
-        Entity *e = current_level_context->entities.get(i);
+    for_chunk_array(entity_index, (&current_level_context->entities)) {
+        Entity *e = current_level_context->entities.get(entity_index);
         
         if (!e->need_to_save) {
             continue;
@@ -899,6 +867,17 @@ i32 save_level(const char *level_name) {
             fprintf(fptr, "light_power:%f: ",                 light->power);
             fprintf(fptr, "light_color{:%d:, :%d:, :%d:, :%d:} ", (i32)light->color.r, (i32)light->color.g, (i32)light->color.b, (i32)light->color.a);
         }
+        
+        fprintf(fptr, "connected_entities [ "); {
+            for_array(i, &e->connected_entities) {
+               fprintf(fptr, ":%d: ", e->connected_entities.get_value(i)); 
+            }
+        } fprintf(fptr, "] ");
+        fprintf(fptr, "entities_pointing_at_me [ "); {
+            for_array(i, &e->entities_pointing_at_me) {
+               fprintf(fptr, ":%d: ", e->entities_pointing_at_me.get_value(i)); 
+            }
+        } fprintf(fptr, "] ");
         
         if (e->flags & TRIGGER) {
             if (e->trigger.connected.count > 0) {
@@ -1312,6 +1291,10 @@ b32 load_level(const char *level_name) {
             } else if (str_equal(splitted_line.get_value(i).data, "draw_order")) {
                 fill_i32_from_string(&entity_to_fill.draw_order, splitted_line.get_value(i+1).data);
                 i++;
+            } else if (str_equal(splitted_line.get_value(i).data, "connected_entities")) {
+                fill_int_array_from_string(&entity_to_fill.connected_entities, splitted_line, &i);
+            } else if (str_equal(splitted_line.get_value(i).data, "entities_pointing_at_me")) {
+                fill_int_array_from_string(&entity_to_fill.entities_pointing_at_me, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_connected")) {
                 fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "kill_switch_connected")) {
@@ -1606,6 +1589,36 @@ b32 load_level(const char *level_name) {
         }
     }
     
+    //nocheckin this is for translating things from old entity system to new. We'll need to save level after that and we could
+    // delete this code.
+    for_array(entity_index, &loaded_entities) {
+        Entity *loaded = loaded_entities.get(entity_index);
+        if (loaded->flags & TRIGGER) {
+            for_array(i, &loaded->trigger.connected) {
+                loaded->connected_entities.append(loaded->trigger.connected.get_value(i));
+            }
+            for_array(i, &loaded->trigger.tracking) {
+                loaded->connected_entities.append(loaded->trigger.tracking.get_value(i));
+            }
+        }
+        if (loaded->flags & KILL_SWITCH) {
+            for_array(i, &loaded->enemy.kill_switch.connected) {
+                loaded->connected_entities.append(loaded->enemy.kill_switch.connected.get_value(i));
+            }
+        }
+        
+        for_array(i, &loaded->connected_entities) {
+            i32 connected_id = loaded->connected_entities.get_value(i);
+            for_array(i, &loaded_entities) {
+                if (i == entity_index) continue;
+                Entity *another_loaded = loaded_entities.get(i);
+                if (another_loaded->id == connected_id) {
+                    another_loaded->entities_pointing_at_me.append(loaded->id);
+                }
+            }
+        }
+    }
+    
     Array<Old_New_Entity_Pair> entity_pairs = {.allocator = &temp_allocator};
     
     // This code needs for loading because entity ids in level save file will not be the same 
@@ -1658,19 +1671,28 @@ b32 load_level(const char *level_name) {
         // connected entities (for triggers). So now we'll figure this out.
         
         for_array(j, (&pair->new_entity->entities_pointing_at_me)) {
-            i32 new_id = pair->new_entity->entities_pointing_at_me.get_value(j);
-            i32 old_id = pair->old_entity->entities_pointing_at_me.get_value(j);
-            Entity *pointing_entity = get_entity(new_id);
+            // i32 old_pointing_id = pair->old_entity->entities_pointing_at_me.get_value(j);
+            i32 new_pointing_id = pair->new_entity->entities_pointing_at_me.get_value(j);
+            Entity *pointing_entity = get_entity(new_pointing_id);
             
+            pointing_entity->connected_entities.append(pair->new_entity->id);
+
+            b32 handled = false;
             if (pointing_entity->flags & TRIGGER) {
                 Trigger *trigger = &pointing_entity->trigger;
                 for_array(c, (&trigger->connected)) {
                     i32 *connected_id = trigger->connected.get(c);
-                    if (*connected_id == old_id) *connected_id = new_id;
+                    if (*connected_id == pair->old_entity->id) {
+                        *connected_id = pair->new_entity->id;
+                        handled = true;
+                    }
                 }
                 for_array(c, (&trigger->tracking)) {
                     i32 *tracking_id = trigger->tracking.get(c);
-                    if (*tracking_id == old_id) *tracking_id = new_id;
+                    if (*tracking_id == pair->old_entity->id) {
+                        *tracking_id = pair->new_entity->id;
+                        handled = true;
+                    }
                 }
             }
             
@@ -1678,9 +1700,14 @@ b32 load_level(const char *level_name) {
                 Kill_Switch *kill_switch = &pointing_entity->enemy.kill_switch;
                 for_array(c, (&kill_switch->connected)) {
                     i32 *connected_id = kill_switch->connected.get(c);
-                    if (*connected_id == old_id) *connected_id = new_id;
+                    if (*connected_id == pair->old_entity->id) {
+                        *connected_id = pair->new_entity->id;
+                        handled = true;
+                    }
                 }
             }
+            
+            assert(handled);
         }
     }
     
@@ -12990,9 +13017,11 @@ void setup_color_changer(Entity *entity) {
     entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
 }
 
-Entity copy_entity(Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy) {
+Entity copy_entity(Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy, i32 id_to_set) {
     Entity e = {};    
+    i32 original_id = id_to_set > -1 ? id_to_set : to_copy->id;
     e = *to_copy;
+    e.id = original_id;
     
     if (do_deep_copy) {
         assert(level_context_for_deep_copy && "Forgot to specify level context for deep copy.");      
@@ -13077,39 +13106,43 @@ Entity copy_entity(Entity *to_copy, b32 do_deep_copy, Level_Context *level_conte
     return e;
 }
 
-inline void copy_entity(Entity *dest, Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy) {
+inline void copy_entity(Entity *dest, Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy, i32 id_to_set) {
     *dest = copy_entity(to_copy, do_deep_copy, level_context_for_deep_copy);
 }
 
-Entity* copy_and_add_entity(Entity *to_copy) {
+inline Entity* copy_and_add_entity(Entity *to_copy) {
     i32 id = 0;
-    Entity *e = current_level_context->entities.append(copy_entity(to_copy, true, current_level_context), &id);
-    e->id = id;
+    Entity *e = current_level_context->entities.append({}, &id);
+    *e = copy_entity(to_copy, true, current_level_context, id);
 
     return e;
 }
-Entity* copy_and_insert_entity(Entity *to_copy, i32 index) {
-    Entity *e = current_level_context->entities.insert(copy_entity(to_copy, true, current_level_context), index);
-    e->id = index;
-
+inline Entity* copy_and_insert_entity(Entity *to_copy, i32 index) {
+    Entity *e = current_level_context->entities.insert(copy_entity(to_copy, true, current_level_context, index), index);
     return e;
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
-    Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    // e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
-    // check_avaliable_ids_and_set_if_found(&e.id);
-    e.level_context = current_level_context;
-    return current_level_context->entities.append(e, &e.id);
+    i32 id = 0;
+    Entity *e = current_level_context->entities.append({}, &id);
+    *e = Entity(pos, scale, pivot, rotation, flags);    
+    e->id = id;
+    
+    e->level_context = current_level_context;
+    
+    init_entity(e);
+    return e;
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags) {
-    //nocheckin we should set id before calling constructor.
-    Entity e = Entity(pos, scale, pivot, rotation, texture, flags);    
-    // e.id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
-    e.level_context = current_level_context;
-    // check_avaliable_ids_and_set_if_found(&e.id);
-    return current_level_context->entities.append(e, &e.id);
+    i32 id = 0;
+    Entity *e = current_level_context->entities.append({}, &id);
+    *e = Entity(pos, scale, pivot, rotation, texture, flags);    
+    e->id = id;
+    e->level_context = current_level_context;
+    
+    init_entity(e);
+    return e;
 }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
@@ -13119,27 +13152,29 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Colo
     return e;
 }
 
-Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
-    Entity e = Entity(pos, scale, pivot, rotation, flags);    
-    // e.id = id;
-    e.level_context = current_level_context;
-    // check_avaliable_ids_and_set_if_found(&e.id);
-    return current_level_context->entities.append(e, &e.id);
-}
+// Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
+//     i32 id = 0;
+//     Entity *e = 
+//     Entity e = Entity(pos, scale, pivot, rotation, flags);    
+//     // e.id = id;
+//     e.level_context = current_level_context;
+//     // check_avaliable_ids_and_set_if_found(&e.id);
+//     return current_level_context->entities.append(e, &e.id);
+// }
 
-Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
-    Entity *e = add_entity(id, pos, scale, pivot, rotation, flags);    
-    e->color = color;
-    setup_color_changer(e);
-    return e;
-}
+// Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
+//     Entity *e = add_entity(id, pos, scale, pivot, rotation, flags);    
+//     e->color = color;
+//     setup_color_changer(e);
+//     return e;
+// }
 
-Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Static_Array<Vector2, MAX_VERTICES> vertices) {
-    Entity *e = add_entity(id, pos, scale, pivot, rotation, color, flags);    
-    e->vertices = vertices;
-    setup_color_changer(e);
-    return e;
-}
+// Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Static_Array<Vector2, MAX_VERTICES> vertices) {
+//     Entity *e = add_entity(id, pos, scale, pivot, rotation, color, flags);    
+//     e->vertices = vertices;
+//     setup_color_changer(e);
+//     return e;
+// }
 
 inline Vector2 global(Entity *e, Vector2 local_pos) {
     return e->position + local_pos;
