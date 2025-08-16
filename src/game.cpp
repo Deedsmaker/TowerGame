@@ -122,6 +122,7 @@ Sound_Handler *missing_sound = NULL;
 #include "lightmaps.cpp"
 
 #include "entity_ids.cpp"
+#include "dynamic_lights.cpp"
 
 Player last_player_data = {};
 Player death_player_data = {};
@@ -165,43 +166,6 @@ inline Color color_fade(Color color, f32 alpha_multiplier) {
 
 inline Color color_opacity(Color color, f32 alpha) {
     return {color.r, color.g, color.b, (u8)(clamp01(alpha) * 255)};
-}
-
-void free_light(Light *light) {
-    if (light->exists) {
-        if (light->make_shadows) {
-            UnloadRenderTexture(light->shadowmask_rt);
-            light->shadowmask_rt = {};
-        }
-        // UnloadRenderTexture(light->geometry_rt);
-        if (light->make_backshadows) {
-            UnloadRenderTexture(light->backshadows_rt);
-            light->backshadows_rt = {};
-        }
-        
-        light->exists = false;
-        
-        if (light->connected_entity_id != -1) {
-            Entity *connected_entity = get_entity(light->connected_entity_id);
-            if (connected_entity) {
-                connected_entity->light_index = -1;
-            }
-            light->connected_entity_id = -1;
-        }
-    }
-}
-
-void free_entity_light(Entity *e) {
-    if (e->light_index != -1 ) {
-        // @OPTIMIZATION we actually don't want unload texture every time entity gets freed.
-        // I think we should mark it as non existing and when the next entity will search for light - check if this one already
-        // has index and size is the same and use it. We will free it when level gets unload.
-        // Update: We will have lights of each size loaded in the init and will use them without more allocating. 
-        // Like we already do with temp lights.
-        Light *current_light = current_level_context->lights.get(e->light_index);           
-        free_light(current_light);        
-        e->light_index = -1;
-    }
 }
 
 void free_entity(Entity *e) {
@@ -267,8 +231,9 @@ void free_entity(Entity *e) {
     // }
     
     // free light
-    if (e->light_index != -1) {
-        free_entity_light(e);
+    if (e->lights.count > 0) {
+        free_entity_lights(e);
+        e->lights.free_data();
     }
     
     e->color_changer.changing = false;
@@ -855,8 +820,8 @@ i32 save_level(const char *level_name) {
         fprintf(fptr, "hidden:%d: ", e->hidden);
         fprintf(fptr, "spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo);
         
-        if (e->light_index >= 0) {
-            Light *light = current_level_context->lights.get(e->light_index);
+        if (e->lights_count > 0) {
+            Light *light = current_level_context->lights.get(e->lights.get_value(0));
             fprintf(fptr, "light_shadows_size_flag:%d: ",     light->shadows_size_flags);
             fprintf(fptr, "light_backshadows_size_flag:%d: ", light->backshadows_size_flags);
             fprintf(fptr, "light_make_shadows:%d: ",          light->make_shadows);
@@ -1268,11 +1233,13 @@ b32 load_level(const char *level_name) {
                     // entity_to_fill.light_index = session_context.lights.count;
                     // session_context.lights.append({});
                     // init_entity_light(&entity_to_fill);
-                    for (i32 i = 0; i < current_level_context->lights.capacity; i++) {                    
-                        if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get_value(i).exists) {
-                            entity_to_fill.light_index = i;   
-                        }
-                    }
+                    // for (i32 i = 0; i < current_level_context->lights.capacity; i++) {                    
+                    //     if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get_value(i).exists) {
+                    //         entity_to_fill.light_index = i;   
+                    //     }
+                    // }
+                    Light empty_light = {0};
+                    copy_and_add_light_to_entity(&entity_to_fill, &empty_light, true);
                 }
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "vertices")) {
@@ -1332,31 +1299,31 @@ b32 load_level(const char *level_name) {
                 fill_f32_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_shadows_size_flag")) {
-                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->shadows_size_flags, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->shadows_size_flags, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_backshadows_size_flag")) {
-                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->backshadows_size_flags, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->backshadows_size_flags, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_make_shadows")) {
-                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->make_shadows, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->make_shadows, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_make_backshadows")) {
-                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->make_backshadows, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->make_backshadows, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_bake_shadows")) {
-                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->bake_shadows, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->bake_shadows, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_radius")) {
-                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->radius, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->radius, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_opacity")) {
-                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->opacity, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->opacity, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_power")) {
-                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->power, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->power, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_color")) {
-                fill_vector4_from_string(&current_level_context->lights.get(entity_to_fill.light_index)->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
+                fill_vector4_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_die_after_trigger")) {
                 fill_b32_from_string(&entity_to_fill.trigger.die_after_trigger, splitted_line.get_value(i+1).data);
@@ -1589,7 +1556,7 @@ b32 load_level(const char *level_name) {
         }
     }
     
-    //nocheckin this is for translating things from old entity system to new. We'll need to save level after that and we could
+    // this is for translating things from old entity system to new. We'll need to save level after that and we could
     // delete this code.
     for_array(entity_index, &loaded_entities) {
         Entity *loaded = loaded_entities.get(entity_index);
@@ -2314,70 +2281,6 @@ inline i32 next_entity_avaliable(Level_Context *level_context, i32 start_index, 
 //     str_copy(entity->texture_name, texture_name);
 // }
 
-void init_light(Light *light) {
-    //@TODO: rewrite lights.
-    return;
-
-    // if (light->exists) {
-    //     free_light(light);        
-    // }
-
-    if (light->shadows_size_flags        & ULTRA_SMALL_LIGHT) {
-        light->shadows_size = 64;
-    } else if (light->shadows_size_flags & SMALL_LIGHT) {
-        light->shadows_size = 128;
-    } else if (light->shadows_size_flags & MEDIUM_LIGHT) {
-        light->shadows_size = 256;
-    } else if (light->shadows_size_flags & BIG_LIGHT) {
-        light->shadows_size = 512;
-    } else if (light->shadows_size_flags & HUGE_LIGHT) {
-        light->shadows_size = 1024;
-    } else if (light->shadows_size_flags & GIANT_LIGHT) {
-        light->shadows_size = 2048;
-    }
-    
-    if (light->backshadows_size_flags        & ULTRA_SMALL_LIGHT) {
-        light->backshadows_size = 64;
-    } else if (light->backshadows_size_flags & SMALL_LIGHT) {
-        light->backshadows_size = 128;
-    } else if (light->backshadows_size_flags & MEDIUM_LIGHT) {
-        light->backshadows_size = 256;
-    } else if (light->backshadows_size_flags & BIG_LIGHT) {
-        light->backshadows_size = 512;
-    } else if (light->backshadows_size_flags & HUGE_LIGHT) {
-        light->backshadows_size = 1024;
-    } else if (light->backshadows_size_flags & GIANT_LIGHT) {
-        light->backshadows_size = 2048;
-    }
-    
-    if (light->bake_shadows) {
-        // light->geometry_size = fminf(light->shadows_size * 4, 2048);
-    }
-    
-    if (light->make_shadows) {
-        light->shadowmask_rt  = LoadRenderTexture(light->shadows_size, light->shadows_size);
-    } else {
-        light->shadowmask_rt = {};
-    }
-    
-    if (light->make_backshadows) {
-        light->backshadows_rt = LoadRenderTexture(light->backshadows_size, light->backshadows_size);
-    } else {
-        light->backshadows_rt = {};
-    }
-            
-    if (light->make_shadows || light->make_backshadows) {
-        // light->geometry_rt = LoadRenderTexture(light->geometry_size, light->geometry_size);
-    }
-}
-
-void copy_light(Light *dest, Light *src) {
-    Light original_dest = *dest;
-    *dest = *src;
-    dest->shadowmask_rt = original_dest.shadowmask_rt;
-    dest->backshadows_rt = original_dest.backshadows_rt;
-}
-
 void init_propeller_emitter_settings(Entity *e, Particle_Emitter *air_emitter) {
     enable_emitter(air_emitter);
     air_emitter->position            = e->position;
@@ -2388,49 +2291,6 @@ void init_propeller_emitter_settings(Entity *e, Particle_Emitter *air_emitter) {
     air_emitter->spawn_offset        = e->up * e->scale.x * 0.5f;
     air_emitter->spawn_area          = {e->scale.x, e->scale.x};
     air_emitter->direction           = e->up;
-}
-
-Light *init_entity_light(Entity *entity, Light *light_copy, b32 free_light) {
-    // @TODO: rewrite lights.
-    return NULL;
-    Light *new_light = NULL;
-    
-    //Means we will copy ourselves, maybe someone changed size or any other shit
-    if (!light_copy && entity->light_index > -1) {
-        light_copy = current_level_context->lights.get(entity->light_index);
-    } else if (!light_copy) {
-    }
-    
-    if (free_light) {
-        free_entity_light(entity);
-    }
-    
-    for (i32 i = 0; i < current_level_context->lights.capacity; i++) {
-        if (!current_level_context->lights.get(i)->exists && i >= session_context.entity_lights_start_index) {
-            new_light = current_level_context->lights.get(i);
-            entity->light_index = i;
-            break;
-        } else {
-        }
-    }
-    if (new_light) {
-        if (light_copy) {
-            copy_light(new_light, light_copy);
-        } else {
-            *new_light = {};
-            new_light->color = WHITE;
-        }
-        
-        new_light->connected_entity_id = entity->id;
-
-        init_light(new_light);
-        
-        new_light->exists = true;
-    } else {
-        print("WARNING: Could not found light to init new, everyting was consumed");
-    }
-    
-    return new_light;
 }
 
 void init_entity(Entity *entity) {
@@ -2494,9 +2354,6 @@ void init_entity(Entity *entity) {
     if (entity->flags & EXPLOSIVE) {
         entity->color_changer.change_time = 5.0f;
         Light explosive_light = {};
-        if (entity->light_index != -1) {
-            explosive_light = current_level_context->lights.get_value(entity->light_index);
-        } 
         // explosive_light.make_backshadows = false; @WTF screen goes black in game mode with this shit. Should change the way lights stored and way we get access to them so don't bother, but wtf ebat (also render doc don't loading with this shit)
         if (entity->enemy.explosive_radius_multiplier >= 3) {
             explosive_light.shadows_size_flags = BIG_LIGHT;
@@ -2513,7 +2370,7 @@ void init_entity(Entity *entity) {
             explosive_light.make_backshadows = false;
         }
         
-        Light *new_light = init_entity_light(entity, &explosive_light, true);
+        Light *new_light = copy_and_add_light_to_entity(entity, &explosive_light, true);
         if (new_light) {
             new_light->radius = 120;
             new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 1.0f);
@@ -2523,12 +2380,11 @@ void init_entity(Entity *entity) {
     
     // init no move block
     if (entity->flags & NO_MOVE_BLOCK) {
-        Light *new_light = init_entity_light(entity);
-        if (new_light) {
-            new_light->color = entity->color;
-            new_light->bake_shadows = true;
-            new_light->opacity = 0.5f;
-        }
+        Light light = {0};
+        light.color = entity->color;
+        lght.bake_shadows = true;
+        light.opacity = 0.5f;
+        Light *new_light = copy_and_add_entity_light(entity, &light, true);
     }
     
     if (entity->flags & BLOCKER && game_state == GAME) {
@@ -3302,39 +3158,36 @@ void init_level_context(Level_Context *level_context) {
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
-    // // Id 0 on entity is invalid for good reasons, so we're adding it here.
-    // level_context->entities.push_back({0});
 
     //init context
-    for (i32 i = 0; i < level_context->lights.capacity; i++) {
-        Light *light = level_context->lights.append({0});
-        // *(light) = {};
+    // for (i32 i = 0; i < level_context->lights.capacity; i++) {
+    //     Light *light = level_context->lights.append({0});
+    //     // *(light) = {};
         
-        if (i < session_context.temp_lights_count) {
-            light->make_shadows             = true;
-            light->make_backshadows         = true;
-            light->additional_shadows_flags = 0;
-            light->grow_time                = 0;
-            light->shrink_time              = 0;
-            light->birth_time = -12;
+    //     if (i < session_context.temp_lights_count) {
+    //         light->make_shadows             = true;
+    //         light->make_backshadows         = true;
+    //         light->additional_shadows_flags = 0;
+    //         light->grow_time                = 0;
+    //         light->shrink_time              = 0;
+    //         light->birth_time = -12;
             
-            i32 size = ULTRA_SMALL_LIGHT;
-            if (i < session_context.big_temp_lights_count) {
-                size = BIG_LIGHT;
-            } else if (i < session_context.big_temp_lights_count + session_context.huge_temp_lights_count) {
-                size = HUGE_LIGHT;
-            } else { // So it's usual temp lights
-                light->make_shadows = false;
-                light->make_backshadows = false;
-            }
+    //         i32 size = ULTRA_SMALL_LIGHT;
+    //         if (i < session_context.big_temp_lights_count) {
+    //             size = BIG_LIGHT;
+    //         } else if (i < session_context.big_temp_lights_count + session_context.huge_temp_lights_count) {
+    //             size = HUGE_LIGHT;
+    //         } else { // So it's usual temp lights
+    //             light->make_shadows = false;
+    //             light->make_backshadows = false;
+    //         }
             
-            light->shadows_size_flags       = size;
-            light->backshadows_size_flags   = size;
+    //         light->shadows_size_flags       = size;
+    //         light->backshadows_size_flags   = size;
 
-            init_light(light);
-        }
-    }
-    
+    //         init_light(light);
+    //     }
+    // }
     
     for (i32 i = 0; i < level_context->particles.capacity; i++) {
         level_context->particles.append({0});
@@ -4424,9 +4277,10 @@ void update_color_changer(Entity *entity, f32 dt) {
         f32 t = abs(sinf(core.time.game_time * changer->change_time));
         entity->color = lerp(changer->start_color, target_color, t);
         
-        if (entity->light_index > -1) {
-            current_level_context->lights.get(entity->light_index)->color = lerp(Fade(target_color, 1), Fade(ColorBrightness(ORANGE, 0.3f), 0.9f), t);
-            current_level_context->lights.get(entity->light_index)->radius = get_explosion_radius(entity) * 2 * lerp(0.9f, 1.3f, t);
+        if (entity->lights.count > 0) {
+            Light *light = get_light(entity->lights.get_value(0));
+            light->color  = lerp(Fade(target_color, 1), Fade(ColorBrightness(ORANGE, 0.3f), 0.9f), t);
+            light->radius = get_explosion_radius(entity) * 2 * lerp(0.9f, 1.3f, t);
         }
     } else if (changer->interpolating) {
         entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
@@ -5103,46 +4957,50 @@ void make_color_picker(Vector2 inspector_position, Vector2 inspector_size, f32 v
 }
 
 void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, f32 v_pos, f32 height_add, i32 *size_flags, Entity *selected) {
-    assert(selected->light_index != -1);
+    // Currently making light settings only for the first light. Maybe that's the way we'll do it to the end because other lights
+    // is mostly added during gameplay and in editor we want to setup only main light.
+    assert(selected->lights.count > 0);
+    // There we're just updating our own light - that's where that name came from.  
+    Light *light_to_update = get_light(selected->lights.get_value(0));
     f32 h_pos_mult = 0.05f;
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & ULTRA_SMALL_LIGHT, "ultra_small_size_flag")) {
         *size_flags = ULTRA_SMALL_LIGHT;
-        init_entity_light(selected, get_light(selected->light_index), true);
+        copy_and_add_light_to_entity(selected, light_to_update, true);
     }
     make_ui_text("(64): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "ultra_small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & SMALL_LIGHT, "small_size_flag")) {
         *size_flags = SMALL_LIGHT;
-        init_entity_light(selected, get_light(selected->light_index), true);
+        copy_and_add_light_to_entity(selected, light_to_update, true);
     }
     make_ui_text("(128): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "small_size_flag");
     h_pos_mult += 0.15f;
     
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & MEDIUM_LIGHT, "medium_light_flag")) {
         *size_flags = MEDIUM_LIGHT;
-        init_entity_light(selected, get_light(selected->light_index), true);
+        copy_and_add_light_to_entity(selected, light_to_update, true);
     }
     make_ui_text("(256): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "medium_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & BIG_LIGHT, "big_light_flag")) {
         *size_flags = BIG_LIGHT;
-        init_entity_light(selected, get_light(selected->light_index), true);
+        copy_and_add_light_to_entity(selected, light_to_update, true);
     }
     make_ui_text("(512): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "big_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & HUGE_LIGHT, "huge_light_flag")) {
         *size_flags = HUGE_LIGHT;
-        init_entity_light(selected, get_light(selected->light_index), true);
+        copy_and_add_light_to_entity(selected, light_to_update, true);
     }
     make_ui_text("(1024): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "huge_light_flag");
     h_pos_mult += 0.15f;
 
     if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & GIANT_LIGHT, "giant_light_flag")) {
         *size_flags = GIANT_LIGHT;
-        init_entity_light(selected, get_light(selected->light_index), true);
+        copy_and_add_light_to_entity(selected, light_to_update, true);
     }
     make_ui_text("(2048): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "giant_light_flag");
     h_pos_mult += 0.15f;
@@ -5399,13 +5257,14 @@ void update_editor_ui() {
         if (editor.draw_light_settings) {
             INSPECTOR_UI_TOGGLE_FLAGS("Make light: ", "make_light", selected->flags, LIGHT, 
                 if (selected->flags & LIGHT) {
-                    init_entity_light(selected);                    
+                    Light empty_light = {0}:
+                    copy_and_add_light_to_entity(selected, &empty_light, true);                    
                 } else {
                     free_entity_light(selected);
                 }
             );
-            if (selected->flags & LIGHT && selected->light_index >= 0) {
-                Light *light = get_light(selected->light_index);
+            if (selected->flags & LIGHT && selected->lights.count > 0) {
+                Light *light = get_light(selected->lights.get_value(0));
                 
                 make_color_picker(inspector_position, inspector_size, v_pos, &light->color);
                 v_pos += height_add;
@@ -5418,11 +5277,11 @@ void update_editor_ui() {
                 make_ui_text("Bake shadows: ", {inspector_position.x + 5, v_pos}, "light_bake_shadows", 17, ColorBrightness(light->bake_shadows ? GREEN : RED, 0.5f));
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->bake_shadows, "light_bake_shadows")) {
                     light->bake_shadows = !light->bake_shadows;
-                    init_entity_light(selected, light, true);
+                    copy_and_add_entity_light(selected, light, true);
                 }
                 v_pos += height_add;
                 
-                INSPECTOR_UI_TOGGLE("Make shadows: ", "light_make_shadows", light->make_shadows, init_entity_light(selected, light, true));
+                INSPECTOR_UI_TOGGLE("Make shadows: ", "light_make_shadows", light->make_shadows, copy_and_add_entity_light(selected, light, true));
 
                 if (light->make_shadows) {
                     make_ui_text("Shadows Size flags: ", {inspector_position.x + 5, v_pos}, "shadows_size_flags");
@@ -5431,7 +5290,7 @@ void update_editor_ui() {
                     v_pos += height_add * 2;
                 }
                 
-                INSPECTOR_UI_TOGGLE("Make backshadows: ", "light_make_backshadows", light->make_backshadows, init_entity_light(selected, light, true));
+                INSPECTOR_UI_TOGGLE("Make backshadows: ", "light_make_backshadows", light->make_backshadows, copy_and_add_entity_light(selected, light, true));
 
                 if (light->make_backshadows) {
                     make_ui_text("Backshadows Size flags: ", {inspector_position.x + 5, v_pos}, "backshadows_size_flags");
@@ -9319,47 +9178,6 @@ void add_explosion_trauma(f32 explosion_radius) {
     }
 }
 
-void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size, i32 entity_id) {
-    add_explosion_trauma(radius);
-    
-    Light *light = NULL;
-    
-    i32 start_index = session_context.big_temp_lights_count + session_context.huge_temp_lights_count;
-    i32 max_count_to_seek = session_context.temp_lights_count;
-    if (size >= BIG_LIGHT) { //Means we set huge light
-        max_count_to_seek = session_context.big_temp_lights_count + session_context.huge_temp_lights_count;   
-        start_index = session_context.big_temp_lights_count;
-    } else if (size >= MEDIUM_LIGHT) { //Means we set big light
-        max_count_to_seek = session_context.big_temp_lights_count;   
-        start_index = 0;
-    } else {
-    }
-    
-    for (i32 i = start_index; i < max_count_to_seek; i++) {
-        if (!current_level_context->lights.get(i)->exists) {
-            light = current_level_context->lights.get(i);
-            break;
-        }
-    }
-    
-    if (light) {
-        light->birth_time    = core.time.game_time;
-        light->target_radius = radius;
-        light->grow_time     = grow_time;
-        light->shrink_time   = shrink_time;
-        light->color         = color;
-        light->opacity       = (f32)color.a / 255.0f;
-        light->start_opacity = light->opacity;
-        light->exists        = true;
-        light->position      = position;
-        
-        light->additional_shadows_flags = ENEMY | PLAYER | SWORD;
-        light->connected_entity_id = entity_id;
-    } else {
-        print("WARNING: Could not find temp light for explosion");
-    }
-}
-
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 can_wait, f32 particles_speed_modifier) {
     assert(enemy_entity->flags & ENEMY);
     
@@ -9423,7 +9241,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             play_sound("BigExplosion", enemy_entity->position, 0.5f);
             
             i32 light_size_flag = SMALL_LIGHT;
-            if (enemy_entity->light_index != -1) light_size_flag = current_level_context->lights.get_value(enemy_entity->light_index).shadows_size_flags;
+            // @VISUAL: Probably will consider that when I'll return dynamic shadows.
+            // if (enemy_entity->light_index != -1) light_size_flag = current_level_context->lights.get_value(enemy_entity->light_index).shadows_size_flags;
             add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy->explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f), light_size_flag);
             
             f32 explosion_add_speed = 80;
@@ -9541,19 +9360,6 @@ void agro_enemy(Entity *entity) {
     
     if (entity->flags & SHOOT_STOPER) {
         state_context.shoot_stopers_count++;
-    }
-}
-
-void add_fire_light_to_entity(Entity *entity) {
-    Light *new_fire_light = init_entity_light(entity, NULL, true);
-    if (new_fire_light) {
-        new_fire_light->make_shadows = false;
-        new_fire_light->make_backshadows = false;
-        new_fire_light->shadows_size_flags = MEDIUM_LIGHT;
-        new_fire_light->backshadows_size_flags = MEDIUM_LIGHT;
-        new_fire_light->color = ColorBrightness(ORANGE, 0.4f);
-        new_fire_light->fire_effect = true;
-        // entity->flags |= LIGHT;
     }
 }
 
@@ -10157,10 +9963,10 @@ void update_editor_entity(Entity *e) {
     }
     
     if (e->flags & LIGHT) {
-        if (e->light_index == -1) {
+        if (e->lights.count == 0) {
             printf("WARNING: Entity with flag LIGHT don't have corresponding light index (name: %s; id: %d)\n", e->name, e->id);
         } else {
-            Light *light = get_light(e->light_index);
+            Light *light = get_light(e->lights.get_value(0));
             light->position = e->position;
         }
     }
@@ -10664,7 +10470,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT) {
-        if (e->light_index == -1) {
+        if (e->lights.count == 0) {
             printf("WARNING: Entity with flag LIGHT don't have corresponding light index. Name: %s, id: %d\n", e->name, e->id);
         }
     }
@@ -11751,8 +11557,8 @@ void draw_entity(Entity *e) {
                 // just because it messes up the looks.
                 if (game_state == GAME && !state_context.in_pause_editor) {
                     if (e->flags & LIGHT) {
-                        assert(e->light_index != -1);
-                        Light *light = get_light(e->light_index);
+                        assert(e->lights.count > 0);
+                        Light *light = get_light(e->lights.get_value(0));
                         if (light->bake_shadows) {
                             should_draw = false;
                         }
@@ -12058,8 +11864,6 @@ void draw_entity(Entity *e) {
     }
     
     if (e->flags & EXPLOSIVE) {
-        if (e->light_index > -1) {
-        }
     }
     
     if (e->flags & PROPELLER && (game_state == EDITOR || state_context.in_pause_editor || debug.draw_areas_in_game)) {
@@ -12402,23 +12206,6 @@ inline b32 should_add_immediate_stuff() {
     return drawing_state == CAMERA_DRAWING && !debug.view_only_lightmaps;
 }
 
-void make_light(Vector2 position, f32 radius, f32 power, f32 opacity, Color color) {
-    if (!should_add_immediate_stuff()) {
-        return;
-    }
-    
-    Light light = {};
-    light.position = position;
-    light.radius = radius;
-    light.power = power;
-    light.opacity = opacity;
-    light.color = color;
-    light.make_shadows = false;
-    light.make_backshadows = false;
-    
-    add_light_to_draw_queue(light);
-}
-
 void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color) {
     if (!should_add_immediate_stuff()) {
         return;
@@ -12586,20 +12373,12 @@ void apply_shake() {
     current_level_context->cam.position += (cast(Vector2) {x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
 }
 
-inline f32 get_light_zoom(f32 radius) {
-    return SCREEN_WORLD_SIZE / radius;
-}
-
-inline void add_light_to_draw_queue(Light light) {
-    render.lights_draw_queue.append(light);
-}
-
 void new_render() {
     bake_lightmaps_if_need();
 
     // Drawing baked lightmaps on camera plane.
     BeginTextureMode(global_illumination_rt); {
-    BeginMode2D(current_level_context->cam.cam2D);
+    BeginMode2D(current_level_context->cam.cam2D); {
         ClearBackground(BLACK);
         for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.count; lightmap_index++) {
             Lightmap_Data *lightmap_data = current_level_context->lightmaps.get(lightmap_index);
@@ -12611,223 +12390,11 @@ void new_render() {
     
             draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
         }
-    EndMode2D();
+    } EndMode2D();
     } EndTextureMode();
 
-    // Drawing dynamic lights on camera plane.
-    local_persist Shader smooth_edges_shader = LoadShader(0, "./resources/shaders/smooth_edges.fs");
-    
-    drawing_state = LIGHTING_DRAWING;
-    
-    BeginTextureMode(light_geometry_rt); {
-        ClearBackground(Fade(BLACK, 0));
-        BeginMode2D(current_level_context->cam.cam2D);
-        BeginShaderMode(gaussian_blur_shader);
-            i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-            set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (screen_width), (1.0f) / (screen_height)});
-
-            // ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD) {
-            for (i32 i = 0; i < session_context.entities_draw_queue.count; i++) {
-                Entity *entity = session_context.entities_draw_queue.get(i);
-                if (entity->hidden || should_not_draw_entity(entity, current_level_context->cam)) {
-                    continue;
-                }
-                Color prev_color = entity->color;
-                entity->color = WHITE;
-                draw_entity(entity);
-                entity->color = prev_color;
-            }
-            //draw_particles();
-        EndShaderMode();
-        EndMode2D();
-    }EndTextureMode();
-
-    local_persist Texture smooth_circle_texture = white_pixel_texture;
-    
-    for (i32 light_index = 0; light_index < current_level_context->lights.capacity; light_index++) {
-        Light *light_ptr = get_light(light_index);
-        
-        if (!light_ptr->exists || light_ptr->bake_shadows) {
-            continue;
-        }
-        
-        Entity *connected_entity = get_entity(light_ptr->connected_entity_id);
-        
-        // update temp lights
-        if (light_index < session_context.temp_lights_count) {
-            f32 lifetime = core.time.game_time - light_ptr->birth_time;
-            if (lifetime < light_ptr->grow_time) {
-                f32 grow_t        = lifetime / light_ptr->grow_time;
-                light_ptr->radius = lerp(0.0f, light_ptr->target_radius, sqrtf(grow_t));
-                light_ptr->power  = lerp(4.0f, 2.0f, grow_t * grow_t);
-            } else { //shrinking
-                f32 shrink_t       = clamp01((lifetime - light_ptr->grow_time) / light_ptr->shrink_time);
-                light_ptr->radius  = lerp(light_ptr->target_radius, light_ptr->target_radius * 0.5f, shrink_t * shrink_t);
-                light_ptr->opacity = lerp(light_ptr->start_opacity, 0.0f, shrink_t * shrink_t);
-                light_ptr->power   = lerp(2.0f, 1.0f, shrink_t * shrink_t);
-            }
-            
-            if (lifetime > light_ptr->grow_time + light_ptr->shrink_time) {
-                light_ptr->exists = false;
-            }
-        }
-        
-        //update light
-        if (connected_entity) {
-            light_ptr->position = connected_entity->position;
-        }
-            
-        if (light_ptr->fire_effect) {
-            f32 perlin_rnd = (perlin_noise3(core.time.game_time * 5, light_index, core.time.game_time * 4) + 1) * 0.5f;
-            light_ptr->radius = perlin_rnd * 30 + 45;
-            light_ptr->power  = perlin_rnd * 1.0f + 0.5f;
-        }
-        
-        Light light = current_level_context->lights.get_value(light_index);
-        
-        // Vector2 light_position = light.position;
-        Vector2 lightmap_game_scale = {light.radius, light.radius};
-        
-        b32 should_calculate_light_anyway = light_ptr->bake_shadows && session_context.just_entered_game_state;
-        
-        Bounds lightmap_bounds = {lightmap_game_scale, {0, 0}};
-        if (!should_calculate_light_anyway && (!check_bounds_collision(current_level_context->cam.view_position, light.position, get_cam_bounds(current_level_context->cam, current_level_context->cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME)) || debug.full_light) {
-            continue;
-        }
-        
-        Vector2 shadows_texture_size = {(f32)light.shadows_size, (f32)light.shadows_size};
-        
-        if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (game_state == EDITOR) && !session_context.baked_shadows_this_frame) || session_context.just_entered_game_state || !light_ptr->baked && game_state == GAME)) {
-            light_ptr->last_bake_time = core.time.app_time;
-            
-            if (light.bake_shadows) {
-                session_context.baked_shadows_this_frame = true;
-                if (game_state == GAME) {
-                    light_ptr->baked = true;
-                }
-            }
-            
-            BeginTextureMode(light.shadowmask_rt); {
-                ClearBackground(Fade(WHITE, 0));
-                current_level_context->cam = get_cam_for_resolution(shadows_texture_size.x, shadows_texture_size.y);
-                current_level_context->cam.position = light.position;
-                current_level_context->cam.view_position = light.position;
-                current_level_context->cam.cam2D.zoom = get_light_zoom(light.radius);
-                BeginMode2D(current_level_context->cam.cam2D);
-                ForEntities(entity, GROUND | light.additional_shadows_flags) {
-                    if (entity->hidden || entity->id == light.connected_entity_id || should_not_draw_entity(entity, current_level_context->cam)) {
-                        continue;
-                    }
-                    
-                    if (light.bake_shadows && (entity->flags & DOOR || entity->flags & PHYSICS_OBJECT)) {
-                        continue;
-                    }
-                    
-                    Color prev_color = entity->color;
-                    entity->color = BLACK;
-                    draw_entity(entity);
-                    entity->color = prev_color;
-                }
-                EndMode2D();
-                current_level_context->cam = with_shake_cam;
-            }EndTextureMode();
-            
-            assert(shadows_texture_size.x >= 1);
-            f32 mult = 2.0f / shadows_texture_size.x;
-            for (; ; mult *= 1.5f) {
-                BeginTextureMode(light.shadowmask_rt); {
-                    BeginShaderMode(gaussian_blur_shader);
-                    i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                    set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.shadows_size, (1.0f) / light.shadows_size});
-                    draw_texture(light.shadowmask_rt.texture, shadows_texture_size * 0.5f, {1.0f + mult, 1.0f + mult}, {0.5f, 0.5f}, 0, WHITE, true);
-                    // if (0 && !light.bake_shadows) {
-                        EndShaderMode();
-                    // }
-                }EndTextureMode();
-                
-                // need to check and think about this threshold
-                if (mult >= 1) {
-                    break;
-                }
-            }
-        }        
-
-        Vector2 backshadows_texture_size = {(f32)light.backshadows_size, (f32)light.backshadows_size};
-        if (light.make_backshadows) {
-            BeginTextureMode(light.backshadows_rt); {
-                ClearBackground(Fade(WHITE, 0));
-                current_level_context->cam = get_cam_for_resolution(backshadows_texture_size.x, backshadows_texture_size.y);
-                current_level_context->cam.position = light.position;
-                current_level_context->cam.view_position = light.position;
-                current_level_context->cam.cam2D.zoom = get_light_zoom(light.radius);
-                BeginMode2D(current_level_context->cam.cam2D); {
-                ForEntities(entity, ENEMY | BLOCK_ROPE | SPIKES | PLAYER | PLATFORM | SWORD) {
-                    if (entity->hidden || entity->id == light.connected_entity_id || should_not_draw_entity(entity, current_level_context->cam)) {
-                        continue;
-                    }
-                    Color prev_color = entity->color;
-                    entity->color = Fade(BLACK, 0.7f);
-                    draw_entity(entity);
-                    entity->color = prev_color;
-    
-                }
-                // draw_particles();
-                } EndMode2D();
-                
-                BeginShaderMode(gaussian_blur_shader);
-                    i32 u_pixel_loc     = get_shader_location(gaussian_blur_shader, "u_pixel");
-                    set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / light.backshadows_size, (1.0f) / light.backshadows_size});
-    
-                    draw_texture(light.backshadows_rt.texture, backshadows_texture_size * 0.5f, {1.0f + 0.2f, 1.0f + 0.2f}, {0.5f, 0.5f}, 0, Fade(BLACK, 0.7f), true);
-                EndShaderMode();
-                current_level_context->cam = with_shake_cam;
-            }; EndTextureMode();
-        }
-        
-        add_light_to_draw_queue(light);
-    }
-    
-    BeginTextureMode(global_illumination_rt); {
-    BeginShaderMode(smooth_edges_shader); {
-    for (i32 i = 0; i <  render.lights_draw_queue.count; i++) {
-        Light light = render.lights_draw_queue.get_value(i);
-        Vector2 lightmap_game_scale = {light.radius, light.radius};
-            Texture shadowmask_texture = light.make_shadows ? light.shadowmask_rt.texture : white_transparent_pixel_texture;
-        
-            Vector2 lightmap_texture_pos = get_left_down_texture_screen_position(shadowmask_texture, light.position, lightmap_game_scale);
-            BeginMode2D(current_level_context->cam.cam2D); {
-                local_persist i32 light_power_loc         = get_shader_location(smooth_edges_shader, "light_power");
-                local_persist i32 light_color_loc         = get_shader_location(smooth_edges_shader, "light_color");
-                local_persist i32 my_pos_loc              = get_shader_location(smooth_edges_shader, "my_pos");
-                local_persist i32 my_size_loc             = get_shader_location(smooth_edges_shader, "my_size");
-                local_persist i32 gi_size_loc             = get_shader_location(smooth_edges_shader, "gi_size");
-                local_persist i32 gi_texture_loc          = get_shader_location(smooth_edges_shader, "gi_texture");
-                local_persist i32 geometry_texture_loc    = get_shader_location(smooth_edges_shader, "geometry_texture");
-                local_persist i32 light_texture_loc       = get_shader_location(smooth_edges_shader, "light_texture");
-                local_persist i32 backshadows_texture_loc = get_shader_location(smooth_edges_shader, "backshadows_texture");
-                
-                Vector4 color = ColorNormalize(Fade(light.color, light.opacity));
-                set_shader_value_color(smooth_edges_shader, light_color_loc, color);
-                set_shader_value(smooth_edges_shader, light_power_loc, light.power);
-                set_shader_value(smooth_edges_shader, my_pos_loc, lightmap_texture_pos);
-                set_shader_value(smooth_edges_shader, my_size_loc, get_texture_pixels_size(shadowmask_texture, lightmap_game_scale));
-                set_shader_value(smooth_edges_shader, gi_size_loc, {(f32)global_illumination_rt.texture.width, (f32)global_illumination_rt.texture.height});
-                set_shader_value_tex(smooth_edges_shader, gi_texture_loc,          global_illumination_rt.texture);
-                set_shader_value_tex(smooth_edges_shader, light_texture_loc,       smooth_circle_texture);
-                set_shader_value_tex(smooth_edges_shader, backshadows_texture_loc, light.make_backshadows ? light.backshadows_rt.texture : white_transparent_pixel_texture);
-                set_shader_value_tex(smooth_edges_shader, geometry_texture_loc,    light.make_shadows || light.make_backshadows ? light_geometry_rt.texture : black_pixel_texture);
-                
-                draw_game_texture(shadowmask_texture, light.position, lightmap_game_scale, {0.5f, 0.5f}, 0, WHITE, true);
-            } EndMode2D();
-            current_level_context->cam = with_shake_cam;
-    }
-    } EndShaderMode();
-    } EndTextureMode();
-    
-    render.lights_draw_queue.clear();
-
-    // In original lighting there goes blur pass, but we can think about drawing dynamic lights in other render texture and blur
-    // it instead, because there's no way we want to blur whole global illumination including current_level_context->lightmaps.
+    update_dynamic_lights();
+    draw_dynamic_lights(&global_illumination_rt);
 
     if (IsKeyPressed(KEY_F1)) {
         debug_toggle_lightmap_view();
@@ -12835,38 +12402,37 @@ void new_render() {
     
     BeginTextureMode(render.main_render_texture); {
     BeginMode2D(current_level_context->cam.cam2D); {
-    
-    Color base_background_color = debug.full_light ? ColorBrightness(GRAY, 0.1f) : Fade(WHITE, 0);
-    
-    ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : base_background_color);
-    
-    drawing_state = CAMERA_DRAWING;
-    draw_entities();
-    draw_particles();
-    
-    if (player_entity && debug.draw_player_collisions) {
-        for (i32 i = 0; i < collisions_buffer.count; i++) {
-            Collision col = collisions_buffer.get_value(i);
-            
-            make_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
-            draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
-        }
-    }
-    
-    if (debug.draw_collision_grid) {
-        // draw collision grid
-        Collision_Grid grid = session_context.collision_grid;
-        Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
+        Color base_background_color = debug.full_light ? ColorBrightness(GRAY, 0.1f) : Fade(WHITE, 0);
         
-        update_entity_collision_cells(&mouse_entity);
-        for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y) {
-            for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x) {
-                Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
+        ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : base_background_color);
+        
+        drawing_state = CAMERA_DRAWING;
+        draw_entities();
+        draw_particles();
+        
+        if (player_entity && debug.draw_player_collisions) {
+            for (i32 i = 0; i < collisions_buffer.count; i++) {
+                Collision col = collisions_buffer.get_value(i);
                 
-                draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+                make_line(col.point, col.point + col.normal * 4, 0.2f, GREEN);
+                draw_game_rect(col.point + col.normal * 4, {1, 1}, {0.5f, 0.5f}, 0, GREEN * 0.9f);
             }
         }
-    }
+        
+        if (debug.draw_collision_grid) {
+            // draw collision grid
+            Collision_Grid grid = session_context.collision_grid;
+            Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
+            
+            update_entity_collision_cells(&mouse_entity);
+            for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y) {
+                for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x) {
+                    Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
+                    
+                    draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+                }
+            }
+        }
     } EndMode2D();
     } EndTextureMode();
     
@@ -13087,9 +12653,12 @@ Entity copy_entity(Entity *to_copy, b32 do_deep_copy, Level_Context *level_conte
             e.door = to_copy->door;
         }
         
-        if (to_copy->light_index != -1) {
-            e.light_index = -1;
-            init_entity_light(&e, to_copy->level_context->lights.get(to_copy->light_index));        
+        if (to_copy->lights.count > 0) {
+            // e.light_index = -1;
+            for_array(i, to_copy->lights) {
+                Light *copy_light = to_copy->level_context->lights.get(to_copy->lights.get_value(i));  
+                copy_and_add_light_to_entity(&e, copy_light);
+            }
         }
         
         if (1/* || should_init_entity*/) {

@@ -5,7 +5,7 @@ enum Game_State{
     GAME
 };
 
-enum Drawing_State{
+enum Drawing_State {
     CAMERA_DRAWING,  
     LIGHTING_DRAWING
 };

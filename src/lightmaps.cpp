@@ -205,7 +205,8 @@ void bake_lightmaps_if_need(){
             
             ForEntities(entity, LIGHT){   
                 if (entity->flags & LIGHT){
-                    Light *light = current_level_context->lights.get(entity->light_index);
+                    assert(entity->lights.count > 0);
+                    Light *light = current_level_context->lights.get(entity->lights.get_value(0));
                     if (light->bake_shadows){
                         if (entity->flags & TEXTURE){
                             draw_game_texture(entity->texture, entity->position, entity->scale, entity->pivot, entity->rotation, Fade(light->color, light->opacity));

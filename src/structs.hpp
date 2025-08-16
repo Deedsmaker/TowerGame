@@ -56,7 +56,7 @@ enum Particle_Spawn_Area{
     BOX = 1
 };
 
-struct Lightmap_Data{
+struct Lightmap_Data {
     Vector2 position = {0, 0};
     Vector2 game_size = {2000.0f, 2000.0f};
 
@@ -885,10 +885,11 @@ struct Entity {
     Jump_Shooter jump_shooter;
     
     i32 note_index = -1;
-    i32 light_index = -1;
+    
+    Array <i32> lights = {0};
 };
 
-enum Light_Size_Flags{
+enum Light_Size_Flags {
     ULTRA_SMALL_LIGHT = 1 << 0,
     SMALL_LIGHT       = 1 << 1,  
     MEDIUM_LIGHT      = 1 << 2,
@@ -897,8 +898,12 @@ enum Light_Size_Flags{
     GIANT_LIGHT       = 1 << 5
 };
 
-struct Light{
-    b32 exists = false;
+struct Light_Render_Textures {
+  
+};
+
+struct Light {
+    // b32 exists = false;
     Vector2 position = Vector2_zero;
 
     i32 connected_entity_id = -1;
@@ -934,8 +939,11 @@ struct Light{
     f32 grow_time = 0;
     f32 shrink_time = 0;
     
-    RenderTexture shadowmask_rt;
-    RenderTexture backshadows_rt;
+    // @VISUAL: Bring back dynamic lights with shadows later. 
+    // The idea is that we'll have usual array whereas we'll just append lights and we'll have different array with 
+    // render textures that will handle our gpu memory allocations and all will be good and simple and cakes.
+    // RenderTexture shadowmask_rt;
+    // RenderTexture backshadows_rt;
 };
 
 global_variable Player *player_data = {};
@@ -1081,7 +1089,9 @@ struct Level_Context{
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
-    Array <Light> lights = {0};
+    Chunk_Array <Light> lights = {0};
+    // Chunk_Array <Light> medium_temp_lights = {0};
+    // Chunk_Array <Light> big_temp_lights = {0};
     
     Array <Lightmap_Data> lightmaps = {0};
     b32 lightmaps_render_textures_loaded = false;

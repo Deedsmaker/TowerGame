@@ -146,29 +146,35 @@ inline void notify_destruction_to_connected_entities(Entity *destroyed_entity) {
     // That would simplify things and I think it's not that much of a memory/performance hit.
     
     while (destroyed_entity->connected_entities.count > 0) {
-        // It's not just a for loop because nocheckin explain.
+        // This can't be just a for loop because we're going directly remove items from connected_entities and indices will 
+        // be messed up. So now it's like the queue, where we're popping first element and removing value of the first element
+        // from whole array.
         if (completely_remove_id_reference_from_entity(destroyed_entity, destroyed_entity->connected_entities.get_value(0))) {
         } else {
             // That's a fail case. That means that we forgot to handle something, but actually we'll probably still remove
-            // id from connected entities, so we'll never be here. nocheckin explain better after implementation.
+            // id from connected entities, so we'll never be here.
+            // We're printing fail case in the function.
         }
     }
     
-    if (destroyed_entity->light_index > -1) {    
-        get_light(destroyed_entity->light_index)->connected_entity_id = -1;
+    if (destroyed_entity->lights.count > 0) {    
+        for_array(i, &destroyed_entity->lights) {
+            // Probably will consider actually telling light that we're dead now and they could die aswell.
+            // And actually we'll free lights on free_entity so gotta look into that.
+            get_light(destroyed_entity->lights.get_value(i))->connected_entity_id = -1;
+        }
     }
     
-    //nocheckin also probably should notify particle emitters and lights because they're holding references to entity.
-    // Maybe we could think of doing it the other way and holding particle emitters references on entities.
+    // @TODO: Tell particle emmitters that we're no longer walking this earth.
     
-    //nocheckin do checks for ids that's not stored in entity (like state context threat id or cam state rails trigger id).
+    // @TODO: do checks for ids that's not stored in entity (like state context threat id or cam state rails trigger id).
     // But here we're losing verification that we don't forget anything. That could be fixed if we're going to decide ot add 
     // flags to pointing_at_me. That way we will be know for sure.
 }
 
 inline i32 register_entity_id_reference(Entity *entity, i32 connected_id) {
     assert(entity->id != connected_id);
-    //nocheckin clear all stuff on free_entity
+    // @LEAK: free all arrays on free_entity.
     get_entity(connected_id)->entities_pointing_at_me.append(entity->id);
     return *entity->connected_entities.append(connected_id);
 }
