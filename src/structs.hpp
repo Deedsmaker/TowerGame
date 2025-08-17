@@ -810,16 +810,6 @@ struct Pointing_At_Me_Info {
 };
 
 struct Entity {
-    Entity();
-    Entity(Vector2 _pos);
-    Entity(Vector2 _pos, Vector2 _scale);
-    Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags);
-    Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
-    Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture texture, FLAGS _flags);
-    // Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags);
-    // Entity(i32 _id, Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags, Static_Array <Vector2, MAX_VERTICES> _vertices);
-    // Entity(Entity *copy, b32 keep_id, Level_Context *copy_entity_level_context = NULL, b32 should_init_entity = true);
-
     i32 id = -1;
     b32 need_to_save = true;
     b32 visible = true;
@@ -848,7 +838,7 @@ struct Entity {
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
     
-    FLAGS flags;
+    FLAGS flags = 0;
     FLAGS collision_flags = 0;
     
     //lower - closer to camera
@@ -906,6 +896,8 @@ struct Light {
     // b32 exists = false;
     Vector2 position = Vector2_zero;
 
+    Level_Context *level_context = NULL;
+
     i32 connected_entity_id = -1;
     
     FLAGS additional_shadows_flags = 0;
@@ -952,7 +944,7 @@ global_variable Player replay_player_data = {};
 
 struct Spawn_Object{
     char name[64];
-    Entity entity;
+    Entity entity = {0};
 };
 
 #define MAX_COLLISION_CELL_OBJECTS 256
@@ -1039,7 +1031,7 @@ enum Death_Instinct_Reason{
 
 #define MAX_UNDOS 2048
 
-struct Undo_Action{
+struct Undo_Action {
     //Entity *entity;
     int entity_id = -1;
 
@@ -1047,11 +1039,11 @@ struct Undo_Action{
     b32 removed_from_multiselection = false;
 
     // Entity deleted_entity;
-    Array <Entity> deleted_entities = {0};
+    Array <Entity *> deleted_entities = {0};
     b32    entity_was_deleted = false;
     
     
-    Entity spawned_entity;
+    Entity *spawned_entity = {0};
     b32    entity_was_spawned = false;
     
     Array <i32> changed_entities = {0};
@@ -1328,7 +1320,7 @@ struct Multiselection {
     Vector2 total_displacement_for_undo;
 };
 
-struct Editor{
+struct Editor {
     f32 in_editor_time = 0;
 
     Array <Entity *> place_cursor_entities = {0};
@@ -1388,9 +1380,9 @@ struct Editor{
     Vector2 multiselect_total_displacement_for_undo = Vector2_zero;
     
     Vector2 copied_entities_center = Vector2_zero;
-    Array <Entity> copied_entities = {0};
+    Array <Entity *> copied_entities = {0};
     
-    Entity copied_entity;
+    Entity *copied_entity = {0};
     b32 is_copied;
     
     Vector2 *moving_vertex = NULL;

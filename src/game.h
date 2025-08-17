@@ -107,11 +107,20 @@ void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, 
 inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color);
 inline void make_outline(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color);
 
+void add_explosion_trauma(f32 explosion_radius);
+
+inline b32 check_bounds_collision(Vector2 pos1, Vector2 pos2, Bounds bounds1, Bounds bounds2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f});
+inline b32 check_bounds_collision(Entity *entity1, Entity *entity2);
+inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *entity2);
+
 inline b32 should_draw_editor_hints();
 void draw_immediate_stuff();
 void draw_ui(const char *tag);
 void draw_entities();
 void draw_entity(Entity *e);
+
+inline b32 should_add_immediate_stuff();
+inline b32 should_not_draw_entity(Entity *e, Cam cam);
 
 inline Vector2 global(Entity *e, Vector2 local_pos);
 inline Vector2 global(Vector2 position, Vector2 local_pos);
@@ -173,8 +182,6 @@ void load_anim(Array<Texture> *frames, const char *name);
 
 Entity* add_text(Vector2 pos, f32 size, const char *text);
 
-Entity copy_entity(Entity *to_copy, b32 do_deep_copy = false, Level_Context *level_context_for_deep_copy = NULL, i32 id_to_set = -1);
-inline void copy_entity(Entity *dest, Entity *to_copy, b32 do_deep_copy = false, Level_Context *level_context_for_deep_copy = NULL, i32 id_to_set = -1);
 void copy_light(Light *dest, Light *src);
 
 inline Particle_Emitter *get_sword_kill_particle_emitter(Entity *enemy_entity);
@@ -207,8 +214,7 @@ void check_avaliable_ids_and_set_if_found(i32 *id);
 
 Entity *add_player_entity(Player *data);
 
-Entity* copy_and_add_entity(Entity *to_copy);
-Entity* copy_and_insert_entity(Entity *to_copy, i32 index);
+Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 index_to_insert = 0);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags);

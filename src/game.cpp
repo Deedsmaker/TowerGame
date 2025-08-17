@@ -195,7 +195,7 @@ void free_entity(Entity *e) {
             // Probably that doesn't matter because while game-looping we're just destroy them and when we're clearing context 
             // we'll call it anyway, but nonetheless we should be able to just call free_entity without trouble in such case.
             // Will see into that when will rewrite entities.
-            Entity *segment = get_entity(e->centipede.segments_ids.get_value(i));
+            Entity *segment = get_entity(e->centipede.segments_ids.get_value(i), e->level_context);
             segment->destroyed = true;
             segment->enabled = false;
         }
@@ -232,7 +232,7 @@ void free_entity(Entity *e) {
     
     // free light
     if (e->lights.count > 0) {
-        free_entity_lights(e);
+        free_lights_connected_to_entity(e);
         e->lights.free_data();
     }
     
@@ -309,217 +309,103 @@ void pick_vertices(Entity *entity) {
     }
 }
 
-Entity::Entity() {
-    calculate_bounds(this);
-    setup_color_changer(this);
+Entity make_entity(Vector2 _pos) {
+    Entity e = {0};
+    e.flags = 0;
+    e.position = _pos;
     
-    level_context = current_level_context;
+    add_rect_vertices(&e.vertices, e.pivot);
+
+    e.rotation = 0;
+    e.up = {0, 1};
+    e.right = {1, 0};
+    
+    change_scale(&e, {1, 1});
+    setup_color_changer(&e);
+    
+    e.level_context = current_level_context;
+    
+    return e;
 }
 
-Entity::Entity(Vector2 _pos) {
-    flags = 0;
-    position = _pos;
+Entity make_entity(Vector2 _pos, Vector2 _scale) {
+    Entity e = {0};
+    e.flags = 0;
+    e.position = _pos;
     
-    add_rect_vertices(&vertices, pivot);
+    add_rect_vertices(&e.vertices, e.pivot);
 
-    rotation = 0;
-    up = {0, 1};
-    right = {1, 0};
+    e.rotation = 0;
+    e.up = {0, 1};
+    e.right = {1, 0};
+    change_scale(&e, _scale);
+    setup_color_changer(&e);
     
-    change_scale(this, {1, 1});
-    setup_color_changer(this);
+    e.level_context = current_level_context;
     
-    level_context = current_level_context;
+    return e;
 }
 
-Entity::Entity(Vector2 _pos, Vector2 _scale) {
-    flags = 0;
-    position = _pos;
+Entity make_entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags) {
+    Entity e = {0};
+    e.flags    = _flags;
+    e.position = _pos;
+    pick_vertices(&e);
+    e.rotation = 0;
     
-    add_rect_vertices(&vertices, pivot);
-
-    rotation = 0;
-    up = {0, 1};
-    right = {1, 0};
-    change_scale(this, _scale);
-    setup_color_changer(this);
+    rotate_to(&e, _rotation);
+    change_scale(&e, _scale);
+    setup_color_changer(&e);
     
-    level_context = current_level_context;
+    e.level_context = current_level_context;
+    
+    return e;
 }
 
-Entity::Entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags) {
-    flags    = _flags;
-    position = _pos;
-    pick_vertices(this);
-    rotation = 0;
+Entity make_entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags) {
+    Entity e = {0};
+    // *&e = make_entity(_pos, _scale, _rotation, _flags);
+    e.flags    = _flags;
+    e.position = _pos;
+    e.pivot = _pivot;
     
-    rotate_to(this, _rotation);
-    change_scale(this, _scale);
-    setup_color_changer(this);
+    pick_vertices(&e);
     
-    level_context = current_level_context;
+    e.rotation = 0;
+    
+    rotate_to(&e, _rotation);
+    
+    change_scale(&e, _scale);
+    setup_color_changer(&e);
+    
+    e.level_context = current_level_context;
+    
+    return e;
 }
 
-Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, FLAGS _flags) {
-    // *this = Entity(_pos, _scale, _rotation, _flags);
-    flags    = _flags;
-    position = _pos;
-    pivot = _pivot;
-    
-    pick_vertices(this);
-    
-    rotation = 0;
-    
-    rotate_to(this, _rotation);
-    
-    change_scale(this, _scale);
-    setup_color_changer(this);
-    
-    level_context = current_level_context;
-}
-
-Entity::Entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture _texture, FLAGS _flags) {
-    flags    = _flags;
-    position = _pos;
-    pivot    = _pivot;
-    texture  = _texture;
+Entity make_entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture _texture, FLAGS _flags) {
+    Entity e = {0};
+    e.flags    = _flags;
+    e.position = _pos;
+    e.pivot    = _pivot;
+    e.texture  = _texture;
     //scaling_multiplier = {1, 1};
-    color = WHITE;
+    e.color = WHITE;
     //scale = transform_texture_scale(texture, _scale);
     
-    pick_vertices(this);
+    pick_vertices(&e);
     
-    rotation = 0;
+    e.rotation = 0;
     
-    rotate_to(this, _rotation);
+    rotate_to(&e, _rotation);
     
-    change_scale(this, _scale);
-    setup_color_changer(this);
+    change_scale(&e, _scale);
+    setup_color_changer(&e);
     
-    level_context = current_level_context;
+    e.level_context = current_level_context;
+    
+    return e;
 }
-
-// Entity::Entity(Entity *copy, b32 keep_id, Level_Context *copy_level_context, b32 should_init_entity) {
-    // if (!copy_level_context) copy_level_context = current_level_context;
-
-    // i32 original_id = id;
-    // *this = *copy;
-    // id = original_id;
-    // // id = copy->id;
-    
-    // if (!keep_id) {
-    //     // id = current_level_context->entities.total_added_count + core.time.app_time * 10000 + 100;
-    //     // check_avaliable_ids_and_set_if_found(&id);
-    // }
-    
-    // position = copy->position;
-    // pivot    = copy->pivot;
-    
-    // vertices = copy->vertices;
-    // unscaled_vertices = copy->unscaled_vertices;
-    // rotation = copy->rotation;
-    // scale = copy->scale;
-    // flags = copy->flags;
-    // collision_flags = copy->collision_flags;
-    // color = copy->color_changer.start_color;
-    // draw_order = copy->draw_order;
-    // str_copy(name, copy->name);
-    // hidden = copy->hidden;
-    // spawn_enemy_when_no_ammo = copy->spawn_enemy_when_no_ammo;
-    
-    // if (flags & TEXTURE) {
-    //     texture = copy->texture;
-        
-    //     if (have_normal_map) {
-    //         normal_map_texture = copy->normal_map_texture;
-    //     }
-        
-    //     scaling_multiplier = {texture.width / current_level_context->cam.unit_size, texture.height / current_level_context->cam.unit_size};
-    //     // This means that copy is just texture. Visual flakes.
-    //     if (copy->scale == Vector2_one) {
-    //         scale = {texture.width / 10.0f, texture.height / 10.0f};
-    //     }
-    //     str_copy(texture_name, copy->texture_name);
-    // }
-    // color_changer = copy->color_changer;
-    
-    // if (flags & DRAW_TEXT) {
-    //     text_drawer = copy->text_drawer;
-    // }
-    // if (flags & ENEMY) {
-    //     enemy = copy->enemy;
-    // }
-    
-    // connected_entities = copy_array(&copy->connected_entities);
-    // if (keep_id) entities_pointing_at_me = copy_array(&copy->entities_pointing_at_me);
-    
-    // // copy trigger
-    // if (flags & TRIGGER) {
-    //     trigger = copy->trigger;
-    //     trigger.connected = {0};
-    //     for (i32 i = 0; i < copy->trigger.connected.count; i++) {
-    //         trigger.connected.append(copy->trigger.connected.get_value(i));
-    //     }
-    //     trigger.tracking = {0};
-    //     for (i32 i = 0; i < copy->trigger.tracking.count; i++) {
-    //         trigger.tracking.append(copy->trigger.tracking.get_value(i));
-    //     }
-        
-    //     if (copy->trigger.start_cam_rails_horizontal || copy->trigger.start_cam_rails_vertical) {
-    //         trigger.cam_rails_points = {0};
-    //         for (i32 i = 0; i < copy->trigger.cam_rails_points.count; i++) {
-    //             trigger.cam_rails_points.append(copy->trigger.cam_rails_points.get_value(i));               
-    //         }
-    //     }
-    // }
-    
-    // // copy kill switch
-    // if (flags & KILL_SWITCH) {
-    //     Kill_Switch *kill_switch = &enemy.kill_switch;
-    //     Kill_Switch *copy_kill_switch = &copy->enemy.kill_switch;
-    //     *kill_switch = *copy_kill_switch;
-    //     kill_switch->connected = {0};
-    //     for (i32 i = 0; i < copy_kill_switch->connected.count; i++) {
-    //         kill_switch->connected.append(copy_kill_switch->connected.get_value(i));
-    //     }
-    // }
-    
-    // if (flags & NOTE) {
-    //     note_index = add_note("");
-    //     if (note_index != -1 && copy->note_index != -1) {
-    //         (*current_level_context->notes.get(note_index)) = *copy_level_context->notes.get(copy->note_index);
-    //     }
-    // }
-    
-    // if (flags & MOVE_SEQUENCE) {
-    //     move_sequence = copy->move_sequence;
-    //     move_sequence.points = {0};
-    //     for (i32 i = 0; i < copy->move_sequence.points.count; i++) {
-    //         move_sequence.points.append(copy->move_sequence.points.get_value(i));
-    //     }
-    // }
-    
-    // if (flags & PROPELLER) {
-    //     propeller = copy->propeller;
-    // }
-    
-    // if (flags & DOOR) {
-    //     door = copy->door;
-    // }
-    
-    // if (copy->light_index != -1) {
-    //     light_index = -1;
-    //     init_entity_light(this, copy_level_context->lights.get(copy->light_index));        
-    // }
-    
-    // if (should_init_entity) {
-    //     particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
-    //     rotate_to(this, rotation);
-    //     setup_color_changer(this);
-    //     init_entity(this);
-    //     calculate_bounds(this);
-    // }
-// }
 
 void parse_line(const char *line, char *result, i32 *index) { 
     assert(line[*index] == ':');
@@ -683,7 +569,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         
     //     data.key = src->entities.data[i].key;
     //     if (data.key != -1) {
-    //         data.value = Entity(&src->entities.data[i].value, true, src, should_init_entities);
+    //         data.value = make_entity(&src->entities.data[i].value, true, src, should_init_entities);
     //         data.value.level_context = current_level_context;
     //     } else {
     //         data.value = {};
@@ -698,8 +584,8 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     // @TODO: check this copying
     dest->entities = copy_chunk_array(&src->entities);
     for_chunk_array(i, (&dest->entities)) {
-        *dest->entities.get(i) = copy_entity(src->entities.get(i), true, dest);
-        dest->entities.get(i)->level_context = current_level_context;
+        // if (i == 0) continue;
+        copy_and_add_entity(src->entities.get(i), dest, i);
     }
     
     for (i32 i = 0; i < src->line_trails.capacity; i++) {
@@ -733,8 +619,8 @@ void clear_level_context(Level_Context *level_context) {
     
     level_context->entities.clear();
     // Id 0 is invalid for good reasons, so we're adding it here.
-    Entity dummy_entity = Entity();
-    copy_and_add_entity(&dummy_entity);
+    // Entity dummy_entity = {0};
+    // copy_and_add_entity(&dummy_entity, level_context);
     
     // level_context->particles.clear();
     // level_context->emitters.clear();
@@ -745,14 +631,20 @@ void clear_level_context(Level_Context *level_context) {
     ArrayOfStructsToDefaultValues(level_context->particles);
     ArrayOfStructsToDefaultValues(level_context->notes);
     
-    for (i32 i = 0; i < level_context->lights.capacity; i++) {
-        level_context->lights.get(i)->exists = false;
-        if (i >= session_context.entity_lights_start_index) {
-            free_light(level_context->lights.get(i));       
-            *(level_context->lights.get(i)) = {};
-        } else { // So we in temp lights section
-        }
+    
+    for_chunk_array(i, &level_context->lights) {
+        free_light(get_light(i, level_context), i, level_context);
     }
+    level_context->lights.clear();
+    
+    // for (i32 i = 0; i < level_context->lights.capacity; i++) {
+    //     level_context->lights.get(i)->exists = false;
+    //     if (i >= session_context.entity_lights_start_index) {
+    //         free_light(level_context->lights.get(i));       
+    //         *(level_context->lights.get(i)) = {};
+    //     } else { // So we in temp lights section
+    //     }
+    // }
     
     current_level_context->lightmaps.clear();
     
@@ -820,7 +712,7 @@ i32 save_level(const char *level_name) {
         fprintf(fptr, "hidden:%d: ", e->hidden);
         fprintf(fptr, "spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo);
         
-        if (e->lights_count > 0) {
+        if (e->lights.count > 0) {
             Light *light = current_level_context->lights.get(e->lights.get_value(0));
             fprintf(fptr, "light_shadows_size_flag:%d: ",     light->shadows_size_flags);
             fprintf(fptr, "light_backshadows_size_flag:%d: ", light->backshadows_size_flags);
@@ -1168,7 +1060,8 @@ b32 load_level(const char *level_name) {
         // split_string(line->data, ":{}, ;", &splitted_line);
         split_string(&splitted_line, *line, tstring(":{}, ;"));
         
-        Entity entity_to_fill = Entity();
+        Entity entity_to_fill = {0};
+        entity_to_fill.level_context = &loaded_level_context;
         Note note_to_fill = {};
         
         for (i32 i = 0; i < splitted_line.count; i++) {
@@ -1607,7 +1500,7 @@ b32 load_level(const char *level_name) {
     // them together in entity_pairs so old and new have the same indexes.
     for_array(i, &loaded_entities) {
         Entity *loaded_entity = loaded_entities.get(i);
-        Entity *new_entity = copy_and_add_entity(loaded_entity);
+        Entity *new_entity = copy_and_add_entity(loaded_entity, current_level_context);
         
         entity_pairs.append({.new_entity = new_entity, .old_entity = loaded_entity});
     }
@@ -1753,7 +1646,7 @@ Entity *spawn_object_by_name(const char* name, Vector2 position) {
     for (i32 i = 0; i < spawn_objects.count; i++) {
         Spawn_Object *obj = spawn_objects.get(i);
         if (str_equal(obj->name, name)) {
-            Entity *e = copy_and_add_entity(&obj->entity);
+            Entity *e = copy_and_add_entity(&obj->entity, current_level_context);
             e->position = position;
             return e;
         }
@@ -1833,27 +1726,27 @@ void init_bird_entity(Entity *entity) {
 }
 
 void init_spawn_objects() {
-    Entity block_base_entity = Entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND);
+    Entity block_base_entity = make_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND);
     block_base_entity.color = BROWN;
     str_copy(block_base_entity.name, "block_base"); 
     setup_color_changer(&block_base_entity);
     
     Spawn_Object block_base_object;
-    copy_entity(&block_base_object.entity, &block_base_entity);
+    block_base_object.entity = block_base_entity;
     str_copy(block_base_object.name, block_base_entity.name);
     spawn_objects.append(block_base_object);
     
-    Entity no_move_block_entity = Entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
+    Entity no_move_block_entity = make_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
     no_move_block_entity.color = PURPLE;
     str_copy(no_move_block_entity.name, "no_move_block"); 
     setup_color_changer(&no_move_block_entity);
     
     Spawn_Object no_move_block_object;
-    copy_entity(&no_move_block_object.entity, &no_move_block_entity);
+    no_move_block_object.entity = no_move_block_entity;
     str_copy(no_move_block_object.name, no_move_block_entity.name);
     spawn_objects.append(no_move_block_object);
     
-    Entity note_entity = Entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
+    Entity note_entity = make_entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
     note_entity.color = Fade(WHITE, 0.7f);
     str_copy(note_entity.name, "note"); 
     str_copy(note_entity.texture_name, "editor_note.png");
@@ -1861,52 +1754,52 @@ void init_spawn_objects() {
     setup_color_changer(&note_entity);
     
     Spawn_Object note_object;
-    copy_entity(&note_object.entity, &note_entity);
+    note_object.entity = note_entity;
     str_copy(note_object.name, note_entity.name);
     spawn_objects.append(note_object);
     
-    Entity dummy_entity = Entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
+    Entity dummy_entity = make_entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
     dummy_entity.color  = Fade(GREEN, 0.5f);
     // dummy_entity.hidden = true;
     str_copy(dummy_entity.name, "dummy_entity"); 
     setup_color_changer(&dummy_entity);
     
     Spawn_Object dummy_object;
-    copy_entity(&dummy_object.entity, &dummy_entity);
+    dummy_object.entity = dummy_entity;
     str_copy(dummy_object.name, dummy_entity.name);
     spawn_objects.append(dummy_object);
     
-    Entity platform_entity = Entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
+    Entity platform_entity = make_entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
     platform_entity.color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
     str_copy(platform_entity.name, "platform"); 
     setup_color_changer(&platform_entity);
     
     Spawn_Object platform_object;
-    copy_entity(&platform_object.entity, &platform_entity);
+    platform_object.entity = platform_entity;
     str_copy(platform_object.name, platform_entity.name);
     spawn_objects.append(platform_object);
     
-    Entity enemy_ammo_pack_entity = Entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | AMMO_PACK);
+    Entity enemy_ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | AMMO_PACK);
     enemy_ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
     str_copy(enemy_ammo_pack_entity.name, "ammo_pack"); 
     setup_color_changer(&enemy_ammo_pack_entity);
     
     Spawn_Object enemy_ammo_pack_object;
-    copy_entity(&enemy_ammo_pack_object.entity, &enemy_ammo_pack_entity);
+    enemy_ammo_pack_object.entity = enemy_ammo_pack_entity;
     str_copy(enemy_ammo_pack_object.name, enemy_ammo_pack_entity.name);
     spawn_objects.append(enemy_ammo_pack_object);
     
-    Entity big_sword_charge_giver_entity = Entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
+    Entity big_sword_charge_giver_entity = make_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
     big_sword_charge_giver_entity.color = ColorBrightness(GREEN, 0.5f);
     str_copy(big_sword_charge_giver_entity.name, "big_sword_charge_giver"); 
     setup_color_changer(&big_sword_charge_giver_entity);
     
     Spawn_Object big_sword_charge_giver_object;
-    copy_entity(&big_sword_charge_giver_object.entity, &big_sword_charge_giver_entity);
+    big_sword_charge_giver_object.entity = big_sword_charge_giver_entity;
     str_copy(big_sword_charge_giver_object.name, big_sword_charge_giver_entity.name);
     spawn_objects.append(big_sword_charge_giver_object);
     
-    Entity turret_direct_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
+    Entity turret_direct_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
     turret_direct_entity.enemy.player_cannot_kill = true;
     {
         Turret *turret = &turret_direct_entity.enemy.turret;
@@ -1920,11 +1813,11 @@ void init_spawn_objects() {
     setup_color_changer(&turret_direct_entity);
     
     Spawn_Object turret_direct_object;
-    copy_entity(&turret_direct_object.entity, &turret_direct_entity);
+    turret_direct_object.entity = turret_direct_entity;
     str_copy(turret_direct_object.name, turret_direct_entity.name);
     spawn_objects.append(turret_direct_object);
     
-    Entity turret_homing_entity = Entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
+    Entity turret_homing_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
     turret_homing_entity.enemy.player_cannot_kill = true;
     {
         Turret *turret = &turret_homing_entity.enemy.turret;
@@ -1938,30 +1831,30 @@ void init_spawn_objects() {
     setup_color_changer(&turret_homing_entity);
     
     Spawn_Object turret_homing_object;
-    copy_entity(&turret_homing_object.entity, &turret_homing_entity);
+    turret_homing_object.entity = turret_homing_entity;
     str_copy(turret_homing_object.name, turret_homing_entity.name);
     spawn_objects.append(turret_homing_object);
     
-    Entity bird_entity = Entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
+    Entity bird_entity = make_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     init_bird_entity(&bird_entity);
     
     Spawn_Object enemy_bird_object;
-    copy_entity(&enemy_bird_object.entity, &bird_entity);
+    enemy_bird_object.entity = bird_entity;
     str_copy(enemy_bird_object.name, bird_entity.name);
     spawn_objects.append(enemy_bird_object);
     
-    Entity win_block_entity = Entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | MULTIPLE_HITS | NO_MOVE_BLOCK);
+    Entity win_block_entity = make_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | MULTIPLE_HITS | NO_MOVE_BLOCK);
     win_block_entity.color_changer.start_color = win_block_entity.color;
     win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
     str_copy(win_block_entity.name, "win_block"); 
     setup_color_changer(&win_block_entity);
     
     Spawn_Object win_block_object;
-    copy_entity(&win_block_object.entity, &win_block_entity);
+    win_block_object.entity = win_block_entity;
     str_copy(win_block_object.name, win_block_entity.name);
     spawn_objects.append(win_block_object);
     
-    Entity agro_area_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
+    Entity agro_area_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     agro_area_entity.color = Fade(VIOLET, 0.6f);
     agro_area_entity.color_changer.start_color = agro_area_entity.color;
     agro_area_entity.color_changer.target_color = agro_area_entity.color * 1.5f;
@@ -1969,63 +1862,63 @@ void init_spawn_objects() {
     setup_color_changer(&agro_area_entity);
     
     Spawn_Object argo_area_object;
-    copy_entity(&argo_area_object.entity, &agro_area_entity);
+    argo_area_object.entity = agro_area_entity;
     str_copy(argo_area_object.name, agro_area_entity.name);
     spawn_objects.append(argo_area_object);
     
-    Entity trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
+    Entity trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     trigger_entity.color = Fade(GREEN, 0.6f);
     str_copy(trigger_entity.name, "trigger"); 
     setup_color_changer(&trigger_entity);
     
     Spawn_Object trigger_object;
-    copy_entity(&trigger_object.entity, &trigger_entity);
+    trigger_object.entity = trigger_entity;
     str_copy(trigger_object.name, trigger_entity.name);
     spawn_objects.append(trigger_object);
     
-    Entity kill_trigger_entity = Entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
+    Entity kill_trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     kill_trigger_entity.trigger.kill_player = true;
     kill_trigger_entity.color = Fade(RED, 0.6f);
     str_copy(kill_trigger_entity.name, "kill_trigger"); 
     setup_color_changer(&kill_trigger_entity);
     
     Spawn_Object kill_trigger_object;
-    copy_entity(&kill_trigger_object.entity, &kill_trigger_entity);
+    kill_trigger_object.entity = kill_trigger_entity;
     str_copy(kill_trigger_object.name, kill_trigger_entity.name);
     spawn_objects.append(kill_trigger_object);
     
-    Entity kill_switch_entity = Entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
+    Entity kill_switch_entity = make_entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
     kill_switch_entity.color = ColorBrightness(RED, 0.3f);
     str_copy(kill_switch_entity.name, "kill_switch"); 
     setup_color_changer(&kill_switch_entity);
     
     Spawn_Object kill_switch_object;
-    copy_entity(&kill_switch_object.entity, &kill_switch_entity);
+    kill_switch_object.entity = kill_switch_entity;
     str_copy(kill_switch_object.name, kill_switch_entity.name);
     spawn_objects.append(kill_switch_object);
     
-    Entity enemy_barrier_entity = Entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | MULTIPLE_HITS);
+    Entity enemy_barrier_entity = make_entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | MULTIPLE_HITS);
     enemy_barrier_entity.color = ColorBrightness(GRAY, 0.2f);
     str_copy(enemy_barrier_entity.name, "enemy_barrier"); 
     setup_color_changer(&enemy_barrier_entity);
     
     Spawn_Object enemy_barrier_object;
-    copy_entity(&enemy_barrier_object.entity, &enemy_barrier_entity);
+    enemy_barrier_object.entity = enemy_barrier_entity;
     str_copy(enemy_barrier_object.name, enemy_barrier_entity.name);
     spawn_objects.append(enemy_barrier_object);
     
-    Entity spikes_entity = Entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
+    Entity spikes_entity = make_entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
     spikes_entity.trigger.kill_player = true;
     spikes_entity.color = Fade(RED, 0.9f);
     str_copy(spikes_entity.name, "spikes"); 
     setup_color_changer(&spikes_entity);
     
     Spawn_Object spikes_object;
-    copy_entity(&spikes_object.entity, &spikes_entity);
+    spikes_object.entity = spikes_entity;
     str_copy(spikes_object.name, spikes_entity.name);
     spawn_objects.append(spikes_object);
     
-    Entity propeller_entity = Entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
+    Entity propeller_entity = make_entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
     propeller_entity.color = Fade(BLUE, 0.4f);
     propeller_entity.color_changer.start_color = propeller_entity.color;
     propeller_entity.color_changer.target_color = propeller_entity.color * 1.5f;
@@ -2033,33 +1926,33 @@ void init_spawn_objects() {
     setup_color_changer(&propeller_entity);
     
     Spawn_Object propeller_object;
-    copy_entity(&propeller_object.entity, &propeller_entity);
+    propeller_object.entity = propeller_entity;
     str_copy(propeller_object.name, propeller_entity.name);
     spawn_objects.append(propeller_object);
     
-    Entity door_entity = Entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
+    Entity door_entity = make_entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
     door_entity.trigger.player_touch = false;
     door_entity.color = ColorBrightness(PURPLE, 0.6f);
     str_copy(door_entity.name, "door"); 
     setup_color_changer(&door_entity);
     
     Spawn_Object door_object;
-    copy_entity(&door_object.entity, &door_entity);
+    door_object.entity = door_entity;
     str_copy(door_object.name, door_entity.name);
     spawn_objects.append(door_object);
     
-    Entity enemy_trigger_entity = Entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
+    Entity enemy_trigger_entity = make_entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
     enemy_trigger_entity.trigger.player_touch = false;
     enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
     str_copy(enemy_trigger_entity.name, "enemy_trigger"); 
     setup_color_changer(&enemy_trigger_entity);
     
     Spawn_Object enemy_trigger_object;
-    copy_entity(&enemy_trigger_object.entity, &enemy_trigger_entity);
+    enemy_trigger_object.entity = enemy_trigger_entity;
     str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
     spawn_objects.append(enemy_trigger_object);
     
-    Entity centipede_entity = Entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
+    Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
     centipede_entity.move_sequence.moving = true;
     centipede_entity.move_sequence.loop = true;
     centipede_entity.move_sequence.rotate = true;
@@ -2069,44 +1962,44 @@ void init_spawn_objects() {
     setup_color_changer(&centipede_entity);
     
     Spawn_Object centipede_object;
-    copy_entity(&centipede_object.entity, &centipede_entity);
+    centipede_object.entity = centipede_entity;
     str_copy(centipede_object.name, centipede_entity.name);
     spawn_objects.append(centipede_object);
     
-    Entity centipede_segment_entity = Entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
+    Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
     centipede_segment_entity.need_to_save = false;
     centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
     str_copy(centipede_segment_entity.name, "centipede_segment"); 
     setup_color_changer(&centipede_segment_entity);
     
     Spawn_Object centipede_segment_object;
-    copy_entity(&centipede_segment_object.entity, &centipede_segment_entity);
+    centipede_segment_object.entity = centipede_segment_entity;
     str_copy(centipede_segment_object.name, centipede_segment_entity.name);
     spawn_objects.append(centipede_segment_object);
     
-    Entity shoot_stoper_entity = Entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
+    Entity shoot_stoper_entity = make_entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
     shoot_stoper_entity.color = ColorBrightness(BLACK, 0.3f);
     str_copy(shoot_stoper_entity.name, "shoot_stoper"); 
     setup_color_changer(&shoot_stoper_entity);
     
     Spawn_Object shoot_stoper_object;
-    copy_entity(&shoot_stoper_object.entity, &shoot_stoper_entity);
+    shoot_stoper_object.entity = shoot_stoper_entity;
     str_copy(shoot_stoper_object.name, shoot_stoper_entity.name);
     spawn_objects.append(shoot_stoper_object);
     
-    Entity hit_booster_entity = Entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
+    Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
     hit_booster_entity.enemy.max_hits_taken = -1;
     str_copy(hit_booster_entity.name, "hit_booster"); 
     setup_color_changer(&hit_booster_entity);
     
     Spawn_Object hit_booster_object;
-    copy_entity(&hit_booster_object.entity, &hit_booster_entity);
+    hit_booster_object.entity = hit_booster_entity;
     str_copy(hit_booster_object.name, hit_booster_entity.name);
     spawn_objects.append(hit_booster_object);
     
     // we use move sequence on jump shooter only to set jump points
-    Entity jump_shooter_entity = Entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
+    Entity jump_shooter_entity = make_entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
     jump_shooter_entity.move_sequence.moving = true;
     jump_shooter_entity.move_sequence.loop = true;
     jump_shooter_entity.enemy.max_hits_taken = 6;
@@ -2115,7 +2008,7 @@ void init_spawn_objects() {
     setup_color_changer(&jump_shooter_entity);
     
     Spawn_Object jump_shooter_object;
-    copy_entity(&jump_shooter_object.entity, &jump_shooter_entity);
+    jump_shooter_object.entity = jump_shooter_entity;
     str_copy(jump_shooter_object.name, jump_shooter_entity.name);
     spawn_objects.append(jump_shooter_object);
 }
@@ -2128,7 +2021,7 @@ struct Tile_Sheet {
 Array<Tile_Sheet> tile_sheets = {0};
 
 void add_spawn_object_from_texture(Texture texture, const char *name, const char *directory_name = 0) {
-    Entity texture_entity = Entity({0, 0}, {(f32)texture.width * 0.25f, (f32)texture.height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
+    Entity texture_entity = make_entity({0, 0}, {(f32)texture.width * 0.25f, (f32)texture.height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
@@ -2166,7 +2059,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
     // assign_texture(&texture_entity, texture, name);
     
     Spawn_Object texture_object;
-    copy_entity(&texture_object.entity, &texture_entity);
+    texture_object.entity = texture_entity;
     str_copy(texture_object.name, texture_entity.name);
     
     spawn_objects.append(texture_object);
@@ -2294,6 +2187,13 @@ void init_propeller_emitter_settings(Entity *e, Particle_Emitter *air_emitter) {
 }
 
 void init_entity(Entity *entity) {
+    // We're initing only entities that already present in entity array of current level context.
+    // That's because other entities or context or lights might want to get entity by it's id and it will fail if it's just 
+    // entity that we created localy.
+    
+    assert(entity->id > 0 && get_entity(entity->id)->id > 0);
+
+    entity->level_context = current_level_context;
     entity->color = entity->color_changer.start_color;
 
     if (entity->flags & AMMO_PACK){
@@ -2382,9 +2282,10 @@ void init_entity(Entity *entity) {
     if (entity->flags & NO_MOVE_BLOCK) {
         Light light = {0};
         light.color = entity->color;
-        lght.bake_shadows = true;
+        light.bake_shadows = true;
         light.opacity = 0.5f;
-        Light *new_light = copy_and_add_entity_light(entity, &light, true);
+        
+        Light *new_light = copy_and_add_light_to_entity(entity, &light, true);
     }
     
     if (entity->flags & BLOCKER && game_state == GAME) {
@@ -2578,7 +2479,8 @@ void init_entity(Entity *entity) {
             entity->trigger.cam_rails_points.free_data();            
         }
     }
-    
+
+    calculate_bounds(entity);
     setup_color_changer(entity);
 } // end init entity
 
@@ -3153,11 +3055,12 @@ void init_level_context(Level_Context *level_context) {
 
     init_array(&level_context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
     init_array(&level_context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
-    init_array(&level_context->lights, 1024, HEAP_ALLOCATOR);
     
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
+    
+    init_chunk_array(&level_context->lights, 64, HEAP_ALLOCATOR);
 
     //init context
     // for (i32 i = 0; i < level_context->lights.capacity; i++) {
@@ -3304,7 +3207,7 @@ void init_game() {
     
     load_render();
     
-    mouse_entity = Entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
+    mouse_entity = make_entity(input.mouse_position, {1, 1}, {0.5f, 0.5f}, 0, 0);
     
     char level_name_to_load[256] = "\0";
     if (0 && RELEASE_BUILD) {
@@ -4355,7 +4258,7 @@ inline b32 check_rectangles_collision(Vector2 pos1, Vector2 scale1, Vector2 pos2
     return solution;
 }
 
-inline b32 check_bounds_collision(Vector2 pos1, Vector2 pos2, Bounds bounds1, Bounds bounds2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}) {
+inline b32 check_bounds_collision(Vector2 pos1, Vector2 pos2, Bounds bounds1, Bounds bounds2, Vector2 pivot1, Vector2 pivot2) {
     Vector2 pivot_add1 = multiply(pivot1, bounds1.size);
     Vector2 position1 = pos1 + bounds1.offset;
     //firstly for left up
@@ -4598,12 +4501,13 @@ inline Light *get_light(i32 index, Level_Context *level_context) {
 
 inline Entity *get_entity(i32 id, Level_Context *level_context) {
     if (!level_context) level_context = current_level_context;
-    assert(id > -1 && "Invalid entity id!");
+    assert(id > 0 && "Invalid entity id!");
     
     // Right now we trying to constrain all ids and guarantee that id is valid, so here is no external checks.
     // (guarantee is happening becuase of how we set and track ids on connected entities in file entity_ids.cpp and everywhere).
     
-    return level_context->entities.get(id);
+    // Entity ids are index + 1, so 0 is always invalid.
+    return level_context->entities.get(id - 1);
 }
 
 i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find) {
@@ -4616,9 +4520,9 @@ i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find) {
     return -1;
 }
 
-inline b32 entity_array_contains_id(Entity *arr, i32 count, i32 id) {
+inline b32 entity_array_contains_id(Entity **arr, i32 count, i32 id) {
     for (i32 i = 0; i < count; i++) {
-        if (arr[i].id == id) {
+        if (arr[i]->id == id) {
             return true;
         }
     }
@@ -4703,7 +4607,7 @@ void add_undo_action(Undo_Action undo_action) {
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(&undo_level_context);
     for (i32 i = 0; i < new_undo->deleted_entities.count; i++) {
-        free_entity(new_undo->deleted_entities.get(i));
+        free_entity(new_undo->deleted_entities.get_value(i));
     }
     new_undo->deleted_entities.clear();
     
@@ -4713,7 +4617,7 @@ void add_undo_action(Undo_Action undo_action) {
         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
             original_level_context->undo_actions.get(i)->changed_entities.clear();
             for (i32 d = 0; d < new_undo->deleted_entities.count; d++) {
-                free_entity(new_undo->deleted_entities.get(d));
+                free_entity(new_undo->deleted_entities.get_value(d));
             }
             original_level_context->undo_actions.get(i)->deleted_entities.clear();
         }
@@ -4780,7 +4684,7 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
         undo_action.entity_was_deleted = true;
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&undo_level_context);
-        undo_action.deleted_entities.append(copy_entity(editor.selected_entity, true, &undo_level_context));
+        undo_action.deleted_entities.append(copy_and_add_entity(editor.selected_entity, &undo_level_context));
         undo_action.changed_entities.append(editor.selected_entity->id);
         switch_current_level_context(original_level_context);
         // copy_entity(&undo_action.deleted_entity, editor.selected_entity);
@@ -4813,7 +4717,7 @@ void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *und
         
         if (undo_action) {
             // @LEAK: Check if we're freeing all stuff in deleted_entities.
-            undo_action->deleted_entities.append(copy_entity(entity, true, &undo_level_context));
+            undo_action->deleted_entities.append(copy_and_add_entity(entity, &undo_level_context));
             undo_action->changed_entities.append(entity->id);
         }
         switch_current_level_context(original_level_context);
@@ -5257,10 +5161,10 @@ void update_editor_ui() {
         if (editor.draw_light_settings) {
             INSPECTOR_UI_TOGGLE_FLAGS("Make light: ", "make_light", selected->flags, LIGHT, 
                 if (selected->flags & LIGHT) {
-                    Light empty_light = {0}:
+                    Light empty_light = {0};
                     copy_and_add_light_to_entity(selected, &empty_light, true);                    
                 } else {
-                    free_entity_light(selected);
+                    free_lights_connected_to_entity(selected);
                 }
             );
             if (selected->flags & LIGHT && selected->lights.count > 0) {
@@ -5277,11 +5181,11 @@ void update_editor_ui() {
                 make_ui_text("Bake shadows: ", {inspector_position.x + 5, v_pos}, "light_bake_shadows", 17, ColorBrightness(light->bake_shadows ? GREEN : RED, 0.5f));
                 if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->bake_shadows, "light_bake_shadows")) {
                     light->bake_shadows = !light->bake_shadows;
-                    copy_and_add_entity_light(selected, light, true);
+                    copy_and_add_light_to_entity(selected, light, true);
                 }
                 v_pos += height_add;
                 
-                INSPECTOR_UI_TOGGLE("Make shadows: ", "light_make_shadows", light->make_shadows, copy_and_add_entity_light(selected, light, true));
+                INSPECTOR_UI_TOGGLE("Make shadows: ", "light_make_shadows", light->make_shadows, copy_and_add_light_to_entity(selected, light, true));
 
                 if (light->make_shadows) {
                     make_ui_text("Shadows Size flags: ", {inspector_position.x + 5, v_pos}, "shadows_size_flags");
@@ -5290,7 +5194,7 @@ void update_editor_ui() {
                     v_pos += height_add * 2;
                 }
                 
-                INSPECTOR_UI_TOGGLE("Make backshadows: ", "light_make_backshadows", light->make_backshadows, copy_and_add_entity_light(selected, light, true));
+                INSPECTOR_UI_TOGGLE("Make backshadows: ", "light_make_backshadows", light->make_backshadows, copy_and_add_light_to_entity(selected, light, true));
 
                 if (light->make_backshadows) {
                     make_ui_text("Backshadows Size flags: ", {inspector_position.x + 5, v_pos}, "backshadows_size_flags");
@@ -5430,7 +5334,12 @@ void update_editor_ui() {
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Explosive: ", "enemy_explosive", selected->flags, EXPLOSIVE, 
                     if (!(selected->flags & EXPLOSIVE)) {
-                        free_entity_light(selected);
+                        free_lights_connected_to_entity(selected);
+                        
+                        // We're just not allowing EXPLOSIVE to have another light, because he's light on it's own.
+                        if (selected->flags & LIGHT) {
+                            selected->flags ^= LIGHT;
+                        }
                     }
                     init_entity(selected);
                 );
@@ -5679,13 +5588,13 @@ void update_editor_ui() {
             Color text_color   = lerp(WHITE * 0, WHITE * 0.9f, clamp01(create_t * 2));
             
             if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))) {
-                Entity *entity = copy_and_add_entity(&obj.entity);
+                Entity *entity = copy_and_add_entity(&obj.entity, current_level_context);
                 entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
                 
                 Undo_Action undo_action;
                 // @LEAK: Check that we free that.
-                undo_action.spawned_entity = copy_entity(entity, true, &undo_level_context);
+                undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
                 undo_action.entity_id = entity->id;
                 undo_action.entity_was_spawned = true;
                 add_undo_action(undo_action);
@@ -5770,7 +5679,7 @@ Entity *editor_spawn_entity(const char *name, Vector2 position) {
     if (entity) {
         Undo_Action undo_action;
         // @LEAK: Check that we're freeing this.
-        undo_action.spawned_entity = copy_entity(entity, true, &undo_level_context);
+        undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
         undo_action.entity_id = entity->id;
         undo_action.entity_was_spawned = true;
         add_undo_action(undo_action);
@@ -5891,9 +5800,9 @@ void restore_deleted_entities(Undo_Action *action) {
         // he's taked that id - on undo we should remove him.
         assert(get_entity(deleted_entity_id) == NULL);
         // @TODO: Here we actually would like to 
-        Entity *deleted_entity = action->deleted_entities.get(i);
+        Entity *deleted_entity = action->deleted_entities.get_value(i);
         
-        Entity *restored_entity = copy_and_insert_entity(deleted_entity, deleted_entity->id);
+        Entity *restored_entity = copy_and_add_entity(deleted_entity, current_level_context, deleted_entity->id);
         restored_entity->id = deleted_entity_id;
         
         if (action->changed_entities.count > 1) {
@@ -6633,7 +6542,7 @@ void update_editor() {
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&copied_entities_level_context);
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
-            free_entity(editor.copied_entities.get(i));
+            free_entity(editor.copied_entities.get_value(i));
         }
         editor.copied_entities.clear();
         if (multiselection->entities.count > 0) {
@@ -6641,12 +6550,12 @@ void update_editor() {
                 Entity *entity_to_copy = get_entity(multiselection->entities.get_value(i), original_level_context);   
                 // We keep id here so later we could verify different connected entities by ids. 
                 // @LEAK: Check that we're actually freeing copied entities.
-                editor.copied_entities.append(copy_entity(entity_to_copy, true, &copied_entities_level_context));
+                editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context));
             }
             editor.copied_entities_center = multiselection->center;
         } else {
             Entity *entity_to_copy = get_entity(editor.selected_entity->id, original_level_context);   
-            editor.copied_entities.append(copy_entity(entity_to_copy, true, &copied_entities_level_context));
+            editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context));
             // copy_entity(&editor.copied_entity, editor.selected_entity);
             editor.copied_entities_center = entity_to_copy->position;
         }
@@ -6669,8 +6578,8 @@ void update_editor() {
             spawned_entities.clear();
             clear_multiselected_entities(true);
             for (i32 i = 0; i < editor.copied_entities.count; i++) {
-                Entity *to_spawn = editor.copied_entities.get(i);
-                Entity *spawned = copy_and_add_entity(to_spawn);
+                Entity *to_spawn = editor.copied_entities.get_value(i);
+                Entity *spawned = copy_and_add_entity(to_spawn, current_level_context);
                 spawned_entities.append(spawned->id);
                 spawned->position += paste_position - editor.copied_entities_center;
                 editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
@@ -6702,7 +6611,7 @@ void update_editor() {
                     unregister_entity_ids_reference_from_connected(spawned, &spawned->trigger.tracking);
                     spawned->trigger.tracking.clear();
                     // @CLEANUP: Will have to change here when we'll remove all of types from entity. Nothing scary.
-                    Entity *copied_trigger_entity = editor.copied_entities.get(i);
+                    Entity *copied_trigger_entity = editor.copied_entities.get_value(i);
                     // Here we want to go through all copied entities and find entities with ids from copied trigger.
                     // Then we want to add entity from spawned with the same index to connected and tracked of new trigger.
                     // That's confusing because it's just is. Not sure if it's even possible to make simpler.
@@ -6710,7 +6619,7 @@ void update_editor() {
                     //
                     // UPDATE after ~3 months - completely understandable. Making same thing for KILL_SWITCH now.
                     for (i32 x = 0; x < spawned_entities.count; x++) {
-                        Entity *other_copied_entity = editor.copied_entities.get(x);
+                        Entity *other_copied_entity = editor.copied_entities.get_value(x);
                         if (copied_trigger_entity->trigger.connected.contains(other_copied_entity->id)) {
                             spawned->trigger.connected.append(register_entity_id_reference(spawned, spawned_entities.get_value(x)));
                         }
@@ -6729,7 +6638,7 @@ void update_editor() {
                 // when we copy big chunks of level    
                 // without trigger and trigger connecting to new level parts that could be not even relevant to him.
                 if (spawned_entities.count < 10) {
-                    i32 originally_copied_id = editor.copied_entities.get(i)->id;
+                    i32 originally_copied_id = editor.copied_entities.get_value(i)->id;
                     i32 spawned_id = spawned->id;
                     ForEntities(entity, TRIGGER | KILL_SWITCH) {
                         // If this trigger or kill switch happened to be in copied - we do not assign anything new to him, 
@@ -7227,7 +7136,7 @@ void update_editor() {
             }
         } else if (action->entity_was_spawned) { //so we need spawn this again
             if (action->entity_id != -1) {
-                Entity *restored_entity = copy_and_insert_entity(&action->spawned_entity, action->spawned_entity.id);
+                Entity *restored_entity = copy_and_add_entity(action->spawned_entity, current_level_context, action->spawned_entity->id);
                 // restored_entity->id = action->spawned_entity.id;
                 action->entity_id = restored_entity->id;
             }
@@ -12583,118 +12492,132 @@ void setup_color_changer(Entity *entity) {
     entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
 }
 
-Entity copy_entity(Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy, i32 id_to_set) {
-    Entity e = {};    
-    i32 original_id = id_to_set > -1 ? id_to_set : to_copy->id;
-    e = *to_copy;
-    e.id = original_id;
+Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 index_to_insert) {
+    // On calling copy_entity we're always doing a deep copy and adding entity to the entities array because we're cannot 
+    // init entity without it being inside a entity array because other entities might want to refer to it. And it's don't 
+    // really makes sense to have dummy entity that creating things on level context.
+    i32 id_to_set = 0;
+    Entity *e = NULL;
+    if (index_to_insert > 0) {
+        e = level_context_for_deep_copy->entities.insert({0}, index_to_insert);
+        id_to_set = index_to_insert + 1;
+    } else {
+        e = level_context_for_deep_copy->entities.append({0}, &id_to_set);
+        // Because append gives us index and entity id is index + 1 so id 0 is invalid.
+        id_to_set += 1;
+    }
+    *e = *to_copy;
+    e->id = id_to_set;
     
-    if (do_deep_copy) {
-        assert(level_context_for_deep_copy && "Forgot to specify level context for deep copy.");      
+    e->level_context = level_context_for_deep_copy;        
+    
+    if (e->id <= 0) return e;
+    
+    assert(level_context_for_deep_copy && "Forgot to specify level context for deep copy.");      
                    
-        str_copy(e.name, to_copy->name);
+    str_copy(e->name, to_copy->name);
         
-        if (e.flags & TEXTURE) {
-            str_copy(e.texture_name, to_copy->texture_name);
-        }
-        
-        e.color_changer = to_copy->color_changer;
-        
-        if (e.flags & DRAW_TEXT) {
-            e.text_drawer = to_copy->text_drawer;
-        }
-        if (e.flags & ENEMY) {
-            e.enemy = to_copy->enemy;
-        }
-        
-        // nocheckin that probably will break. need to think. Especially because we're going to change id if this called
-        // from copy_and_add_entity.
-        e.connected_entities = copy_array(&to_copy->connected_entities);
-        e.entities_pointing_at_me = copy_array(&to_copy->connected_entities);
-        // if (keep_id) entities_pointing_at_me = copy_array(&to_copy->entities_pointing_at_me);
-        
-        // copy trigger
-        if (e.flags & TRIGGER) {
-            e.trigger = to_copy->trigger;
-            e.trigger.connected = {0};
-            e.trigger.connected = copy_array(&to_copy->trigger.connected);
-            e.trigger.connected = copy_array(&to_copy->trigger.tracking);
-            
-            e.trigger.cam_rails_points = copy_array(&to_copy->trigger.cam_rails_points);
-        }
-        
-        // copy kill switch
-        if (e.flags & KILL_SWITCH) {
-            Kill_Switch *kill_switch = &e.enemy.kill_switch;
-            Kill_Switch *copy_kill_switch = &to_copy->enemy.kill_switch;
-            *kill_switch = *copy_kill_switch;
-            kill_switch->connected = {0};
-            kill_switch->connected = copy_array(&copy_kill_switch->connected);
-        }
-        
-        if (e.flags & NOTE) {
-            e.note_index = add_note("");
-            if (e.note_index != -1 && to_copy->note_index != -1) {
-                *level_context_for_deep_copy->notes.get(e.note_index) = *to_copy->level_context->notes.get(to_copy->note_index);
-            }
-        }
-        
-        if (e.flags & MOVE_SEQUENCE) {
-            e.move_sequence = to_copy->move_sequence;
-            e.move_sequence.points = {0};
-            e.move_sequence.points = copy_array(&to_copy->move_sequence.points);    
-        }
-        
-        if (e.flags & PROPELLER) {
-            e.propeller = to_copy->propeller;
-        }
-        
-        if (e.flags & DOOR) {
-            e.door = to_copy->door;
-        }
-        
-        if (to_copy->lights.count > 0) {
-            // e.light_index = -1;
-            for_array(i, to_copy->lights) {
-                Light *copy_light = to_copy->level_context->lights.get(to_copy->lights.get_value(i));  
-                copy_and_add_light_to_entity(&e, copy_light);
-            }
-        }
-        
-        if (1/* || should_init_entity*/) {
-            e.particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
-            rotate_to(&e, e.rotation);
-            setup_color_changer(&e);
-            init_entity(&e);
-            calculate_bounds(&e);
-        }
-    
-        e.level_context = level_context_for_deep_copy;        
+    if (e->flags & TEXTURE) {
+        str_copy(e->texture_name, to_copy->texture_name);
     }
     
+    e->color_changer = to_copy->color_changer;
+    
+    if (e->flags & DRAW_TEXT) {
+        e->text_drawer = to_copy->text_drawer;
+    }
+    if (e->flags & ENEMY) {
+        e->enemy = to_copy->enemy;
+    }
+    
+    // nocheckin that probably will break. need to think. Especially because we're going to change id if this called
+    // from copy_and_add_entity.
+    e->connected_entities = copy_array(&to_copy->connected_entities);
+    e->entities_pointing_at_me = copy_array(&to_copy->connected_entities);
+    // if (keep_id) entities_pointing_at_me = copy_array(&to_copy->entities_pointing_at_me);
+    
+    // copy trigger
+    if (e->flags & TRIGGER) {
+        e->trigger = to_copy->trigger;
+        e->trigger.connected = {0};
+        e->trigger.connected = copy_array(&to_copy->trigger.connected);
+        e->trigger.connected = copy_array(&to_copy->trigger.tracking);
+        
+        e->trigger.cam_rails_points = copy_array(&to_copy->trigger.cam_rails_points);
+    }
+    
+    // copy kill switch
+    if (e->flags & KILL_SWITCH) {
+        Kill_Switch *kill_switch = &e->enemy.kill_switch;
+        Kill_Switch *copy_kill_switch = &to_copy->enemy.kill_switch;
+        *kill_switch = *copy_kill_switch;
+        kill_switch->connected = {0};
+        kill_switch->connected = copy_array(&copy_kill_switch->connected);
+    }
+    
+    if (e->flags & NOTE) {
+        e->note_index = add_note("");
+        if (e->note_index != -1 && to_copy->note_index != -1) {
+            *level_context_for_deep_copy->notes.get(e->note_index) = *to_copy->level_context->notes.get(to_copy->note_index);
+        }
+    }
+    
+    if (e->flags & MOVE_SEQUENCE) {
+        e->move_sequence = to_copy->move_sequence;
+        e->move_sequence.points = {0};
+        e->move_sequence.points = copy_array(&to_copy->move_sequence.points);    
+    }
+    
+    if (e->flags & PROPELLER) {
+        e->propeller = to_copy->propeller;
+    }
+    
+    if (e->flags & DOOR) {
+        e->door = to_copy->door;
+    }
+    
+    if (to_copy->lights.count > 0) {
+        // e->light_index = -1;
+        e->lights = copy_array(&to_copy->lights);
+        e->lights.clear();
+        for_array(i, &to_copy->lights) {
+            Light *copy_light = to_copy->level_context->lights.get(to_copy->lights.get_value(i));  
+            copy_and_add_light_to_entity(e, copy_light);
+        }
+    }
+    
+    rotate_to(e, e->rotation);
+    setup_color_changer(e);
+    
+    
+    e->particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
+    init_entity(e);
+    
     return e;
 }
 
-inline void copy_entity(Entity *dest, Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy, i32 id_to_set) {
-    *dest = copy_entity(to_copy, do_deep_copy, level_context_for_deep_copy);
-}
+// inline void copy_entity(Entity *dest, Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy, i32 id_to_set) {
+//     *dest = copy_entity(to_copy, do_deep_copy, level_context_for_deep_copy);
+// }
 
-inline Entity* copy_and_add_entity(Entity *to_copy) {
-    i32 id = 0;
-    Entity *e = current_level_context->entities.append({}, &id);
-    *e = copy_entity(to_copy, true, current_level_context, id);
+// inline Entity* copy_and_add_entity(Entity *to_copy) {
+//     i32 id = 0;
+//     Entity *e = current_level_context->entities.append({}, &id);
+//     *e = copy_entity(to_copy, true, current_level_context, id);
 
-    return e;
-}
-inline Entity* copy_and_insert_entity(Entity *to_copy, i32 index) {
-    Entity *e = current_level_context->entities.insert(copy_entity(to_copy, true, current_level_context, index), index);
-    return e;
-}
+//     return e;
+// }
+// inline Entity* copy_and_insert_entity(Entity *to_copy, i32 index) {
+//     Entity *e = current_level_context->entities.insert(copy_entity(to_copy, true, current_level_context, index), index);
+//     return e;
+// }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     i32 id = 0;
     Entity *e = current_level_context->entities.append({}, &id);
-    *e = Entity(pos, scale, pivot, rotation, flags);    
+    // Because append gives us index and entity id is index + 1 so id 0 is invalid.
+    id += 1;
+    *e = make_entity(pos, scale, pivot, rotation, flags);    
     e->id = id;
     
     e->level_context = current_level_context;
@@ -12706,7 +12629,9 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags) {
     i32 id = 0;
     Entity *e = current_level_context->entities.append({}, &id);
-    *e = Entity(pos, scale, pivot, rotation, texture, flags);    
+    // Because append gives us index and entity id is index + 1 so id 0 is invalid.
+    id += 1;
+    *e = make_entity(pos, scale, pivot, rotation, texture, flags);    
     e->id = id;
     e->level_context = current_level_context;
     
@@ -12724,7 +12649,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Colo
 // Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
 //     i32 id = 0;
 //     Entity *e = 
-//     Entity e = Entity(pos, scale, pivot, rotation, flags);    
+//     Entity e = make_entity(pos, scale, pivot, rotation, flags);    
 //     // e.id = id;
 //     e.level_context = current_level_context;
 //     // check_avaliable_ids_and_set_if_found(&e.id);

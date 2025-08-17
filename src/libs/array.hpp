@@ -70,7 +70,8 @@ struct Array {
     }
     
     inline void remove_first_encountered(T *value) {
-        remove(find(value));
+        i32 index = find(value);
+        if (index >= 0) remove(index);
     }
     inline void remove_first_encountered(T value) {
         remove_first_encountered(&value);
@@ -427,11 +428,21 @@ struct Chunk_Array {
             if (i > 0) chunk = chunk->next;
             if (index_in_chunk(index, chunk, i)) {
                 Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
-                assert(!chunk_element->occupied);
                 
-                chunk_element->occupied = true;
+                // We're not asserting just because I'm assuming that we're know what we're doing. 
+                // It's used while copying level context entities array and then re-inserting deep copy of an entity in 
+                // the same place. I'll think more about do we really need this assert or we just should change logic in 
+                // one place where we're asserting. (started thinking 17.08.2025).
+                // assert(!chunk_element->occupied);
+                
+                if (chunk_element->occupied) {
+                    
+                } else {
+                    chunk_element->occupied = true;
+                    chunk->occupied_count += 1;
+                }
+                
                 chunk_element->value = value;
-                chunk->occupied_count += 1;
                 
                 assert(chunk->occupied_count <= chunk_size);
                 return &chunk_element->value;
@@ -451,7 +462,7 @@ struct Chunk_Array {
                 
                 chunk_element->occupied = false;
                 chunk->occupied_count -= 1;
-                assert(chunk->occupied_count > 0);
+                assert(chunk->occupied_count >= 0);
                 
                 return;
             }
