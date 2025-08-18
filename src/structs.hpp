@@ -797,17 +797,17 @@ struct Projectile{
     f32 last_light_spawn_time = -112;
 };
 
-enum Pointing_At_Me_Type {
-    Pointing_Invalid = 0,
-    Pointing_Trigger_Connected,
-    Pointing_Trigger_Tracking,
-    Pointing_Kill_Switch_Connected
-};
+// enum Pointing_At_Me_Type {
+//     Pointing_Invalid = 0,
+//     Pointing_Trigger_Connected,
+//     Pointing_Trigger_Tracking,
+//     Pointing_Kill_Switch_Connected
+// };
 
-struct Pointing_At_Me_Info {
-    i32 id = 0;  
-    Pointing_At_Me_Type type;
-};
+// struct Pointing_At_Me_Info {
+//     i32 id = 0;  
+//     Pointing_At_Me_Type type;
+// };
 
 struct Entity {
     i32 id = -1;
@@ -818,6 +818,7 @@ struct Entity {
     Level_Context *level_context = NULL;
     
     char name[128] = "unknown_name";
+    // String name = {0};
 
     b32 enabled = 1;
     
@@ -832,8 +833,8 @@ struct Entity {
     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     
-    Array <i32> connected_entities = {0};
-    Array <i32> entities_pointing_at_me = {0};
+    // Array <i32> connected_entities = {0};
+    // Array <i32> entities_pointing_at_me = {0};
     
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};

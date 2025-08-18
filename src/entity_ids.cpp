@@ -178,6 +178,12 @@ inline i32 register_entity_id_reference(Entity *entity, i32 connected_id) {
     get_entity(connected_id)->entities_pointing_at_me.append(entity->id);
     return *entity->connected_entities.append(connected_id);
 }
+inline void register_entity_ids_reference(Entity *entity, Array <i32> *ids) {
+    assert(!ids->contains(entity->id));
+    for_array(i, ids) {
+        register_entity_id_reference(entity, ids->get_value(i));
+    }
+}
 
 inline void unregister_one_entity_id_reference_from_connected(Entity *entity, i32 id) {
     assert(entity->id != id);   

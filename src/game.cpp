@@ -168,6 +168,11 @@ inline Color color_opacity(Color color, f32 alpha) {
     return {color.r, color.g, color.b, (u8)(clamp01(alpha) * 255)};
 }
 
+inline void mark_entity_destroyed(Entity *entity) {
+    // mark_entity_destroyed(entity);
+    entity->destroyed = true;
+}
+
 void free_entity(Entity *e) {
     if (e->flags & TRIGGER) {
         if (e->trigger.connected.capacity > 0) {
@@ -196,7 +201,7 @@ void free_entity(Entity *e) {
             // we'll call it anyway, but nonetheless we should be able to just call free_entity without trouble in such case.
             // Will see into that when will rewrite entities.
             Entity *segment = get_entity(e->centipede.segments_ids.get_value(i), e->level_context);
-            segment->destroyed = true;
+            mark_entity_destroyed(segment);
             segment->enabled = false;
         }
         
@@ -208,15 +213,15 @@ void free_entity(Entity *e) {
     //     Entity *rope_entity = get_entity(e->physics_object.rope_id);
     //     if (e->physics_object.on_rope) {
     //         if (rope_entity) {
-    //             rope_entity->destroyed = true;
+    // mark_entity_destroyed(//             rope_entity);
     //         }
     //         Entity *up_rope_point_entity = get_entity(e->physics_object.up_rope_point_id);
     //         if (up_rope_point_entity) {
-    //             up_rope_point_entity->destroyed = true;
+    // mark_entity_destroyed(//             up_rope_point_entity);
     //         }
     //         Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
     //         if (down_rope_point_entity) {
-    //             down_rope_point_entity->destroyed = true;
+    // mark_entity_destroyed(//             down_rope_point_entity);
     //         }
     //     }
     // }
@@ -2291,7 +2296,7 @@ void init_entity(Entity *entity) {
     if (entity->flags & BLOCKER && game_state == GAME) {
         // init blocker
         if (entity->enemy.blocker_sticky_id != -1) {
-            get_entity(entity->enemy.blocker_sticky_id)->destroyed = true;
+            mark_entity_destroyed(get_entity(entity->enemy.blocker_sticky_id));
         }
         
         if (!entity->enemy.blocker_immortal) {
@@ -2317,7 +2322,7 @@ void init_entity(Entity *entity) {
     if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME) {
         // init sword size required
         if (entity->enemy.sword_required_sticky_id != -1) {
-            get_entity(entity->enemy.sword_required_sticky_id)->destroyed = true;
+            mark_entity_destroyed(get_entity(entity->enemy.sword_required_sticky_id));
         }
         
         Texture texture = entity->enemy.big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
@@ -3224,13 +3229,13 @@ void init_game() {
 void destroy_player() {
     assert(player_entity);
 
-    player_entity->destroyed = true;
+    mark_entity_destroyed(player_entity);
     player_entity->enabled   = false;
     
     // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.ground_checker_id));
-    get_entity(player_data->connected_entities_ids.ground_checker_id)->destroyed = true;
+    mark_entity_destroyed(get_entity(player_data->connected_entities_ids.ground_checker_id));
     // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
-    get_entity(player_data->connected_entities_ids.sword_entity_id)->destroyed = true;
+    mark_entity_destroyed(get_entity(player_data->connected_entities_ids.sword_entity_id));
     
     player_entity = NULL;
 }
@@ -3362,6 +3367,8 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
     ForEntities(entity, 0) {
         if (should_init_entities) {
             update_editor_entity(entity);
+            // Initing it again because some entities (like centipede) wanna init things only in game state. 
+            // Need to change that.
             init_entity(entity);
             update_entity_collision_cells(entity);
         }
@@ -4691,7 +4698,7 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
         // undo_action.entity_id = undo_action.deleted_entity.id;
         add_undo_action(undo_action);
     }
-    entity->destroyed = true;
+    mark_entity_destroyed(entity);
     editor.selected_entity = NULL;
     editor.dragging_entity = NULL;
     editor.cursor_entity   = NULL;
@@ -7701,7 +7708,7 @@ inline void cut_rope(Entity *entity, Vector2 point = Vector2_zero) {
     if (point == Vector2_zero) {
         point = entity->position;
     }
-    entity->destroyed = true;
+    mark_entity_destroyed(entity);
     emit_particles(&rifle_bullet_emitter, point, entity->up, 6, 50);
     play_sound("RopeCut", point);
 }
@@ -8717,7 +8724,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
             emit_particles(&fire_emitter, shooter_entity->position, col.normal, 4, 3);
             play_sound("Explosion", shooter_entity->position, 0.3f);
             add_explosion_light(shooter_entity->position, rnd(100.0f, 250.0f), 0.15f, 0.4f, ColorBrightness(RED, 0.5f));
-            shooter_entity->destroyed = true;
+            mark_entity_destroyed(shooter_entity);
             shooter_entity->enabled = false;
             shake_camera(0.6f);
             return;
@@ -8784,7 +8791,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col) {
                 
                 add_explosion_light(bird_entity->position, rnd(75.0f, 200.0f), 0.1f, 0.3f, ColorBrightness(ORANGE, 0.5f));
                 
-                bird_entity->destroyed = true;
+                mark_entity_destroyed(bird_entity);
                 bird_entity->enabled = false;
                 shake_camera(0.6f);
                 return;
@@ -9107,7 +9114,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         b32 should_not_be_destroyed = (enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT));
         if (!should_not_be_destroyed) {
             enemy_entity->enabled = false;
-            enemy_entity->destroyed = true;
+            mark_entity_destroyed(enemy_entity);
     
             if (enemy_entity->flags & SHOOT_STOPER) {
                 // assert(state_context.shoot_stopers_count >= 0);
@@ -9191,7 +9198,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                         other_entity->jump_shooter.velocity += dir_to_other * explosion_add_speed;
                     }
                 } else if (other_entity->flags & PROJECTILE) {
-                    other_entity->destroyed = true;
+                    mark_entity_destroyed(other_entity);
                 }
                 
                 if (other_entity->flags & PHYSICS_OBJECT) {
@@ -9524,7 +9531,7 @@ void calculate_projectile_collisions(Entity *entity) {
             
             // Dying player rifle projectile is just slow shit and that happens only after bounce. So we destroy it at any collision.
             if (projectile->dying) {
-                entity->destroyed = true;
+                mark_entity_destroyed(entity);
                 return;
             }
             
@@ -9623,17 +9630,17 @@ void calculate_projectile_collisions(Entity *entity) {
             if (other->flags & PHYSICS_OBJECT) {
                 apply_physics_force(projectile->velocity, 0.5f, &other->physics_object, col.normal);
                 emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
-                entity->destroyed = true;
+                mark_entity_destroyed(entity);
             }
             
             if (other->flags & GROUND) {
-                entity->destroyed = true;
+                mark_entity_destroyed(entity);
                 emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
             }
             
             if (other->flags & ROPE_POINT) {
                 // cut rope point
-                other->destroyed = true;
+                mark_entity_destroyed(other);
                 emit_particles(&rifle_bullet_emitter, col.point, col.normal, 6, 10);
                 emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
                 play_sound("RopeCut", col.point);
@@ -9711,9 +9718,9 @@ void update_projectile(Entity *entity, f32 dt) {
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
         if (entity->flags & ENEMY) {
             // kill_enemy(entity, entity->position, entity->up);
-            entity->destroyed = true;    
+            mark_entity_destroyed(entity);    
         } else {
-            entity->destroyed = true;    
+            mark_entity_destroyed(entity);    
         }
         return;
     }
@@ -9721,7 +9728,7 @@ void update_projectile(Entity *entity, f32 dt) {
     f32 sqr_distance_to_player = sqr_magnitude(entity->position - player_entity->position);
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
         if (sqr_distance_to_player > 1000 * 1000) {
-            entity->destroyed = true;
+            mark_entity_destroyed(entity);
             return;
         }
         
@@ -9807,7 +9814,7 @@ void update_sticky_texture(Entity *entity, f32 dt) {
     if (st->max_lifetime > EPSILON) {
         lifetime_t = lifetime / st->max_lifetime;
         if (lifetime >= st->max_lifetime) {
-            entity->destroyed = true;
+            mark_entity_destroyed(entity);
         } else {
             entity->color = lerp(entity->color_changer.start_color, Fade(WHITE, 0), EaseOutExpo(lifetime_t));
         }
@@ -9820,7 +9827,7 @@ void update_sticky_texture(Entity *entity, f32 dt) {
         }
         entity->position = lerp(entity->position, target_position, dt * 40);
     } else if (st->max_lifetime <= EPSILON) {
-        entity->destroyed = true;
+        mark_entity_destroyed(entity);
     }
     
     if (follow_entity && follow_entity->flags & ENEMY && follow_entity->enemy.dead_man && !st->should_draw_until_expires) {
@@ -10354,13 +10361,13 @@ inline b32 update_entity(Entity *e, f32 dt) {
             if (!rope_entity || !up_rope_point_entity || !down_rope_point_entity) {
                 e->physics_object.on_rope = false;
                 if (rope_entity) {
-                    rope_entity->destroyed = true;
+                    mark_entity_destroyed(rope_entity);
                 }
                 if (up_rope_point_entity) {
-                    up_rope_point_entity->destroyed = true;
+                    mark_entity_destroyed(up_rope_point_entity);
                 }
                 if (down_rope_point_entity) {
-                    down_rope_point_entity->destroyed = true;
+                    mark_entity_destroyed(down_rope_point_entity);
                 }
             } else {
                 update_entity_collision_cells(rope_entity);
@@ -10390,7 +10397,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     if (e->flags & PLAYER && !debug.dragging_player) {
         if (e->flags & REPLAY_PLAYER) {
             if (!session_context.playing_replay) {
-                e->destroyed = true;
+                mark_entity_destroyed(e);
                 return true;
             }
             // @HACK if we'll use replay characters more - we should really look into where we use player_data->
@@ -12530,10 +12537,11 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->enemy = to_copy->enemy;
     }
     
-    // nocheckin that probably will break. need to think. Especially because we're going to change id if this called
     // from copy_and_add_entity.
-    e->connected_entities = copy_array(&to_copy->connected_entities);
-    e->entities_pointing_at_me = copy_array(&to_copy->connected_entities);
+    e->connected_entities = {0};
+    e->entities_pointing_at_me = {0};
+    // e->connected_entities = copy_array(&to_copy->connected_entities);
+    // e->entities_pointing_at_me = copy_array(&to_copy->connected_entities);
     // if (keep_id) entities_pointing_at_me = copy_array(&to_copy->entities_pointing_at_me);
     
     // copy trigger
@@ -12541,7 +12549,10 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->trigger = to_copy->trigger;
         e->trigger.connected = {0};
         e->trigger.connected = copy_array(&to_copy->trigger.connected);
-        e->trigger.connected = copy_array(&to_copy->trigger.tracking);
+        register_entity_ids_reference(e, &to_copy->trigger.connected);
+        e->trigger.tracking = {0};
+        e->trigger.tracking =  copy_array(&to_copy->trigger.tracking);
+        register_entity_ids_reference(e, &to_copy->trigger.tracking);
         
         e->trigger.cam_rails_points = copy_array(&to_copy->trigger.cam_rails_points);
     }
@@ -12553,6 +12564,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         *kill_switch = *copy_kill_switch;
         kill_switch->connected = {0};
         kill_switch->connected = copy_array(&copy_kill_switch->connected);
+        register_entity_ids_reference(e, &kill_switch->connected);
     }
     
     if (e->flags & NOTE) {

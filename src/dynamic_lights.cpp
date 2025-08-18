@@ -392,6 +392,8 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     explosion_light.additional_shadows_flags = ENEMY | PLAYER | SWORD;
     explosion_light.connected_entity_id = entity_id;
     
+    explosion_light.level_context = current_level_context;
+    
     if (entity_id > 0) {
         Entity *entity_to_connect_to = get_entity(entity_id);
         copy_and_add_light_to_entity(entity_to_connect_to, &explosion_light);

@@ -306,7 +306,7 @@ struct Chunk_Array {
     inline i32 next_avaliable_value(i32 start_index, T **element, b32 should_be_occupied = false) {
         i32 index = next_avaliable_index(start_index, should_be_occupied);
         if (index < chunks_count * chunk_size) *element = get(index);
-        else element = NULL; 
+        else *element = NULL; 
         
         return index;
     }
@@ -459,6 +459,8 @@ struct Chunk_Array {
             if (i > 0) chunk = chunk->next;
             if (index_in_chunk(index, chunk, i)) {
                 Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
+                
+                assert(!chunk_element->occupied);
                 
                 chunk_element->occupied = false;
                 chunk->occupied_count -= 1;
