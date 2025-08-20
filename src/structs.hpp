@@ -828,7 +828,8 @@ struct Entity {
     b32 have_normal_map = false;
     Texture normal_map_texture = {};
     
-    b32 destroyed = 0;
+    b32 destroyed = false;
+    b32 will_be_destroyed = false;
     
     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};

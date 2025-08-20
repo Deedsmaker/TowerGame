@@ -170,7 +170,8 @@ inline Color color_opacity(Color color, f32 alpha) {
 
 inline void mark_entity_destroyed(Entity *entity) {
     // mark_entity_destroyed(entity);
-    entity->destroyed = true;
+    // entity->destroyed = true;
+    entity->will_be_destroyed = true;
 }
 
 void free_entity(Entity *e) {
@@ -730,17 +731,6 @@ i32 save_level(const char *level_name) {
             fprintf(fptr, "light_color{:%d:, :%d:, :%d:, :%d:} ", (i32)light->color.r, (i32)light->color.g, (i32)light->color.b, (i32)light->color.a);
         }
         
-        fprintf(fptr, "connected_entities [ "); {
-            for_array(i, &e->connected_entities) {
-               fprintf(fptr, ":%d: ", e->connected_entities.get_value(i)); 
-            }
-        } fprintf(fptr, "] ");
-        fprintf(fptr, "entities_pointing_at_me [ "); {
-            for_array(i, &e->entities_pointing_at_me) {
-               fprintf(fptr, ":%d: ", e->entities_pointing_at_me.get_value(i)); 
-            }
-        } fprintf(fptr, "] ");
-        
         if (e->flags & TRIGGER) {
             if (e->trigger.connected.count > 0) {
                 fprintf(fptr, "trigger_connected [ ");
@@ -1156,10 +1146,6 @@ b32 load_level(const char *level_name) {
             } else if (str_equal(splitted_line.get_value(i).data, "draw_order")) {
                 fill_i32_from_string(&entity_to_fill.draw_order, splitted_line.get_value(i+1).data);
                 i++;
-            } else if (str_equal(splitted_line.get_value(i).data, "connected_entities")) {
-                fill_int_array_from_string(&entity_to_fill.connected_entities, splitted_line, &i);
-            } else if (str_equal(splitted_line.get_value(i).data, "entities_pointing_at_me")) {
-                fill_int_array_from_string(&entity_to_fill.entities_pointing_at_me, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_connected")) {
                 fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "kill_switch_connected")) {
@@ -1454,36 +1440,6 @@ b32 load_level(const char *level_name) {
         }
     }
     
-    // this is for translating things from old entity system to new. We'll need to save level after that and we could
-    // delete this code.
-    for_array(entity_index, &loaded_entities) {
-        Entity *loaded = loaded_entities.get(entity_index);
-        if (loaded->flags & TRIGGER) {
-            for_array(i, &loaded->trigger.connected) {
-                loaded->connected_entities.append(loaded->trigger.connected.get_value(i));
-            }
-            for_array(i, &loaded->trigger.tracking) {
-                loaded->connected_entities.append(loaded->trigger.tracking.get_value(i));
-            }
-        }
-        if (loaded->flags & KILL_SWITCH) {
-            for_array(i, &loaded->enemy.kill_switch.connected) {
-                loaded->connected_entities.append(loaded->enemy.kill_switch.connected.get_value(i));
-            }
-        }
-        
-        for_array(i, &loaded->connected_entities) {
-            i32 connected_id = loaded->connected_entities.get_value(i);
-            for_array(i, &loaded_entities) {
-                if (i == entity_index) continue;
-                Entity *another_loaded = loaded_entities.get(i);
-                if (another_loaded->id == connected_id) {
-                    another_loaded->entities_pointing_at_me.append(loaded->id);
-                }
-            }
-        }
-    }
-    
     Array<Old_New_Entity_Pair> entity_pairs = {.allocator = &temp_allocator};
     
     // This code needs for loading because entity ids in level save file will not be the same 
@@ -1511,68 +1467,43 @@ b32 load_level(const char *level_name) {
     }
     
     // Now we want to update all ids on newly created entities so they don't refferring to old ids.
-    // 
-    // We're going through all pairs and clearing array of entities_pointing_to_me on new_entity, 
-    // because ids in there are from save file and will don't correspond with new entiteis.
-    // After clearing we're going thoguth all of the loaded_entities again (indicies of loaded_entities
-    // and entity_pairs will point to save loaded_entity or old_entity, because of how we was adding 
-    // them before) and if old_entity->entities_pointing_at_me contains this another_loaded entity
-    // id - we're adding id of entity with same index from entity_pairs, so now all new entities
-    // know correct ids of entities who points at them.
     for_array(i, &entity_pairs) {
         Old_New_Entity_Pair *pair = entity_pairs.get(i);
-        pair->new_entity->entities_pointing_at_me.clear();
+        Entity *loaded = pair->old_entity;
+        Entity *new_entity = pair->new_entity;
         
-        for_array(j, (&loaded_entities)) {
-            if (i == j) continue;
-            
-            Entity *another_loaded = loaded_entities.get(j);
-            if (pair->old_entity->entities_pointing_at_me.contains(another_loaded->id)) {
-                pair->new_entity->entities_pointing_at_me.append(entity_pairs.get(j)->new_entity->id);
+        // Thing here is that if we're encountered trigger - in loaded entity he has all the ids, but the old ones.
+        // So we're going through all loaded entities and seek ids that he's connected to. 
+        // Then - because indexes of entity_pairs and of loaded_entities goes to the same old and new entity
+        // we're just adding id of new entity to new trigger entity etc.
+        if (new_entity->flags & TRIGGER) {
+            new_entity->trigger.connected.clear();
+            new_entity->trigger.tracking.clear();
+            for_array(j, &loaded_entities) {
+                if (i == j) continue;
+                
+                Entity *another_loaded = loaded_entities.get(j);
+                if (loaded->trigger.connected.contains(another_loaded->id)) {
+                    Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
+                    new_entity->trigger.connected.append(connected_new_entity->id);
+                }
+                if (loaded->trigger.tracking.contains(another_loaded->id)) {
+                    Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
+                    new_entity->trigger.tracking.append(connected_new_entity->id);
+                }
             }
         }
-        
-        // Now new entitiy know who pointing at him, but they still have wrong ids of, for example, 
-        // connected entities (for triggers). So now we'll figure this out.
-        
-        for_array(j, (&pair->new_entity->entities_pointing_at_me)) {
-            // i32 old_pointing_id = pair->old_entity->entities_pointing_at_me.get_value(j);
-            i32 new_pointing_id = pair->new_entity->entities_pointing_at_me.get_value(j);
-            Entity *pointing_entity = get_entity(new_pointing_id);
-            
-            pointing_entity->connected_entities.append(pair->new_entity->id);
-
-            b32 handled = false;
-            if (pointing_entity->flags & TRIGGER) {
-                Trigger *trigger = &pointing_entity->trigger;
-                for_array(c, (&trigger->connected)) {
-                    i32 *connected_id = trigger->connected.get(c);
-                    if (*connected_id == pair->old_entity->id) {
-                        *connected_id = pair->new_entity->id;
-                        handled = true;
-                    }
-                }
-                for_array(c, (&trigger->tracking)) {
-                    i32 *tracking_id = trigger->tracking.get(c);
-                    if (*tracking_id == pair->old_entity->id) {
-                        *tracking_id = pair->new_entity->id;
-                        handled = true;
-                    }
+        if (new_entity->flags & KILL_SWITCH) {
+            new_entity->enemy.kill_switch.connected.clear();
+            for_array(j, &loaded_entities) {
+                if (i == j) continue;
+                
+                Entity *another_loaded = loaded_entities.get(j);
+                if (loaded->enemy.kill_switch.connected.contains(another_loaded->id)) {
+                    Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
+                    new_entity->enemy.kill_switch.connected.append(connected_new_entity->id);
                 }
             }
-            
-            if (pointing_entity->flags & KILL_SWITCH) {
-                Kill_Switch *kill_switch = &pointing_entity->enemy.kill_switch;
-                for_array(c, (&kill_switch->connected)) {
-                    i32 *connected_id = kill_switch->connected.get(c);
-                    if (*connected_id == pair->old_entity->id) {
-                        *connected_id = pair->new_entity->id;
-                        handled = true;
-                    }
-                }
-            }
-            
-            assert(handled);
         }
     }
     
@@ -2310,7 +2241,7 @@ void init_entity(Entity *entity) {
             sticky_entity->sticky_texture.max_lifetime   = 0;
             // sticky_entity->sticky_texture.line_color  = Fade(ORANGE, 0.3f);
             sticky_entity->sticky_texture.need_to_follow = true;
-            sticky_entity->sticky_texture.follow_id  = register_entity_id_reference(sticky_entity, entity->id);
+            sticky_entity->sticky_texture.follow_id  = entity->id;
             sticky_entity->sticky_texture.birth_time = core.time.game_time;
             
             sticky_entity->sticky_texture.alpha = 0.8f;
@@ -2345,10 +2276,10 @@ void init_entity(Entity *entity) {
         // sticky_entity->sticky_texture.line_color     = Fade(BLUE, 0.3f);
         sticky_entity->sticky_texture.need_to_follow = true;
         // sticky_entity->sticky_texture.draw_line      = true;
-        sticky_entity->sticky_texture.follow_id  = register_entity_id_reference(sticky_entity, entity->id);
+        sticky_entity->sticky_texture.follow_id  = entity->id;
         sticky_entity->sticky_texture.birth_time = core.time.game_time;
         
-        entity->enemy.sword_required_sticky_id = register_entity_id_reference(entity, sticky_entity->id);
+        entity->enemy.sword_required_sticky_id = sticky_entity->id;
     }
     
     // init propeller
@@ -2409,7 +2340,7 @@ void init_entity(Entity *entity) {
             if (entity->physics_object.rope_id == -1) {
                 rope_entity = add_entity(entity->position, {1, 10}, {0.5f, 1.0f}, 0, BLACK, BLOCK_ROPE);
                 rope_entity->need_to_save = false;
-                entity->physics_object.rope_id = register_entity_id_reference(entity, rope_entity->id);
+                entity->physics_object.rope_id = rope_entity->id;
             } else {
                 rope_entity = get_entity(entity->physics_object.rope_id);
             }
@@ -2420,7 +2351,7 @@ void init_entity(Entity *entity) {
                 up_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
                 up_rope_point_entity->draw_order = entity->draw_order - 1;
                 up_rope_point_entity->need_to_save = false;
-                entity->physics_object.up_rope_point_id = register_entity_id_reference(entity, up_rope_point_entity->id);
+                entity->physics_object.up_rope_point_id = up_rope_point_entity->id;
             } else {
                 up_rope_point_entity = get_entity(entity->physics_object.up_rope_point_id);
             }
@@ -2430,7 +2361,7 @@ void init_entity(Entity *entity) {
                 down_rope_point_entity = add_entity(entity->physics_object.rope_point, {5, 5}, {0.5f, 0.5f}, 0, GREEN, ROPE_POINT);
                 down_rope_point_entity->draw_order = entity->draw_order - 1;
                 down_rope_point_entity->need_to_save = false;
-                entity->physics_object.down_rope_point_id = register_entity_id_reference(entity, down_rope_point_entity->id);
+                entity->physics_object.down_rope_point_id = down_rope_point_entity->id;
             } else {
                 down_rope_point_entity =  get_entity(entity->physics_object.down_rope_point_id);
             }
@@ -3290,10 +3221,10 @@ Entity *add_player_entity(Player *data) {
     sword_entity->draw_order = 25;
     str_copy(sword_entity->name, "Player_Sword");
     
-    data->connected_entities_ids.ground_checker_id     = register_entity_id_reference(new_player_entity, ground_checker->id);
-    data->connected_entities_ids.left_wall_checker_id  = register_entity_id_reference(new_player_entity, left_wall_checker->id);
-    data->connected_entities_ids.right_wall_checker_id = register_entity_id_reference(new_player_entity, right_wall_checker->id);
-    data->connected_entities_ids.sword_entity_id       = register_entity_id_reference(new_player_entity, sword_entity->id);
+    data->connected_entities_ids.ground_checker_id     = ground_checker->id;
+    data->connected_entities_ids.left_wall_checker_id  = left_wall_checker->id;
+    data->connected_entities_ids.right_wall_checker_id = right_wall_checker->id;
+    data->connected_entities_ids.sword_entity_id       = sword_entity->id;
     data->dead_man = false;
     
     data->timers = {};
@@ -4510,8 +4441,8 @@ inline Entity *get_entity(i32 id, Level_Context *level_context) {
     if (!level_context) level_context = current_level_context;
     assert(id > 0 && "Invalid entity id!");
     
-    // Right now we trying to constrain all ids and guarantee that id is valid, so here is no external checks.
-    // (guarantee is happening becuase of how we set and track ids on connected entities in file entity_ids.cpp and everywhere).
+    // We're always assuming that given id is valid and there will be real entity, because otherwise some entity just forgot 
+    // to detect that some connected entity will be destroyed.
     
     // Entity ids are index + 1, so 0 is always invalid.
     return level_context->entities.get(id - 1);
@@ -6613,9 +6544,7 @@ void update_editor() {
                 Entity *spawned =  get_entity(spawned_entities.get_value(i));
                 if (spawned->flags & TRIGGER) {
                     // We have original trigger connected and tracking in copied_entities.
-                    unregister_entity_ids_reference_from_connected(spawned, &spawned->trigger.connected);
                     spawned->trigger.connected.clear();                                      
-                    unregister_entity_ids_reference_from_connected(spawned, &spawned->trigger.tracking);
                     spawned->trigger.tracking.clear();
                     // @CLEANUP: Will have to change here when we'll remove all of types from entity. Nothing scary.
                     Entity *copied_trigger_entity = editor.copied_entities.get_value(i);
@@ -6628,10 +6557,10 @@ void update_editor() {
                     for (i32 x = 0; x < spawned_entities.count; x++) {
                         Entity *other_copied_entity = editor.copied_entities.get_value(x);
                         if (copied_trigger_entity->trigger.connected.contains(other_copied_entity->id)) {
-                            spawned->trigger.connected.append(register_entity_id_reference(spawned, spawned_entities.get_value(x)));
+                            spawned->trigger.connected.append(spawned_entities.get_value(x));
                         }
                         if (copied_trigger_entity->trigger.tracking.contains(other_copied_entity->id)) {
-                            spawned->trigger.tracking.append(register_entity_id_reference(spawned, spawned_entities.get_value(x)));
+                            spawned->trigger.tracking.append(spawned_entities.get_value(x));
                         }
                     }
                 }
@@ -6656,11 +6585,11 @@ void update_editor() {
                             continue;
                         }
                         if (entity->flags & TRIGGER && entity->trigger.connected.contains(originally_copied_id)) {
-                            entity->trigger.connected.append(register_entity_id_reference(entity, spawned_id));
+                            entity->trigger.connected.append(spawned_id);
                         }
                         
                         if (entity->flags & KILL_SWITCH && entity->enemy.kill_switch.connected.contains(originally_copied_id)) {
-                            entity->enemy.kill_switch.connected.append(register_entity_id_reference(entity, spawned_id));
+                            entity->enemy.kill_switch.connected.append(spawned_id);
                         }
                     }
                 }
@@ -6862,14 +6791,12 @@ void update_editor() {
                     Collision col = collisions_buffer.get_value(i);
                     
                     if (wanna_assign && !wanna_remove && !selected->trigger.connected.contains(col.other_entity->id)) {
-                        selected->trigger.connected.append(register_entity_id_reference(selected, col.other_entity->id));
+                        selected->trigger.connected.append(col.other_entity->id);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (selected->trigger.connected.contains(col.other_entity->id)) {
-                            unregister_one_entity_id_reference_from_connected(selected, col.other_entity->id);
                             selected->trigger.connected.remove_first_encountered(col.other_entity->id);
                         } else if (selected->trigger.tracking.contains(col.other_entity->id)) {
-                            unregister_one_entity_id_reference_from_connected(selected, col.other_entity->id);
                             selected->trigger.tracking.remove_first_encountered(col.other_entity->id);
                         }
                         break;
@@ -6887,7 +6814,7 @@ void update_editor() {
                     Collision col = collisions_buffer.get_value(i);
                     
                     if (!selected->trigger.tracking.contains(col.other_entity->id)) {
-                        selected->trigger.tracking.append(register_entity_id_reference(selected, col.other_entity->id));
+                        selected->trigger.tracking.append(col.other_entity->id);
                     }
                 }
             }
@@ -6927,11 +6854,10 @@ void update_editor() {
                     Collision col = collisions_buffer.get_value(i);
                     
                     if (wanna_assign && !wanna_remove && !kill_switch->connected.contains(col.other_entity->id)) {
-                        kill_switch->connected.append(register_entity_id_reference(selected, col.other_entity->id));
+                        kill_switch->connected.append(col.other_entity->id);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (kill_switch->connected.contains(col.other_entity->id)) {
-                            unregister_one_entity_id_reference_from_connected(selected, col.other_entity->id);
                             kill_switch->connected.remove_first_encountered(col.other_entity->id);
                         }
                         break;
@@ -8040,7 +7966,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                             sticky_line->sticky_texture.draw_line = true;
                             sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
                             sticky_line->sticky_texture.line_width = contiguous_failed_shots_count * 0.5f;
-                            sticky_line->sticky_texture.follow_id = register_entity_id_reference(sticky_line, entity->id);
+                            sticky_line->sticky_texture.follow_id = entity->id;
                             sticky_line->sticky_texture.need_to_follow = true;
                             sticky_line->position = get_shoot_stoper_cross_position(entity);
                             sticky_line->sticky_texture.birth_time = core.time.game_time;
@@ -9371,7 +9297,7 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     
     hitmark->sticky_texture.need_to_follow   = need_to_follow;
     hitmark->sticky_texture.draw_line        = true;
-    hitmark->sticky_texture.follow_id        = register_entity_id_reference(hitmark, entity->id);
+    hitmark->sticky_texture.follow_id        = entity->id;
     hitmark->sticky_texture.birth_time       = core.time.game_time;
     hitmark->sticky_texture.should_draw_until_expires = true;
     hitmark->sticky_texture.max_distance     = 1000;
@@ -10911,9 +10837,15 @@ void update_entities(f32 dt) {
         }
         
         if (e->destroyed) {
-            notify_destruction_to_connected_entities(e);
+            // notify_destruction_to_connected_entities(e);
             free_entity(e);
             entities->remove(e->id);    
+            continue;
+        }
+        // With will_be_destroyed we'll waiting one extra frame before actually be destroyed so every entity that referring
+        // to that entity could detect that and remove reference.
+        if (e->will_be_destroyed) {
+            e->destroyed = true;
             continue;
         }
         
@@ -12538,8 +12470,8 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     }
     
     // from copy_and_add_entity.
-    e->connected_entities = {0};
-    e->entities_pointing_at_me = {0};
+    // e->connected_entities = {0};
+    // e->entities_pointing_at_me = {0};
     // e->connected_entities = copy_array(&to_copy->connected_entities);
     // e->entities_pointing_at_me = copy_array(&to_copy->connected_entities);
     // if (keep_id) entities_pointing_at_me = copy_array(&to_copy->entities_pointing_at_me);
@@ -12549,10 +12481,8 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->trigger = to_copy->trigger;
         e->trigger.connected = {0};
         e->trigger.connected = copy_array(&to_copy->trigger.connected);
-        register_entity_ids_reference(e, &to_copy->trigger.connected);
         e->trigger.tracking = {0};
         e->trigger.tracking =  copy_array(&to_copy->trigger.tracking);
-        register_entity_ids_reference(e, &to_copy->trigger.tracking);
         
         e->trigger.cam_rails_points = copy_array(&to_copy->trigger.cam_rails_points);
     }
@@ -12564,7 +12494,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         *kill_switch = *copy_kill_switch;
         kill_switch->connected = {0};
         kill_switch->connected = copy_array(&copy_kill_switch->connected);
-        register_entity_ids_reference(e, &kill_switch->connected);
     }
     
     if (e->flags & NOTE) {
