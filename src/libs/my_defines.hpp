@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 typedef float  f32;
 typedef double f64;
 //#define _CRT_SECURE_NO_WARNINGS

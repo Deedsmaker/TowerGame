@@ -289,7 +289,8 @@ void fill_vector4_from_string(Color *vec_ptr, char *x_str, char *y_str, char *z_
 
 void fill_vertices_array_from_string(Static_Array<Vector2, MAX_VERTICES> *vertices, Array<String> line_arr, i32 *index_ptr){
     assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
-    assert(is_digit_or_minus(line_arr.get_value(*index_ptr + 2).data[0]));
+    String first_number = line_arr.get_value(*index_ptr + 2);
+    assert(is_digit_or_minus(first_number.data[0]));
     
     *index_ptr += 2;
     
@@ -303,7 +304,8 @@ void fill_vertices_array_from_string(Static_Array<Vector2, MAX_VERTICES> *vertic
 
 void fill_vector2_array_from_string(Array<Vector2> *points, Array<String> line_arr, i32 *index_ptr){
     assert(line_arr.get_value(*index_ptr + 1).data[0] == '[');
-    assert(is_digit_or_minus(line_arr.get_value(*index_ptr + 2).data[0]));
+    String first_number = line_arr.get_value(*index_ptr + 2);
+    assert(is_digit_or_minus(first_number.data[0]));
     
     *index_ptr += 2;
     

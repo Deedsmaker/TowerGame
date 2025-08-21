@@ -209,24 +209,6 @@ void free_entity(Entity *e) {
         e->centipede.segments_ids.clear();
     }
     
-    // free physics objctt
-    // if (e->flags & PHYSICS_OBJECT) {
-    //     Entity *rope_entity = get_entity(e->physics_object.rope_id);
-    //     if (e->physics_object.on_rope) {
-    //         if (rope_entity) {
-    // mark_entity_destroyed(//             rope_entity);
-    //         }
-    //         Entity *up_rope_point_entity = get_entity(e->physics_object.up_rope_point_id);
-    //         if (up_rope_point_entity) {
-    // mark_entity_destroyed(//             up_rope_point_entity);
-    //         }
-    //         Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
-    //         if (down_rope_point_entity) {
-    // mark_entity_destroyed(//             down_rope_point_entity);
-    //         }
-    //     }
-    // }
-    
     // @CLEANUP: Why exactly we don't free that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
     // if (e->flags & MOVE_SEQUENCE) {
     //     e->move_sequence.points.free_data();
@@ -1029,7 +1011,7 @@ b32 load_level(const char *level_name) {
     setup_particles();
     
     Array <String> splitted_line = {.allocator = HEAP_ALLOCATOR};
-    Array <Entity> loaded_entities = {.allocator = HEAP_ALLOCATOR};
+    // Array <Entity> loaded_entities = {.allocator = HEAP_ALLOCATOR};
     
     b32 parsing_setup_data = false;
     b32 parsing_entities   = false;
@@ -1423,7 +1405,8 @@ b32 load_level(const char *level_name) {
             
             setup_color_changer(&entity_to_fill);
             // Entity *added_entity = add_entity(&entity_to_fill, true);
-            Entity *added_entity = loaded_entities.append(entity_to_fill);
+            // Entity *added_entity = loaded_entities.append(entity_to_fill);
+            Entity *added_entity = copy_and_add_entity(&entity_to_fill, &loaded_level_context);
             
             if (added_entity->flags & NOTE) {
                 added_entity->note_index = add_note("");
@@ -1459,8 +1442,8 @@ b32 load_level(const char *level_name) {
     // have their original ids. 
     // We're going through all of loaded_entities and spawning new entities with new ids and storing 
     // them together in entity_pairs so old and new have the same indexes.
-    for_array(i, &loaded_entities) {
-        Entity *loaded_entity = loaded_entities.get(i);
+    for_chunk_array(i, &loaded_level_context.entities) {
+        Entity *loaded_entity = loaded_level_context.entities.get(i);
         Entity *new_entity = copy_and_add_entity(loaded_entity, current_level_context);
         
         entity_pairs.append({.new_entity = new_entity, .old_entity = loaded_entity});
@@ -1479,10 +1462,10 @@ b32 load_level(const char *level_name) {
         if (new_entity->flags & TRIGGER) {
             new_entity->trigger.connected.clear();
             new_entity->trigger.tracking.clear();
-            for_array(j, &loaded_entities) {
+            for_chunk_array(j, &loaded_level_context.entities) {
                 if (i == j) continue;
                 
-                Entity *another_loaded = loaded_entities.get(j);
+                Entity *another_loaded = loaded_level_context.entities.get(j);
                 if (loaded->trigger.connected.contains(another_loaded->id)) {
                     Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
                     new_entity->trigger.connected.append(connected_new_entity->id);
@@ -1495,10 +1478,10 @@ b32 load_level(const char *level_name) {
         }
         if (new_entity->flags & KILL_SWITCH) {
             new_entity->enemy.kill_switch.connected.clear();
-            for_array(j, &loaded_entities) {
+            for_chunk_array(j, &loaded_level_context.entities) {
                 if (i == j) continue;
                 
-                Entity *another_loaded = loaded_entities.get(j);
+                Entity *another_loaded = loaded_level_context.entities.get(j);
                 if (loaded->enemy.kill_switch.connected.contains(another_loaded->id)) {
                     Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
                     new_entity->enemy.kill_switch.connected.append(connected_new_entity->id);
@@ -1507,7 +1490,7 @@ b32 load_level(const char *level_name) {
         }
     }
     
-    loaded_entities.free_data();
+    // loaded_entities.free_data();
     
     game_state = original_game_state;
     
@@ -2226,7 +2209,7 @@ void init_entity(Entity *entity) {
     
     if (entity->flags & BLOCKER && game_state == GAME) {
         // init blocker
-        if (entity->enemy.blocker_sticky_id != -1) {
+        if (entity->enemy.blocker_sticky_id > 0) {
             mark_entity_destroyed(get_entity(entity->enemy.blocker_sticky_id));
         }
         
@@ -2252,7 +2235,7 @@ void init_entity(Entity *entity) {
     
     if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME) {
         // init sword size required
-        if (entity->enemy.sword_required_sticky_id != -1) {
+        if (entity->enemy.sword_required_sticky_id > 0) {
             mark_entity_destroyed(get_entity(entity->enemy.sword_required_sticky_id));
         }
         
@@ -3891,7 +3874,7 @@ void update_game() {
                 enter_game_state(editor_level_context, true);
                 session_context.speedrun_timer.time = 0;
             } else {
-                b32 is_have_checkpoint = checkpoint_trigger_id != -1;
+                b32 is_have_checkpoint = checkpoint_trigger_id > 0;
                 session_context.playing_replay = false;            
                 // enter_editor_state();
                 if (is_have_checkpoint) {
@@ -5736,7 +5719,7 @@ void restore_deleted_entities(Undo_Action *action) {
         i32 deleted_entity_id = action->changed_entities.get_value(i);
         // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
         // he's taked that id - on undo we should remove him.
-        assert(get_entity(deleted_entity_id) == NULL);
+        // assert(get_entity(deleted_entity_id) == NULL);
         // @TODO: Here we actually would like to 
         Entity *deleted_entity = action->deleted_entities.get_value(i);
         
@@ -6976,7 +6959,7 @@ void update_editor() {
         if (action->entity_was_deleted) {
             restore_deleted_entities(action);            
         } else if (action->entity_was_spawned) {
-            if (action->entity_id != -1) {
+            if (action->entity_id > 0) {
                 editor_delete_entity(action->entity_id, false);
             }
             
@@ -6999,7 +6982,7 @@ void update_editor() {
                 }
             }
             
-            if (action->entity_id != -1) {
+            if (action->entity_id > 0) {
                 // assert(current_level_context->entities.has_key(action->entity_id));
                 Entity *undo_entity = get_entity(action->entity_id);
     
@@ -7068,7 +7051,7 @@ void update_editor() {
                 editor_delete_entity(get_entity(entity_id_to_delete), false);
             }
         } else if (action->entity_was_spawned) { //so we need spawn this again
-            if (action->entity_id != -1) {
+            if (action->entity_id > 0) {
                 Entity *restored_entity = copy_and_add_entity(action->spawned_entity, current_level_context, action->spawned_entity->id);
                 // restored_entity->id = action->spawned_entity.id;
                 action->entity_id = restored_entity->id;
@@ -7089,7 +7072,7 @@ void update_editor() {
                 }
             }
             
-            if (action->entity_id != -1) {
+            if (action->entity_id > 0) {
                 // assert(current_level_context->entities.has_key(action->entity_id));
                 Entity *undo_entity = get_entity(action->entity_id);
                 
@@ -9733,8 +9716,6 @@ void update_projectile(Entity *entity, f32 dt) {
 void update_sticky_texture(Entity *entity, f32 dt) {
     Sticky_Texture *st = &entity->sticky_texture;
     
-    Entity *follow_entity = get_entity(st->follow_id);
-    b32 need_to_follow = st->need_to_follow && follow_entity && follow_entity->enabled;
     f32 lifetime = core.time.game_time - st->birth_time;
     f32 lifetime_t = 0;
     if (st->max_lifetime > EPSILON) {
@@ -9746,42 +9727,62 @@ void update_sticky_texture(Entity *entity, f32 dt) {
         }
     }
     
-    if (need_to_follow) {
-        Vector2 target_position = follow_entity->position;
-        if (follow_entity->flags & SHOOT_STOPER) {
-            target_position = get_shoot_stoper_cross_position(follow_entity);
+    b32 need_to_follow = false;
+    if (st->need_to_follow && st->follow_id > 0) {
+        Entity *follow_entity = get_entity(st->follow_id);
+        if (follow_entity->will_be_destroyed) {        
+            st->follow_id = 0;
+        } else {
+            need_to_follow = true;
+            Vector2 target_position = follow_entity->position;
+            if (follow_entity->flags & SHOOT_STOPER) {
+                target_position = get_shoot_stoper_cross_position(follow_entity);
+            }
+            entity->position = lerp(entity->position, target_position, dt * 40);
+            
+            if (follow_entity->flags & ENEMY && follow_entity->enemy.dead_man && !st->should_draw_until_expires) {
+               st->should_draw_texture = false;
+           }
         }
-        entity->position = lerp(entity->position, target_position, dt * 40);
-    } else if (st->max_lifetime <= EPSILON) {
-        mark_entity_destroyed(entity);
     }
     
-    if (follow_entity && follow_entity->flags & ENEMY && follow_entity->enemy.dead_man && !st->should_draw_until_expires) {
-        st->should_draw_texture = false;
+    if (!need_to_follow && st->max_lifetime <= EPSILON) {
+        mark_entity_destroyed(entity);
     }
     
     st->need_to_follow = need_to_follow;
 }
 
-// @TODO: Remove it probably because all ids should be valid always.
-inline void trigger_editor_verify_connected(Entity *entity) {
-    // for (i32 i = 0; i < entity->trigger.connected.count; i++) {   
-    //     // So if entiity was somehow destoyed, annighilated.
-    //     if (!current_level_context->entities.has_key(entity->trigger.connected.get_value(i))) {
-    //         entity->trigger.connected.remove(i);
-    //         i--;
-    //         continue;
-    //     }
-    // }
+inline void verify_trigger_connected(Entity *entity) {
+    assert(entity->flags & TRIGGER);
     
-    // for (i32 ii = 0; ii < entity->trigger.tracking.count; ii++) {
-    //     i32 id = entity->trigger.tracking.get_value(ii);
-    //     if (!current_level_context->entities.has_key(id)) {
-    //         entity->trigger.tracking.remove(ii);
-    //         ii--;
-    //         continue;
-    //     }
-    // }
+    Trigger *trigger = &entity->trigger;
+    for_array(i, &trigger->connected) {
+        Entity *connected = get_entity(trigger->connected.get_value(i));
+        if (connected->will_be_destroyed) {
+            trigger->connected.remove(i);
+            i--;
+        }
+    }
+    for_array(i, &trigger->tracking) {
+        Entity *tracking = get_entity(trigger->tracking.get_value(i));
+        if (tracking->will_be_destroyed) {
+            trigger->tracking.remove(i);
+            i--;
+        }
+    }
+}
+inline void verify_kill_switch_connected(Entity *entity) {
+    assert(entity->flags & KILL_SWITCH);
+    
+    Kill_Switch *kill_switch = &entity->enemy.kill_switch;
+    for_array(i, &kill_switch->connected) {
+        Entity *connected = get_entity(kill_switch->connected.get_value(i));
+        if (connected->will_be_destroyed) {
+            kill_switch->connected.remove(i);
+            i--;
+        }
+    }
 }
 
 void update_editor_entity(Entity *e) {
@@ -9790,10 +9791,6 @@ void update_editor_entity(Entity *e) {
         // e->enemy.dead_man = true;
     }
 
-    if (e->flags & TRIGGER) {
-        trigger_editor_verify_connected(e);
-    }
-    
     if (e->flags & PHYSICS_OBJECT) {
         if (e->physics_object.on_rope/* && core.time.app_time - e->physics_object.last_pick_rope_point_time > 0.5f*/) {
             Collision ray_col = raycast(e->position + e->up * e->scale.y * 0.5f, e->up, 300, GROUND, 4, e->id);
@@ -10839,7 +10836,7 @@ void update_entities(f32 dt) {
         if (e->destroyed) {
             // notify_destruction_to_connected_entities(e);
             free_entity(e);
-            entities->remove(e->id);    
+            entities->remove(e->id - 1);    
             continue;
         }
         // With will_be_destroyed we'll waiting one extra frame before actually be destroyed so every entity that referring
@@ -10858,26 +10855,12 @@ void update_entities(f32 dt) {
             continue;
         }
         
-        // // verify kill switch
-        // if (e->flags & KILL_SWITCH) {
-        //     Kill_Switch *kill_switch = &e->enemy.kill_switch;
-        //     for (i32 i = 0; i < kill_switch->connected.count; i++) {
-        //         Entity *connected = get_entity(kill_switch->connected.get_value(i));
-        //         if (!connected) {
-        //             kill_switch->connected.remove(i);
-        //             i--;
-        //             continue;
-        //         }
-        //         // That could happen if entity was destroyed and before that code happens - someone occupies that slot. 
-        //         // I want to know it that will ever happen so i'll leave log here.
-        //         if (!(connected->flags & ENEMY)) {
-        //             kill_switch->connected.remove(i);
-        //             i--;
-        //             print("FUNNY situation at verify kill switch");
-        //             continue;
-        //         }
-        //     }
-        // }
+        if (e->flags & TRIGGER) {
+            verify_trigger_connected(e);
+        }
+        if (e->flags & KILL_SWITCH) {
+            verify_kill_switch_connected(e);
+        }
         
         if (game_state == EDITOR || state_context.in_pause_editor) {
             update_color_changer(e, dt);
@@ -11285,36 +11268,37 @@ void fill_entities_draw_queue() {
         // always draw sticky texture
         if (entity->flags & STICKY_TEXTURE) {
             Sticky_Texture *st = &entity->sticky_texture;
-            Entity *follow_entity = get_entity(entity->sticky_texture.follow_id);
-            
-            // We make lights only for immortal sticky textures - like blocker sign.
-            if (follow_entity && st->max_lifetime <= 0) {
-                if (follow_entity->flags & BLOCKER && st->should_draw_texture) {
-                    make_light(follow_entity->position, 75, 1, 1.0f, WHITE);
-                }
-                
-                if (follow_entity->flags & SWORD_SIZE_REQUIRED && st->should_draw_texture) {
-                    make_light(follow_entity->position, 75, 1.5, 0.7f, follow_entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
-                }
-            }
             
             f32 lifetime = core.time.game_time - st->birth_time;
             f32 lifetime_t = 0.5f;
             if (st->max_lifetime > EPSILON) {
                 lifetime_t = lifetime / st->max_lifetime;
             }
-        
-            if (st->draw_line && st->need_to_follow && player_entity) {
-                Entity *follow_entity = get_entity(st->follow_id);
-                Color line_color = st->line_color;
-                if (follow_entity && follow_entity->flags & ENEMY && st->max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)) {
-                    line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
+            
+            if (entity->sticky_texture.follow_id > 0) {
+                Entity *follow_entity = get_entity(entity->sticky_texture.follow_id);
+                // We make lights only for immortal sticky textures - like blocker sign.
+                if (st->max_lifetime <= 0) {
+                    if (follow_entity->flags & BLOCKER && st->should_draw_texture) {
+                        make_light(follow_entity->position, 75, 1, 1.0f, WHITE);
+                    }
+                    
+                    if (follow_entity->flags & SWORD_SIZE_REQUIRED && st->should_draw_texture) {
+                        make_light(follow_entity->position, 75, 1.5, 0.7f, follow_entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
+                    }
                 }
-    
-                Vector2 vec_to_follow = entity->position - player_entity->position;
-                f32 len = magnitude(vec_to_follow);
-                if (len <= st->max_distance || st->max_distance <= 0) {
-                    make_line(player_entity->position, entity->position, st->line_width, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
+                
+                if (st->draw_line && st->need_to_follow && player_entity) {
+                    Color line_color = st->line_color;
+                    if (follow_entity && follow_entity->flags & ENEMY && st->max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)) {
+                        line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
+                    }
+        
+                    Vector2 vec_to_follow = entity->position - player_entity->position;
+                    f32 len = magnitude(vec_to_follow);
+                    if (len <= st->max_distance || st->max_distance <= 0) {
+                        make_line(player_entity->position, entity->position, st->line_width, lerp(line_color, color_fade(line_color, 0), lifetime_t * lifetime_t));
+                    }
                 }
             }
         }

@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stdarg.h>
+#include <stdlib.h>
+#include "Allocator.cpp"
+#include "my_defines.hpp"
 
 #define MEDIUM_STR_LEN 1024
 #define MAX_TEMP_LINES 16

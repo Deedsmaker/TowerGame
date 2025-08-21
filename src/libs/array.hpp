@@ -2,6 +2,9 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
+#include "Allocator.cpp"
+#include "my_defines.hpp"
 
 #define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
 
@@ -56,6 +59,10 @@ struct Array {
         
         return last();
     }
+    
+    // T *insert(T value, ) {
+            
+    // }
     
     void remove(i32 index) {
         assert((index >= 0 && index < count) && "Index out of bounds!");
@@ -460,7 +467,7 @@ struct Chunk_Array {
             if (index_in_chunk(index, chunk, i)) {
                 Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
                 
-                assert(!chunk_element->occupied);
+                assert(chunk_element->occupied);
                 
                 chunk_element->occupied = false;
                 chunk->occupied_count -= 1;

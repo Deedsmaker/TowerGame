@@ -1,5 +1,8 @@
 #pragma once
 
+#include "my_defines.hpp"
+#include <stdlib.h> // For calloc.
+
 // Right now it's just arena, but we keep possibility of different allocators. 
 // It's just sounds more nice in context of default_allocator, where we could assign global arena allocator for time.
 // And everyone will be using this default allocator when nothing else is specified.
