@@ -1011,7 +1011,7 @@ b32 load_level(const char *level_name) {
     setup_particles();
     
     Array <String> splitted_line = {.allocator = HEAP_ALLOCATOR};
-    // Array <Entity> loaded_entities = {.allocator = HEAP_ALLOCATOR};
+    Array <Entity> loaded_entities = {.allocator = HEAP_ALLOCATOR};
     
     b32 parsing_setup_data = false;
     b32 parsing_entities   = false;
@@ -1419,6 +1419,11 @@ b32 load_level(const char *level_name) {
             // init_entity(added_entity);
             //rotate_to(added_entity, added_entity->rotation);
             
+            // We're appending entities to this array for knowing original ids and later we're going to update all 
+            // real ids.
+            Entity *loaded = loaded_entities.append(*added_entity);
+            loaded->id = entity_to_fill.id;
+            
             calculate_bounds(added_entity);
         }
     }
@@ -1442,9 +1447,9 @@ b32 load_level(const char *level_name) {
     // have their original ids. 
     // We're going through all of loaded_entities and spawning new entities with new ids and storing 
     // them together in entity_pairs so old and new have the same indexes.
-    for_chunk_array(i, &loaded_level_context.entities) {
-        Entity *loaded_entity = loaded_level_context.entities.get(i);
-        Entity *new_entity = copy_and_add_entity(loaded_entity, current_level_context);
+    for_array(i, &loaded_entities) {
+        Entity *loaded_entity = loaded_entities.get(i);
+        Entity *new_entity = loaded_level_context.entities.get(i);
         
         entity_pairs.append({.new_entity = new_entity, .old_entity = loaded_entity});
     }
@@ -1462,10 +1467,10 @@ b32 load_level(const char *level_name) {
         if (new_entity->flags & TRIGGER) {
             new_entity->trigger.connected.clear();
             new_entity->trigger.tracking.clear();
-            for_chunk_array(j, &loaded_level_context.entities) {
+            for_array(j, &loaded_entities) {
                 if (i == j) continue;
                 
-                Entity *another_loaded = loaded_level_context.entities.get(j);
+                Entity *another_loaded = loaded_entities.get(j);
                 if (loaded->trigger.connected.contains(another_loaded->id)) {
                     Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
                     new_entity->trigger.connected.append(connected_new_entity->id);
@@ -1478,10 +1483,10 @@ b32 load_level(const char *level_name) {
         }
         if (new_entity->flags & KILL_SWITCH) {
             new_entity->enemy.kill_switch.connected.clear();
-            for_chunk_array(j, &loaded_level_context.entities) {
+            for_array(j, &loaded_entities) {
                 if (i == j) continue;
                 
-                Entity *another_loaded = loaded_level_context.entities.get(j);
+                Entity *another_loaded = loaded_entities.get(j);
                 if (loaded->enemy.kill_switch.connected.contains(another_loaded->id)) {
                     Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
                     new_entity->enemy.kill_switch.connected.append(connected_new_entity->id);
@@ -1490,7 +1495,7 @@ b32 load_level(const char *level_name) {
         }
     }
     
-    // loaded_entities.free_data();
+    loaded_entities.free_data();
     
     game_state = original_game_state;
     
@@ -12430,6 +12435,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         id_to_set += 1;
     }
     *e = *to_copy;
+    e->color = to_copy->color_changer.start_color;
     e->id = id_to_set;
     
     e->level_context = level_context_for_deep_copy;        
