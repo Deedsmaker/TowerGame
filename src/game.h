@@ -214,7 +214,7 @@ void check_avaliable_ids_and_set_if_found(i32 *id);
 
 Entity *add_player_entity(Player *data);
 
-Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 index_to_insert = 0);
+Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 id_to_insert = 0);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags);

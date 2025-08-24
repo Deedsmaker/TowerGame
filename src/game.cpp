@@ -63,7 +63,8 @@ global_variable const char *first_level_name = "new_basics1";
 
 global_variable Static_Array<Vector2, MAX_VERTICES> global_normals = Static_Array<Vector2, MAX_VERTICES>();
 
-global_variable Entity mouse_entity;
+global_variable Entity mouse_entity = {0};
+Entity empty_entity = {0};
 
 global_variable Entity *player_entity;
 global_variable b32 need_destroy_player = false;
@@ -572,8 +573,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     // @TODO: check this copying
     dest->entities = copy_chunk_array(&src->entities);
     for_chunk_array(i, (&dest->entities)) {
-        // if (i == 0) continue;
-        copy_and_add_entity(src->entities.get(i), dest, i);
+        copy_and_add_entity(src->entities.get(i), dest, i + 1);
     }
     
     for (i32 i = 0; i < src->line_trails.capacity; i++) {
@@ -1037,8 +1037,11 @@ b32 load_level(const char *level_name) {
         // split_string(line->data, ":{}, ;", &splitted_line);
         split_string(&splitted_line, *line, tstring(":{}, ;"));
         
-        Entity entity_to_fill = {0};
-        entity_to_fill.level_context = &loaded_level_context;
+        Entity *new_entity = NULL;
+        if (parsing_entities) {
+            new_entity = copy_and_add_entity(&empty_entity, &loaded_level_context);   
+        }
+        i32 old_id = 0;
         Note note_to_fill = {};
         
         for (i32 i = 0; i < splitted_line.count; i++) {
@@ -1068,322 +1071,322 @@ b32 load_level(const char *level_name) {
 
             if (0) {
             } else if (str_equal(splitted_line.get_value(i).data, "name")) {
-                str_copy(entity_to_fill.name, splitted_line.get_value(i+1).data);  
+                str_copy(new_entity->name, splitted_line.get_value(i+1).data);  
                 i++;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "id")) {
-                fill_i32_from_string(&entity_to_fill.id, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->id, splitted_line.get_value(i+1).data);
                 i++;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "pos")) {
-                fill_vector2_from_string(&entity_to_fill.position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "scale")) {
-                fill_vector2_from_string(&entity_to_fill.scale, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->scale, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "pivot")) {
-                fill_vector2_from_string(&entity_to_fill.pivot, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->pivot, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "rotation")) {
-                fill_f32_from_string(&entity_to_fill.rotation, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->rotation, splitted_line.get_value(i+1).data);
                 i += 1;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "color")) {
-                fill_vector4_from_string(&entity_to_fill.color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
+                fill_vector4_from_string(&new_entity->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "flags")) {
-                fill_u64_from_string(&entity_to_fill.flags, splitted_line.get_value(i+1).data);
+                fill_u64_from_string(&new_entity->flags, splitted_line.get_value(i+1).data);
                 i++;
                 
-                if (entity_to_fill.flags & LIGHT) {
-                    // entity_to_fill.light_index = session_context.lights.count;
+                if (new_entity->flags & LIGHT) {
+                    // new_entity->light_index = session_context.lights.count;
                     // session_context.lights.append({});
                     // init_entity_light(&entity_to_fill);
                     // for (i32 i = 0; i < current_level_context->lights.capacity; i++) {                    
                     //     if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get_value(i).exists) {
-                    //         entity_to_fill.light_index = i;   
+                    //         new_entity->light_index = i;   
                     //     }
                     // }
                     Light empty_light = {0};
-                    copy_and_add_light_to_entity(&entity_to_fill, &empty_light, true);
+                    copy_and_add_light_to_entity(new_entity, &empty_light, true);
                 }
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "vertices")) {
-                // fill_i32_from_string(&entity_to_fill.rotation);
-                fill_vertices_array_from_string(&entity_to_fill.vertices, splitted_line, &i);
+                // fill_i32_from_string(&new_entity->rotation);
+                fill_vertices_array_from_string(&new_entity->vertices, splitted_line, &i);
                 // i--;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "unscaled_vertices")) {
-                // fill_i32_from_string(&entity_to_fill.rotation);
-                fill_vertices_array_from_string(&entity_to_fill.unscaled_vertices, splitted_line, &i);
+                // fill_i32_from_string(&new_entity->rotation);
+                fill_vertices_array_from_string(&new_entity->unscaled_vertices, splitted_line, &i);
                 //i--;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "texture_name")) {
-                str_copy(entity_to_fill.texture_name, splitted_line.get_value(i+1).data);
+                str_copy(new_entity->texture_name, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "draw_order")) {
-                fill_i32_from_string(&entity_to_fill.draw_order, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->draw_order, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_connected")) {
-                fill_int_array_from_string(&entity_to_fill.trigger.connected, splitted_line, &i);
+                fill_int_array_from_string(&new_entity->trigger.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "kill_switch_connected")) {
-                fill_int_array_from_string(&entity_to_fill.enemy.kill_switch.connected, splitted_line, &i);
+                fill_int_array_from_string(&new_entity->enemy.kill_switch.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_tracking")) {
-                fill_int_array_from_string(&entity_to_fill.trigger.tracking, splitted_line, &i);
+                fill_int_array_from_string(&new_entity->trigger.tracking, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "enemy_big_or_small_killable")) {
-                fill_b32_from_string(&entity_to_fill.enemy.big_sword_killable, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.big_sword_killable, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "blocker_clockwise")) {
-                fill_b32_from_string(&entity_to_fill.enemy.blocker_clockwise, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.blocker_clockwise, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "blocker_immortal")) {
-                fill_b32_from_string(&entity_to_fill.enemy.blocker_immortal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.blocker_immortal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "propeller_power")) {
-                fill_f32_from_string(&entity_to_fill.propeller.power, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->propeller.power, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "propeller_spin_sensitive")) {
-                fill_b32_from_string(&entity_to_fill.propeller.spin_sensitive, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->propeller.spin_sensitive, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "sword_kill_speed_modifier")) {
-                fill_f32_from_string(&entity_to_fill.enemy.sword_kill_speed_modifier, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->enemy.sword_kill_speed_modifier, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "shoot_blocker_direction")) {
-                fill_vector2_from_string(&entity_to_fill.enemy.shoot_blocker_direction, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->enemy.shoot_blocker_direction, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
             } else if (str_equal(splitted_line.get_value(i).data, "shoot_blocker_immortal")) {
-                fill_b32_from_string(&entity_to_fill.enemy.shoot_blocker_immortal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.shoot_blocker_immortal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "enemy_gives_ammo")) {
-                fill_b32_from_string(&entity_to_fill.enemy.gives_ammo, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.gives_ammo, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "explosive_radius_multiplier")) {
-                fill_f32_from_string(&entity_to_fill.enemy.explosive_radius_multiplier, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->enemy.explosive_radius_multiplier, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_shadows_size_flag")) {
-                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->shadows_size_flags, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->shadows_size_flags, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_backshadows_size_flag")) {
-                fill_i32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->backshadows_size_flags, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->backshadows_size_flags, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_make_shadows")) {
-                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->make_shadows, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->make_shadows, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_make_backshadows")) {
-                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->make_backshadows, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->make_backshadows, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_bake_shadows")) {
-                fill_b32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->bake_shadows, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->bake_shadows, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_radius")) {
-                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->radius, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->radius, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_opacity")) {
-                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->opacity, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->opacity, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_power")) {
-                fill_f32_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->power, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->power, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_color")) {
-                fill_vector4_from_string(&current_level_context->lights.get(entity_to_fill.lights.get_value(0))->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
+                fill_vector4_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_die_after_trigger")) {
-                fill_b32_from_string(&entity_to_fill.trigger.die_after_trigger, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.die_after_trigger, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_kill_player")) {
-                fill_b32_from_string(&entity_to_fill.trigger.kill_player, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.kill_player, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_kill_enemies")) {
-                fill_b32_from_string(&entity_to_fill.trigger.kill_enemies, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.kill_enemies, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_open_doors")) {
-                fill_b32_from_string(&entity_to_fill.trigger.open_doors, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.open_doors, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_physics_simulation")) {
-                fill_b32_from_string(&entity_to_fill.trigger.start_physics_simulation, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.start_physics_simulation, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_track_enemies")) {
-                fill_b32_from_string(&entity_to_fill.trigger.track_enemies, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.track_enemies, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_draw_lines_to_tracked")) {
-                fill_b32_from_string(&entity_to_fill.trigger.draw_lines_to_tracked, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.draw_lines_to_tracked, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_agro_enemies")) {
-                fill_b32_from_string(&entity_to_fill.trigger.agro_enemies, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.agro_enemies, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_player_touch")) {
-                fill_b32_from_string(&entity_to_fill.trigger.player_touch, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.player_touch, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_cam_rails_horizontal")) {
-                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_horizontal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.start_cam_rails_horizontal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_cam_rails_vertical")) {
-                fill_b32_from_string(&entity_to_fill.trigger.start_cam_rails_vertical, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.start_cam_rails_vertical, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_stop_cam_rails")) {
-                fill_b32_from_string(&entity_to_fill.trigger.stop_cam_rails, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.stop_cam_rails, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_cam_rails_points")) {
-                fill_vector2_array_from_string(&entity_to_fill.trigger.cam_rails_points, splitted_line, &i);
+                fill_vector2_array_from_string(&new_entity->trigger.cam_rails_points, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_lock_camera")) {
-                fill_b32_from_string(&entity_to_fill.trigger.lock_camera, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.lock_camera, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_unlock_camera")) {
-                fill_b32_from_string(&entity_to_fill.trigger.unlock_camera, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.unlock_camera, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_allow_player_shoot")) {
-                fill_b32_from_string(&entity_to_fill.trigger.allow_player_shoot, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.allow_player_shoot, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_forbid_player_shoot")) {
-                fill_b32_from_string(&entity_to_fill.trigger.forbid_player_shoot, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.forbid_player_shoot, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_locked_camera_position")) {
-                fill_vector2_from_string(&entity_to_fill.trigger.locked_camera_position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->trigger.locked_camera_position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
             } else if (str_equal(splitted_line.get_value(i).data, "spikes_on_right")) {
-                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_right, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->centipede.spikes_on_right, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "spikes_on_left")) {
-                fill_b32_from_string(&entity_to_fill.centipede.spikes_on_left, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->centipede.spikes_on_left, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "physics_simulating")) {
-                fill_b32_from_string(&entity_to_fill.physics_object.simulating, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->physics_object.simulating, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "on_rope")) {
-                fill_b32_from_string(&entity_to_fill.physics_object.on_rope, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->physics_object.on_rope, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "physics_rotate_by_velocity")) {
-                fill_b32_from_string(&entity_to_fill.physics_object.rotate_by_velocity, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->physics_object.rotate_by_velocity, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "physics_rope_point")) {
-                fill_vector2_from_string(&entity_to_fill.physics_object.rope_point, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->physics_object.rope_point, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
             } else if (str_equal(splitted_line.get_value(i).data, "physics_gravity_multiplier")) {
-                fill_f32_from_string(&entity_to_fill.physics_object.gravity_multiplier, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->physics_object.gravity_multiplier, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "physics_mass")) {
-                fill_f32_from_string(&entity_to_fill.physics_object.mass, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->physics_object.mass, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "segments_count")) {
-                fill_i32_from_string(&entity_to_fill.centipede.segments_count, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->centipede.segments_count, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "door_open")) {
-                fill_b32_from_string(&entity_to_fill.door.is_open, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->door.is_open, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_load_level")) {
-                fill_b32_from_string(&entity_to_fill.trigger.load_level, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.load_level, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_play_replay")) {
-                fill_b32_from_string(&entity_to_fill.trigger.play_replay, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.play_replay, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_level_name")) {
-                str_copy(entity_to_fill.trigger.level_name, splitted_line.get_value(i+1).data);  
+                str_copy(new_entity->trigger.level_name, splitted_line.get_value(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_replay_name")) {
-                str_copy(entity_to_fill.trigger.replay_name, splitted_line.get_value(i+1).data);  
+                str_copy(new_entity->trigger.replay_name, splitted_line.get_value(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_play_sound")) {
-                fill_b32_from_string(&entity_to_fill.trigger.play_sound, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.play_sound, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_change_zoom")) {
-                fill_b32_from_string(&entity_to_fill.trigger.change_zoom, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.change_zoom, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_zoom_value")) {
-                fill_f32_from_string(&entity_to_fill.trigger.zoom_value, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->trigger.zoom_value, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_sound_name")) {
-                str_copy(entity_to_fill.trigger.sound_name, splitted_line.get_value(i+1).data);  
+                str_copy(new_entity->trigger.sound_name, splitted_line.get_value(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_shows_entities")) {
-                fill_b32_from_string(&entity_to_fill.trigger.shows_entities, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.shows_entities, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_starts_moving_sequence")) {
-                fill_b32_from_string(&entity_to_fill.trigger.starts_moving_sequence, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger.starts_moving_sequence, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_moving")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.moving, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence.moving, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_loop")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.loop, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence.loop, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_rotate")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.rotate, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence.rotate, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_speed_related_player_distance")) {
-                fill_b32_from_string(&entity_to_fill.move_sequence.speed_related_player_distance, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence.speed_related_player_distance, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_min_distance")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.min_distance, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence.min_distance, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_max_distance")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence.max_distance, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_max_distance_speed")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.max_distance_speed, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence.max_distance_speed, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "hidden")) {
-                fill_b32_from_string(&entity_to_fill.hidden, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->hidden, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "spawn_enemy_when_no_ammo")) {
-                fill_b32_from_string(&entity_to_fill.spawn_enemy_when_no_ammo, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->spawn_enemy_when_no_ammo, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_explosive_count")) {
-                fill_i32_from_string(&entity_to_fill.jump_shooter.explosive_count, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->jump_shooter.explosive_count, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_flags")) {
-                fill_u64_from_string(&entity_to_fill.enemy.turret.projectile_settings.enemy_flags, splitted_line.get_value(i+1).data);
+                fill_u64_from_string(&new_entity->enemy.turret.projectile_settings.enemy_flags, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_sword_blocker_clockwise")) {
-                fill_b32_from_string(&entity_to_fill.enemy.turret.projectile_settings.blocker_clockwise, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.turret.projectile_settings.blocker_clockwise, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_homing_projectiles")) {
-                fill_b32_from_string(&entity_to_fill.enemy.turret.homing, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.turret.homing, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_every_tick")) {
-                fill_i32_from_string(&entity_to_fill.enemy.turret.shoot_every_tick, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->enemy.turret.shoot_every_tick, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_start_tick_delay")) {
-                fill_i32_from_string(&entity_to_fill.enemy.turret.start_tick_delay, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->enemy.turret.start_tick_delay, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_speed")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.launch_speed, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->enemy.turret.projectile_settings.launch_speed, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_max_lifetime")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.projectile_settings.max_lifetime, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->enemy.turret.projectile_settings.max_lifetime, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_width")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_width, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->enemy.turret.shoot_width, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_height")) {
-                fill_f32_from_string(&entity_to_fill.enemy.turret.shoot_height, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->enemy.turret.shoot_height, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_activated")) {
-                fill_b32_from_string(&entity_to_fill.enemy.turret.activated, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->enemy.turret.activated, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_sword_blockers")) {
-                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->jump_shooter.shoot_sword_blockers, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_sword_blockers_immortal")) {
-                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_sword_blockers_immortal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->jump_shooter.shoot_sword_blockers_immortal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_bullet_blockers")) {
-                fill_b32_from_string(&entity_to_fill.jump_shooter.shoot_bullet_blockers, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->jump_shooter.shoot_bullet_blockers, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shots_count")) {
-                fill_i32_from_string(&entity_to_fill.jump_shooter.shots_count, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->jump_shooter.shots_count, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_spread")) {
-                fill_f32_from_string(&entity_to_fill.jump_shooter.spread, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->jump_shooter.spread, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_speed")) {
-                fill_f32_from_string(&entity_to_fill.move_sequence.speed, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence.speed, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_points")) {
-                fill_vector2_array_from_string(&entity_to_fill.move_sequence.points, splitted_line, &i);
+                fill_vector2_array_from_string(&new_entity->move_sequence.points, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "note_content")) {
                 //str_copy(note_to_fill.content, splitted_line.get_value(i+1).data);
                 fill_string(note_to_fill.content, &splitted_line, &i);
@@ -1397,34 +1400,34 @@ b32 load_level(const char *level_name) {
         }
         
         if (parsing_entities) {
-            if (entity_to_fill.flags & TEXTURE) {
-                i64 texture_hash = hash_str(get_substring_before_symbol(entity_to_fill.texture_name, '.'));
+            if (new_entity->flags & TEXTURE) {
+                i64 texture_hash = hash_str(get_substring_before_symbol(new_entity->texture_name, '.'));
                 
-                entity_to_fill.texture = get_texture(entity_to_fill.texture_name);
+                new_entity->texture = get_texture(new_entity->texture_name);
             }
             
-            setup_color_changer(&entity_to_fill);
+            setup_color_changer(new_entity);
             // Entity *added_entity = add_entity(&entity_to_fill, true);
             // Entity *added_entity = loaded_entities.append(entity_to_fill);
-            Entity *added_entity = copy_and_add_entity(&entity_to_fill, &loaded_level_context);
+            // Entity *added_entity = copy_and_add_entity(&entity_to_fill, &loaded_level_context);
             
-            if (added_entity->flags & NOTE) {
-                added_entity->note_index = add_note("");
-                assert(added_entity->note_index != -1);
-                Note *added_note = current_level_context->notes.get(added_entity->note_index);
+            if (new_entity->flags & NOTE) {
+                new_entity->note_index = add_note("");
+                assert(new_entity->note_index != -1);
+                Note *added_note = current_level_context->notes.get(new_entity->note_index);
                 str_copy(added_note->content, note_to_fill.content);
                 added_note->draw_in_game = note_to_fill.draw_in_game;
             }
             
-            // init_entity(added_entity);
-            //rotate_to(added_entity, added_entity->rotation);
+            // init_entity(new_entity);
+            //rotate_to(new_entity, new_entity->rotation);
             
             // We're appending entities to this array for knowing original ids and later we're going to update all 
             // real ids.
-            Entity *loaded = loaded_entities.append(*added_entity);
-            loaded->id = entity_to_fill.id;
+            Entity *loaded = loaded_entities.append(*new_entity);
+            loaded->id = old_id;
             
-            calculate_bounds(added_entity);
+            calculate_bounds(new_entity);
         }
     }
     
@@ -12420,15 +12423,15 @@ void setup_color_changer(Entity *entity) {
     entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
 }
 
-Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 index_to_insert) {
+Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 id_to_insert) {
     // On calling copy_entity we're always doing a deep copy and adding entity to the entities array because we're cannot 
     // init entity without it being inside a entity array because other entities might want to refer to it. And it's don't 
     // really makes sense to have dummy entity that creating things on level context.
     i32 id_to_set = 0;
     Entity *e = NULL;
-    if (index_to_insert > 0) {
-        e = level_context_for_deep_copy->entities.insert({0}, index_to_insert);
-        id_to_set = index_to_insert + 1;
+    if (id_to_insert > 0) {
+        e = level_context_for_deep_copy->entities.insert({0}, id_to_insert - 1);
+        id_to_set = id_to_insert;
     } else {
         e = level_context_for_deep_copy->entities.append({0}, &id_to_set);
         // Because append gives us index and entity id is index + 1 so id 0 is invalid.
