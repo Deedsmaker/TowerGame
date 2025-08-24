@@ -60,9 +60,15 @@ struct Array {
         return last();
     }
     
-    // T *insert(T value, ) {
-            
-    // }
+    T *insert(T value, i32 index) {
+        // We could think about growing array if insert index exeeds current capacity, but curently I think we should keep it 
+        // simple and allow insert only on existing places.
+        assert(index > 0 && index < count);
+        
+        data[index] = value;
+        
+        return &data[index];
+    }
     
     void remove(i32 index) {
         assert((index >= 0 && index < count) && "Index out of bounds!");

@@ -966,11 +966,6 @@ void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<String> *splitted_li
     }
 }
 
-struct Old_New_Entity_Pair {
-    Entity *new_entity = 0;  
-    Entity *old_entity = 0;
-};
-
 b32 load_level(const char *level_name) {
     clear_allocator(&temp_allocator);
 
@@ -1431,12 +1426,10 @@ b32 load_level(const char *level_name) {
         }
     }
     
-    Array<Old_New_Entity_Pair> entity_pairs = {.allocator = &temp_allocator};
-    
     // This code needs for loading because entity ids in level save file will not be the same 
     // as entity ids after loading.
-    // That's because we're storing our entities in chunk array and entity id is actually just index
-    // in that chunk array. In chunk array removing object and growing is not moving pointers, 
+    // That's because we're storing our entities in chunk array and entity id is actually just (index + 1)
+    // of that chunk array. In chunk array removing object and growing is not moving pointers, 
     // so after work on level we could have a large gaps of empty slots (for example we have chunk size
     // of 128 and we're just adding entities and last entity id is 555. Then we're deleting all 
     // entities from 100 to 554 id and we have a huge huge gap, but last entity still saves with id 
@@ -1445,54 +1438,42 @@ b32 load_level(const char *level_name) {
     // Then on loading we don't want to generate that huge gap again - we actually just want to store 
     // them linearly (even though in chunks). That means we're going to change id of entities.
     // 
-    // Changing entity ids is not as trivial as I've imagined in beginning. 
-    // First of all - all entities that was in level save file is stored in loaded_entities. They 
-    // have their original ids. 
-    // We're going through all of loaded_entities and spawning new entities with new ids and storing 
-    // them together in entity_pairs so old and new have the same indexes.
+    // We're going through loaded_entities, which is just flat copies of actual before-created entities, but with original 
+    // entity ids.
+    // Note that because we're just before added all loaded entities to level context there's no gaps and indexes of 
+    // loaded_entities and actual chunk array of entities will be the same.
     for_array(i, &loaded_entities) {
-        Entity *loaded_entity = loaded_entities.get(i);
-        Entity *new_entity = loaded_level_context.entities.get(i);
+        Entity *loaded = loaded_entities.get(i);
+        Entity *new_entity = get_entity(i + 1);
         
-        entity_pairs.append({.new_entity = new_entity, .old_entity = loaded_entity});
-    }
-    
-    // Now we want to update all ids on newly created entities so they don't refferring to old ids.
-    for_array(i, &entity_pairs) {
-        Old_New_Entity_Pair *pair = entity_pairs.get(i);
-        Entity *loaded = pair->old_entity;
-        Entity *new_entity = pair->new_entity;
-        
-        // Thing here is that if we're encountered trigger - in loaded entity he has all the ids, but the old ones.
-        // So we're going through all loaded entities and seek ids that he's connected to. 
-        // Then - because indexes of entity_pairs and of loaded_entities goes to the same old and new entity
-        // we're just adding id of new entity to new trigger entity etc.
         if (new_entity->flags & TRIGGER) {
-            new_entity->trigger.connected.clear();
-            new_entity->trigger.tracking.clear();
             for_array(j, &loaded_entities) {
+                // i == j would mean that we're looking at the same entity.
                 if (i == j) continue;
-                
+                              
                 Entity *another_loaded = loaded_entities.get(j);
-                if (loaded->trigger.connected.contains(another_loaded->id)) {
-                    Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
-                    new_entity->trigger.connected.append(connected_new_entity->id);
+                // Going through all loaded entities and looking if this entity old id is contained in connected.
+                // If it is - we're replacing id in connected with this entity new id (and this entity new id is current index (j) + 1).
+                i32 connected_index = new_entity->trigger.connected.find(another_loaded->id);
+                if (connected_index >= 0) {
+                    new_entity->trigger.connected.insert(j + 1, connected_index);
                 }
-                if (loaded->trigger.tracking.contains(another_loaded->id)) {
-                    Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
-                    new_entity->trigger.tracking.append(connected_new_entity->id);
+                i32 tracking_index = new_entity->trigger.tracking.find(another_loaded->id);
+                if (tracking_index >= 0) {
+                    new_entity->trigger.tracking.insert(j + 1, tracking_index);
                 }
             }
         }
         if (new_entity->flags & KILL_SWITCH) {
-            new_entity->enemy.kill_switch.connected.clear();
             for_array(j, &loaded_entities) {
                 if (i == j) continue;
                 
                 Entity *another_loaded = loaded_entities.get(j);
-                if (loaded->enemy.kill_switch.connected.contains(another_loaded->id)) {
-                    Entity *connected_new_entity = entity_pairs.get(j)->new_entity;
-                    new_entity->enemy.kill_switch.connected.append(connected_new_entity->id);
+                
+                // Explainded earlier.
+                i32 connected_index = new_entity->enemy.kill_switch.connected.find(another_loaded->id);
+                if (connected_index >= 0) {
+                    new_entity->enemy.kill_switch.connected.insert(j + 1, connected_index);
                 }
             }
         }

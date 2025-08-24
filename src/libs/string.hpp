@@ -235,7 +235,7 @@ b32 str_contains_old(const char *str, const char *contains){
             return false;
         }
     
-        if (to_lower(str[i]) == to_lower(contains[match_count])){
+        if (str[i] == contains[match_count]){
             match_count++;
         } else{
             //return false;
@@ -255,7 +255,7 @@ b32 str_contains_new(const char *string, const char *contains) {
     if (contains_length > string_length) return 0;
     
     for (int i = 0; i < string_length; i++) {
-        if (to_lower(string[i]) != to_lower(contains[0])) continue;
+        if (string[i] != contains[0]) continue;
         if (contains_length == 1) return true;
         // // So if it's last symbol in string and contains length is more than 1 we can't go any further.
         // if (i == string_length - 1) return 0;
@@ -263,7 +263,7 @@ b32 str_contains_new(const char *string, const char *contains) {
         
         i += 1;
         for (int j = 1; j < contains_length; j++) {
-            if (to_lower(string[i]) == to_lower(contains[j])) {
+            if (string[i] == contains[j]) {
                 if (j == contains_length - 1) return true; // So we're checked every contains symbol and did not exit this loop - that means contains is fully persist in string.
                 
                 i += 1;
