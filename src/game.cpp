@@ -2160,6 +2160,7 @@ void init_entity(Entity *entity) {
     
     // init explosive
     if (entity->flags & EXPLOSIVE) {
+        entity->flags |= LIGHT;
         entity->color_changer.change_time = 5.0f;
         Light explosive_light = {};
         // explosive_light.make_backshadows = false; @WTF screen goes black in game mode with this shit. Should change the way lights stored and way we get access to them so don't bother, but wtf ebat (also render doc don't loading with this shit)

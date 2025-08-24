@@ -114,6 +114,8 @@ void free_lights_connected_to_entity(Entity *entity) {
         i32 light_index = entity->lights.get_value(i);
         Light *light = entity->level_context->lights.get(light_index);
         free_light(light, light_index, entity->level_context);
+        
+        i -= 1; // Because free_light removes light from entity->lights.
     }
     
     assert(entity->lights.count == 0); // We're removing light index from entity on free_entity, so here count should be zero.
