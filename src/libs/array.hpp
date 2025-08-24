@@ -330,13 +330,24 @@ struct Chunk_Array {
     inline i32 next_avaliable_index(i32 start_index, b32 should_be_occupied = false) {
         i32 start_chunk_index = start_index / chunk_size;
         
+        // That happens where start_index is equal to total possible count of chunk array.
+        // In for_chunk_array that will happen if chunk array is heavily populated and we're asking for a next index giving 
+        // (count - 1) + 1 trying to get next index. Here we should return default fail value, which is total possible count 
+        // of elements.
+        if (start_chunk_index == chunks_count) {
+            return chunks_count * chunk_size;            
+        }
+        
+        assert(start_chunk_index < chunks_count);
+        
         if (!first_chunk) {
             init_chunk(&first_chunk);  
             chunks_count += 1;
+            return 0;
         } 
         
         Chunk *chunk = first_chunk;
-        for (i32 i = 1; i < start_chunk_index; i++) chunk = chunk->next;
+        for (i32 i = 0; i < start_chunk_index; i++) chunk = chunk->next;
         
         i32 start_index_in_chunk = start_index - start_chunk_index * chunk_size;
         for (i32 i = start_chunk_index; i < chunks_count; i++) {
@@ -358,16 +369,13 @@ struct Chunk_Array {
         assert((index >= 0 && index < chunk_size * chunks_count) && "Index out of bounds!");
         
         Chunk *chunk = first_chunk;
-        for (i32 i = 0; i < chunks_count; i++) {
-            if (i > 0) chunk = chunk->next;
-            if (index_in_chunk(index, chunk, i)) {
-                // That chunk could be not currently occupied. Not sure what we should do about that.
-                return &chunk->elements[index - (i * chunk_size)].value;
-            }
-        }
+        i32 chunk_index = index / chunk_size;
+        assert(chunk_index < chunks_count);
+        for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;
         
-        assert(false && "That should not happen.");
-        return NULL;
+        assert(index_in_chunk(index, chunk, chunk_index));
+        assert(chunk->elements[index - (chunk_index * chunk_size)].occupied);
+        return &chunk->elements[index - (chunk_index * chunk_size)].value;
     }
     
     inline T get_value(i32 index) {
@@ -395,7 +403,8 @@ struct Chunk_Array {
             }
         }
         
-        assert(chunk && "We should not set this chunk variable to null, because here it should be our last chunk so we could create next.");
+        // We should not set this chunk variable to null, because here it should be our last chunk so we could create next.
+        assert(chunk && "Chunk array growing bug!");
         // If we're here then we did not found any free space in existing chunks, so we creating new chunk.
         
         // Right now "chunk" variable should be last chunk.
@@ -404,86 +413,79 @@ struct Chunk_Array {
         chunks_count += 1;
         
         // So we returning the first index of newly created chunk. If it was second chunk and chunk_size is 32 - we're returning 32.
-        return chunks_count * (chunk_size - 1);
+        // return chunks_count * (chunk_size - 1);
+        assert(chunks_count > 1);
+        return chunk_size * (chunks_count - 1);
     }
     
     T *append(T value, i32 *added_index = NULL) {
         if (chunk_size == 0) chunk_size = 32;
     
-        i32 add_index = find_free_space_and_grow_if_need();
-        assert(add_index >= 0);
+        i32 append_index = find_free_space_and_grow_if_need();
+        assert(append_index >= 0);
     
         Chunk *chunk = first_chunk;
-        for (i32 i = 0; i < chunks_count; i++) {
-            if (i > 0) chunk = chunk->next;
-            if (index_in_chunk(add_index, chunk, i)) {
-                Chunk_Element *chunk_element = &chunk->elements[add_index - (i * chunk_size)];
-                
-                if (added_index) *added_index = add_index;
-                
-                chunk_element->occupied = true;
-                chunk_element->value = value;
-                chunk->occupied_count += 1;
-                assert(chunk->occupied_count <= chunk_size);
-                return &chunk_element->value;
-            }
-        }
+        i32 chunk_index = append_index / chunk_size;
+        assert(chunk_index < chunks_count);
+        for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;
         
-        assert(false && "Failed to add element to chunk array.");        
-        return NULL;
+        assert(index_in_chunk(append_index, chunk, chunk_index) && "Chunk array append bug!");
+        Chunk_Element *chunk_element = &chunk->elements[append_index - (chunk_index * chunk_size)];
+            
+        if (added_index) *added_index = append_index;
+        
+        assert(!chunk_element->occupied && "Chunk array append occupied bug!");
+        chunk_element->occupied = true;
+        chunk_element->value = value;
+        chunk->occupied_count += 1;
+        assert(chunk->occupied_count <= chunk_size);
+        return &chunk_element->value;
     }
     
     T *insert(T value, i32 index) {
         assert(index >= 0 && index < chunks_count * chunk_size);
         
         Chunk *chunk = first_chunk;
-        for (i32 i = 0; i < chunks_count; i++) {
-            if (i > 0) chunk = chunk->next;
-            if (index_in_chunk(index, chunk, i)) {
-                Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
-                
-                // We're not asserting just because I'm assuming that we're know what we're doing. 
-                // It's used while copying level context entities array and then re-inserting deep copy of an entity in 
-                // the same place. I'll think more about do we really need this assert or we just should change logic in 
-                // one place where we're asserting. (started thinking 17.08.2025).
-                // assert(!chunk_element->occupied);
-                
-                if (chunk_element->occupied) {
-                    
-                } else {
-                    chunk_element->occupied = true;
-                    chunk->occupied_count += 1;
-                }
-                
-                chunk_element->value = value;
-                
-                assert(chunk->occupied_count <= chunk_size);
-                return &chunk_element->value;
-            }
+        i32 chunk_index = index / chunk_size;
+        assert(chunk_index < chunks_count);
+        for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;
+        
+        assert(index_in_chunk(index, chunk, chunk_index) && "Chunk array insert bug!");
+        Chunk_Element *chunk_element = &chunk->elements[index - (chunk_index * chunk_size)];
+            
+        // We're not asserting occupied just because I'm assuming that we're know what we're doing. 
+        // It's used while copying level context entities array and then re-inserting deep copy of an entity in 
+        // the same place. I'll think more about do we really need this assert or we just should change logic in 
+        // one place where we're asserting. (started thinking 17.08.2025).
+        // assert(!chunk_element->occupied);
+        
+        if (chunk_element->occupied) {
+            
+        } else {
+            chunk_element->occupied = true;
+            chunk->occupied_count += 1;
         }
         
-        assert(false && "Failed to insert element to chunk array. Probably we did not have enough chunks.");        
-        return NULL;
+        chunk_element->value = value;
+        
+        assert(chunk->occupied_count <= chunk_size);
+        return &chunk_element->value;
     }
     
     void remove(i32 index) {
         Chunk *chunk = first_chunk;
-        for (i32 i = 0; i < chunks_count; i++) {
-            if (i > 0) chunk = chunk->next;
-            if (index_in_chunk(index, chunk, i)) {
-                Chunk_Element *chunk_element = &chunk->elements[index - (i * chunk_size)];
-                
-                assert(chunk_element->occupied);
-                
-                chunk_element->occupied = false;
-                chunk->occupied_count -= 1;
-                assert(chunk->occupied_count >= 0);
-                
-                return;
-            }
-        }
+        i32 chunk_index = index / chunk_size;
+        assert(chunk_index < chunks_count);
+        for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;
+
+        assert(index_in_chunk(index, chunk, chunk_index));
+        Chunk_Element *chunk_element = &chunk->elements[index - (chunk_index * chunk_size)];
         
-        assert(false && "Tried to remove index that is not present in chunk array");
+        assert(chunk_element->occupied);
+        
+        chunk_element->occupied = false;
+        chunk->occupied_count -= 1;
+        assert(chunk->occupied_count >= 0);
     }
     
     inline b32 contains(T *to_find) {

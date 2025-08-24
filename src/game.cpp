@@ -2969,7 +2969,7 @@ void init_level_context(Level_Context *level_context) {
     
     init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
     
-    init_chunk_array(&level_context->lights, 64, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
     //init context
     // for (i32 i = 0; i < level_context->lights.capacity; i++) {
@@ -4341,6 +4341,8 @@ void fill_collision_cells(Vector2 position, Static_Array<Vector2, MAX_VERTICES> 
 
 void update_entity_collision_cells(Entity *entity) {
     fill_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
+    
+    assert(!entity->will_be_destroyed);
     
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
@@ -10145,6 +10147,10 @@ void update_all_collision_cells() {
     }
     
     ForEntities(entity, 0) {
+        if (entity->will_be_destroyed) {
+            continue;
+        }
+    
         update_entity_collision_cells(entity);
     }
 }
