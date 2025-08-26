@@ -1551,7 +1551,7 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
 
 #define ForCollisions(entity, flags) fill_collisions(entity, &collisions_buffer, flags); Entity *other = NULL; Collision col = {}; for (i32 col_index = 0; set_next_collision_stuff(col_index, &col, &other); col_index++)
 
-// It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_collision_cells).
+// It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_affected_collision_cells).
 global_variable Array<Collision_Grid_Cell*> collision_cells_buffer = {0};
 
 global_variable Array<Spawn_Object> spawn_objects = {0};
@@ -3159,16 +3159,16 @@ void destroy_player() {
 
 void clean_up_scene() {
     if (current_level_context) {
-        ForEntities(entity, 0) {
-            // entity->color = entity->color_changer.start_color;
-        }
+        // ForEntities(entity, 0) {
+        //     // entity->color = entity->color_changer.start_color;
+        // }
         
         for (i32 i = 0; i < MAX_BIRD_POSITIONS; i++) {
             current_level_context->bird_slots[i].occupied = false;
         }
     }
 
-    state_context = {};
+    state_context = {0};
     checkpoint_trigger_id = -1;
     
     session_context.speedrun_timer.paused = false;
@@ -4322,7 +4322,7 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
     return cell;
 }
 
-void fill_collision_cells(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision_Grid_Cell*> *out_cells) {
+void fill_affected_collision_cells(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision_Grid_Cell*> *out_cells) {
     out_cells->clear();
     Collision_Grid grid = session_context.collision_grid;
     Vector2 center = position + bounds.offset;
@@ -4361,18 +4361,19 @@ inline b32 is_entity_static(Entity *entity) {
 }
 
 inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_static_entities) {
-    if (!update_cells_for_static_entities && is_entity_static(entity)) {
+    b32 is_static = is_entity_static(entity);
+    if (!update_cells_for_static_entities && is_static) {
         return;
     }
 
     entity->occupied_collision_cells.clear();
-    fill_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
+    fill_affected_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
     
     assert(!entity->will_be_destroyed);
     
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
-        Array <i32> *cell_entities = is_entity_static(entity) ? &cell->static_entities : &cell->dynamic_entities;
+        Array <i32> *cell_entities = is_static ? &cell->static_entities : &cell->dynamic_entities;
         
         // @CLEANUP: This should always be true, why do we checking it?
         if (cell) {
@@ -4387,7 +4388,7 @@ global_variable Array<i32> added_collision_ids = {0};
 void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision> *result, FLAGS include_flags, i32 my_id) {
     result->clear();
     
-    fill_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
+    fill_affected_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
     added_collision_ids.clear();
     
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
@@ -10851,19 +10852,15 @@ void update_entities(f32 dt) {
 
     Chunk_Array<Entity> *entities = &current_level_context->entities;
     
-    // @SPEED: That works fine for now, but we'll need  to tacke that thing to firstly separate static entities from dynamic
-    // (different arrays) and secondly update collision cells only for entities that's marked as dynamic.
-    // if (core.time.app_time - state_context.timers.last_collision_cells_clear_time >= 0.2f) {
     b32 update_static_entities_collision_cells = game_state == EDITOR || state_context.in_pause_editor;
     update_all_collision_cells(update_static_entities_collision_cells);        
-        // state_context.timers.last_collision_cells_clear_time = core.time.app_time;
-    // }
     
     // for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
     for_chunk_array(entity_index, entities) {
         Entity *e = entities->get(entity_index);
         
         if (e->flags & PLAYER) {
+            // @CLEANUP: Why that's here? It could be in free_entity.
             if (need_destroy_player) {
                 destroy_player();   
                 need_destroy_player = false;
@@ -10871,11 +10868,11 @@ void update_entities(f32 dt) {
         }
         
         if (e->destroyed) {
-            // notify_destruction_to_connected_entities(e);
             free_entity(e);
             entities->remove(e->id - 1);    
             continue;
         }
+        
         // With will_be_destroyed we'll waiting one extra frame before actually be destroyed so every entity that referring
         // to that entity could detect that and remove reference.
         if (e->will_be_destroyed) {
