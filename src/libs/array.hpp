@@ -60,6 +60,12 @@ struct Array {
         return last();
     }
     
+    void append_another_array(Array <T> *array) {
+        for_array(i, array) {
+            append(array->get_value(i));
+        }
+    }
+    
     T *insert(T value, i32 index) {
         // We could think about growing array if insert index exeeds current capacity, but curently I think we should keep it 
         // simple and allow insert only on existing places.
@@ -228,6 +234,26 @@ struct Static_Array {
         
         memmove(get(index), get(index+1), sizeof(T) * (count - index - 1));
         count--;
+    }
+    
+    inline void remove_first_encountered(T *value) {
+        i32 index = find(value);
+        if (index >= 0) remove(index);
+    }
+    inline void remove_first_encountered(T value) {
+        remove_first_encountered(&value);
+    }
+    
+    inline void remove_all_encountered(T *value) {
+        for_array(i, this) {
+            if (*get(i) == *value) {
+                remove(i);
+                i--;
+            }
+        }
+    }
+    inline void remove_all_encountered(T value) {
+        remove_all_encountered(&value);
     }
     
     T pop_value(){

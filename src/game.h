@@ -57,8 +57,8 @@ void clear_multiselected_entities(b32 add_to_undo);
 void update_editor_ui();
 void update_editor();
 void update_editor_entity(Entity *e);
-void update_all_collision_cells();
-void update_entity_collision_cells(Entity *entity);
+void update_all_collision_cells(b32 update_cells_for_static_entities);
+inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_static_entities);
 void update_entities(f32 dt);
 
 void activate_door(Entity *entity, b32 is_open);

@@ -16,7 +16,6 @@ struct Allocator {
 
 // NULL on default allocator means it will be just malloc.
 Allocator temp_allocator    = {};
-Allocator level_allocator   = {};
 Allocator state_allocator   = {};
 
 void init_allocator(Allocator *allocator, size_t size) {

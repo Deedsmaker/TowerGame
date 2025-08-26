@@ -176,6 +176,12 @@ inline void mark_entity_destroyed(Entity *entity) {
 }
 
 void free_entity(Entity *e) {
+    for_array(i, &e->occupied_collision_cells) {
+        Collision_Grid_Cell *cell = e->occupied_collision_cells.get_value(i);
+        cell->dynamic_entities.remove_all_encountered(e->id);
+        cell->static_entities.remove_all_encountered(e->id);
+    }
+
     if (e->flags & TRIGGER) {
         if (e->trigger.connected.capacity > 0) {
             e->trigger.connected.free_data();
@@ -619,7 +625,6 @@ void clear_level_context(Level_Context *level_context) {
     ArrayOfStructsToDefaultValues(level_context->particles);
     ArrayOfStructsToDefaultValues(level_context->notes);
     
-    
     for_chunk_array(i, &level_context->lights) {
         free_light(get_light(i, level_context), i, level_context);
     }
@@ -638,6 +643,8 @@ void clear_level_context(Level_Context *level_context) {
     
     // level_context->we_got_a_winner = false;
     // player_data = {};
+    
+    clear_allocator(&level_context->memory_arena);
     
     switch_current_level_context(original_level_context);
 }
@@ -1544,6 +1551,7 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
 
 #define ForCollisions(entity, flags) fill_collisions(entity, &collisions_buffer, flags); Entity *other = NULL; Collision col = {}; for (i32 col_index = 0; set_next_collision_stuff(col_index, &col, &other); col_index++)
 
+// It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_collision_cells).
 global_variable Array<Collision_Grid_Cell*> collision_cells_buffer = {0};
 
 global_variable Array<Spawn_Object> spawn_objects = {0};
@@ -2102,6 +2110,9 @@ void init_entity(Entity *entity) {
     assert(entity->id > 0 && get_entity(entity->id)->id > 0);
 
     entity->level_context = current_level_context;
+    
+    entity->occupied_collision_cells = {.allocator = &current_level_context->memory_arena};
+    
     entity->color = entity->color_changer.start_color;
 
     if (entity->flags & AMMO_PACK){
@@ -2961,6 +2972,8 @@ void init_level_context(Level_Context *level_context) {
     assert(!level_context->inited);
 
     current_level_context = level_context;
+    
+    init_allocator(&current_level_context->memory_arena, Megabytes(4));
 
     init_array(&level_context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
     init_array(&level_context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
@@ -3248,7 +3261,8 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
 
     state_context.timers.last_collision_cells_clear_time = core.time.app_time;
     for (i32 i = 0; i < session_context.collision_grid_cells_count; i++) {        
-        session_context.collision_grid.cells[i].entities_ids.clear();
+        session_context.collision_grid.cells[i].dynamic_entities.clear();
+        session_context.collision_grid.cells[i].static_entities.clear();
     }
     
     game_state = GAME;
@@ -3274,13 +3288,16 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
             // Initing it again because some entities (like centipede) wanna init things only in game state. 
             // Need to change that.
             init_entity(entity);
-            update_entity_collision_cells(entity);
+            // update_entity_collision_cells(entity, true);
         }
         
         if (entity->flags & WIN_BLOCK) {
             current_level_context->original_win_blocks_count += 1;
         }
     }
+    
+    b32 update_static_collision_cells = true;
+    update_all_collision_cells(update_static_collision_cells);
     
     current_level_context->current_win_blocks_count = current_level_context->original_win_blocks_count;
 }
@@ -4339,16 +4356,28 @@ void fill_collision_cells(Vector2 position, Static_Array<Vector2, MAX_VERTICES> 
     }
 }
 
-void update_entity_collision_cells(Entity *entity) {
+inline b32 is_entity_static(Entity *entity) {
+    return entity->flags == GROUND || entity->flags == TEXTURE;
+}
+
+inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_static_entities) {
+    if (!update_cells_for_static_entities && is_entity_static(entity)) {
+        return;
+    }
+
+    entity->occupied_collision_cells.clear();
     fill_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
     
     assert(!entity->will_be_destroyed);
     
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
+        Array <i32> *cell_entities = is_entity_static(entity) ? &cell->static_entities : &cell->dynamic_entities;
         
-        if (cell && !cell->entities_ids.contains(entity->id)) {
-            cell->entities_ids.append(entity->id);
+        // @CLEANUP: This should always be true, why do we checking it?
+        if (cell) {
+            cell_entities->append(entity->id);
+            entity->occupied_collision_cells.append(cell);
         }
     }
 }
@@ -4364,10 +4393,14 @@ void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> verti
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
         
-        for (i32 c = 0; c < cell->entities_ids.count; c++) {
-            Entity *other = get_entity(cell->entities_ids.get_value(c));
+        Array <i32> entities_in_cell = {.allocator = &temp_allocator};
+        entities_in_cell.append_another_array(&cell->dynamic_entities);
+        entities_in_cell.append_another_array(&cell->static_entities);
+        
+        for (i32 c = 0; c < entities_in_cell.count; c++) {
+            Entity *other = get_entity(entities_in_cell.get_value(c));
             
-            if (!other || other->destroyed || !other->enabled || other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && game_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id)) {
+            if (other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && game_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id)) {
                 continue;
             }
             
@@ -10140,10 +10173,14 @@ void update_move_sequence(Entity *entity, f32 dt) {
     }
 }
 
-void update_all_collision_cells() {
-    state_context.timers.last_collision_cells_clear_time = core.time.app_time;
+void update_all_collision_cells(b32 update_cells_for_static_entities) {
     for (i32 i = 0; i < session_context.collision_grid_cells_count; i++) {        
-        session_context.collision_grid.cells[i].entities_ids.clear();
+        session_context.collision_grid.cells[i].dynamic_entities.clear();
+    }
+    if (update_cells_for_static_entities) {
+        for (i32 i = 0; i < session_context.collision_grid_cells_count; i++) {        
+            session_context.collision_grid.cells[i].static_entities.clear();
+        }
     }
     
     ForEntities(entity, 0) {
@@ -10151,7 +10188,7 @@ void update_all_collision_cells() {
             continue;
         }
     
-        update_entity_collision_cells(entity);
+        update_entity_collision_cells(entity, update_cells_for_static_entities);
     }
 }
 
@@ -10269,39 +10306,39 @@ inline void update_turret(Entity *entity, f32 dt) {
 inline b32 update_entity(Entity *e, f32 dt) {
     update_color_changer(e, dt);            
     
-    if (e->flags & PHYSICS_OBJECT) {
-        // update rope stuff
-         if (e->physics_object.on_rope) {
-            Entity *rope_entity            = get_entity(e->physics_object.rope_id);
-            Entity *up_rope_point_entity   = get_entity(e->physics_object.up_rope_point_id);
-            Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
+    // if (e->flags & PHYSICS_OBJECT) {
+    //     // update rope stuff
+    //      if (e->physics_object.on_rope) {
+    //         Entity *rope_entity            = get_entity(e->physics_object.rope_id);
+    //         Entity *up_rope_point_entity   = get_entity(e->physics_object.up_rope_point_id);
+    //         Entity *down_rope_point_entity = get_entity(e->physics_object.down_rope_point_id);
             
-            // If any part of rope is missing - we destroy them all.
-            if (!rope_entity || !up_rope_point_entity || !down_rope_point_entity) {
-                e->physics_object.on_rope = false;
-                if (rope_entity) {
-                    mark_entity_destroyed(rope_entity);
-                }
-                if (up_rope_point_entity) {
-                    mark_entity_destroyed(up_rope_point_entity);
-                }
-                if (down_rope_point_entity) {
-                    mark_entity_destroyed(down_rope_point_entity);
-                }
-            } else {
-                update_entity_collision_cells(rope_entity);
-                rope_entity->position = e->position + e->up * e->scale.y * 0.5f;
-                Vector2 vec_to_point = e->physics_object.rope_point - (e->position + e->up * e->scale.y * 0.5f);
-                f32 len = magnitude(vec_to_point);
-                Vector2 dir = normalized(vec_to_point);
-                change_up(rope_entity, dir);
-                change_scale(rope_entity, {1, len});
+    //         // If any part of rope is missing - we destroy them all.
+    //         if (!rope_entity || !up_rope_point_entity || !down_rope_point_entity) {
+    //             e->physics_object.on_rope = false;
+    //             if (rope_entity) {
+    //                 mark_entity_destroyed(rope_entity);
+    //             }
+    //             if (up_rope_point_entity) {
+    //                 mark_entity_destroyed(up_rope_point_entity);
+    //             }
+    //             if (down_rope_point_entity) {
+    //                 mark_entity_destroyed(down_rope_point_entity);
+    //             }
+    //         } else {
+    //             update_entity_collision_cells(rope_entity);
+    //             rope_entity->position = e->position + e->up * e->scale.y * 0.5f;
+    //             Vector2 vec_to_point = e->physics_object.rope_point - (e->position + e->up * e->scale.y * 0.5f);
+    //             f32 len = magnitude(vec_to_point);
+    //             Vector2 dir = normalized(vec_to_point);
+    //             change_up(rope_entity, dir);
+    //             change_scale(rope_entity, {1, len});
                 
-                up_rope_point_entity->position   = e->physics_object.rope_point;
-                down_rope_point_entity->position = e->position + e->up * e->scale.y * 0.5f;
-            }
-        }
-    }
+    //             up_rope_point_entity->position   = e->physics_object.rope_point;
+    //             down_rope_point_entity->position = e->position + e->up * e->scale.y * 0.5f;
+    //         }
+    //     }
+    // }
     
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT) {
@@ -10814,9 +10851,13 @@ void update_entities(f32 dt) {
 
     Chunk_Array<Entity> *entities = &current_level_context->entities;
     
-    if (core.time.app_time - state_context.timers.last_collision_cells_clear_time >= 0.2f) {
-        update_all_collision_cells();        
-    }
+    // @SPEED: That works fine for now, but we'll need  to tacke that thing to firstly separate static entities from dynamic
+    // (different arrays) and secondly update collision cells only for entities that's marked as dynamic.
+    // if (core.time.app_time - state_context.timers.last_collision_cells_clear_time >= 0.2f) {
+    b32 update_static_entities_collision_cells = game_state == EDITOR || state_context.in_pause_editor;
+    update_all_collision_cells(update_static_entities_collision_cells);        
+        // state_context.timers.last_collision_cells_clear_time = core.time.app_time;
+    // }
     
     // for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
     for_chunk_array(entity_index, entities) {
@@ -10866,7 +10907,7 @@ void update_entities(f32 dt) {
             continue;
         }
     
-        update_entity_collision_cells(e);
+        // update_entity_collision_cells(e);
         if (!update_entity(e, dt)) {
             break;
         }
@@ -12252,12 +12293,12 @@ void new_render() {
             Collision_Grid grid = session_context.collision_grid;
             Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
             
-            update_entity_collision_cells(&mouse_entity);
+            // update_entity_collision_cells(&mouse_entity);
             for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y) {
                 for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x) {
                     Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
                     
-                    draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && cell->entities_ids.count > 0) ? GREEN : RED);
+                    draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && (cell->dynamic_entities.count > 0 || cell->static_entities.count > 0)) ? GREEN : RED);
                 }
             }
         }

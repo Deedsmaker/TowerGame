@@ -809,6 +809,20 @@ struct Projectile{
 //     Pointing_At_Me_Type type;
 // };
 
+#define MAX_COLLISION_CELL_OBJECTS 256
+
+struct Collision_Grid_Cell{
+    Array <i32> dynamic_entities = {0};
+    Array <i32> static_entities = {0};
+};
+
+struct Collision_Grid {  
+    Vector2 origin = Vector2_zero;
+    Vector2 size = {10000, 6000};
+    Vector2 cell_size = {80, 80};
+    Collision_Grid_Cell *cells = NULL;
+};
+
 struct Entity {
     i32 id = -1;
     b32 need_to_save = true;
@@ -851,6 +865,8 @@ struct Entity {
     Bounds bounds = {{0, 0}, {0, 0}};
     Vector2 pivot = {0.5f, 0.5f};
     f32 rotation = 0;
+    
+    Array <Collision_Grid_Cell *> occupied_collision_cells = {0};
     
     Color color = WHITE;
     
@@ -947,19 +963,6 @@ global_variable Player replay_player_data = {};
 struct Spawn_Object{
     char name[64];
     Entity entity = {0};
-};
-
-#define MAX_COLLISION_CELL_OBJECTS 256
-
-struct Collision_Grid_Cell{
-    Static_Array <i32, MAX_COLLISION_CELL_OBJECTS> entities_ids = {0};
-};
-
-struct Collision_Grid{  
-    Vector2 origin = Vector2_zero;
-    Vector2 size = {10000, 6000};
-    Vector2 cell_size = {80, 80};
-    Collision_Grid_Cell *cells = NULL;
 };
 
 //scale 150 should be full screen;
@@ -1060,7 +1063,9 @@ struct Undo_Action {
     i32 draw_order_change = 0;
 };
 
-struct Level_Context{
+struct Level_Context {
+    Allocator memory_arena = {0};
+
     Array <Undo_Action> undo_actions = {0};
     Cam cam = {};
 
@@ -1182,7 +1187,7 @@ struct Session_Context{
     // char current_level_name[256] = "\0";
     char previous_level_name[256] = "\0";
     
-    Collision_Grid collision_grid;
+    Collision_Grid collision_grid = {0};
     i32 collision_grid_cells_count = 0;
     
     // Cam cam = {};
