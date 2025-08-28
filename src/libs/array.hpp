@@ -59,6 +59,14 @@ struct Array {
         
         return last();
     }
+    // That's for situations where we want to reuse element. (like in redo).
+    T *increase_count_and_get_last() {
+        grow_if_need((void **)(&data), sizeof(T), &capacity, count, 1);
+        
+        count += 1;
+        
+        return last();
+    }
     
     void append_another_array(Array <T> *array) {
         for_array(i, array) {

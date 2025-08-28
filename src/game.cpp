@@ -4564,10 +4564,10 @@ void add_undo_action(Undo_Action undo_action) {
     
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(&undo_level_context);
-    for (i32 i = 0; i < new_undo->deleted_entities.count; i++) {
-        free_entity(new_undo->deleted_entities.get_value(i));
-    }
-    new_undo->deleted_entities.clear();
+    // for (i32 i = 0; i < new_undo->deleted_entities.count; i++) {
+    //     free_entity(new_undo->deleted_entities.get_value(i));
+    // }
+    // new_undo->deleted_entities.clear();
     
     if (original_level_context->undo_actions.count >= MAX_UNDOS) {
         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
@@ -7051,11 +7051,9 @@ void update_editor() {
     // redo logic
     b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && redo_queued;
     if (need_make_redo) {
-        // @TODO: That's unstable. Will change that with undo system redone. Probably should use some different data structure
+        // @TODO: That's unstable. Will change that with undo system rework. Probably should use some different data structure
         // for that. Or not.
-        // @WTF? Why do we adding count if on the next line we append.
-        // current_level_context->undo_actions.count++;        
-        Undo_Action *action = current_level_context->undo_actions.append({});
+        Undo_Action *action = current_level_context->undo_actions.increase_count_and_get_last();
         
         // So we adding it again.
         if (action->added_to_multiselection) {
