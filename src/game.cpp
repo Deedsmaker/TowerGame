@@ -2107,7 +2107,8 @@ void init_entity(Entity *entity) {
     // That's because other entities or context or lights might want to get entity by it's id and it will fail if it's just 
     // entity that we created localy.
     
-    assert(entity->id > 0 && get_entity(entity->id)->id > 0);
+    assert(entity->level_context);
+    assert(entity->id > 0 && get_entity(entity->id, entity->level_context)->id > 0);
 
     entity->level_context = current_level_context;
     
@@ -4557,26 +4558,16 @@ void move_vertex(Entity *entity, Vector2 target_position, i32 vertex_index) {
 }
 
 void add_undo_action(Undo_Action undo_action) {
-    // Because we could go back and forth on current undo index with undo/redo. 
-    // Hard to wrap mind about that without remembering how undos work, but that's should work.
-    //
-    // UPDATE: (06.07.2025) after almost a year: Because what? wtf.
-    // BECAUSE is probably about why we free arrays here. That's because otherwise we would need to 
-    // do that for every undo in front when we undo and then changed something so we can't do redo anymore 
-    // and any undos in front become invalid. 
-    // That's idiotic. I'll change free_data() to just clear() because we're reusing it anyways.
-    // And that whole undo system should die anyways as we know.
+    // We're appending undo only on current editor level context and not in undo level context, just because every level should
+    // know it's undos.
+    Undo_Action *new_undo = current_level_context->undo_actions.append(undo_action);
     
-    Undo_Action *new_undo = current_level_context->undo_actions.append({0});
-    new_undo->changed_entities.clear();
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(&undo_level_context);
     for (i32 i = 0; i < new_undo->deleted_entities.count; i++) {
         free_entity(new_undo->deleted_entities.get_value(i));
     }
     new_undo->deleted_entities.clear();
-    
-    original_level_context->undo_actions.append(undo_action);
     
     if (original_level_context->undo_actions.count >= MAX_UNDOS) {
         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
@@ -4592,6 +4583,7 @@ void add_undo_action(Undo_Action undo_action) {
     switch_current_level_context(original_level_context);
     
     editor.max_undos_added = original_level_context->undo_actions.count;
+    
 }
 
 void undo_add_position(Entity *entity, Vector2 position_change) {
@@ -7062,7 +7054,7 @@ void update_editor() {
         // @TODO: That's unstable. Will change that with undo system redone. Probably should use some different data structure
         // for that. Or not.
         // @WTF? Why do we adding count if on the next line we append.
-        current_level_context->undo_actions.count++;        
+        // current_level_context->undo_actions.count++;        
         Undo_Action *action = current_level_context->undo_actions.append({});
         
         // So we adding it again.
