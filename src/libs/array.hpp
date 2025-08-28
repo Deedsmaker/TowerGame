@@ -408,6 +408,17 @@ struct Chunk_Array {
         return *get(index);
     }
     
+    b32 is_index_avaliable(i32 index) {
+        Chunk *chunk = first_chunk;
+        i32 chunk_index = index / chunk_size;
+        if (chunk_index >= chunks_count) return false;
+        
+        for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;
+        
+        assert(index_in_chunk(index, chunk, chunk_index));
+        return !chunk->elements[index - (chunk_index * chunk_size)].occupied;
+    }
+    
     i32 find_free_space_and_grow_if_need() {
         if (!first_chunk) {
             init_chunk(&first_chunk);

@@ -4447,8 +4447,8 @@ inline Light *get_light(i32 index, Level_Context *level_context) {
 }
 
 inline Entity *get_entity(i32 id, Level_Context *level_context) {
-    if (!level_context) level_context = current_level_context;
     assert(id > 0 && "Invalid entity id!");
+    if (!level_context) level_context = current_level_context;
     
     // We're always assuming that given id is valid and there will be real entity, because otherwise some entity just forgot 
     // to detect that some connected entity will be destroyed.
@@ -4456,6 +4456,18 @@ inline Entity *get_entity(i32 id, Level_Context *level_context) {
     // Entity ids are index + 1, so 0 is always invalid.
     return level_context->entities.get(id - 1);
 }
+
+inline Entity *maybe_get_entity(i32 id, Level_Context *level_context) {
+    assert(id > 0 && "Invalid entity id!");
+    if (!level_context) level_context = current_level_context;
+    
+    if (!current_level_context->entities.is_index_avaliable(id - 1)) {
+        return NULL;
+    }
+    
+    return get_entity(id, level_context);
+}
+
 
 i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find) {
     for (i32 i = 0; i < count; i++) {
