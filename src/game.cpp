@@ -2789,6 +2789,19 @@ void debug_toggle_draw_triggers() {
     debug.draw_areas_in_game = !debug.draw_areas_in_game;
 }
 
+void editor_select_entity_by_id(const char *id_str) {
+    Entity *entity_to_select = maybe_get_entity(to_i32(id_str));    
+    if (entity_to_select) {
+        assign_selected_entity(entity_to_select);
+    } else {
+        print_to_console("Did not find that id!");
+    }
+}
+
+void editor_print_select_entity_by_id_hint() {
+    print_to_console("Provide a id!");
+}
+
 void init_console() {
     init_array(&console.args, 8, HEAP_ALLOCATOR);
     init_array(&console.commands, 128, HEAP_ALLOCATOR);
@@ -2813,6 +2826,8 @@ void init_console() {
     console.commands.append(make_console_command("full_light",     debug_toggle_full_light));
     console.commands.append(make_console_command("collision_grid", debug_toggle_collision_grid));
     console.commands.append(make_console_command("draw_triggers", debug_toggle_draw_triggers));
+    
+    console.commands.append(make_console_command("find", editor_print_select_entity_by_id_hint, editor_select_entity_by_id));
     
     console.commands.append(make_console_command("save",     save_current_level, save_level_by_name));
     console.commands.append(make_console_command("load",     NULL, load_level_by_name));
@@ -4316,8 +4331,9 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
     i32 row    = floor(((origin_to_pos.y + grid->size.y * 0.5f) / grid->cell_size.y));
     
     if (column < 0 || column >= max_columns || row < 0 || row >= (i32)(grid->size.y / grid->cell_size.y)) {
-        // return NULL;
-        assert(false && "Collision grid invalid position.");
+        // We just don't want to assert because that's just could happen that projectile goes too far beyond reach of a collision
+        // grid, so everyone who calls it should check for null.
+        return NULL;
     }
     
     Collision_Grid_Cell *cell = grid->cells.get(column + row * max_columns);
@@ -4377,7 +4393,6 @@ inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_s
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
         Array <i32> *cell_entities = is_static ? &cell->static_entities : &cell->dynamic_entities;
         
-        // @CLEANUP: This should always be true, why do we checking it?
         if (cell) {
             cell_entities->append(entity->id);
             entity->occupied_collision_cells.append(cell);
@@ -4463,7 +4478,7 @@ inline Entity *maybe_get_entity(i32 id, Level_Context *level_context) {
     assert(id > 0 && "Invalid entity id!");
     if (!level_context) level_context = current_level_context;
     
-    if (!current_level_context->entities.is_index_avaliable(id - 1)) {
+    if (current_level_context->entities.is_index_avaliable_for_new_value(id - 1)) {
         return NULL;
     }
     
@@ -6074,6 +6089,12 @@ void update_editor() {
         // BUT i've recently (08.03.2025 currently) made that origin is on player spawn point in editor. Don't remember why. 
         // There's could be other scary reason.
         // Vector2 grid_target_pos = current_level_context->player_spawn_point;
+        
+        // We're changing grid origin in editor just because right now we have static size grid and we want to be able to 
+        // click on entities that far away from {zero, zero}.
+        //
+        // NOTE that we can do this in editor beacuse we're recalculating static entities collision cells every frame, whereas
+        // in game mode we're not doing that and grid origin in game mode should stay at where we've put it in beginning.
         Vector2 grid_target_pos = current_level_context->cam.position;
         session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
     }
@@ -10176,9 +10197,6 @@ void update_all_collision_cells(b32 update_cells_for_static_entities) {
     if (update_cells_for_static_entities) {
         for (i32 i = 0; i < session_context.collision_grid.cells.count; i++) {        
             session_context.collision_grid.cells.get(i)->static_entities.clear();
-            if (session_context.collision_grid.cells.get(i)->static_entities.count > 0) {
-                print(&session_context.collision_grid.cells.get(i)->static_entities);
-            }
         }
     }
     
@@ -10345,8 +10363,6 @@ inline b32 update_entity(Entity *e, f32 dt) {
             printf("WARNING: Entity with flag LIGHT don't have corresponding light index. Name: %s, id: %d\n", e->name, e->id);
         }
     }
-    
-    session_context.collision_grid.origin = {(f32)((i32)player_entity->position.x - ((i32)player_entity->position.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)player_entity->position.y - ((i32)player_entity->position.y % (i32)session_context.collision_grid.cell_size.y))};
     
     // update player
     if (e->flags & PLAYER && !debug.dragging_player) {

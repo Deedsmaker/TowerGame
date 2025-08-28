@@ -815,7 +815,8 @@ struct Collision_Grid_Cell{
     Array <i32> dynamic_entities = {0};
     Array <i32> static_entities = {0};
 };
-
+// @SPEED: This thing needs a closer look. It's a place for a lot of cache missses. But it's may be fine because we're actually 
+// do not go through all of cells ever. Need to look at that later.
 struct Collision_Grid {  
     Vector2 origin = Vector2_zero;
     Vector2 size = {10000, 6000};

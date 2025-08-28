@@ -408,7 +408,7 @@ struct Chunk_Array {
         return *get(index);
     }
     
-    b32 is_index_avaliable(i32 index) {
+    b32 is_index_avaliable_for_new_value(i32 index) {
         Chunk *chunk = first_chunk;
         i32 chunk_index = index / chunk_size;
         if (chunk_index >= chunks_count) return false;
@@ -570,9 +570,12 @@ struct Chunk_Array {
         Chunk *next;
         while (current) {
             next = current->next;
-            free(current);
+            free_data_in_allocator(allocator, current);
+            current->occupied_count = 0;
             current = next;
         }
+        
+        // Should we tell that chunks count is zero and actually nullify all of chunks?
     }
     
     inline void init_chunk(Chunk **chunk) {
