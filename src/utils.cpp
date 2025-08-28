@@ -149,6 +149,18 @@ void print(const char *str){
     printf("%s; %.4f\n", str, core.time.app_time);
 }
 
+void print(Array <i32> *numbers) {
+    printf("Numbers: [");
+    for_array(i, numbers) {
+        if (i < numbers->count - 1) {
+            printf("%d, ", numbers->get_value(i));
+        } else {
+            printf("%d", numbers->get_value(i));
+        }
+    }
+    printf("]\n");    
+}
+
 // void print(b32 num){
 //     if (num){
 //         printf("true; %.4f\n", core.time.app_time);

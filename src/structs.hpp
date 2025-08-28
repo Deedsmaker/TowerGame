@@ -820,7 +820,7 @@ struct Collision_Grid {
     Vector2 origin = Vector2_zero;
     Vector2 size = {10000, 6000};
     Vector2 cell_size = {80, 80};
-    Collision_Grid_Cell *cells = NULL;
+    Array <Collision_Grid_Cell> cells = {0};
 };
 
 struct Entity {
@@ -1188,7 +1188,6 @@ struct Session_Context{
     char previous_level_name[256] = "\0";
     
     Collision_Grid collision_grid = {0};
-    i32 collision_grid_cells_count = 0;
     
     // Cam cam = {};
     

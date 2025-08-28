@@ -608,7 +608,7 @@ void clear_level_context(Level_Context *level_context) {
     switch_current_level_context(level_context);
     ForEntities(entity, 0) {
         free_entity(entity);
-        *entity = {};
+        *entity = {0};
     }
     
     level_context->entities.clear();
@@ -3090,11 +3090,12 @@ void init_game() {
     
     i32 cells_columns = (i32)(session_context.collision_grid.size.x / session_context.collision_grid.cell_size.x);
     i32 cells_rows    = (i32)(session_context.collision_grid.size.y / session_context.collision_grid.cell_size.y);
-    session_context.collision_grid.cells = (Collision_Grid_Cell*)malloc(cells_columns * cells_rows * sizeof(Collision_Grid_Cell));
-    session_context.collision_grid_cells_count = cells_columns * cells_rows;
+    size_t cells_count = cells_columns * cells_rows;
     
-    for (i32 i = 0; i < cells_columns * cells_rows; i++) {
-        session_context.collision_grid.cells[i] = {};
+    init_array(&session_context.collision_grid.cells, cells_count, HEAP_ALLOCATOR);
+    
+    for (i32 i = 0; i < cells_count; i++) {
+        session_context.collision_grid.cells.append({0});
     }
     
     white_pixel_image = GenImageColor(1, 1, WHITE);
@@ -3259,11 +3260,11 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
     Vector2 grid_target_pos = current_level_context->player_spawn_point;
     session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
 
-    state_context.timers.last_collision_cells_clear_time = core.time.app_time;
-    for (i32 i = 0; i < session_context.collision_grid_cells_count; i++) {        
-        session_context.collision_grid.cells[i].dynamic_entities.clear();
-        session_context.collision_grid.cells[i].static_entities.clear();
-    }
+    // state_context.timers.last_collision_cells_clear_time = core.time.app_time;
+    // for (i32 i = 0; i < session_context.collision_grid.cells.count; i++) {        
+    //     session_context.collision_grid.cells[i].dynamic_entities.clear();
+    //     session_context.collision_grid.cells[i].static_entities.clear();
+    // }
     
     game_state = GAME;
     
@@ -4305,20 +4306,21 @@ void resolve_collision(Entity *entity, Collision col) {
 }
 
 Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
-    Collision_Grid grid = session_context.collision_grid;    
+    Collision_Grid *grid = &session_context.collision_grid;    
     
-    Vector2 origin_to_pos = position - grid.origin;
+    Vector2 origin_to_pos = position - grid->origin;
     
-    i32 max_columns = (i32)(grid.size.x / grid.cell_size.x);
+    i32 max_columns = (i32)(grid->size.x / grid->cell_size.x);
     
-    i32 column = floor(((origin_to_pos.x + grid.size.x * 0.5f) / grid.cell_size.x));
-    i32 row    = floor(((origin_to_pos.y + grid.size.y * 0.5f) / grid.cell_size.y));
+    i32 column = floor(((origin_to_pos.x + grid->size.x * 0.5f) / grid->cell_size.x));
+    i32 row    = floor(((origin_to_pos.y + grid->size.y * 0.5f) / grid->cell_size.y));
     
-    if (column < 0 || column >= max_columns || row < 0 || row >= (i32)(grid.size.y / grid.cell_size.y)) {
-        return NULL;
+    if (column < 0 || column >= max_columns || row < 0 || row >= (i32)(grid->size.y / grid->cell_size.y)) {
+        // return NULL;
+        assert(false && "Collision grid invalid position.");
     }
     
-    Collision_Grid_Cell *cell = &grid.cells[column + row * max_columns];
+    Collision_Grid_Cell *cell = grid->cells.get(column + row * max_columns);
     return cell;
 }
 
@@ -7038,6 +7040,7 @@ void update_editor() {
     if (need_make_redo) {
         // @TODO: That's unstable. Will change that with undo system redone. Probably should use some different data structure
         // for that. Or not.
+        // @WTF? Why do we adding count if on the next line we append.
         current_level_context->undo_actions.count++;        
         Undo_Action *action = current_level_context->undo_actions.append({});
         
@@ -10167,12 +10170,15 @@ void update_move_sequence(Entity *entity, f32 dt) {
 }
 
 void update_all_collision_cells(b32 update_cells_for_static_entities) {
-    for (i32 i = 0; i < session_context.collision_grid_cells_count; i++) {        
-        session_context.collision_grid.cells[i].dynamic_entities.clear();
+    for (i32 i = 0; i < session_context.collision_grid.cells.count; i++) {        
+        session_context.collision_grid.cells.get(i)->dynamic_entities.clear();
     }
     if (update_cells_for_static_entities) {
-        for (i32 i = 0; i < session_context.collision_grid_cells_count; i++) {        
-            session_context.collision_grid.cells[i].static_entities.clear();
+        for (i32 i = 0; i < session_context.collision_grid.cells.count; i++) {        
+            session_context.collision_grid.cells.get(i)->static_entities.clear();
+            if (session_context.collision_grid.cells.get(i)->static_entities.count > 0) {
+                print(&session_context.collision_grid.cells.get(i)->static_entities);
+            }
         }
     }
     
