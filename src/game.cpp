@@ -11697,10 +11697,6 @@ void draw_entity(Entity *e) {
         draw_game_rect(position, {width, height}, {0, 0}, 0, PINK);
     }
 
-    if (e-> flags & DRAW_TEXT) {
-        draw_game_text(e->position, e->text_drawer.text, e->text_drawer.size, RED);
-    }
-    
     if (e->flags & SPIKES && (!e->hidden || game_state == EDITOR || state_context.in_pause_editor)) {
         draw_spikes(e, e->right, e->up, e->scale.x, e->scale.y);
     }
@@ -12497,9 +12493,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     e->color_changer = to_copy->color_changer;
     
-    if (e->flags & DRAW_TEXT) {
-        e->text_drawer = to_copy->text_drawer;
-    }
     if (e->flags & ENEMY) {
         e->enemy = to_copy->enemy;
     }

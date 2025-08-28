@@ -237,7 +237,7 @@ struct Sound_Handler{
 
 enum Flags : u64{
     GROUND              = 1 << 0,
-    DRAW_TEXT           = 1 << 1,
+    
     PLAYER              = 1 << 2,
     ENEMY               = 1 << 3,
     SWORD               = 1 << 4,
@@ -878,7 +878,6 @@ struct Entity {
     
     Entity *centipede_head = NULL;
     
-    Text_Drawer text_drawer;
     Enemy enemy;
     Bird_Enemy bird_enemy;
     Projectile projectile;
