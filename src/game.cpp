@@ -9769,23 +9769,27 @@ void update_sticky_texture(Entity *entity, f32 dt) {
         }
     }
     
-    b32 need_to_follow = false;
-    if (st->need_to_follow && st->follow_id > 0) {
-        Entity *follow_entity = get_entity(st->follow_id);
-        if (follow_entity->will_be_destroyed) {        
+    Entity *follow_entity = NULL;
+    if (st->follow_id > 0) {
+        follow_entity = get_entity(st->follow_id);
+        if (follow_entity->will_be_destroyed) {
             st->follow_id = 0;
-        } else {
-            need_to_follow = true;
-            Vector2 target_position = follow_entity->position;
-            if (follow_entity->flags & SHOOT_STOPER) {
-                target_position = get_shoot_stoper_cross_position(follow_entity);
-            }
-            entity->position = lerp(entity->position, target_position, dt * 40);
-            
-            if (follow_entity->flags & ENEMY && follow_entity->enemy.dead_man && !st->should_draw_until_expires) {
-               st->should_draw_texture = false;
-           }
+            follow_entity = NULL;
         }
+    }
+    
+    b32 need_to_follow = false;
+    if (st->need_to_follow && follow_entity) {
+        need_to_follow = true;
+        Vector2 target_position = follow_entity->position;
+        if (follow_entity->flags & SHOOT_STOPER) {
+            target_position = get_shoot_stoper_cross_position(follow_entity);
+        }
+        entity->position = lerp(entity->position, target_position, dt * 40);
+        
+        if (follow_entity->flags & ENEMY && follow_entity->enemy.dead_man && !st->should_draw_until_expires) {
+           st->should_draw_texture = false;
+       }
     }
     
     if (!need_to_follow && st->max_lifetime <= EPSILON) {
