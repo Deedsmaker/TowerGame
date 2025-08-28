@@ -11323,8 +11323,16 @@ void fill_entities_draw_queue() {
                 lifetime_t = lifetime / st->max_lifetime;
             }
             
+            Entity *follow_entity = NULL;
             if (entity->sticky_texture.follow_id > 0) {
-                Entity *follow_entity = get_entity(entity->sticky_texture.follow_id);
+                follow_entity = get_entity(entity->sticky_texture.follow_id);
+                if (follow_entity->will_be_destroyed) {
+                    entity->sticky_texture.follow_id = 0;
+                    follow_entity = NULL;
+                } else {
+                }
+            }
+            if (follow_entity) {
                 // We make lights only for immortal sticky textures - like blocker sign.
                 if (st->max_lifetime <= 0) {
                     if (follow_entity->flags & BLOCKER && st->should_draw_texture) {
