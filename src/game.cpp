@@ -4468,17 +4468,6 @@ inline Entity *maybe_get_entity(i32 id, Level_Context *level_context) {
     return get_entity(id, level_context);
 }
 
-
-i32 get_index_of_entity_id(i32 *ids_array, i32 count, i32 id_to_find) {
-    for (i32 i = 0; i < count; i++) {
-        if (ids_array[i] == id_to_find) {
-            return i;
-        }
-    }
-    
-    return -1;
-}
-
 inline b32 entity_array_contains_id(Entity **arr, i32 count, i32 id) {
     for (i32 i = 0; i < count; i++) {
         if (arr[i]->id == id) {
@@ -5772,14 +5761,8 @@ void restore_deleted_entities(Undo_Action *action) {
     }
 }
 
-inline i32 get_index_of_id(Array<i32> *arr, i32 id) {
-    return get_index_of_entity_id(arr->data, arr->count, id);
-}
-
 void add_to_multiselection(i32 id, b32 add_to_undo) {
-    i32 index = get_index_of_id(&editor.multiselection.entities, id);
-    
-    if (index == -1) {
+    if (!editor.multiselection.entities.contains(id)) {
         editor.multiselection.entities.append(id);
         
         if (add_to_undo) {
@@ -5797,9 +5780,8 @@ void add_to_multiselection(Array<i32> *ids, b32 add_to_undo) {
     
     for (i32 i = 0 ; i < ids->count; i++) {
         i32 id = ids->get_value(i);
-        i32 index = get_index_of_id(&editor.multiselection.entities, id);
         
-        if (index == -1) {
+        if (!editor.multiselection.entities.contains(id)) {
             editor.multiselection.entities.append(id);
             
             if (add_to_undo) {
@@ -5819,8 +5801,8 @@ void remove_from_multiselection(Array<i32> *ids, b32 add_to_undo) {
 
     for (i32 i = 0; i < ids->count; i++) {
         i32 id = ids->get_value(i);
-        i32 index_to_remove_from_multiselected = get_index_of_id(&editor.multiselection.entities, id);
-        if (index_to_remove_from_multiselected != -1) {
+        i32 index_to_remove_from_multiselected = editor.multiselection.entities.find(id);
+        if (index_to_remove_from_multiselected >= 0) {
             editor.multiselection.entities.remove(index_to_remove_from_multiselected);
             
             if (add_to_undo) {
@@ -5835,8 +5817,8 @@ void remove_from_multiselection(Array<i32> *ids, b32 add_to_undo) {
 }
 
 void remove_from_multiselection(i32 id, b32 add_to_undo) {
-    i32 index = get_index_of_id(&editor.multiselection.entities, id);
-    if (index != -1) {
+    i32 index = editor.multiselection.entities.find(id);
+    if (index >= 0) {
         editor.multiselection.entities.remove(index);
         
         if (add_to_undo) {
@@ -6266,9 +6248,7 @@ void update_editor() {
                 // multiselect exclude multiselect remove
                 b32 removed = false;
                 if (IsKeyDown(KEY_LEFT_CONTROL)) {
-                    i32 contains_index = get_index_of_id(&multiselection->entities, editor.cursor_entity->id);
-                    if (contains_index != -1) {
-                        // multiselection->entities.remove(contains_index);
+                    if (multiselection->entities.contains(editor.cursor_entity->id)) {
                         remove_from_multiselection(editor.cursor_entity->id, true);
                         removed = true;
                     } else {
@@ -6331,7 +6311,7 @@ void update_editor() {
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Entity *other = collisions_buffer.get(i)->other_entity;
-            if (get_index_of_entity_id(multiselection->selection_entities.data, multiselection->selection_entities.count, other->id) != -1) {
+            if (multiselection->selection_entities.contains(other->id)) {
                 continue;
             }
             
@@ -6977,8 +6957,8 @@ void update_editor() {
         if (action->added_to_multiselection) {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
                 i32 id = action->changed_entities.get_value(i);
-                i32 index_in_multiselected = get_index_of_id(&multiselection->entities, id);
-                if (index_in_multiselected != -1) {
+                i32 index_in_multiselected = multiselection->entities.find(id);
+                if (index_in_multiselected >= 0) {
                     multiselection->entities.remove(index_in_multiselected);
                 }
             }
@@ -7075,8 +7055,8 @@ void update_editor() {
         if (action->removed_from_multiselection) {
             for (i32 i = 0; i < action->changed_entities.count; i++) {
                 i32 id = action->changed_entities.get_value(i);
-                i32 index_in_multiselected = get_index_of_id(&multiselection->entities, id);
-                if (index_in_multiselected != -1) {
+                i32 index_in_multiselected = multiselection->entities.find(id);
+                if (index_in_multiselected >= 0) {
                     multiselection->entities.remove(index_in_multiselected);
                 }
             }
