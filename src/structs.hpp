@@ -235,48 +235,48 @@ struct Sound_Handler{
     f32 pitch_variation = 0.3f;
 };
 
-enum Flags : u64{
+enum Flags : FLAGS{
     GROUND              = 1 << 0,
     
     PLAYER              = 1 << 2,
     ENEMY               = 1 << 3,
     SWORD               = 1 << 4,
-    BIRD_ENEMY          = 1 << 5,
+    OLD_BIRD_ENEMY          = 1 << 5,
     TEXTURE             = 1 << 6,
-    PROJECTILE          = 1 << 7,
+    OLD_PROJECTILE          = 1 << 7,
     PARTICLE_EMITTER    = 1 << 8,
-    WIN_BLOCK           = 1 << 9,
-    SWORD_SIZE_REQUIRED = 1 << 10,
-    EXPLOSIVE           = 1 << 11,
-    BLOCKER             = 1 << 12,
+    OLD_WIN_BLOCK           = 1 << 9,
+    OLD_SWORD_SIZE_REQUIRED = 1 << 10,
+    OLD_EXPLOSIVE           = 1 << 11,
+    OLD_BLOCKER             = 1 << 12,
     STICKY_TEXTURE      = 1 << 13,
     NOTE                = 1 << 14,
     PROPELLER           = 1 << 15,
-    SHOOT_BLOCKER       = 1 << 16,
+    OLD_SHOOT_BLOCKER       = 1 << 16,
     DOOR                = 1 << 17,
     TRIGGER             = 1 << 18,
     SPIKES              = 1 << 19,
     PLATFORM            = 1 << 20,
     MOVE_SEQUENCE       = 1 << 21,
     DUMMY               = 1 << 22,
-    CENTIPEDE           = 1 << 23,
-    CENTIPEDE_SEGMENT   = 1 << 24,
-    SHOOT_STOPER        = 1 << 25,
+    OLD_CENTIPEDE           = 1 << 23,
+    OLD_CENTIPEDE_SEGMENT   = 1 << 24,
+    OLD_SHOOT_STOPER        = 1 << 25,
     PHYSICS_OBJECT      = 1 << 26,
     BLOCK_ROPE          = 1 << 27,
     ROPE_POINT          = 1 << 28,
-    JUMP_SHOOTER        = 1 << 29,
+    OLD_JUMP_SHOOTER        = 1 << 29,
     LIGHT               = 1 << 30,
     REPLAY_PLAYER       = 1 << 31,
-    LONG_SPIN              = (static_cast<u64>(1) << 32),
+    OLD_LONG_SPIN              = (static_cast<u64>(1) << 32),
     NO_MOVE_BLOCK          = (static_cast<u64>(1) << 33),
-    HIT_BOOSTER            = (static_cast<u64>(1) << 34),
-    MULTIPLE_HITS          = (static_cast<u64>(1) << 35),
-    GIVES_BIG_SWORD_CHARGE = (static_cast<u64>(1) << 36),
-    AMMO_PACK              = (static_cast<u64>(1) << 37),
-    TURRET                 = (static_cast<u64>(1) << 38),
-    KILL_SWITCH            = (static_cast<u64>(1) << 39),
-    ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
+    OLD_HIT_BOOSTER            = (static_cast<u64>(1) << 34),
+    OLD_MULTIPLE_HITS          = (static_cast<u64>(1) << 35),
+    OLD_GIVES_BIG_SWORD_CHARGE = (static_cast<u64>(1) << 36),
+    OLD_AMMO_PACK              = (static_cast<u64>(1) << 37),
+    OLD_TURRET                 = (static_cast<u64>(1) << 38),
+    OLD_KILL_SWITCH            = (static_cast<u64>(1) << 39),
+    OLD_ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
 };
 
 struct Physics_Object{
@@ -342,7 +342,31 @@ struct Kill_Switch {
     Array <i32> connected = {0};   
 };
 
+enum Enemy_flags : FLAGS {  
+    ENEMY_BIRD_ENEMY          = 1 << 1,
+    ENEMY_PROJECTILE          = 1 << 2,
+    ENEMY_WIN_BLOCK           = 1 << 3,
+    ENEMY_SWORD_SIZE_REQUIRED = 1 << 4,
+    ENEMY_EXPLOSIVE           = 1 << 5,
+    ENEMY_BLOCKER             = 1 << 6,
+    ENEMY_SHOOT_BLOCKER       = 1 << 7,
+    ENEMY_CENTIPEDE           = 1 << 8,
+    ENEMY_CENTIPEDE_SEGMENT   = 1 << 9,
+    ENEMY_SHOOT_STOPER        = 1 << 10,
+    ENEMY_JUMP_SHOOTER        = 1 << 11,
+    ENEMY_LONG_SPIN              = 1 << 12,
+    ENEMY_HIT_BOOSTER            = 1 << 13,
+    ENEMY_MULTIPLE_HITS          = 1 << 14,
+    ENEMY_GIVES_BIG_SWORD_CHARGE = 1 << 15,
+    ENEMY_AMMO_PACK              = 1 << 16,
+    ENEMY_TURRET                 = 1 << 17,
+    ENEMY_KILL_SWITCH            = 1 << 18,
+    ENEMY_ENEMY_BARRIER          = 1 << 19,
+};
+
 struct Enemy {
+    FLAGS flags;
+
     b32 dead_man = false;  
     b32 in_agro = false;
     b32 in_stun = false;
@@ -849,9 +873,6 @@ struct Entity {
     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     
-    // Array <i32> connected_entities = {0};
-    // Array <i32> entities_pointing_at_me = {0};
-    
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
     
@@ -878,19 +899,21 @@ struct Entity {
     
     Entity *centipede_head = NULL;
     
+    Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
+    
     Enemy enemy;
     Bird_Enemy bird_enemy;
+    Jump_Shooter jump_shooter;
+    Centipede centipede;
+    Centipede_Segment centipede_segment;
     Projectile projectile;
-    Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
     Sticky_Texture sticky_texture;
     Propeller propeller;
     Door door;
     Trigger trigger;
     Move_Sequence move_sequence;
-    Centipede centipede;
-    Centipede_Segment centipede_segment;
-    Physics_Object physics_object;
-    Jump_Shooter jump_shooter;
+    
+    Physics_Object physics_object; // Remove this.
     
     i32 note_index = -1;
     
