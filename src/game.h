@@ -37,6 +37,8 @@ inline f32 get_light_zoom(f32 radius);
 
 inline Light *get_light(i32 index, Level_Context *level_context = NULL);
 inline Entity *get_entity(i32 id, Level_Context *level_context = NULL);
+inline String temp_entity_name(Entity *entity);
+String get_entity_name(Entity *entity, Allocator *allocator);
 inline Entity *maybe_get_entity(i32 id, Level_Context *level_context = NULL);
 
 Vector2 get_entity_velocity(Entity *entity);

@@ -832,7 +832,7 @@ struct Entity {
     
     Level_Context *level_context = NULL;
     
-    char name[128] = "unknown_name";
+    // char name[128] = "unknown_name";
     // String name = {0};
 
     b32 enabled = 1;
@@ -848,9 +848,6 @@ struct Entity {
     
     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};
-    
-    // Array <i32> connected_entities = {0};
-    // Array <i32> entities_pointing_at_me = {0};
     
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};

@@ -690,7 +690,7 @@ i32 save_level(const char *level_name) {
         }
         
         Color color = e->color_changer.start_color;
-        fprintf(fptr, "name:%s: id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%llu:, draw_order:%d: ", e->name, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
+        fprintf(fptr, "name:%s: id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%llu:, draw_order:%d: ", temp_entity_name(e).data, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order);
         
         fprintf(fptr, "vertices [ ");
         for (i32 v = 0; v < e->vertices.count; v++) {
@@ -1073,7 +1073,7 @@ b32 load_level(const char *level_name) {
 
             if (0) {
             } else if (str_equal(splitted_line.get_value(i).data, "name")) {
-                str_copy(new_entity->name, splitted_line.get_value(i+1).data);  
+                // str_copy(new_entity->name, splitted_line.get_value(i+1).data);  
                 i++;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "id")) {
@@ -1637,82 +1637,89 @@ void init_bird_entity(Entity *entity) {
     init_bird_emitters(entity);
         
     //entity->emitter = entity->emitters.last();
-    str_copy(entity->name, "enemy_bird"); 
+    // str_copy(entity->name, "enemy_bird"); 
     setup_color_changer(entity);
+}
+
+String get_entity_name(Entity *entity, Allocator *allocator) {
+    if (0) {
+    } else if (entity->flags & GROUND) {
+        return make_string(allocator, "Ground");  
+    } else if (entity->flags & BIRD_ENEMY) {
+        return make_string(allocator, "Bird enemy");  
+    } 
+        
+    return make_string(allocator, "No name");
+}
+inline String temp_entity_name(Entity *entity) {
+    return get_entity_name(entity, &temp_allocator);
 }
 
 void init_spawn_objects() {
     Entity block_base_entity = make_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND);
     block_base_entity.color = BROWN;
-    str_copy(block_base_entity.name, "block_base"); 
     setup_color_changer(&block_base_entity);
     
     Spawn_Object block_base_object;
     block_base_object.entity = block_base_entity;
-    str_copy(block_base_object.name, block_base_entity.name);
+    str_copy(block_base_object.name, "block_base");
     spawn_objects.append(block_base_object);
     
     Entity no_move_block_entity = make_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
     no_move_block_entity.color = PURPLE;
-    str_copy(no_move_block_entity.name, "no_move_block"); 
     setup_color_changer(&no_move_block_entity);
     
     Spawn_Object no_move_block_object;
     no_move_block_object.entity = no_move_block_entity;
-    str_copy(no_move_block_object.name, no_move_block_entity.name);
+    str_copy(no_move_block_object.name, "no_move_block");
     spawn_objects.append(no_move_block_object);
     
     Entity note_entity = make_entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
     note_entity.color = Fade(WHITE, 0.7f);
-    str_copy(note_entity.name, "note"); 
     str_copy(note_entity.texture_name, "editor_note.png");
     note_entity.texture = get_texture(note_entity.texture_name);
     setup_color_changer(&note_entity);
     
     Spawn_Object note_object;
     note_object.entity = note_entity;
-    str_copy(note_object.name, note_entity.name);
+    str_copy(note_object.name, "note");
     spawn_objects.append(note_object);
     
     Entity dummy_entity = make_entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
     dummy_entity.color  = Fade(GREEN, 0.5f);
     // dummy_entity.hidden = true;
-    str_copy(dummy_entity.name, "dummy_entity"); 
     setup_color_changer(&dummy_entity);
     
     Spawn_Object dummy_object;
     dummy_object.entity = dummy_entity;
-    str_copy(dummy_object.name, dummy_entity.name);
+    str_copy(dummy_object.name, "dummy_entity");
     spawn_objects.append(dummy_object);
     
     Entity platform_entity = make_entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
     platform_entity.color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
-    str_copy(platform_entity.name, "platform"); 
     setup_color_changer(&platform_entity);
     
     Spawn_Object platform_object;
     platform_object.entity = platform_entity;
-    str_copy(platform_object.name, platform_entity.name);
+    str_copy(platform_object.name, "platform");
     spawn_objects.append(platform_object);
     
     Entity enemy_ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | AMMO_PACK);
     enemy_ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
-    str_copy(enemy_ammo_pack_entity.name, "ammo_pack"); 
     setup_color_changer(&enemy_ammo_pack_entity);
     
     Spawn_Object enemy_ammo_pack_object;
     enemy_ammo_pack_object.entity = enemy_ammo_pack_entity;
-    str_copy(enemy_ammo_pack_object.name, enemy_ammo_pack_entity.name);
+    str_copy(enemy_ammo_pack_object.name, "ammo_pack");
     spawn_objects.append(enemy_ammo_pack_object);
     
     Entity big_sword_charge_giver_entity = make_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
     big_sword_charge_giver_entity.color = ColorBrightness(GREEN, 0.5f);
-    str_copy(big_sword_charge_giver_entity.name, "big_sword_charge_giver"); 
     setup_color_changer(&big_sword_charge_giver_entity);
     
     Spawn_Object big_sword_charge_giver_object;
     big_sword_charge_giver_object.entity = big_sword_charge_giver_entity;
-    str_copy(big_sword_charge_giver_object.name, big_sword_charge_giver_entity.name);
+    str_copy(big_sword_charge_giver_object.name, "big_sword_charge_giver");
     spawn_objects.append(big_sword_charge_giver_object);
     
     Entity turret_direct_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
@@ -1725,12 +1732,11 @@ void init_spawn_objects() {
         turret->shoot_every_tick = 3;
     }
     turret_direct_entity.color = ColorBrightness(PURPLE, 0.5f);
-    str_copy(turret_direct_entity.name, "turret_direct"); 
     setup_color_changer(&turret_direct_entity);
     
     Spawn_Object turret_direct_object;
     turret_direct_object.entity = turret_direct_entity;
-    str_copy(turret_direct_object.name, turret_direct_entity.name);
+    str_copy(turret_direct_object.name, "turret_direct");
     spawn_objects.append(turret_direct_object);
     
     Entity turret_homing_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
@@ -1743,12 +1749,11 @@ void init_spawn_objects() {
         turret->shoot_every_tick = 8;
     }
     turret_homing_entity.color = ColorBrightness(PURPLE, 0.1f);
-    str_copy(turret_homing_entity.name, "turret_homing"); 
     setup_color_changer(&turret_homing_entity);
     
     Spawn_Object turret_homing_object;
     turret_homing_object.entity = turret_homing_entity;
-    str_copy(turret_homing_object.name, turret_homing_entity.name);
+    str_copy(turret_homing_object.name, "turret_homing");
     spawn_objects.append(turret_homing_object);
     
     Entity bird_entity = make_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
@@ -1756,116 +1761,106 @@ void init_spawn_objects() {
     
     Spawn_Object enemy_bird_object;
     enemy_bird_object.entity = bird_entity;
-    str_copy(enemy_bird_object.name, bird_entity.name);
+    str_copy(enemy_bird_object.name, "bird_enemy");
     spawn_objects.append(enemy_bird_object);
     
     Entity win_block_entity = make_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | MULTIPLE_HITS | NO_MOVE_BLOCK);
     win_block_entity.color_changer.start_color = win_block_entity.color;
     win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
-    str_copy(win_block_entity.name, "win_block"); 
     setup_color_changer(&win_block_entity);
     
     Spawn_Object win_block_object;
     win_block_object.entity = win_block_entity;
-    str_copy(win_block_object.name, win_block_entity.name);
+    str_copy(win_block_object.name, "win_block");
     spawn_objects.append(win_block_object);
     
     Entity agro_area_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     agro_area_entity.color = Fade(VIOLET, 0.6f);
     agro_area_entity.color_changer.start_color = agro_area_entity.color;
     agro_area_entity.color_changer.target_color = agro_area_entity.color * 1.5f;
-    str_copy(agro_area_entity.name, "agro_area"); 
     setup_color_changer(&agro_area_entity);
     
     Spawn_Object argo_area_object;
     argo_area_object.entity = agro_area_entity;
-    str_copy(argo_area_object.name, agro_area_entity.name);
+    str_copy(argo_area_object.name, "agro_area");
     spawn_objects.append(argo_area_object);
     
     Entity trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     trigger_entity.color = Fade(GREEN, 0.6f);
-    str_copy(trigger_entity.name, "trigger"); 
     setup_color_changer(&trigger_entity);
     
     Spawn_Object trigger_object;
     trigger_object.entity = trigger_entity;
-    str_copy(trigger_object.name, trigger_entity.name);
+    str_copy(trigger_object.name, "trigger");
     spawn_objects.append(trigger_object);
     
     Entity kill_trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     kill_trigger_entity.trigger.kill_player = true;
     kill_trigger_entity.color = Fade(RED, 0.6f);
-    str_copy(kill_trigger_entity.name, "kill_trigger"); 
     setup_color_changer(&kill_trigger_entity);
     
     Spawn_Object kill_trigger_object;
     kill_trigger_object.entity = kill_trigger_entity;
-    str_copy(kill_trigger_object.name, kill_trigger_entity.name);
+    str_copy(kill_trigger_object.name, "kill_trigger");
     spawn_objects.append(kill_trigger_object);
     
     Entity kill_switch_entity = make_entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
     kill_switch_entity.color = ColorBrightness(RED, 0.3f);
-    str_copy(kill_switch_entity.name, "kill_switch"); 
     setup_color_changer(&kill_switch_entity);
     
     Spawn_Object kill_switch_object;
     kill_switch_object.entity = kill_switch_entity;
-    str_copy(kill_switch_object.name, kill_switch_entity.name);
+    str_copy(kill_switch_object.name, "kill_switch");
     spawn_objects.append(kill_switch_object);
     
     Entity enemy_barrier_entity = make_entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | MULTIPLE_HITS);
     enemy_barrier_entity.color = ColorBrightness(GRAY, 0.2f);
-    str_copy(enemy_barrier_entity.name, "enemy_barrier"); 
     setup_color_changer(&enemy_barrier_entity);
     
     Spawn_Object enemy_barrier_object;
     enemy_barrier_object.entity = enemy_barrier_entity;
-    str_copy(enemy_barrier_object.name, enemy_barrier_entity.name);
+    str_copy(enemy_barrier_object.name, "enemy_barrier");
     spawn_objects.append(enemy_barrier_object);
     
     Entity spikes_entity = make_entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
     spikes_entity.trigger.kill_player = true;
     spikes_entity.color = Fade(RED, 0.9f);
-    str_copy(spikes_entity.name, "spikes"); 
     setup_color_changer(&spikes_entity);
     
     Spawn_Object spikes_object;
     spikes_object.entity = spikes_entity;
-    str_copy(spikes_object.name, spikes_entity.name);
+    str_copy(spikes_object.name, "spikes");
     spawn_objects.append(spikes_object);
     
     Entity propeller_entity = make_entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
     propeller_entity.color = Fade(BLUE, 0.4f);
     propeller_entity.color_changer.start_color = propeller_entity.color;
     propeller_entity.color_changer.target_color = propeller_entity.color * 1.5f;
-    str_copy(propeller_entity.name, "propeller"); 
     setup_color_changer(&propeller_entity);
     
     Spawn_Object propeller_object;
     propeller_object.entity = propeller_entity;
-    str_copy(propeller_object.name, propeller_entity.name);
+    str_copy(propeller_object.name, "propeller");
     spawn_objects.append(propeller_object);
     
     Entity door_entity = make_entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
     door_entity.trigger.player_touch = false;
     door_entity.color = ColorBrightness(PURPLE, 0.6f);
-    str_copy(door_entity.name, "door"); 
     setup_color_changer(&door_entity);
     
     Spawn_Object door_object;
     door_object.entity = door_entity;
-    str_copy(door_object.name, door_entity.name);
+    str_copy(door_object.name, "door");
     spawn_objects.append(door_object);
     
     Entity enemy_trigger_entity = make_entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
     enemy_trigger_entity.trigger.player_touch = false;
     enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
-    str_copy(enemy_trigger_entity.name, "enemy_trigger"); 
     setup_color_changer(&enemy_trigger_entity);
     
     Spawn_Object enemy_trigger_object;
     enemy_trigger_object.entity = enemy_trigger_entity;
-    str_copy(enemy_trigger_object.name, enemy_trigger_entity.name);
+    str_copy(enemy_trigger_object.name, "enemy_trigger");
     spawn_objects.append(enemy_trigger_object);
     
     Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
@@ -1874,44 +1869,40 @@ void init_spawn_objects() {
     centipede_entity.move_sequence.rotate = true;
     centipede_entity.move_sequence.speed = 100;
     centipede_entity.color = ColorBrightness(RED, 0.6f);
-    str_copy(centipede_entity.name, "centipede"); 
     setup_color_changer(&centipede_entity);
     
     Spawn_Object centipede_object;
     centipede_object.entity = centipede_entity;
-    str_copy(centipede_object.name, centipede_entity.name);
+    str_copy(centipede_object.name, "centipede");
     spawn_objects.append(centipede_object);
     
     Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
     centipede_segment_entity.need_to_save = false;
     centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
-    str_copy(centipede_segment_entity.name, "centipede_segment"); 
     setup_color_changer(&centipede_segment_entity);
     
     Spawn_Object centipede_segment_object;
     centipede_segment_object.entity = centipede_segment_entity;
-    str_copy(centipede_segment_object.name, centipede_segment_entity.name);
+    str_copy(centipede_segment_object.name, "centipede_segment");
     spawn_objects.append(centipede_segment_object);
     
     Entity shoot_stoper_entity = make_entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
     shoot_stoper_entity.color = ColorBrightness(BLACK, 0.3f);
-    str_copy(shoot_stoper_entity.name, "shoot_stoper"); 
     setup_color_changer(&shoot_stoper_entity);
     
     Spawn_Object shoot_stoper_object;
     shoot_stoper_object.entity = shoot_stoper_entity;
-    str_copy(shoot_stoper_object.name, shoot_stoper_entity.name);
+    str_copy(shoot_stoper_object.name, "shoot_stoper");
     spawn_objects.append(shoot_stoper_object);
     
     Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
     hit_booster_entity.enemy.max_hits_taken = -1;
-    str_copy(hit_booster_entity.name, "hit_booster"); 
     setup_color_changer(&hit_booster_entity);
     
     Spawn_Object hit_booster_object;
     hit_booster_object.entity = hit_booster_entity;
-    str_copy(hit_booster_object.name, hit_booster_entity.name);
+    str_copy(hit_booster_object.name, "hit_booster");
     spawn_objects.append(hit_booster_object);
     
     // we use move sequence on jump shooter only to set jump points
@@ -1920,12 +1911,11 @@ void init_spawn_objects() {
     jump_shooter_entity.move_sequence.loop = true;
     jump_shooter_entity.enemy.max_hits_taken = 6;
     jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
-    str_copy(jump_shooter_entity.name, "jump_shooter"); 
     setup_color_changer(&jump_shooter_entity);
     
     Spawn_Object jump_shooter_object;
     jump_shooter_object.entity = jump_shooter_entity;
-    str_copy(jump_shooter_object.name, jump_shooter_entity.name);
+    str_copy(jump_shooter_object.name, "jump_shooter");
     spawn_objects.append(jump_shooter_object);
 }
 
@@ -1941,7 +1931,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
-    str_copy(texture_entity.name, name); 
+    // str_copy(texture_entity.name, name); 
     
     texture_entity.texture = texture;
     str_copy(texture_entity.texture_name, name);
@@ -1976,7 +1966,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
     
     Spawn_Object texture_object;
     texture_object.entity = texture_entity;
-    str_copy(texture_object.name, texture_entity.name);
+    str_copy(texture_object.name, name);
     
     spawn_objects.append(texture_object);
 }
@@ -2219,7 +2209,7 @@ void init_entity(Entity *entity) {
             Texture texture = entity->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
             Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
             init_entity(sticky_entity);
-            str_copy(sticky_entity->name, "blocker_attack_mark");
+            // str_copy(sticky_entity->name, "blocker_attack_mark");
             sticky_entity->need_to_save = false;
             //sticky_entity->texture = texture;
             sticky_entity->draw_order = 1;
@@ -2253,7 +2243,7 @@ void init_entity(Entity *entity) {
         }
         
         init_entity(sticky_entity);
-        str_copy(sticky_entity->name, "sword_size_attack_mark");
+        // str_copy(sticky_entity->name, "sword_size_attack_mark");
         sticky_entity->need_to_save = false;
         //sticky_entity->texture = texture;
         sticky_entity->draw_order = 1;
@@ -3222,7 +3212,7 @@ Entity *add_player_entity(Player *data) {
     sword_entity->collision_flags = ENEMY;
     sword_entity->color   = GRAY + RED * 0.1f;
     sword_entity->draw_order = 25;
-    str_copy(sword_entity->name, "Player_Sword");
+    // str_copy(sword_entity->name, "Player_Sword");
     
     data->connected_entities_ids.ground_checker_id     = ground_checker->id;
     data->connected_entities_ids.left_wall_checker_id  = left_wall_checker->id;
@@ -3732,6 +3722,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
+    printf("%zu\n", sizeof(Entity));
     clear_allocator(&temp_allocator);
 
     frame_rnd = rnd01();
@@ -4924,11 +4915,7 @@ void update_editor_ui() {
         
         make_ui_text(tprintf("ID: %d", selected->id), {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
         
-        make_ui_text(tprintf("Name: ", selected->id), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
-        if (make_input_field(tprintf("%s", selected->name), {inspector_position.x + 65, inspector_position.y + 10}, {200, 25}, "inspector_name") ) {
-            str_copy(selected->name, focus_input_field.content);
-        }
-        
+        make_ui_text(temp_entity_name(selected).data, {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
         make_ui_text("POSITION", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
@@ -9308,7 +9295,7 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     init_entity(hitmark);    
     change_color(hitmark, tint);
     hitmark->draw_order = 1;
-    str_copy(hitmark->name, "hitmark_small");
+    // str_copy(hitmark->name, "hitmark_small");
     
     hitmark->sticky_texture.need_to_follow   = need_to_follow;
     hitmark->sticky_texture.draw_line        = true;
@@ -9839,7 +9826,7 @@ void update_editor_entity(Entity *e) {
     
     if (e->flags & LIGHT) {
         if (e->lights.count == 0) {
-            printf("WARNING: Entity with flag LIGHT don't have corresponding light index (name: %s; id: %d)\n", e->name, e->id);
+            printf("WARNING: Entity with flag LIGHT don't have corresponding light index (name: %s; id: %d)\n", temp_entity_name(e).data, e->id);
         } else {
             Light *light = get_light(e->lights.get_value(0));
             light->position = e->position;
@@ -9962,7 +9949,7 @@ i32 update_trigger(Entity *e) {
             player_data->can_shoot = true;
         }
     
-        if (str_contains(e->name, "checkpoint") && checkpoint_trigger_id != e->id) {
+        if (str_contains(temp_entity_name(e).data, "checkpoint") && checkpoint_trigger_id != e->id) {
             clear_level_context(&checkpoint_level_context);
             copy_level_context(&checkpoint_level_context, current_level_context, false);
             checkpoint_player_entity = player_entity;
@@ -9973,7 +9960,7 @@ i32 update_trigger(Entity *e) {
             checkpoint_trigger_id = e->id;
         }
         
-        if (str_equal(e->name, "relax")) {
+        if (str_equal(temp_entity_name(e).data, "relax")) {
             state_context.playing_relax = true;
         }
     
@@ -10354,7 +10341,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT) {
         if (e->lights.count == 0) {
-            printf("WARNING: Entity with flag LIGHT don't have corresponding light index. Name: %s, id: %d\n", e->name, e->id);
+            printf("WARNING: Entity with flag LIGHT don't have corresponding light index. Name: %s, id: %d\n", temp_entity_name(e).data, e->id);
         }
     }
     
@@ -12485,7 +12472,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     assert(level_context_for_deep_copy && "Forgot to specify level context for deep copy.");      
                    
-    str_copy(e->name, to_copy->name);
+    // str_copy(e->name, to_copy->name);
         
     if (e->flags & TEXTURE) {
         str_copy(e->texture_name, to_copy->texture_name);
