@@ -132,7 +132,7 @@ Vector2 local (Entity *e, Vector2 global_pos);
 Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
 
 Static_Array<Vector2, MAX_VERTICES> get_normals(Static_Array<Vector2, MAX_VERTICES> vertices);
-inline void fill_arr_with_normals(Static_Array<Vector2, MAX_VERTICES> *normals, Static_Array<Vector2, MAX_VERTICES> vertices);
+inline void fill_arr_with_normals(Array<Vector2> *normals, Static_Array<Vector2, MAX_VERTICES> vertices);
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity);
 

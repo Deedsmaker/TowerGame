@@ -4,7 +4,7 @@
 #define FIXED_FPS 240
 #define TARGET_FRAME_TIME (1.0f / FIXED_FPS)
 
-#define MAX_VERTICES 8
+#define MAX_VERTICES 4
 // #define MAX_COLLISIONS 128
 #define MAX_ENTITY_EMITTERS 8
 #define GRAVITY 100
@@ -862,8 +862,6 @@ struct Entity {
     Bounds bounds = {{0, 0}, {0, 0}};
     Vector2 pivot = {0.5f, 0.5f};
     f32 rotation = 0;
-    
-    Array <Collision_Grid_Cell *> occupied_collision_cells = {0};
     
     Color color = WHITE;
     

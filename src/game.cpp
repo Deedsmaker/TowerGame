@@ -61,7 +61,7 @@ global_variable Debug  debug  = {};
 
 global_variable const char *first_level_name = "new_basics1";
 
-global_variable Static_Array<Vector2, MAX_VERTICES> global_normals = Static_Array<Vector2, MAX_VERTICES>();
+global_variable Array<Vector2> global_normals = {0};
 
 global_variable Entity mouse_entity = {0};
 Entity empty_entity = {0};
@@ -176,12 +176,6 @@ inline void mark_entity_destroyed(Entity *entity) {
 }
 
 void free_entity(Entity *e) {
-    for_array(i, &e->occupied_collision_cells) {
-        Collision_Grid_Cell *cell = e->occupied_collision_cells.get_value(i);
-        cell->dynamic_entities.remove_all_encountered(e->id);
-        cell->static_entities.remove_all_encountered(e->id);
-    }
-
     if (e->flags & TRIGGER) {
         if (e->trigger.connected.capacity > 0) {
             e->trigger.connected.free_data();
@@ -2109,8 +2103,6 @@ void init_entity(Entity *entity) {
     assert(entity->id > 0 && get_entity(entity->id, entity->level_context)->id > 0);
 
     entity->level_context = current_level_context;
-    
-    entity->occupied_collision_cells = {.allocator = &current_level_context->memory_arena};
     
     entity->color = entity->color_changer.start_color;
 
@@ -4164,7 +4156,7 @@ inline Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise) {
     return {-v.y * clockwise, v.x * clockwise};
 }
 
-inline void fill_arr_with_normals(Static_Array<Vector2, MAX_VERTICES> *normals, Static_Array<Vector2, MAX_VERTICES> vertices) {
+inline void fill_arr_with_normals(Array<Vector2> *normals, Static_Array<Vector2, MAX_VERTICES> vertices) {
     //@INCOMPLETE now only for rects and triangles, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
     // Update 03.03.2025: Graham scan algorithm should do the job if we will really need it.
@@ -4245,7 +4237,7 @@ Collision check_collision(Vector2 position1, Vector2 position2, Static_Array<Vec
         return result;
     }
 
-    global_normals.count = 0;
+    global_normals.clear();
     fill_arr_with_normals(&global_normals, vertices1);
     fill_arr_with_normals(&global_normals, vertices2);
     
@@ -4387,7 +4379,6 @@ inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_s
         return;
     }
 
-    entity->occupied_collision_cells.clear();
     fill_affected_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
     
     assert(!entity->will_be_destroyed);
@@ -4398,7 +4389,6 @@ inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_s
         
         if (cell) {
             cell_entities->append(entity->id);
-            entity->occupied_collision_cells.append(cell);
         }
     }
 }
@@ -11878,7 +11868,7 @@ void draw_game_space_editor() {
         
         b32 draw_normals = false;
         if (draw_normals) {
-            global_normals.count = 0;
+            global_normals.clear();
             fill_arr_with_normals(&global_normals, e->vertices);
             
             for (i32 n = 0; n < global_normals.count; n++) {
