@@ -417,11 +417,11 @@ struct String {
     char *data;
     i32 count = 0;
     
-    b32 operator==(String str1){
-        if (count != str1.count) return false;
+    b32 operator==(String another_string){
+        if (count != another_string.count) return false;
         
         for (int i = 0; i < count; i++){
-            if (data[i] != str1.data[i]) return false;
+            if (data[i] != another_string.data[i]) return false;
         }
         
         return true;

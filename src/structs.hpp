@@ -832,8 +832,7 @@ struct Entity {
     
     Level_Context *level_context = NULL;
     
-    // char name[128] = "unknown_name";
-    // String name = {0};
+    // Maybe we should add entity name as a pointer to string for debugging purposes.
 
     b32 enabled = 1;
     
@@ -875,20 +874,29 @@ struct Entity {
     
     Entity *centipede_head = NULL;
     
-    Enemy enemy;
-    Bird_Enemy bird_enemy;
     Projectile projectile;
-    Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
-    Sticky_Texture sticky_texture;
-    Propeller propeller;
-    Door door;
-    Trigger trigger;
-    Move_Sequence move_sequence;
-    Centipede centipede;
-    Centipede_Segment centipede_segment;
-    Physics_Object physics_object;
-    Jump_Shooter jump_shooter;
     
+    // union {
+        Enemy enemy;
+        Sticky_Texture sticky_texture;
+        Propeller propeller;
+        Trigger trigger;
+    // };
+    
+    // union {
+        Bird_Enemy bird_enemy;
+        Centipede centipede;
+        Centipede_Segment centipede_segment;
+        Jump_Shooter jump_shooter;
+    // };
+    
+    // union {
+        Physics_Object physics_object;
+        Door door;
+        Move_Sequence move_sequence;
+    // };
+    
+    Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
     i32 note_index = -1;
     
     Array <i32> lights = {0};

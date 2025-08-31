@@ -1041,7 +1041,18 @@ b32 load_level(const char *level_name) {
         
         Entity *new_entity = NULL;
         if (parsing_entities) {
-            new_entity = copy_and_add_entity(&empty_entity, &loaded_level_context);   
+            Entity dummy_entity = {0};
+            // We're getting flags first so that on init_entity in copy_and_add_entity it will add all the pointers to types
+            // like ENEMY, LIGHT etc.
+            i32 flags_index = splitted_line.find(tstring("flags"));
+            assert(flags_index >= 0);
+            fill_u64_from_string(&dummy_entity.flags, splitted_line.get_value(flags_index+1).data);
+            new_entity = copy_and_add_entity(&dummy_entity, &loaded_level_context);   
+            
+            if (new_entity->flags & LIGHT) {
+                Light empty_light = {0};
+                copy_and_add_light_to_entity(new_entity, &empty_light, true);
+            }
         }
         i32 old_id = 0;
         Note note_to_fill = {};
@@ -1100,23 +1111,23 @@ b32 load_level(const char *level_name) {
                 fill_vector4_from_string(&new_entity->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
                 continue;
-            } else if (str_equal(splitted_line.get_value(i).data, "flags")) {
-                fill_u64_from_string(&new_entity->flags, splitted_line.get_value(i+1).data);
-                i++;
+            // } else if (str_equal(splitted_line.get_value(i).data, "flags")) {
+            //     fill_u64_from_string(&new_entity->flags, splitted_line.get_value(i+1).data);
+            //     i++;
                 
-                if (new_entity->flags & LIGHT) {
-                    // new_entity->light_index = session_context.lights.count;
-                    // session_context.lights.append({});
-                    // init_entity_light(&entity_to_fill);
-                    // for (i32 i = 0; i < current_level_context->lights.capacity; i++) {                    
-                    //     if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get_value(i).exists) {
-                    //         new_entity->light_index = i;   
-                    //     }
-                    // }
-                    Light empty_light = {0};
-                    copy_and_add_light_to_entity(new_entity, &empty_light, true);
-                }
-                continue;
+            //     if (new_entity->flags & LIGHT) {
+            //         // new_entity->light_index = session_context.lights.count;
+            //         // session_context.lights.append({});
+            //         // init_entity_light(&entity_to_fill);
+            //         // for (i32 i = 0; i < current_level_context->lights.capacity; i++) {                    
+            //         //     if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get_value(i).exists) {
+            //         //         new_entity->light_index = i;   
+            //         //     }
+            //         // }
+            //         Light empty_light = {0};
+            //         copy_and_add_light_to_entity(new_entity, &empty_light, true);
+            //     }
+            //     continue;
             } else if (str_equal(splitted_line.get_value(i).data, "vertices")) {
                 // fill_i32_from_string(&new_entity->rotation);
                 fill_vertices_array_from_string(&new_entity->vertices, splitted_line, &i);
@@ -1646,7 +1657,7 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
     } else if (entity->flags & GROUND) {
         return make_string(allocator, "Ground");  
     } else if (entity->flags & BIRD_ENEMY) {
-        return make_string(allocator, "Bird enemy");  
+        return make_string(allocator, "Bird_enemy");  
     } 
         
     return make_string(allocator, "No name");
@@ -3722,7 +3733,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    printf("%zu\n", sizeof(Entity));
+    // printf("%zu\n", sizeof(Entity));
     clear_allocator(&temp_allocator);
 
     frame_rnd = rnd01();
@@ -8289,7 +8300,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                 Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
                 f32 side_dot = dot(side, player_entity->position - other->position);
                 // so we on side of the centipede segments where are SPIKES
-                if (side_dot > 0) {
+                if (side_dot > 0.1f) {
                     kill_player();
                     return;
                 }
@@ -9295,7 +9306,6 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     init_entity(hitmark);    
     change_color(hitmark, tint);
     hitmark->draw_order = 1;
-    // str_copy(hitmark->name, "hitmark_small");
     
     hitmark->sticky_texture.need_to_follow   = need_to_follow;
     hitmark->sticky_texture.draw_line        = true;
