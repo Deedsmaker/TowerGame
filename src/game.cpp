@@ -192,6 +192,14 @@ void free_entity(Entity *e) {
         }
     }
     
+    // free propeller.
+    if (e->flags & PROPELLER) {
+        assert(e->propeller_index >= 0);
+        e->level_context->propellers.remove(e->propeller_index);
+        e->propeller_index = -1;
+        e->propeller = NULL;
+    }
+    
     if (e->flags & BIRD_ENEMY) {
         bird_clear_formation(&e->bird_enemy);
     }
@@ -612,6 +620,8 @@ void clear_level_context(Level_Context *level_context) {
     }
     
     level_context->entities.clear();
+    
+    level_context->propellers.clear();
     // Id 0 is invalid for good reasons, so we're adding it here.
     // Entity dummy_entity = {0};
     // copy_and_add_entity(&dummy_entity, level_context);
@@ -884,8 +894,8 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & PROPELLER) {
-            fprintf(fptr, "propeller_power:%f: ", e->propeller.power);
-            fprintf(fptr, "propeller_spin_sensitive:%d: ", e->propeller.spin_sensitive);
+            fprintf(fptr, "propeller_power:%f: ", e->propeller->power);
+            fprintf(fptr, "propeller_spin_sensitive:%d: ", e->propeller->spin_sensitive);
         }
         
         if (e->flags & SHOOT_BLOCKER) {
@@ -1111,23 +1121,10 @@ b32 load_level(const char *level_name) {
                 fill_vector4_from_string(&new_entity->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
                 continue;
-            // } else if (str_equal(splitted_line.get_value(i).data, "flags")) {
-            //     fill_u64_from_string(&new_entity->flags, splitted_line.get_value(i+1).data);
-            //     i++;
-                
-            //     if (new_entity->flags & LIGHT) {
-            //         // new_entity->light_index = session_context.lights.count;
-            //         // session_context.lights.append({});
-            //         // init_entity_light(&entity_to_fill);
-            //         // for (i32 i = 0; i < current_level_context->lights.capacity; i++) {                    
-            //         //     if (i >= session_context.entity_lights_start_index && !current_level_context->lights.get_value(i).exists) {
-            //         //         new_entity->light_index = i;   
-            //         //     }
-            //         // }
-            //         Light empty_light = {0};
-            //         copy_and_add_light_to_entity(new_entity, &empty_light, true);
-            //     }
-            //     continue;
+            } else if (str_equal(splitted_line.get_value(i).data, "flags")) {
+                // We're filling flags above, before adding new entity.
+                i++;                
+                continue;
             } else if (str_equal(splitted_line.get_value(i).data, "vertices")) {
                 // fill_i32_from_string(&new_entity->rotation);
                 fill_vertices_array_from_string(&new_entity->vertices, splitted_line, &i);
@@ -1160,10 +1157,10 @@ b32 load_level(const char *level_name) {
                 fill_b32_from_string(&new_entity->enemy.blocker_immortal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "propeller_power")) {
-                fill_f32_from_string(&new_entity->propeller.power, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->propeller->power, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "propeller_spin_sensitive")) {
-                fill_b32_from_string(&new_entity->propeller.spin_sensitive, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->propeller->spin_sensitive, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "sword_kill_speed_modifier")) {
                 fill_f32_from_string(&new_entity->enemy.sword_kill_speed_modifier, splitted_line.get_value(i+1).data);
@@ -1408,7 +1405,7 @@ b32 load_level(const char *level_name) {
                 i++;
             } else {
                 //assert(false);
-                print("Something unknown during level load");
+                printf("Unknown during level load: %s\n", splitted_line.get_value(i).data);
             }
         }
         
@@ -1660,7 +1657,7 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
         return make_string(allocator, "Bird_enemy");  
     } 
         
-    return make_string(allocator, "No name");
+    return make_string(allocator, "No_name");
 }
 inline String temp_entity_name(Entity *entity) {
     return get_entity_name(entity, &temp_allocator);
@@ -2095,8 +2092,8 @@ void init_propeller_emitter_settings(Entity *e, Particle_Emitter *air_emitter) {
     enable_emitter(air_emitter);
     air_emitter->position            = e->position;
     air_emitter->over_distance       = 0;
-    air_emitter->speed_multiplier    = e->propeller.power / 5.0f;
-    air_emitter->count_multiplier    = e->propeller.power / 5.0f;
+    air_emitter->speed_multiplier    = e->propeller->power / 5.0f;
+    air_emitter->count_multiplier    = e->propeller->power / 5.0f;
     air_emitter->lifetime_multiplier = (1.8f * (e->scale.y / 120.0f)) / air_emitter->speed_multiplier;
     air_emitter->spawn_offset        = e->up * e->scale.x * 0.5f;
     air_emitter->spawn_area          = {e->scale.x, e->scale.x};
@@ -2270,11 +2267,13 @@ void init_entity(Entity *entity) {
     
     // init propeller
     if (entity->flags & PROPELLER) {
-        // entity->emitters.clear();
         free_entity_particle_emitters(entity);
-        entity->propeller.air_emitter_index = add_entity_particle_emitter(entity, &air_emitter_copy);
         
-        Particle_Emitter *air_emitter = get_particle_emitter(entity->propeller.air_emitter_index);
+        entity->propeller = entity->level_context->propellers.append({}, &entity->propeller_index);
+        
+        entity->propeller->air_emitter_index = add_entity_particle_emitter(entity, &air_emitter_copy);
+        
+        Particle_Emitter *air_emitter = get_particle_emitter(entity->propeller->air_emitter_index);
         
         if (air_emitter) {
             init_propeller_emitter_settings(entity, air_emitter);
@@ -2998,6 +2997,7 @@ void init_level_context(Level_Context *level_context) {
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->propellers, 16, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
@@ -5096,8 +5096,8 @@ void update_editor_ui() {
             }
             
             if (selected->flags & PROPELLER) {            
-                INSPECTOR_UI_INPUT_FIELD("Propeller power: ", "propeller_power", "%.0f", selected->propeller.power, to_f32, );
-                INSPECTOR_UI_TOGGLE("Spin sensitive :", "propeller_spin_sensitive", selected->propeller.spin_sensitive, );
+                INSPECTOR_UI_INPUT_FIELD("Propeller power: ", "propeller_power", "%.0f", selected->propeller->power, to_f32, );
+                INSPECTOR_UI_TOGGLE("Spin sensitive :", "propeller_spin_sensitive", selected->propeller->spin_sensitive, );
             }
         } // entity inspector end
         
@@ -5352,7 +5352,7 @@ void update_editor_ui() {
         } // enemy inspector end
         
         if (selected->flags & PROPELLER) {
-            make_ui_text(tprintf("Ctrl+Q/E Power change: %.0f", selected->propeller.power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
+            make_ui_text(tprintf("Ctrl+Q/E Power change: %.0f", selected->propeller->power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
             type_info_v_pos += type_font_size;
             
             make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
@@ -6910,7 +6910,7 @@ void update_editor() {
             
             if (wanna_increase_power || wanna_decrease_power) {
                 f32 power_change = wanna_increase_power ? 100 : -100;
-                selected->propeller.power += power_change;
+                selected->propeller->power += power_change;
             }
         }
         
@@ -8420,7 +8420,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             
             f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
             
-            player_data->velocity = lerp(player_data->velocity, (other->up + deceleration_plane * deceleration_sign * 0.1f) * other->propeller.power, dt * 40);
+            player_data->velocity = lerp(player_data->velocity, (other->up + deceleration_plane * deceleration_sign * 0.1f) * other->propeller->power, dt * 40);
             continue; 
         }
 
@@ -9854,7 +9854,7 @@ void update_editor_entity(Entity *e) {
     }
     
     if (e->flags & PROPELLER) {
-        Particle_Emitter *air_emitter = get_particle_emitter(e->propeller.air_emitter_index);
+        Particle_Emitter *air_emitter = get_particle_emitter(e->propeller->air_emitter_index);
         if (air_emitter) {
             init_propeller_emitter_settings(e, air_emitter);
         }
@@ -12534,9 +12534,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->move_sequence.points = copy_array(&to_copy->move_sequence.points);    
     }
     
-    if (e->flags & PROPELLER) {
-        e->propeller = to_copy->propeller;
-    }
     
     if (e->flags & DOOR) {
         e->door = to_copy->door;
@@ -12558,6 +12555,12 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     e->particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
     init_entity(e);
+    
+    // On init_entity we're adding all the types to arrays and now entity have a fresh pointer to fresh type (like PROPELLER, 
+    // ENEMY etc.) and all the copying should happen after we're added new thing.
+    if (e->flags & PROPELLER && to_copy->propeller) {
+        *e->propeller = *to_copy->propeller;
+    }
     
     return e;
 }

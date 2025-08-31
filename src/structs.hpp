@@ -879,10 +879,13 @@ struct Entity {
     // union {
         Enemy enemy;
         Sticky_Texture sticky_texture;
-        Propeller propeller;
+        
+        Propeller *propeller;
+        
         Trigger trigger;
     // };
     
+        i32 propeller_index = -1;
     // union {
         Bird_Enemy bird_enemy;
         Centipede centipede;
@@ -1084,6 +1087,8 @@ struct Level_Context {
     i32 current_win_blocks_count = 0;
 
     Chunk_Array <Entity> entities = {0};
+    
+    Chunk_Array <Propeller> propellers = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};
