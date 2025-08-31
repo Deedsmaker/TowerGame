@@ -544,7 +544,8 @@ struct Velocity_Move{
     Vector2 velocity = Vector2_zero;
 };
 
-struct Propeller{
+struct Propeller {
+    i32 index = -1;
     f32 power = 200;  
     b32 spin_sensitive = false;
     
@@ -825,7 +826,7 @@ struct Collision_Grid {
 };
 
 struct Entity {
-    i32 id = -1;
+    i32 id = 0;
     b32 need_to_save = true;
     b32 visible = true;
     b32 hidden = false;
@@ -834,7 +835,7 @@ struct Entity {
     
     // Maybe we should add entity name as a pointer to string for debugging purposes.
 
-    b32 enabled = 1;
+    b32 enabled = 12;
     
     Texture texture = {};
     char texture_name[64];
@@ -882,8 +883,6 @@ struct Entity {
         
         Trigger trigger;
     // };
-    
-        i32 propeller_index = -1;
     // union {
         Bird_Enemy bird_enemy;
         Centipede centipede;

@@ -188,9 +188,8 @@ void free_entity(Entity *e) {
     
     // free propeller.
     if (e->flags & PROPELLER) {
-        assert(e->propeller_index >= 0);
-        e->level_context->propellers.remove(e->propeller_index);
-        e->propeller_index = -1;
+        assert(e->propeller->index >= 0);
+        e->level_context->propellers.remove(e->propeller->index);
         e->propeller = NULL;
     }
     
@@ -316,6 +315,7 @@ Entity make_entity(Vector2 _pos) {
     e.rotation = 0;
     e.up = {0, 1};
     e.right = {1, 0};
+    e.pivot = {0.5f, 0.5f};
     
     change_scale(&e, {1, 1});
     setup_color_changer(&e);
@@ -2261,7 +2261,12 @@ void init_entity(Entity *entity) {
     if (entity->flags & PROPELLER) {
         free_entity_particle_emitters(entity);
         
-        entity->propeller = entity->level_context->propellers.append({}, &entity->propeller_index);
+        if (!entity->propeller) {
+            i32 index = -1;
+            entity->propeller = entity->level_context->propellers.append({0}, &index);
+            entity->propeller->index = index;
+        }
+        assert(entity->propeller && entity->propeller->index >= 0);
         
         entity->propeller->air_emitter_index = add_entity_particle_emitter(entity, &air_emitter_copy);
         
