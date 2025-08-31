@@ -77,7 +77,7 @@ struct Array {
     T *insert(T value, i32 index) {
         // We could think about growing array if insert index exeeds current capacity, but curently I think we should keep it 
         // simple and allow insert only on existing places.
-        assert(index > 0 && index < count);
+        assert(index >= 0 && index < count);
         
         data[index] = value;
         

@@ -176,19 +176,28 @@ inline void mark_entity_destroyed(Entity *entity) {
 }
 
 void free_entity(Entity *e) {
+    // free trigger
     if (e->flags & TRIGGER) {
-        if (e->trigger.connected.capacity > 0) {
-            e->trigger.connected.free_data();
+        assert(e->trigger && e->trigger->index > -1);
+    
+        if (e->trigger->connected.capacity > 0) {
+            e->trigger->connected.free_data();
+        }
+        if (e->trigger->tracking.capacity > 0) {
+            e->trigger->tracking.free_data();
         }
         
-        if (e->trigger.cam_rails_points.capacity > 0) {
-            e->trigger.cam_rails_points.free_data();
+        if (e->trigger->cam_rails_points.capacity > 0) {
+            e->trigger->cam_rails_points.free_data();
         }
+        
+        e->level_context->triggers.remove(e->trigger->index);
+        e->propeller = NULL;
     }
     
     // free propeller.
     if (e->flags & PROPELLER) {
-        assert(e->propeller->index >= 0);
+        assert(e->propeller && e->propeller->index >= 0);
         e->level_context->propellers.remove(e->propeller->index);
         e->propeller = NULL;
     }
@@ -561,23 +570,6 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         }
     }
     
-    // for (i32 i = 0; i < src->entities.capacity; i++) {
-    //     Table_Data<Entity> data = {};
-        
-    //     data.key = src->entities.data[i].key;
-    //     if (data.key != -1) {
-    //         data.value = make_entity(&src->entities.data[i].value, true, src, should_init_entities);
-    //         data.value.level_context = current_level_context;
-    //     } else {
-    //         data.value = {};
-    //     }
-    //     dest->entities.data[i] = data;
-    // }
-    
-    // dest->entities.capacity = src->entities.capacity;
-    // dest->entities.total_added_count = src->entities.total_added_count;
-    // dest->entities.last_added_key = src->entities.last_added_key;
-    
     // @TODO: check this copying
     dest->entities = copy_chunk_array(&src->entities);
     for_chunk_array(i, (&dest->entities)) {
@@ -616,6 +608,8 @@ void clear_level_context(Level_Context *level_context) {
     level_context->entities.clear();
     
     level_context->propellers.clear();
+    level_context->triggers.clear();
+    
     // Id 0 is invalid for good reasons, so we're adding it here.
     // Entity dummy_entity = {0};
     // copy_and_add_entity(&dummy_entity, level_context);
@@ -725,66 +719,67 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & TRIGGER) {
-            if (e->trigger.connected.count > 0) {
+            assert(e->trigger);
+            if (e->trigger->connected.count > 0) {
                 fprintf(fptr, "trigger_connected [ ");
-                for (i32 v = 0; v < e->trigger.connected.count; v++) {
-                    fprintf(fptr, ":%d: ", e->trigger.connected.get_value(v)); 
+                for (i32 v = 0; v < e->trigger->connected.count; v++) {
+                    fprintf(fptr, ":%d: ", e->trigger->connected.get_value(v)); 
                 }
                 fprintf(fptr, "] "); 
             }
             
-            if (e->trigger.tracking.count > 0) {
+            if (e->trigger->tracking.count > 0) {
                 fprintf(fptr, "trigger_tracking [ ");
-                for (i32 v = 0; v < e->trigger.tracking.count; v++) {
-                    fprintf(fptr, ":%d: ", e->trigger.tracking.get_value(v)); 
+                for (i32 v = 0; v < e->trigger->tracking.count; v++) {
+                    fprintf(fptr, ":%d: ", e->trigger->tracking.get_value(v)); 
                 }
                 fprintf(fptr, "] "); 
             }
             
-            fprintf(fptr, "trigger_kill_player:%d: ",                    e->trigger.kill_player);
-            fprintf(fptr, "trigger_die_after_trigger:%d: ",              e->trigger.die_after_trigger);
-            fprintf(fptr, "trigger_kill_enemies:%d: ",                   e->trigger.kill_enemies);
-            fprintf(fptr, "trigger_open_doors:%d: ",                     e->trigger.open_doors);
-            fprintf(fptr, "trigger_start_physics_simulation:%d: ",       e->trigger.start_physics_simulation);
-            fprintf(fptr, "trigger_track_enemies:%d: ",                  e->trigger.track_enemies);
-            fprintf(fptr, "trigger_draw_lines_to_tracked:%d: ",          e->trigger.draw_lines_to_tracked);
-            fprintf(fptr, "trigger_agro_enemies:%d: ",                   e->trigger.agro_enemies);
-            fprintf(fptr, "trigger_player_touch:%d: ",                   e->trigger.player_touch);
-            fprintf(fptr, "trigger_shows_entities:%d: ",                 e->trigger.shows_entities);
-            fprintf(fptr, "trigger_starts_moving_sequence:%d: ",         e->trigger.starts_moving_sequence);
-            fprintf(fptr, "trigger_lock_camera:%d: ",                    e->trigger.lock_camera);
-            fprintf(fptr, "trigger_unlock_camera:%d: ",                  e->trigger.unlock_camera);
-            fprintf(fptr, "trigger_allow_player_shoot:%d: ",               e->trigger.allow_player_shoot);
-            fprintf(fptr, "trigger_forbid_player_shoot:%d: ",               e->trigger.forbid_player_shoot);
-            fprintf(fptr, "trigger_locked_camera_position{:%f:, :%f:} ", e->trigger.locked_camera_position.x, e->trigger.locked_camera_position.y);
+            fprintf(fptr, "trigger_kill_player:%d: ",                    e->trigger->kill_player);
+            fprintf(fptr, "trigger_die_after_trigger:%d: ",              e->trigger->die_after_trigger);
+            fprintf(fptr, "trigger_kill_enemies:%d: ",                   e->trigger->kill_enemies);
+            fprintf(fptr, "trigger_open_doors:%d: ",                     e->trigger->open_doors);
+            fprintf(fptr, "trigger_start_physics_simulation:%d: ",       e->trigger->start_physics_simulation);
+            fprintf(fptr, "trigger_track_enemies:%d: ",                  e->trigger->track_enemies);
+            fprintf(fptr, "trigger_draw_lines_to_tracked:%d: ",          e->trigger->draw_lines_to_tracked);
+            fprintf(fptr, "trigger_agro_enemies:%d: ",                   e->trigger->agro_enemies);
+            fprintf(fptr, "trigger_player_touch:%d: ",                   e->trigger->player_touch);
+            fprintf(fptr, "trigger_shows_entities:%d: ",                 e->trigger->shows_entities);
+            fprintf(fptr, "trigger_starts_moving_sequence:%d: ",         e->trigger->starts_moving_sequence);
+            fprintf(fptr, "trigger_lock_camera:%d: ",                    e->trigger->lock_camera);
+            fprintf(fptr, "trigger_unlock_camera:%d: ",                  e->trigger->unlock_camera);
+            fprintf(fptr, "trigger_allow_player_shoot:%d: ",               e->trigger->allow_player_shoot);
+            fprintf(fptr, "trigger_forbid_player_shoot:%d: ",               e->trigger->forbid_player_shoot);
+            fprintf(fptr, "trigger_locked_camera_position{:%f:, :%f:} ", e->trigger->locked_camera_position.x, e->trigger->locked_camera_position.y);
             
-            fprintf(fptr, "trigger_load_level:%d: ", e->trigger.load_level);
-            if (e->trigger.load_level) {
-                fprintf(fptr, "trigger_level_name:%s: ", e->trigger.level_name);
+            fprintf(fptr, "trigger_load_level:%d: ", e->trigger->load_level);
+            if (e->trigger->load_level) {
+                fprintf(fptr, "trigger_level_name:%s: ", e->trigger->level_name);
             }
             
-            fprintf(fptr, "trigger_play_replay:%d: ", e->trigger.play_replay);
-            if (e->trigger.play_replay) {
-                fprintf(fptr, "trigger_replay_name:%s: ", e->trigger.replay_name);
+            fprintf(fptr, "trigger_play_replay:%d: ", e->trigger->play_replay);
+            if (e->trigger->play_replay) {
+                fprintf(fptr, "trigger_replay_name:%s: ", e->trigger->replay_name);
             }
             
-            fprintf(fptr, "trigger_change_zoom:%d: ", e->trigger.change_zoom);
-            if (e->trigger.change_zoom) {
-                fprintf(fptr, "trigger_zoom_value:%f: ", e->trigger.zoom_value);
+            fprintf(fptr, "trigger_change_zoom:%d: ", e->trigger->change_zoom);
+            if (e->trigger->change_zoom) {
+                fprintf(fptr, "trigger_zoom_value:%f: ", e->trigger->zoom_value);
             }
             
-            fprintf(fptr, "trigger_play_sound:%d: ", e->trigger.play_sound);
-            if (e->trigger.play_sound) {
-                fprintf(fptr, "trigger_sound_name:%s: ", e->trigger.sound_name);
+            fprintf(fptr, "trigger_play_sound:%d: ", e->trigger->play_sound);
+            if (e->trigger->play_sound) {
+                fprintf(fptr, "trigger_sound_name:%s: ", e->trigger->sound_name);
             }
             
-            fprintf(fptr, "trigger_start_cam_rails_horizontal:%d: ", e->trigger.start_cam_rails_horizontal);
-            fprintf(fptr, "trigger_start_cam_rails_vertical:%d: ", e->trigger.start_cam_rails_vertical);
-            fprintf(fptr, "trigger_stop_cam_rails:%d: ", e->trigger.stop_cam_rails);
-            if (e->trigger.cam_rails_points.count > 0) {
+            fprintf(fptr, "trigger_start_cam_rails_horizontal:%d: ", e->trigger->start_cam_rails_horizontal);
+            fprintf(fptr, "trigger_start_cam_rails_vertical:%d: ", e->trigger->start_cam_rails_vertical);
+            fprintf(fptr, "trigger_stop_cam_rails:%d: ", e->trigger->stop_cam_rails);
+            if (e->trigger->cam_rails_points.count > 0) {
                 fprintf(fptr, "trigger_cam_rails_points [ ");
-                for (i32 v = 0; v < e->trigger.cam_rails_points.count; v++) {
-                    fprintf(fptr, "{:%f:, :%f:} ", e->trigger.cam_rails_points.get_value(v).x, e->trigger.cam_rails_points.get_value(v).y); 
+                for (i32 v = 0; v < e->trigger->cam_rails_points.count; v++) {
+                    fprintf(fptr, "{:%f:, :%f:} ", e->trigger->cam_rails_points.get_value(v).x, e->trigger->cam_rails_points.get_value(v).y); 
                 }
                 fprintf(fptr, "] "); 
             }
@@ -1092,7 +1087,8 @@ b32 load_level(const char *level_name) {
                 i++;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "id")) {
-                fill_i32_from_string(&new_entity->id, splitted_line.get_value(i+1).data);
+                // fill_i32_from_string(&new_entity->id, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&old_id, splitted_line.get_value(i+1).data);
                 i++;
                 continue;
             } else if (str_equal(splitted_line.get_value(i).data, "pos")) {
@@ -1136,11 +1132,11 @@ b32 load_level(const char *level_name) {
                 fill_i32_from_string(&new_entity->draw_order, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_connected")) {
-                fill_int_array_from_string(&new_entity->trigger.connected, splitted_line, &i);
+                fill_int_array_from_string(&new_entity->trigger->connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "kill_switch_connected")) {
                 fill_int_array_from_string(&new_entity->enemy.kill_switch.connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_tracking")) {
-                fill_int_array_from_string(&new_entity->trigger.tracking, splitted_line, &i);
+                fill_int_array_from_string(&new_entity->trigger->tracking, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "enemy_big_or_small_killable")) {
                 fill_b32_from_string(&new_entity->enemy.big_sword_killable, splitted_line.get_value(i+1).data);
                 i++;
@@ -1199,57 +1195,57 @@ b32 load_level(const char *level_name) {
                 fill_vector4_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->color, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data, splitted_line.get_value(i+3).data, splitted_line.get_value(i+4).data);
                 i += 4;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_die_after_trigger")) {
-                fill_b32_from_string(&new_entity->trigger.die_after_trigger, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->die_after_trigger, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_kill_player")) {
-                fill_b32_from_string(&new_entity->trigger.kill_player, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->kill_player, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_kill_enemies")) {
-                fill_b32_from_string(&new_entity->trigger.kill_enemies, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->kill_enemies, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_open_doors")) {
-                fill_b32_from_string(&new_entity->trigger.open_doors, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->open_doors, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_physics_simulation")) {
-                fill_b32_from_string(&new_entity->trigger.start_physics_simulation, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->start_physics_simulation, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_track_enemies")) {
-                fill_b32_from_string(&new_entity->trigger.track_enemies, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->track_enemies, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_draw_lines_to_tracked")) {
-                fill_b32_from_string(&new_entity->trigger.draw_lines_to_tracked, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->draw_lines_to_tracked, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_agro_enemies")) {
-                fill_b32_from_string(&new_entity->trigger.agro_enemies, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->agro_enemies, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_player_touch")) {
-                fill_b32_from_string(&new_entity->trigger.player_touch, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->player_touch, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_cam_rails_horizontal")) {
-                fill_b32_from_string(&new_entity->trigger.start_cam_rails_horizontal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->start_cam_rails_horizontal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_start_cam_rails_vertical")) {
-                fill_b32_from_string(&new_entity->trigger.start_cam_rails_vertical, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->start_cam_rails_vertical, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_stop_cam_rails")) {
-                fill_b32_from_string(&new_entity->trigger.stop_cam_rails, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->stop_cam_rails, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_cam_rails_points")) {
-                fill_vector2_array_from_string(&new_entity->trigger.cam_rails_points, splitted_line, &i);
+                fill_vector2_array_from_string(&new_entity->trigger->cam_rails_points, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_lock_camera")) {
-                fill_b32_from_string(&new_entity->trigger.lock_camera, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->lock_camera, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_unlock_camera")) {
-                fill_b32_from_string(&new_entity->trigger.unlock_camera, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->unlock_camera, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_allow_player_shoot")) {
-                fill_b32_from_string(&new_entity->trigger.allow_player_shoot, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->allow_player_shoot, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_forbid_player_shoot")) {
-                fill_b32_from_string(&new_entity->trigger.forbid_player_shoot, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->forbid_player_shoot, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_locked_camera_position")) {
-                fill_vector2_from_string(&new_entity->trigger.locked_camera_position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->trigger->locked_camera_position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
             } else if (str_equal(splitted_line.get_value(i).data, "spikes_on_right")) {
                 fill_b32_from_string(&new_entity->centipede.spikes_on_right, splitted_line.get_value(i+1).data);
@@ -1282,34 +1278,34 @@ b32 load_level(const char *level_name) {
                 fill_b32_from_string(&new_entity->door.is_open, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_load_level")) {
-                fill_b32_from_string(&new_entity->trigger.load_level, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->load_level, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_play_replay")) {
-                fill_b32_from_string(&new_entity->trigger.play_replay, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->play_replay, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_level_name")) {
-                str_copy(new_entity->trigger.level_name, splitted_line.get_value(i+1).data);  
+                str_copy(new_entity->trigger->level_name, splitted_line.get_value(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_replay_name")) {
-                str_copy(new_entity->trigger.replay_name, splitted_line.get_value(i+1).data);  
+                str_copy(new_entity->trigger->replay_name, splitted_line.get_value(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_play_sound")) {
-                fill_b32_from_string(&new_entity->trigger.play_sound, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->play_sound, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_change_zoom")) {
-                fill_b32_from_string(&new_entity->trigger.change_zoom, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->change_zoom, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_zoom_value")) {
-                fill_f32_from_string(&new_entity->trigger.zoom_value, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->trigger->zoom_value, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_sound_name")) {
-                str_copy(new_entity->trigger.sound_name, splitted_line.get_value(i+1).data);  
+                str_copy(new_entity->trigger->sound_name, splitted_line.get_value(i+1).data);  
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_shows_entities")) {
-                fill_b32_from_string(&new_entity->trigger.shows_entities, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->shows_entities, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_starts_moving_sequence")) {
-                fill_b32_from_string(&new_entity->trigger.starts_moving_sequence, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->trigger->starts_moving_sequence, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_moving")) {
                 fill_b32_from_string(&new_entity->move_sequence.moving, splitted_line.get_value(i+1).data);
@@ -1463,13 +1459,13 @@ b32 load_level(const char *level_name) {
                 Entity *another_loaded = loaded_entities.get(j);
                 // Going through all loaded entities and looking if this entity old id is contained in connected.
                 // If it is - we're replacing id in connected with this entity new id (and this entity new id is current index (j) + 1).
-                i32 connected_index = new_entity->trigger.connected.find(another_loaded->id);
+                i32 connected_index = new_entity->trigger->connected.find(another_loaded->id);
                 if (connected_index >= 0) {
-                    new_entity->trigger.connected.insert(j + 1, connected_index);
+                    new_entity->trigger->connected.insert(j + 1, connected_index);
                 }
-                i32 tracking_index = new_entity->trigger.tracking.find(another_loaded->id);
+                i32 tracking_index = new_entity->trigger->tracking.find(another_loaded->id);
                 if (tracking_index >= 0) {
-                    new_entity->trigger.tracking.insert(j + 1, tracking_index);
+                    new_entity->trigger->tracking.insert(j + 1, tracking_index);
                 }
             }
         }
@@ -1796,8 +1792,7 @@ void init_spawn_objects() {
     str_copy(trigger_object.name, "trigger");
     spawn_objects.append(trigger_object);
     
-    Entity kill_trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
-    kill_trigger_entity.trigger.kill_player = true;
+    Entity kill_trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER | KILL_TRIGGER);
     kill_trigger_entity.color = Fade(RED, 0.6f);
     setup_color_changer(&kill_trigger_entity);
     
@@ -1824,8 +1819,7 @@ void init_spawn_objects() {
     str_copy(enemy_barrier_object.name, "enemy_barrier");
     spawn_objects.append(enemy_barrier_object);
     
-    Entity spikes_entity = make_entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES);
-    spikes_entity.trigger.kill_player = true;
+    Entity spikes_entity = make_entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES | KILL_TRIGGER);
     spikes_entity.color = Fade(RED, 0.9f);
     setup_color_changer(&spikes_entity);
     
@@ -1846,7 +1840,6 @@ void init_spawn_objects() {
     spawn_objects.append(propeller_object);
     
     Entity door_entity = make_entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
-    door_entity.trigger.player_touch = false;
     door_entity.color = ColorBrightness(PURPLE, 0.6f);
     setup_color_changer(&door_entity);
     
@@ -1856,7 +1849,6 @@ void init_spawn_objects() {
     spawn_objects.append(door_object);
     
     Entity enemy_trigger_entity = make_entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
-    enemy_trigger_entity.trigger.player_touch = false;
     enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
     setup_color_changer(&enemy_trigger_entity);
     
@@ -2094,7 +2086,16 @@ void init_propeller_emitter_settings(Entity *e, Particle_Emitter *air_emitter) {
     air_emitter->direction           = e->up;
 }
 
-void init_entity(Entity *entity) {
+// In default case ignore_existing_types is set to false, which means that when we're going to re-init entity
+// for any reason - we will not add new type info to type array if one already set (for example trigger or enemy)
+// and we will keep old one and re-init other things.
+//
+// ignore_existing_types for situations when we want to add new type info even if one is non-zero.
+// For example on copy_and_add_entity we're doing thing like *entity = *to_copy, which means that we'll gonna have 
+// the same pointers to types as a copy (like trigger, propeller, some enemy etc.) and in that case we don't want to 
+// set this types to NULL, because we can forget something, so we're just telling that we should add new element to types 
+// array anyway.
+void init_entity(Entity *entity, b32 ignore_existing_types) {
     // We're initing only entities that already present in entity array of current level context.
     // That's because other entities or context or lights might want to get entity by it's id and it will fail if it's just 
     // entity that we created localy.
@@ -2261,7 +2262,7 @@ void init_entity(Entity *entity) {
     if (entity->flags & PROPELLER) {
         free_entity_particle_emitters(entity);
         
-        if (!entity->propeller) {
+        if (!entity->propeller || ignore_existing_types) {
             i32 index = -1;
             entity->propeller = entity->level_context->propellers.append({0}, &index);
             entity->propeller->index = index;
@@ -2279,7 +2280,7 @@ void init_entity(Entity *entity) {
     
     if (entity->flags & DOOR) {
         entity->flags |= TRIGGER;
-        entity->trigger.player_touch = false;
+        entity->trigger->player_touch = false;
     }
     
     if (entity->flags & CENTIPEDE && game_state == GAME) {
@@ -2393,8 +2394,26 @@ void init_entity(Entity *entity) {
     
     // init trigger 
     if (entity->flags & TRIGGER) {
-        if (entity->trigger.cam_rails_points.capacity > 0 && !entity->trigger.start_cam_rails_horizontal && !entity->trigger.start_cam_rails_vertical) {
-            entity->trigger.cam_rails_points.free_data();            
+        if (!entity->trigger || ignore_existing_types) {
+            i32 index = -1;
+            entity->trigger = entity->level_context->triggers.append({0}, &index);
+            entity->trigger->index = index;
+        }
+    
+        if (entity->trigger->cam_rails_points.capacity > 0 && !entity->trigger->start_cam_rails_horizontal && !entity->trigger->start_cam_rails_vertical) {
+            entity->trigger->cam_rails_points.free_data();            
+        }
+        
+        if (entity->flags & KILL_TRIGGER) {
+            entity->trigger->kill_player = true;
+        }
+        
+        if (entity->flags & DOOR) {
+            entity->trigger->player_touch = false;
+        }
+        
+        if (entity->flags & ENEMY) {
+            entity->trigger->player_touch = false;
         }
     }
 
@@ -2446,9 +2465,9 @@ void load_level_by_name(const char *name) {
 void try_load_next_level() {
     b32 found = false;
     ForEntities(entity, TRIGGER) {
-        if (entity->trigger.load_level) {
+        if (entity->trigger->load_level) {
             found = true;
-            if (load_level(entity->trigger.level_name)) {            
+            if (load_level(entity->trigger->level_name)) {            
                 print_to_console("Next level loaded successfuly");
                 enter_editor_state();
             } else {
@@ -2995,6 +3014,7 @@ void init_level_context(Level_Context *level_context) {
     
     init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->propellers, 16, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->triggers, 32, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
@@ -3354,6 +3374,8 @@ void enter_editor_state() {
     
     SetMusicVolume(tires_theme, 0);
     SetMusicVolume(wind_theme, 0);
+    
+    update_all_collision_cells(true);
 }
 
 Vector2 screen_to_world(Vector2 pos) {
@@ -3438,7 +3460,7 @@ void fixed_game_update(f32 dt) {
             
             if (state_context.cam_state.on_rails_horizontal || state_context.cam_state.on_rails_vertical) {
                 Entity *rails_trigger_entity = get_entity(state_context.cam_state.rails_trigger_id);
-                Array<Vector2> *rails_points = &rails_trigger_entity->trigger.cam_rails_points;
+                Array<Vector2> *rails_points = &rails_trigger_entity->trigger->cam_rails_points;
                 assert(rails_trigger_entity);
                 
                 b32 on_rails = rails_points->count >= 2;
@@ -5164,82 +5186,82 @@ void update_editor_ui() {
             
             if (editor.draw_trigger_settings) {
                 if (make_button({inspector_position.x + inspector_size.x * 0.2f, v_pos + 3}, {inspector_size.x * 0.6f, height_add - 4}, "Trigger (in game)", "trigger_now_button", SKYBLUE, ColorBrightness(BROWN, -0.3f)) && game_state == GAME) {
-                    selected->trigger.debug_should_trigger_now = true;
+                    selected->trigger->debug_should_trigger_now = true;
                 }
                 v_pos += height_add;
             
-                INSPECTOR_UI_TOGGLE("Activate on player: ", "trigger_player_touch", selected->trigger.player_touch, );
-                INSPECTOR_UI_TOGGLE("Die after trigger: ", "trigger_die_after_trigger", selected->trigger.die_after_trigger, );
-                INSPECTOR_UI_TOGGLE("Kill player: ", "trigger_kill_player", selected->trigger.kill_player, );
-                INSPECTOR_UI_TOGGLE("Kill enemies: ", "trigger_kill_enemies", selected->trigger.kill_enemies, );
-                INSPECTOR_UI_TOGGLE("Doors Open(1) Close(0): ", "trigger_open_doors", selected->trigger.open_doors, );
-                INSPECTOR_UI_TOGGLE("Start physics: ", "trigger_start_physics_simulation", selected->trigger.start_physics_simulation, );
-                INSPECTOR_UI_TOGGLE("Lines to tracked: ", "trigger_draw_lines_to_tracked", selected->trigger.draw_lines_to_tracked, );
-                INSPECTOR_UI_TOGGLE("Agro enemies: ", "trigger_agro_enemies", selected->trigger.agro_enemies, );
-                INSPECTOR_UI_TOGGLE("Show(1) Hide(0) entities: ", "trigger_shows_entities", selected->trigger.shows_entities, );
-                INSPECTOR_UI_TOGGLE("Starts moving sequence: ", "trigger_starts_moving_sequence", selected->trigger.starts_moving_sequence, );
+                INSPECTOR_UI_TOGGLE("Activate on player: ", "trigger_player_touch", selected->trigger->player_touch, );
+                INSPECTOR_UI_TOGGLE("Die after trigger: ", "trigger_die_after_trigger", selected->trigger->die_after_trigger, );
+                INSPECTOR_UI_TOGGLE("Kill player: ", "trigger_kill_player", selected->trigger->kill_player, );
+                INSPECTOR_UI_TOGGLE("Kill enemies: ", "trigger_kill_enemies", selected->trigger->kill_enemies, );
+                INSPECTOR_UI_TOGGLE("Doors Open(1) Close(0): ", "trigger_open_doors", selected->trigger->open_doors, );
+                INSPECTOR_UI_TOGGLE("Start physics: ", "trigger_start_physics_simulation", selected->trigger->start_physics_simulation, );
+                INSPECTOR_UI_TOGGLE("Lines to tracked: ", "trigger_draw_lines_to_tracked", selected->trigger->draw_lines_to_tracked, );
+                INSPECTOR_UI_TOGGLE("Agro enemies: ", "trigger_agro_enemies", selected->trigger->agro_enemies, );
+                INSPECTOR_UI_TOGGLE("Show(1) Hide(0) entities: ", "trigger_shows_entities", selected->trigger->shows_entities, );
+                INSPECTOR_UI_TOGGLE("Starts moving sequence: ", "trigger_starts_moving_sequence", selected->trigger->starts_moving_sequence, );
                 
                 Color cam_section_color = ColorBrightness(PINK, 0.4f);
-                INSPECTOR_UI_TOGGLE_COLOR("Change zoom: ", "trigger_change_zoom", selected->trigger.change_zoom, cam_section_color, );
-                if (selected->trigger.change_zoom) {
+                INSPECTOR_UI_TOGGLE_COLOR("Change zoom: ", "trigger_change_zoom", selected->trigger->change_zoom, cam_section_color, );
+                if (selected->trigger->change_zoom) {
                     f32 h_pos = 10;
-                    INSPECTOR_UI_INPUT_FIELD_COLOR("Zoom value: ", "trigger_zoom_value", "%.2f", selected->trigger.zoom_value, to_f32, ColorBrightness(cam_section_color, -0.1f), );
+                    INSPECTOR_UI_INPUT_FIELD_COLOR("Zoom value: ", "trigger_zoom_value", "%.2f", selected->trigger->zoom_value, to_f32, ColorBrightness(cam_section_color, -0.1f), );
                 }
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Cam rails horizontal: ", "trigger_start_cam_rails_horizontal", selected->trigger.start_cam_rails_horizontal, cam_section_color, init_entity(selected));
-                INSPECTOR_UI_TOGGLE_COLOR("Cam rails vertical: ", "trigger_start_cam_rails_vertical", selected->trigger.start_cam_rails_vertical, cam_section_color, init_entity(selected));
-                INSPECTOR_UI_TOGGLE_COLOR("Stop cam rails: ", "trigger_stop_cam_rails", selected->trigger.stop_cam_rails, cam_section_color, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_COLOR("Cam rails horizontal: ", "trigger_start_cam_rails_horizontal", selected->trigger->start_cam_rails_horizontal, cam_section_color, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_COLOR("Cam rails vertical: ", "trigger_start_cam_rails_vertical", selected->trigger->start_cam_rails_vertical, cam_section_color, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_COLOR("Stop cam rails: ", "trigger_stop_cam_rails", selected->trigger->stop_cam_rails, cam_section_color, init_entity(selected));
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Lock camera: ", "trigger_lock_camera", selected->trigger.lock_camera, cam_section_color, 
-                    if (selected->trigger.lock_camera && selected->trigger.locked_camera_position == Vector2_zero) {
-                        selected->trigger.locked_camera_position = selected->position;
+                INSPECTOR_UI_TOGGLE_COLOR("Lock camera: ", "trigger_lock_camera", selected->trigger->lock_camera, cam_section_color, 
+                    if (selected->trigger->lock_camera && selected->trigger->locked_camera_position == Vector2_zero) {
+                        selected->trigger->locked_camera_position = selected->position;
                     }
                 );
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Unlock camera: ", "trigger_unlock_camera", selected->trigger.unlock_camera, cam_section_color, );
+                INSPECTOR_UI_TOGGLE_COLOR("Unlock camera: ", "trigger_unlock_camera", selected->trigger->unlock_camera, cam_section_color, );
                 
-                INSPECTOR_UI_TOGGLE("Allow player shoot: ", "trigger_allow_player_shoot", selected->trigger.allow_player_shoot, );
-                INSPECTOR_UI_TOGGLE("Forbid player shoot: ", "trigger_forbid_player_shoot", selected->trigger.forbid_player_shoot, );
+                INSPECTOR_UI_TOGGLE("Allow player shoot: ", "trigger_allow_player_shoot", selected->trigger->allow_player_shoot, );
+                INSPECTOR_UI_TOGGLE("Forbid player shoot: ", "trigger_forbid_player_shoot", selected->trigger->forbid_player_shoot, );
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Play sound: ", "trigger_play_sound", selected->trigger.play_sound, cam_section_color, );
-                if (selected->trigger.play_sound) {
+                INSPECTOR_UI_TOGGLE_COLOR("Play sound: ", "trigger_play_sound", selected->trigger->play_sound, cam_section_color, );
+                if (selected->trigger->play_sound) {
                     make_ui_text("Sound name: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound_name_text");
-                    if (make_input_field(selected->trigger.sound_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_sound_name") ) {
-                        str_copy(selected->trigger.sound_name, focus_input_field.content);
+                    if (make_input_field(selected->trigger->sound_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_sound_name") ) {
+                        str_copy(selected->trigger->sound_name, focus_input_field.content);
                     }
                     v_pos += height_add;
                 }
                 
-                INSPECTOR_UI_TOGGLE("Load level: ", "trigger_load_level", selected->trigger.load_level, );
-                if (selected->trigger.load_level) {
+                INSPECTOR_UI_TOGGLE("Load level: ", "trigger_load_level", selected->trigger->load_level, );
+                if (selected->trigger->load_level) {
                     make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
-                    if (make_input_field(selected->trigger.level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_load_level_name") ) {
-                        str_copy(selected->trigger.level_name, focus_input_field.content);
+                    if (make_input_field(selected->trigger->level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_load_level_name") ) {
+                        str_copy(selected->trigger->level_name, focus_input_field.content);
                     }
                     v_pos += height_add;
                 }
-                INSPECTOR_UI_TOGGLE("Play replay: ", "trigger_play_replay", selected->trigger.play_replay, );
-                if (selected->trigger.play_replay) {
+                INSPECTOR_UI_TOGGLE("Play replay: ", "trigger_play_replay", selected->trigger->play_replay, );
+                if (selected->trigger->play_replay) {
                     make_ui_text("Replay name: ", {inspector_position.x + 5, v_pos}, "trigger_replay_name");
-                    if (make_input_field(selected->trigger.replay_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_replay_name") ) {
-                        str_copy(selected->trigger.replay_name, focus_input_field.content);
+                    if (make_input_field(selected->trigger->replay_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_replay_name") ) {
+                        str_copy(selected->trigger->replay_name, focus_input_field.content);
                     }
                     v_pos += height_add;
                 }
             }
         
-            if (selected->trigger.start_cam_rails_horizontal || selected->trigger.start_cam_rails_vertical) {
+            if (selected->trigger->start_cam_rails_horizontal || selected->trigger->start_cam_rails_vertical) {
                 make_ui_text("Ctrl+L rails clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_clear");
                 type_info_v_pos += type_font_size;
                 make_ui_text("Ctrl+M Rails Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_remove");
                 type_info_v_pos += type_font_size;
                 make_ui_text("Ctrl+N Rails Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_add_point");
                 type_info_v_pos += type_font_size;
-                make_ui_text(tprintf("Rails points count: %d", selected->trigger.cam_rails_points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_rails_points_count");
+                make_ui_text(tprintf("Rails points count: %d", selected->trigger->cam_rails_points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_rails_points_count");
             type_info_v_pos += type_font_size;
 
             }
-            if (selected->trigger.change_zoom) {
+            if (selected->trigger->change_zoom) {
                 make_ui_text("Ctrl+R: Camera position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
                 type_info_v_pos += type_font_size;
             }
@@ -5251,9 +5273,9 @@ void update_editor_ui() {
             type_info_v_pos += type_font_size;
             make_ui_text("Assign tracking enemy: Ctrl+Q", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(tprintf("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_connected_count");
+            make_ui_text(tprintf("Connected count: %d", selected->trigger->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_connected_count");
             type_info_v_pos += type_font_size;
-            make_ui_text(tprintf("Tracking count: %d", selected->trigger.tracking.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_tracking_count");
+            make_ui_text(tprintf("Tracking count: %d", selected->trigger->tracking.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_tracking_count");
             type_info_v_pos += type_font_size;
             make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
@@ -5266,7 +5288,7 @@ void update_editor_ui() {
             type_info_v_pos += type_font_size;
             make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(tprintf("Connected count: %d", selected->trigger.connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "kill_switch_connected_count");
+            make_ui_text(tprintf("Connected count: %d", selected->trigger->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "kill_switch_connected_count");
             type_info_v_pos += type_font_size;
             make_ui_text("Kill switch settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "kill_switch_settings");
             type_info_v_pos += type_font_size;
@@ -5698,8 +5720,8 @@ void editor_move_entity_points(Entity *entity, Vector2 displacement) {
         }
     }
     if (entity->flags & TRIGGER) {
-        for (i32 i = 0; i < entity->trigger.cam_rails_points.count; i++) {
-            *entity->trigger.cam_rails_points.get(i) += displacement;
+        for (i32 i = 0; i < entity->trigger->cam_rails_points.count; i++) {
+            *entity->trigger->cam_rails_points.get(i) += displacement;
         }
     }
 }
@@ -6191,7 +6213,7 @@ void update_editor() {
         
         //editor move sequence points        
         // We don't want to move points if selected entity already is move sequence or if selected is trigger with cam rails.
-        b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger.cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
+        b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger->cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
         for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count && !cannot_move_points; p++) {
             Vector2 *point = e->move_sequence.points.get(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
@@ -6200,8 +6222,8 @@ void update_editor() {
         }
         
         //editor move cam rails points        
-        for (i32 p = 0; e->flags & TRIGGER && (e->trigger.start_cam_rails_horizontal || e->trigger.start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger.cam_rails_points.count && !cannot_move_points; p++) {
-            Vector2 *point = e->trigger.cam_rails_points.get(p);
+        for (i32 p = 0; e->flags & TRIGGER && (e->trigger->start_cam_rails_horizontal || e->trigger->start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger->cam_rails_points.count && !cannot_move_points; p++) {
+            Vector2 *point = e->trigger->cam_rails_points.get(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
                 *point = input.mouse_position;
             }
@@ -6553,23 +6575,23 @@ void update_editor() {
                 Entity *spawned =  get_entity(spawned_entities.get_value(i));
                 if (spawned->flags & TRIGGER) {
                     // We have original trigger connected and tracking in copied_entities.
-                    spawned->trigger.connected.clear();                                      
-                    spawned->trigger.tracking.clear();
+                    spawned->trigger->connected.clear();                                      
+                    spawned->trigger->tracking.clear();
                     // @CLEANUP: Will have to change here when we'll remove all of types from entity. Nothing scary.
                     Entity *copied_trigger_entity = editor.copied_entities.get_value(i);
-                    // Here we want to go through all copied entities and find entities with ids from copied trigger.
-                    // Then we want to add entity from spawned with the same index to connected and tracked of new trigger.
+                    // Here we want to go through all copied entities and find entities with ids from copied trigger->
+                    // Then we want to add entity from spawned with the same index to connected and tracked of new trigger->
                     // That's confusing because it's just is. Not sure if it's even possible to make simpler.
                     // But on the bright side - that's not so much code.
                     //
                     // UPDATE after ~3 months - completely understandable. Making same thing for KILL_SWITCH now.
                     for (i32 x = 0; x < spawned_entities.count; x++) {
                         Entity *other_copied_entity = editor.copied_entities.get_value(x);
-                        if (copied_trigger_entity->trigger.connected.contains(other_copied_entity->id)) {
-                            spawned->trigger.connected.append(spawned_entities.get_value(x));
+                        if (copied_trigger_entity->trigger->connected.contains(other_copied_entity->id)) {
+                            spawned->trigger->connected.append(spawned_entities.get_value(x));
                         }
-                        if (copied_trigger_entity->trigger.tracking.contains(other_copied_entity->id)) {
-                            spawned->trigger.tracking.append(spawned_entities.get_value(x));
+                        if (copied_trigger_entity->trigger->tracking.contains(other_copied_entity->id)) {
+                            spawned->trigger->tracking.append(spawned_entities.get_value(x));
                         }
                     }
                 }
@@ -6593,8 +6615,8 @@ void update_editor() {
                         if (entity_array_contains_id(editor.copied_entities.data, editor.copied_entities.count, entity->id)) {
                             continue;
                         }
-                        if (entity->flags & TRIGGER && entity->trigger.connected.contains(originally_copied_id)) {
-                            entity->trigger.connected.append(spawned_id);
+                        if (entity->flags & TRIGGER && entity->trigger->connected.contains(originally_copied_id)) {
+                            entity->trigger->connected.append(spawned_id);
                         }
                         
                         if (entity->flags & KILL_SWITCH && entity->enemy.kill_switch.connected.contains(originally_copied_id)) {
@@ -6799,14 +6821,14 @@ void update_editor() {
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
                     Collision col = collisions_buffer.get_value(i);
                     
-                    if (wanna_assign && !wanna_remove && !selected->trigger.connected.contains(col.other_entity->id)) {
-                        selected->trigger.connected.append(col.other_entity->id);
+                    if (wanna_assign && !wanna_remove && !selected->trigger->connected.contains(col.other_entity->id)) {
+                        selected->trigger->connected.append(col.other_entity->id);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
-                        if (selected->trigger.connected.contains(col.other_entity->id)) {
-                            selected->trigger.connected.remove_first_encountered(col.other_entity->id);
-                        } else if (selected->trigger.tracking.contains(col.other_entity->id)) {
-                            selected->trigger.tracking.remove_first_encountered(col.other_entity->id);
+                        if (selected->trigger->connected.contains(col.other_entity->id)) {
+                            selected->trigger->connected.remove_first_encountered(col.other_entity->id);
+                        } else if (selected->trigger->tracking.contains(col.other_entity->id)) {
+                            selected->trigger->tracking.remove_first_encountered(col.other_entity->id);
                         }
                         break;
                     }
@@ -6814,7 +6836,7 @@ void update_editor() {
             }
             
             if (wanna_change_locked_camera_position) {
-                selected->trigger.locked_camera_position = input.mouse_position;
+                selected->trigger->locked_camera_position = input.mouse_position;
             }
             
             if (wanna_assign_tracking_enemy) {
@@ -6822,32 +6844,32 @@ void update_editor() {
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
                     Collision col = collisions_buffer.get_value(i);
                     
-                    if (!selected->trigger.tracking.contains(col.other_entity->id)) {
-                        selected->trigger.tracking.append(col.other_entity->id);
+                    if (!selected->trigger->tracking.contains(col.other_entity->id)) {
+                        selected->trigger->tracking.append(col.other_entity->id);
                     }
                 }
             }
             
             //trigger clear
             if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L)) {
-                selected->trigger.connected.clear();
+                selected->trigger->connected.clear();
             }
             
             if (wanna_remove_cam_rails_point) {
-                for (i32 i = 0; i < selected->trigger.cam_rails_points.count; i++) {
-                    Vector2 point = selected->trigger.cam_rails_points.get_value(i);   
+                for (i32 i = 0; i < selected->trigger->cam_rails_points.count; i++) {
+                    Vector2 point = selected->trigger->cam_rails_points.get_value(i);   
                     
                     if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})) {       
-                        selected->trigger.cam_rails_points.remove(i);
+                        selected->trigger->cam_rails_points.remove(i);
                         break;
                     }
                 }
             }
             if (wanna_add_cam_rails_point) {
-                selected->trigger.cam_rails_points.append(input.mouse_position);
+                selected->trigger->cam_rails_points.append(input.mouse_position);
             }
             if (wanna_clear_cam_rails_points) {
-                selected->trigger.cam_rails_points.clear();
+                selected->trigger->cam_rails_points.clear();
             }
         }
         
@@ -9784,7 +9806,7 @@ void update_sticky_texture(Entity *entity, f32 dt) {
 inline void verify_trigger_connected(Entity *entity) {
     assert(entity->flags & TRIGGER);
     
-    Trigger *trigger = &entity->trigger;
+    Trigger *trigger = entity->trigger;
     for_array(i, &trigger->connected) {
         Entity *connected = get_entity(trigger->connected.get_value(i));
         if (connected->will_be_destroyed) {
@@ -9862,9 +9884,9 @@ void activate_turret(Entity *entity) {
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected) {
-    connected->hidden = !trigger_entity->trigger.shows_entities;
+    connected->hidden = !trigger_entity->trigger->shows_entities;
     
-    b32 should_agro = trigger_entity->trigger.agro_enemies && debug.enemy_ai;
+    b32 should_agro = trigger_entity->trigger->agro_enemies && debug.enemy_ai;
     if (should_agro) {
         if (connected->flags & ENEMY) {
             agro_enemy(connected);
@@ -9885,16 +9907,16 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
         }
     }
     
-    if (connected->flags & DOOR && connected->door.is_open != trigger_entity->trigger.open_doors) {
-        activate_door(connected, trigger_entity->trigger.open_doors);
+    if (connected->flags & DOOR && connected->door.is_open != trigger_entity->trigger->open_doors) {
+        activate_door(connected, trigger_entity->trigger->open_doors);
     }
     
-    if (connected->flags & PHYSICS_OBJECT && trigger_entity->trigger.start_physics_simulation) {
+    if (connected->flags & PHYSICS_OBJECT && trigger_entity->trigger->start_physics_simulation) {
         connected->physics_object.simulating = true;
     }
     
     if (connected->flags & MOVE_SEQUENCE) {
-        connected->move_sequence.moving = trigger_entity->trigger.starts_moving_sequence;
+        connected->move_sequence.moving = trigger_entity->trigger->starts_moving_sequence;
     }
     
     if (connected->flags & TURRET) {
@@ -9907,20 +9929,20 @@ i32 update_trigger(Entity *e) {
     
     b32 trigger_now = false;
     
-    if (e->trigger.debug_should_trigger_now) {
-        e->trigger.debug_should_trigger_now = false;
+    if (e->trigger->debug_should_trigger_now) {
+        e->trigger->debug_should_trigger_now = false;
         trigger_now = true;
     }
     
     if (e->flags & ENEMY && e->enemy.dead_man) {
-        if (e->trigger.triggered) {
+        if (e->trigger->triggered) {
             return TRIGGER_SOME_ACTION;
         }
     
         trigger_now = true;
     }
     
-    if (e->trigger.kill_enemies) {
+    if (e->trigger->kill_enemies) {
         fill_collisions(e, &collisions_buffer, ENEMY);
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
@@ -9928,10 +9950,10 @@ i32 update_trigger(Entity *e) {
         }
     }
     
-    if (/*e->trigger.track_enemies*/ e->trigger.tracking.count > 0 && !e->trigger.triggered) {
+    if (/*e->trigger->track_enemies*/ e->trigger->tracking.count > 0 && !e->trigger->triggered) {
         b32 found_enemy = false;
-        for (i32 i = 0; i < e->trigger.tracking.count; i++) {
-            i32 id = e->trigger.tracking.get_value(i);
+        for (i32 i = 0; i < e->trigger->tracking.count; i++) {
+            i32 id = e->trigger->tracking.get_value(i);
             
             Entity *tracking_entity = get_entity(id);
 
@@ -9946,11 +9968,11 @@ i32 update_trigger(Entity *e) {
         }
     }
     
-    if (trigger_now || e->trigger.player_touch && check_entities_collision(e, player_entity).collided) {
-        if (e->trigger.forbid_player_shoot) {
+    if (trigger_now || e->trigger->player_touch && check_entities_collision(e, player_entity).collided) {
+        if (e->trigger->forbid_player_shoot) {
             player_data->can_shoot = false;
         }
-        if (e->trigger.allow_player_shoot) {
+        if (e->trigger->allow_player_shoot) {
             player_data->can_shoot = true;
         }
     
@@ -9969,86 +9991,86 @@ i32 update_trigger(Entity *e) {
             state_context.playing_relax = true;
         }
     
-        if (e->trigger.load_level) {
-            b32 we_on_last_level = str_equal(e->trigger.level_name, "LAST_LEVEL_MARK");
+        if (e->trigger->load_level) {
+            b32 we_on_last_level = str_equal(e->trigger->level_name, "LAST_LEVEL_MARK");
             if (we_on_last_level || session_context.speedrun_timer.level_timer_active) {
                 win_level();
             } else {
                 enter_game_state_on_new_level = true;
                 last_player_data = *player_data;
-                load_level(e->trigger.level_name);
+                load_level(e->trigger->level_name);
                 return TRIGGER_LEVEL_LOAD;
             }
         }
         
-        if (e->trigger.play_replay) {
+        if (e->trigger->play_replay) {
             if (!session_context.playing_replay) {
-                load_replay(e->trigger.replay_name);
+                load_replay(e->trigger->replay_name);
             }
         }
         
-        if (e->trigger.start_cam_rails_horizontal) {
+        if (e->trigger->start_cam_rails_horizontal) {
             state_context.cam_state.on_rails_horizontal = true;
             state_context.cam_state.on_rails_vertical = false;
             state_context.cam_state.locked = false;
             state_context.cam_state.rails_trigger_id = e->id;
         }
-        if (e->trigger.start_cam_rails_vertical) {
+        if (e->trigger->start_cam_rails_vertical) {
             state_context.cam_state.on_rails_vertical = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.locked = false;
             state_context.cam_state.rails_trigger_id = e->id;
         }
-        if (e->trigger.stop_cam_rails) {
+        if (e->trigger->stop_cam_rails) {
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical   = false;
             state_context.cam_state.rails_trigger_id = -1;
         }
         
-        if (e->trigger.play_sound && !e->trigger.triggered) {
-            play_sound(e->trigger.sound_name);
+        if (e->trigger->play_sound && !e->trigger->triggered) {
+            play_sound(e->trigger->sound_name);
         }
         
-        if (e->trigger.change_zoom) {
+        if (e->trigger->change_zoom) {
             // With wide monitors happening cut in vertical space so we need to calculate zoom with aspect ratio.
             // 16:9 it's 1.777777 aspect_ratio
             // 21:9 it's 2.333333 aspect_ratio
-            f32 target_zoom = e->trigger.zoom_value;
+            f32 target_zoom = e->trigger->zoom_value;
             target_zoom /= (aspect_ratio / 1.77777f);
             current_level_context->cam.target_zoom = target_zoom;
         }
         
-        if (e->trigger.unlock_camera) {
+        if (e->trigger->unlock_camera) {
             state_context.cam_state.locked = false;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
-        } else if (e->trigger.lock_camera) {
+        } else if (e->trigger->lock_camera) {
             state_context.cam_state.locked = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
-            current_level_context->cam.target = e->trigger.locked_camera_position;
+            current_level_context->cam.target = e->trigger->locked_camera_position;
         }
     
         if (e->flags & DOOR) {
             trigger_entity(e, e);
         }
     
-        if (e->trigger.kill_player) {
+        if (e->trigger->kill_player) {
             kill_player();
         }
         
-        for (i32 i = 0; i < e->trigger.connected.count; i++) {
-            i32 id = e->trigger.connected.get_value(i);
+        for (i32 i = 0; i < e->trigger->connected.count; i++) {
+            i32 id = e->trigger->connected.get_value(i);
             
             Entity *connected_entity = get_entity(id);
                         
             trigger_entity(e, connected_entity);
         }
         
-        e->trigger.triggered = true;
-        e->trigger.triggered_time = core.time.game_time;
+        e->trigger->triggered = true;
+        e->trigger->triggered_time = core.time.game_time;
         
-        if (e->trigger.die_after_trigger) {
+        if (e->trigger->die_after_trigger) {
             e->enabled = false;
         }
     }
@@ -11186,7 +11208,7 @@ void fill_entities_draw_queue() {
         
         // always draw trigger
         if (entity->flags & TRIGGER) {
-            Trigger *trigger = &entity->trigger;
+            Trigger *trigger = entity->trigger;
             if (should_draw_editor_hints()) {
                 // draw cam zoom trigger draw trigger zoom draw trigger cam
                 if (trigger->change_zoom) {
@@ -12496,17 +12518,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     // e->entities_pointing_at_me = copy_array(&to_copy->connected_entities);
     // if (keep_id) entities_pointing_at_me = copy_array(&to_copy->entities_pointing_at_me);
     
-    // copy trigger
-    if (e->flags & TRIGGER) {
-        e->trigger = to_copy->trigger;
-        e->trigger.connected = {0};
-        e->trigger.connected = copy_array(&to_copy->trigger.connected);
-        e->trigger.tracking = {0};
-        e->trigger.tracking =  copy_array(&to_copy->trigger.tracking);
-        
-        e->trigger.cam_rails_points = copy_array(&to_copy->trigger.cam_rails_points);
-    }
-    
     // copy kill switch
     if (e->flags & KILL_SWITCH) {
         Kill_Switch *kill_switch = &e->enemy.kill_switch;
@@ -12549,12 +12560,31 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     
     e->particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
-    init_entity(e);
+    init_entity(e, true);
     
     // On init_entity we're adding all the types to arrays and now entity have a fresh pointer to fresh type (like PROPELLER, 
     // ENEMY etc.) and all the copying should happen after we're added new thing.
     if (e->flags & PROPELLER && to_copy->propeller) {
+        assert(e->propeller);
+        i32 my_index = e->propeller->index;
         *e->propeller = *to_copy->propeller;
+        e->propeller->index = my_index;
+    }
+    
+    // copy trigger
+    if (e->flags & TRIGGER && to_copy->trigger) {
+        assert(e->trigger);
+        i32 my_index = e->trigger->index;
+        *e->trigger = *to_copy->trigger;
+        e->trigger->index = my_index;
+        
+        e->trigger->connected = {0};
+        e->trigger->connected = copy_array(&to_copy->trigger->connected);
+        e->trigger->tracking = {0};
+        e->trigger->tracking =  copy_array(&to_copy->trigger->tracking);
+        
+        e->trigger->cam_rails_points = {0};
+        e->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points);
     }
     
     return e;

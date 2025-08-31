@@ -277,6 +277,7 @@ enum Flags : u64{
     TURRET                 = (static_cast<u64>(1) << 38),
     KILL_SWITCH            = (static_cast<u64>(1) << 39),
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
+    KILL_TRIGGER           = (static_cast<u64>(1) << 41),
 };
 
 struct Physics_Object{
@@ -486,7 +487,9 @@ enum Trigger_Action_Type{
     TRIGGER_LEVEL_LOAD  = 1 << 1
 };
 
-struct Trigger{
+struct Trigger {
+    i32 index = -1;
+
     Array <i32> connected = {0};
     Array <i32> tracking = {0};
     
@@ -881,7 +884,7 @@ struct Entity {
         
         Propeller *propeller;
         
-        Trigger trigger;
+        Trigger *trigger;
     // };
     // union {
         Bird_Enemy bird_enemy;
@@ -1086,6 +1089,7 @@ struct Level_Context {
     Chunk_Array <Entity> entities = {0};
     
     Chunk_Array <Propeller> propellers = {0};
+    Chunk_Array <Trigger> triggers = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};
