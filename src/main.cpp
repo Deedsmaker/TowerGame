@@ -29,8 +29,8 @@ global_variable Core core = {};
 #include "utils.cpp"
 #include "render.cpp"
 
-int screen_width = 1600;
-int screen_height = 900;
+int screen_width = 800;
+int screen_height = 450;
 f32 aspect_ratio = 1.0f;
 
 #define SCREEN_WORLD_SIZE 150.0f

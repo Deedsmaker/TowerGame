@@ -192,7 +192,7 @@ void bake_lightmaps_if_need(){
         ClearBackground(Fade(BLACK, 0.0f));
         BeginBlendMode(BLEND_ALPHA);
             ForEntities(entity2, GROUND){   
-                if (entity2->flags & DOOR || entity2->flags & PHYSICS_OBJECT || entity2->flags & LIGHT || entity2->flags & MOVE_SEQUENCE){
+                if (entity2->flags & DOOR || entity2->flags & LIGHT || entity2->flags & MOVE_SEQUENCE){
                     continue;
                 }
                 

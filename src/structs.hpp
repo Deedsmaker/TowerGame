@@ -262,7 +262,6 @@ enum Flags : u64{
     CENTIPEDE           = 1 << 23,
     CENTIPEDE_SEGMENT   = 1 << 24,
     SHOOT_STOPER        = 1 << 25,
-    PHYSICS_OBJECT      = 1 << 26,
     BLOCK_ROPE          = 1 << 27,
     ROPE_POINT          = 1 << 28,
     JUMP_SHOOTER        = 1 << 29,
@@ -278,26 +277,6 @@ enum Flags : u64{
     KILL_SWITCH            = (static_cast<u64>(1) << 39),
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
-};
-
-struct Physics_Object{
-    b32 simulating = true;
-
-    Vector2 velocity = Vector2_zero;  
-    Vector2 moved_last_frame = Vector2_zero;
-    f32 angular_velocity = 0;
-    
-    f32 mass = 100.0f;
-    f32 gravity_multiplier = 2.0f;
-    
-    b32 rotate_by_velocity = true;
-    b32 on_rope = false;
-    f32 last_pick_rope_point_time = -14234423;
-    
-    i32 rope_id = -1;
-    i32 up_rope_point_id = -1;
-    i32 down_rope_point_id = -1;
-    Vector2 rope_point = Vector2_zero;
 };
 
 struct Move_Point{
@@ -902,7 +881,6 @@ struct Entity {
     // };
     
     // union {
-    Physics_Object physics_object;
     Door door;
     // };
     
