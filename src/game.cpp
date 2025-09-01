@@ -195,6 +195,14 @@ void free_entity(Entity *e) {
         e->propeller = NULL;
     }
     
+    // free sticky texture
+    if (e->flags & STICKY_TEXTURE) {
+        assert(e->sticky_texture && e->sticky_texture->index > -1);
+        
+        e->level_context->sticky_textures.remove(e->sticky_texture->index);
+        e->sticky_texture = NULL;
+    }
+    
     // free propeller.
     if (e->flags & PROPELLER) {
         assert(e->propeller && e->propeller->index >= 0);
@@ -609,6 +617,7 @@ void clear_level_context(Level_Context *level_context) {
     
     level_context->propellers.clear();
     level_context->triggers.clear();
+    level_context->sticky_textures.clear();
     
     // Id 0 is invalid for good reasons, so we're adding it here.
     // Entity dummy_entity = {0};
@@ -2209,18 +2218,17 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         if (!entity->enemy.blocker_immortal) {
             Texture texture = entity->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
             Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
-            init_entity(sticky_entity);
             // str_copy(sticky_entity->name, "blocker_attack_mark");
             sticky_entity->need_to_save = false;
             //sticky_entity->texture = texture;
             sticky_entity->draw_order = 1;
-            sticky_entity->sticky_texture.max_lifetime   = 0;
-            // sticky_entity->sticky_texture.line_color  = Fade(ORANGE, 0.3f);
-            sticky_entity->sticky_texture.need_to_follow = true;
-            sticky_entity->sticky_texture.follow_id  = entity->id;
-            sticky_entity->sticky_texture.birth_time = core.time.game_time;
+            sticky_entity->sticky_texture->max_lifetime   = 0;
+            // sticky_entity->sticky_texture->line_color  = Fade(ORANGE, 0.3f);
+            sticky_entity->sticky_texture->need_to_follow = true;
+            sticky_entity->sticky_texture->follow_id  = entity->id;
+            sticky_entity->sticky_texture->birth_time = core.time.game_time;
             
-            sticky_entity->sticky_texture.alpha = 0.8f;
+            sticky_entity->sticky_texture->alpha = 0.8f;
             
             entity->enemy.blocker_sticky_id = sticky_entity->id;
         }
@@ -2235,25 +2243,24 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         Texture texture = entity->enemy.big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
         Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
         
-        sticky_entity->sticky_texture.base_size = {4, 8};
+        sticky_entity->sticky_texture->base_size = {4, 8};
         if (!entity->enemy.big_sword_killable) {
-            sticky_entity->sticky_texture.base_size = {6, 12};
-            sticky_entity->sticky_texture.alpha = 0.8f;
+            sticky_entity->sticky_texture->base_size = {6, 12};
+            sticky_entity->sticky_texture->alpha = 0.8f;
         } else {
-            sticky_entity->sticky_texture.alpha = 0.4f;
+            sticky_entity->sticky_texture->alpha = 0.4f;
         }
         
-        init_entity(sticky_entity);
         // str_copy(sticky_entity->name, "sword_size_attack_mark");
         sticky_entity->need_to_save = false;
         //sticky_entity->texture = texture;
         sticky_entity->draw_order = 1;
-        sticky_entity->sticky_texture.max_lifetime   = 0;
-        // sticky_entity->sticky_texture.line_color     = Fade(BLUE, 0.3f);
-        sticky_entity->sticky_texture.need_to_follow = true;
-        // sticky_entity->sticky_texture.draw_line      = true;
-        sticky_entity->sticky_texture.follow_id  = entity->id;
-        sticky_entity->sticky_texture.birth_time = core.time.game_time;
+        sticky_entity->sticky_texture->max_lifetime   = 0;
+        // sticky_entity->sticky_texture->line_color     = Fade(BLUE, 0.3f);
+        sticky_entity->sticky_texture->need_to_follow = true;
+        // sticky_entity->sticky_texture->draw_line      = true;
+        sticky_entity->sticky_texture->follow_id  = entity->id;
+        sticky_entity->sticky_texture->birth_time = core.time.game_time;
         
         entity->enemy.sword_required_sticky_id = sticky_entity->id;
     }
@@ -2414,6 +2421,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         if (entity->flags & ENEMY) {
             entity->trigger->player_touch = false;
+        }
+    }
+    
+    if (entity->flags & STICKY_TEXTURE) { 
+        if (!entity->sticky_texture || ignore_existing_types) {
+            i32 index = -1;
+            entity->sticky_texture = entity->level_context->sticky_textures.append({0}, &index);
+            entity->sticky_texture->index = index;
         }
     }
 
@@ -3015,6 +3030,7 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->propellers, 16, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->triggers, 32, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
@@ -3752,7 +3768,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    // printf("%zu\n", sizeof(Entity));
+    printf("%zu\n", sizeof(Entity));
     clear_allocator(&temp_allocator);
 
     frame_rnd = rnd01();
@@ -7992,15 +8008,16 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                 if (contiguous_failed_shots_count <= 5) {
                     ForEntities(entity, SHOOT_STOPER) {
                         if (entity->enemy.in_agro) {
+                        
                             Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
-                            sticky_line->sticky_texture.draw_line = true;
-                            sticky_line->sticky_texture.line_color = ColorBrightness(VIOLET, 0.1f);
-                            sticky_line->sticky_texture.line_width = contiguous_failed_shots_count * 0.5f;
-                            sticky_line->sticky_texture.follow_id = entity->id;
-                            sticky_line->sticky_texture.need_to_follow = true;
+                            sticky_line->sticky_texture->draw_line = true;
+                            sticky_line->sticky_texture->line_color = ColorBrightness(VIOLET, 0.1f);
+                            sticky_line->sticky_texture->line_width = contiguous_failed_shots_count * 0.5f;
+                            sticky_line->sticky_texture->follow_id = entity->id;
+                            sticky_line->sticky_texture->need_to_follow = true;
                             sticky_line->position = get_shoot_stoper_cross_position(entity);
-                            sticky_line->sticky_texture.birth_time = core.time.game_time;
-                            sticky_line->sticky_texture.max_distance = 0;
+                            sticky_line->sticky_texture->birth_time = core.time.game_time;
+                            sticky_line->sticky_texture->max_distance = 0;
                             sticky_line->draw_order = 1;
                             shake_camera(0.1f);
                         }
@@ -9320,17 +9337,16 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale) {
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color tint) {
     Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
     hitmark->need_to_save = false;
-    init_entity(hitmark);    
     change_color(hitmark, tint);
     hitmark->draw_order = 1;
     
-    hitmark->sticky_texture.need_to_follow   = need_to_follow;
-    hitmark->sticky_texture.draw_line        = true;
-    hitmark->sticky_texture.follow_id        = entity->id;
-    hitmark->sticky_texture.birth_time       = core.time.game_time;
-    hitmark->sticky_texture.should_draw_until_expires = true;
-    hitmark->sticky_texture.max_distance     = 1000;
-    hitmark->sticky_texture.base_size = hitmark->scale;
+    hitmark->sticky_texture->need_to_follow   = need_to_follow;
+    hitmark->sticky_texture->draw_line        = true;
+    hitmark->sticky_texture->follow_id        = entity->id;
+    hitmark->sticky_texture->birth_time       = core.time.game_time;
+    hitmark->sticky_texture->should_draw_until_expires = true;
+    hitmark->sticky_texture->max_distance     = 1000;
+    hitmark->sticky_texture->base_size = hitmark->scale;
 }
 
 Vector2 get_entity_velocity(Entity *entity) {
@@ -9760,7 +9776,7 @@ void update_projectile(Entity *entity, f32 dt) {
 }
 
 void update_sticky_texture(Entity *entity, f32 dt) {
-    Sticky_Texture *st = &entity->sticky_texture;
+    Sticky_Texture *st = entity->sticky_texture;
     
     f32 lifetime = core.time.game_time - st->birth_time;
     f32 lifetime_t = 0;
@@ -11323,7 +11339,7 @@ void fill_entities_draw_queue() {
         
         // always draw sticky texture
         if (entity->flags & STICKY_TEXTURE) {
-            Sticky_Texture *st = &entity->sticky_texture;
+            Sticky_Texture *st = entity->sticky_texture;
             
             f32 lifetime = core.time.game_time - st->birth_time;
             f32 lifetime_t = 0.5f;
@@ -11332,10 +11348,10 @@ void fill_entities_draw_queue() {
             }
             
             Entity *follow_entity = NULL;
-            if (entity->sticky_texture.follow_id > 0) {
-                follow_entity = get_entity(entity->sticky_texture.follow_id);
+            if (entity->sticky_texture->follow_id > 0) {
+                follow_entity = get_entity(entity->sticky_texture->follow_id);
                 if (follow_entity->will_be_destroyed) {
-                    entity->sticky_texture.follow_id = 0;
+                    entity->sticky_texture->follow_id = 0;
                     follow_entity = NULL;
                 } else {
                 }
@@ -11442,9 +11458,9 @@ void draw_entity(Entity *e) {
             Vector2 position = e->position;
             // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE) {
-                if (e->sticky_texture.should_draw_texture) {
-                    change_scale(e, (e->sticky_texture.base_size) / fminf(current_level_context->cam.cam2D.zoom, 0.35f)); 
-                    make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture.alpha));
+                if (e->sticky_texture->should_draw_texture) {
+                    change_scale(e, (e->sticky_texture->base_size) / fminf(current_level_context->cam.cam2D.zoom, 0.35f)); 
+                    make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture->alpha));
                 }
             } else {
                 b32 should_draw = true;

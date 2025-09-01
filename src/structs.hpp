@@ -617,7 +617,9 @@ struct Centipede {
     b32 all_segments_dead = false;
 };
 
-struct Sticky_Texture{
+struct Sticky_Texture {
+    i32 index = -1;
+    
     b32 need_to_follow = false;
     i32 follow_id = -1;  
     f32 max_lifetime = 2.0f;
@@ -879,14 +881,15 @@ struct Entity {
     Projectile projectile;
     
     // union {
-        Enemy enemy;
-        Sticky_Texture sticky_texture;
         
+    union {
         Propeller *propeller;
-        
         Trigger *trigger;
+        Sticky_Texture *sticky_texture;
+    };
     // };
     // union {
+        Enemy enemy;
         Bird_Enemy bird_enemy;
         Centipede centipede;
         Centipede_Segment centipede_segment;
@@ -894,9 +897,9 @@ struct Entity {
     // };
     
     // union {
-        Physics_Object physics_object;
-        Door door;
-        Move_Sequence move_sequence;
+    Physics_Object physics_object;
+    Door door;
+    Move_Sequence move_sequence;
     // };
     
     Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
@@ -1090,6 +1093,7 @@ struct Level_Context {
     
     Chunk_Array <Propeller> propellers = {0};
     Chunk_Array <Trigger> triggers = {0};
+    Chunk_Array <Sticky_Texture> sticky_textures = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};
