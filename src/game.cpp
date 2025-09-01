@@ -10246,26 +10246,32 @@ inline b32 update_entity(Entity *e, f32 dt) {
         if (alive_count == 0) {
             centipede->all_segments_dead = true;
         
-            e->enemy.dead_man = true;
-            e->enemy.died_time = core.time.game_time;
-            e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT); //@WTF?
-            Vector2 rnd = rnd_in_circle();// e->move_sequence->moved_last_frame;
-            e->bird_enemy->velocity = {e->move_sequence->velocity.x * rnd.x, e->move_sequence->velocity.y * rnd.y};
+            // e->enemy.dead_man = true;
+            // e->enemy.died_time = core.time.game_time;
+            // e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT); //@WTF?
+            // Vector2 rnd = rnd_in_circle();// e->move_sequence->moved_last_frame;
+            // e->bird_enemy->velocity = {e->move_sequence->velocity.x * rnd.x, e->move_sequence->velocity.y * rnd.y};
 
-            e->move_sequence->moving = false;
-            e->collision_flags = GROUND;
-            init_bird_emitters(e);
-            add_fire_light_to_entity(e);
+            // e->move_sequence->moving = false;
+            // e->collision_flags = GROUND;
+            // init_bird_emitters(e);
+            // add_fire_light_to_entity(e);
+            
+            // Will need to rewrite that. We can't just tell that this entities is now birds for solemn reason that they can 
+            // funny fly away while dead.
+            mark_entity_destroyed(e);
             
             for (i32 i = 0; i < centipede->segments_count; i++) {
                 Entity *segment = get_entity(centipede->segments_ids.get_value(i));
+                // Centipede itself will tell all the segments to be destroyed.
+                // mark_entity_destroyed(segment);
                 
-                segment->flags = ENEMY | BIRD_ENEMY;
-                segment->move_sequence->moving = false;
-                segment->collision_flags = GROUND;
-                Vector2 rnd = rnd_in_circle();//*/ segment->move_sequence->moved_last_frame;
-                segment->bird_enemy->velocity = {segment->move_sequence->velocity.x * rnd.x, segment->move_sequence->velocity.y * rnd.y};
-                init_bird_emitters(segment);
+                // segment->flags = ENEMY | BIRD_ENEMY;
+                // segment->move_sequence->moving = false;
+                // segment->collision_flags = GROUND;
+                // Vector2 rnd = rnd_in_circle();//*/ segment->move_sequence->moved_last_frame;
+                // segment->bird_enemy->velocity = {segment->move_sequence->velocity.x * rnd.x, segment->move_sequence->velocity.y * rnd.y};
+                // init_bird_emitters(segment);
             }
         }
         // end update centipede end
