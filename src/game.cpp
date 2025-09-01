@@ -222,7 +222,12 @@ void free_entity(Entity *e) {
     
     // free bird enemy
     if (e->flags & BIRD_ENEMY) {
-        bird_clear_formation(&e->bird_enemy);
+        assert(e->bird_enemy && e->bird_enemy->index >= 0);
+    
+        bird_clear_formation(e->bird_enemy);
+        
+        e->level_context->bird_enemies.remove(e->bird_enemy->index);
+        e->bird_enemy = NULL;
     }
     
     // free kill switch
@@ -626,6 +631,7 @@ void clear_level_context(Level_Context *level_context) {
     level_context->triggers.clear();
     level_context->sticky_textures.clear();
     level_context->move_sequences.clear();
+    level_context->bird_enemies.clear();
     
     // Id 0 is invalid for good reasons, so we're adding it here.
     // Entity dummy_entity = {0};
@@ -1541,8 +1547,6 @@ global_variable Array<Collision_Grid_Cell*> collision_cells_buffer = {0};
 
 global_variable Array<Spawn_Object> spawn_objects = {0};
 
-#define BIRD_ENEMY_COLLISION_FLAGS (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK)
-
 Entity *spawn_object_by_name(const char* name, Vector2 position) {
     for (i32 i = 0; i < spawn_objects.count; i++) {
         Spawn_Object *obj = spawn_objects.get(i);
@@ -1598,32 +1602,17 @@ inline void free_entity_particle_emitters(Entity *entity) {
 }
 
 void init_bird_emitters(Entity *entity) {
+    assert(entity->flags & BIRD_ENEMY && entity->bird_enemy);
+
     Static_Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     free_entity_particle_emitters(entity);
-    entity->bird_enemy.trail_emitter_index = add_entity_particle_emitter(entity, entity->flags & EXPLOSIVE ? &little_fire_emitter : &air_dust_emitter);
-    enable_emitter(entity->bird_enemy.trail_emitter_index, entity->position);
-    entity->bird_enemy.attack_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
-    entity->bird_enemy.alarm_emitter_index  = add_entity_particle_emitter(entity, &alarm_smoke_emitter_copy);
-    entity->bird_enemy.fire_emitter_index = add_entity_particle_emitter(entity, &fire_emitter);
-    entity->bird_enemy.smoke_fire_emitter_index = add_entity_particle_emitter(entity, &smoke_fire_emitter_copy);
-    entity->bird_enemy.collision_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
-}
-
-void init_bird_entity(Entity *entity) {
-    //entity->flags = ENEMY | BIRD_ENEMY | PARTICLE_EMITTER;
-    assert(entity->flags > 0);
-    entity->collision_flags = BIRD_ENEMY_COLLISION_FLAGS;//GROUND | PLAYER | BIRD_ENEMY;
-    change_color(entity, entity->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
-    
-    change_scale(entity, {6, 10});
-
-    entity->enemy.sword_kill_speed_modifier = 4;
-    
-    init_bird_emitters(entity);
-        
-    //entity->emitter = entity->emitters.last();
-    // str_copy(entity->name, "enemy_bird"); 
-    setup_color_changer(entity);
+    entity->bird_enemy->trail_emitter_index = add_entity_particle_emitter(entity, entity->flags & EXPLOSIVE ? &little_fire_emitter : &air_dust_emitter);
+    enable_emitter(entity->bird_enemy->trail_emitter_index, entity->position);
+    entity->bird_enemy->attack_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
+    entity->bird_enemy->alarm_emitter_index  = add_entity_particle_emitter(entity, &alarm_smoke_emitter_copy);
+    entity->bird_enemy->fire_emitter_index = add_entity_particle_emitter(entity, &fire_emitter);
+    entity->bird_enemy->smoke_fire_emitter_index = add_entity_particle_emitter(entity, &smoke_fire_emitter_copy);
+    entity->bird_enemy->collision_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
 }
 
 String get_entity_name(Entity *entity, Allocator *allocator) {
@@ -1742,7 +1731,6 @@ void init_spawn_objects() {
     spawn_objects.append(turret_homing_object);
     
     Entity bird_entity = make_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
-    init_bird_entity(&bird_entity);
     
     Spawn_Object enemy_bird_object;
     enemy_bird_object.entity = bird_entity;
@@ -2114,9 +2102,23 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->enemy.original_scale = entity->scale;
     }
     
+    // init bird enemy
     if (entity->flags & BIRD_ENEMY) {
-        entity->enemy.max_hits_taken = 3;
-        init_bird_entity(entity);
+        entity->collision_flags = (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
+        change_color(entity, entity->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
+        
+        change_scale(entity, {6, 10});
+    
+        if (!entity->bird_enemy || ignore_existing_types) {
+            i32 index = -1;
+            entity->bird_enemy = entity->level_context->bird_enemies.append({0}, &index);
+            entity->bird_enemy->index = index;
+        }
+    
+        entity->bird_enemy->max_hits_taken = 3;
+        entity->bird_enemy->sword_kill_speed_modifier = 4;
+        
+        init_bird_emitters(entity);
     }
     
     // init kill switch
@@ -2984,6 +2986,7 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->triggers, 32, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->move_sequences, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->bird_enemies, 64, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
@@ -7544,7 +7547,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             }
             
             if (enemy_entity->flags & BIRD_ENEMY) {
-                sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy.velocity);
+                sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy->velocity);
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
                 sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
             } else if (enemy_entity->flags & WIN_BLOCK) {
@@ -8545,8 +8548,8 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
 void respond_bird_collision(Entity *bird_entity, Collision col) {
     assert(bird_entity->flags & BIRD_ENEMY);
 
-    Bird_Enemy *bird = &bird_entity->bird_enemy;
-    Enemy *enemy = &bird_entity->enemy;
+    Bird_Enemy *bird = bird_entity->bird_enemy;
+    Enemy *enemy = bird_entity->bird_enemy; // @TODO CHANGE.
     Entity *other = col.other_entity;
     f32 bird_speed = magnitude(bird->velocity);
     f32 bird_speed_t = clamp01(bird_speed / 300.0f);
@@ -8607,7 +8610,7 @@ void respond_bird_collision(Entity *bird_entity, Collision col) {
         }
         
         bird->velocity              = reflected_vector(bird->velocity * 0.8f, col.normal);
-        other->bird_enemy.velocity += reflected_vector(bird->velocity * 0.3f, col.normal * -1);
+        other->bird_enemy->velocity += reflected_vector(bird->velocity * 0.3f, col.normal * -1);
         
         emit_particles(bird->collision_emitter_index, col.point, normalized(bird->velocity), 0.5f, 1);
         
@@ -8651,8 +8654,8 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     assert(entity->flags & BIRD_ENEMY);
     assert(entity->flags & ENEMY);
     
-    Bird_Enemy *bird = &entity->bird_enemy;
-    Enemy *enemy = &entity->enemy;
+    Bird_Enemy *bird = entity->bird_enemy;
+    Enemy *enemy = entity->bird_enemy;
     
     if (!entity->enemy.in_agro && !enemy->dead_man) {
         return;
@@ -8975,7 +8978,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     }
                     
                     if (other_entity->flags & BIRD_ENEMY) {
-                        other_entity->bird_enemy.velocity += dir_to_other * explosion_add_speed;
+                        other_entity->bird_enemy->velocity += dir_to_other * explosion_add_speed;
                     }
                     if (other_entity->flags & JUMP_SHOOTER) {
                         other_entity->jump_shooter.velocity += dir_to_other * explosion_add_speed;
@@ -9089,7 +9092,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         enemy->stun_start_time = core.time.game_time;
         enemy->last_hit_time   = core.time.game_time;
         enemy->hits_taken++;
-        b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy.attacking;
+        b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy->attacking;
         
         if ((enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit) && !enemy->dead_man) {
             emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, 1, 1);
@@ -9099,8 +9102,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         
             if (enemy_entity->flags & BIRD_ENEMY) {
                 // birds handle dead state by themselves
-                enable_emitter(enemy_entity->bird_enemy.fire_emitter_index, enemy_entity->position);
-                enable_emitter(enemy_entity->bird_enemy.smoke_fire_emitter_index, enemy_entity->position);
+                enable_emitter(enemy_entity->bird_enemy->fire_emitter_index, enemy_entity->position);
+                enable_emitter(enemy_entity->bird_enemy->smoke_fire_emitter_index, enemy_entity->position);
                 add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
                 Particle_Emitter *dead_fire_emitter = get_particle_emitter(add_entity_particle_emitter(enemy_entity, &fire_emitter));
@@ -9160,7 +9163,7 @@ Vector2 get_entity_velocity(Entity *entity) {
         return player_data->velocity;
     }
     if (entity->flags & BIRD_ENEMY) {
-        return entity->bird_enemy.velocity;
+        return entity->bird_enemy->velocity;
     }
     if (entity->flags & JUMP_SHOOTER) {    
         return entity->jump_shooter.velocity;
@@ -9343,7 +9346,7 @@ void calculate_projectile_collisions(Entity *entity) {
                 }
                 
                 if (other->flags & BIRD_ENEMY && can_damage) {
-                    other->bird_enemy.velocity += projectile->velocity * 0.05f;
+                    other->bird_enemy->velocity += projectile->velocity * 0.05f;
                 }
                 if (other->flags & JUMP_SHOOTER && can_damage) {
                     other->jump_shooter.velocity += projectile->velocity * 0.05f;
@@ -10239,7 +10242,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             e->enemy.died_time = core.time.game_time;
             e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT); //@WTF?
             Vector2 rnd = rnd_in_circle();// e->move_sequence->moved_last_frame;
-            e->bird_enemy.velocity = {e->move_sequence->velocity.x * rnd.x, e->move_sequence->velocity.y * rnd.y};
+            e->bird_enemy->velocity = {e->move_sequence->velocity.x * rnd.x, e->move_sequence->velocity.y * rnd.y};
 
             e->move_sequence->moving = false;
             e->collision_flags = GROUND;
@@ -10253,7 +10256,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 segment->move_sequence->moving = false;
                 segment->collision_flags = GROUND;
                 Vector2 rnd = rnd_in_circle();//*/ segment->move_sequence->moved_last_frame;
-                segment->bird_enemy.velocity = {segment->move_sequence->velocity.x * rnd.x, segment->move_sequence->velocity.y * rnd.y};
+                segment->bird_enemy->velocity = {segment->move_sequence->velocity.x * rnd.x, segment->move_sequence->velocity.y * rnd.y};
                 init_bird_emitters(segment);
             }
         }
@@ -10768,9 +10771,9 @@ inline void draw_bird_enemy(Entity *entity) {
     assert(entity->flags & BIRD_ENEMY);
     
     Entity visual_entity = *entity;
-    if (entity->bird_enemy.charging) {
-        f32 charging_time = core.time.game_time - entity->bird_enemy.charging_start_time;
-        f32 t = clamp01(charging_time / entity->bird_enemy.max_charging_time);
+    if (entity->bird_enemy->charging) {
+        f32 charging_time = core.time.game_time - entity->bird_enemy->charging_start_time;
+        f32 t = clamp01(charging_time / entity->bird_enemy->max_charging_time);
         visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, t * t);
     }
     
@@ -10834,14 +10837,14 @@ void fill_entities_draw_queue() {
         
         // always draw bird
         if (entity->flags & BIRD_ENEMY) { 
-            Bird_Enemy *bird = &entity->bird_enemy;
+            Bird_Enemy *bird = entity->bird_enemy;
             local_persist Color charging_line_color  = Fade(ORANGE, 0.3f);
             local_persist Color attacking_line_color = Fade(RED, 0.6f);
             local_persist f32 charging_line_width = 1.5f;
             local_persist f32 attacking_line_width = 7.0f;
             if (bird->charging && !entity->enemy.dead_man) {
-                f32 charging_time = core.time.game_time - entity->bird_enemy.charging_start_time;
-                f32 t = clamp01(charging_time / entity->bird_enemy.max_charging_time);
+                f32 charging_time = core.time.game_time - entity->bird_enemy->charging_start_time;
+                f32 t = clamp01(charging_time / entity->bird_enemy->max_charging_time);
                 Color attack_line_color = color_fade(charging_line_color, t * t);
                 f32 attack_line_width = lerp(0.0f, charging_line_width, t * t);
                 Vector2 attack_line_target_position = player_entity->position;

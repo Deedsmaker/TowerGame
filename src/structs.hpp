@@ -323,6 +323,8 @@ struct Kill_Switch {
 };
 
 struct Enemy {
+    i32 index = -1;
+
     b32 dead_man = false;  
     b32 in_agro = false;
     b32 in_stun = false;
@@ -872,7 +874,7 @@ struct Entity {
     // };
     // union {
         Enemy enemy;
-        Bird_Enemy bird_enemy;
+        Bird_Enemy *bird_enemy;
         Centipede centipede;
         Centipede_Segment centipede_segment;
         Jump_Shooter jump_shooter;
@@ -1073,6 +1075,7 @@ struct Level_Context {
     Chunk_Array <Trigger> triggers = {0};
     Chunk_Array <Sticky_Texture> sticky_textures = {0};
     Chunk_Array <Move_Sequence> move_sequences = {0};
+    Chunk_Array <Bird_Enemy> bird_enemies = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};
