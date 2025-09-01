@@ -231,7 +231,7 @@ void free_entity(Entity *e) {
             segment->enabled = false;
         }
         
-        e->centipede.segments_ids.clear();
+        e->centipede.segments_ids.free_data();
     }
     
     // @CLEANUP: Why exactly we don't free that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
@@ -3768,7 +3768,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    printf("%zu\n", sizeof(Entity));
+    // printf("%zu\n", sizeof(Centipede));
     clear_allocator(&temp_allocator);
 
     frame_rnd = rnd01();

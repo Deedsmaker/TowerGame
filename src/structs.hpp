@@ -566,7 +566,7 @@ struct Bird_Slot{
     i32 index = -1;    
 };
 
-struct Bird_Enemy{
+struct Bird_Enemy {
     i32 slot_index = -1;
 
     //Attacking state
@@ -608,7 +608,7 @@ struct Centipede_Segment {
 };
 
 struct Centipede {
-    Static_Array <i32, MAX_CENTIPEDE_SEGMENTS> segments_ids = {0};
+    Array <i32> segments_ids = {0};
     
     i32 segments_count = 32;
     b32 spikes_on_right = false;
