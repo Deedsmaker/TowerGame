@@ -450,7 +450,7 @@ struct Move_Sequence {
     Vector2 moved_last_frame = Vector2_zero;
 };
 
-struct Door{
+struct Door {
     Vector2 closed_position = Vector2_zero;
     Vector2 open_position   = Vector2_zero;
     b32 is_open = false;
@@ -459,8 +459,6 @@ struct Door{
     
     f32 time_to_open = 3.0f;
     f32 time_to_close = 1.5f;
-    
-    // Sound_Handler *open_sound = NULL;
 };
 
 enum Trigger_Action_Type{
@@ -547,7 +545,7 @@ struct Bird_Slot{
     i32 index = -1;    
 };
 
-struct Bird_Enemy {
+struct Bird_Enemy : Enemy {
     i32 slot_index = -1;
 
     //Attacking state
@@ -880,9 +878,7 @@ struct Entity {
         Jump_Shooter jump_shooter;
     // };
     
-    // union {
     Door door;
-    // };
     
     Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
     i32 note_index = -1;

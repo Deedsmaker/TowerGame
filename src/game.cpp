@@ -220,6 +220,7 @@ void free_entity(Entity *e) {
         e->propeller = NULL;
     }
     
+    // free bird enemy
     if (e->flags & BIRD_ENEMY) {
         bird_clear_formation(&e->bird_enemy);
     }
@@ -229,8 +230,8 @@ void free_entity(Entity *e) {
         e->enemy.kill_switch.connected.free_data();    
     }
     
+    // free centipede
     if (e->flags & CENTIPEDE) {
-        // free centipede
         for (i32 i = 0; i < e->centipede.segments_ids.count; i++) {
             // @CLEANUP: Why we don't call free_entity on segments?
             // Probably that doesn't matter because while game-looping we're just destroy them and when we're clearing context 
@@ -244,9 +245,10 @@ void free_entity(Entity *e) {
         e->centipede.segments_ids.free_data();
     }
     
-    // if (e->flags & JUMP_SHOOTER) {
-    //     e->jump_shooter.move_points.free_data();
-    // }
+    // free jump shooter
+    if (e->flags & JUMP_SHOOTER) {
+        e->jump_shooter.move_points.free_data();
+    }
     
     // free light
     if (e->lights.count > 0) {
