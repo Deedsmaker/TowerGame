@@ -449,6 +449,8 @@ struct Jump_Shooter{
 };
 
 struct Move_Sequence {
+    i32 index = -1;
+
     Array <Vector2> points = {0};  
     b32 moving = false;
     f32 speed = 10;
@@ -887,6 +889,9 @@ struct Entity {
         Trigger *trigger;
         Sticky_Texture *sticky_texture;
     };
+    
+    Move_Sequence *move_sequence;
+    
     // };
     // union {
         Enemy enemy;
@@ -899,7 +904,6 @@ struct Entity {
     // union {
     Physics_Object physics_object;
     Door door;
-    Move_Sequence move_sequence;
     // };
     
     Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
@@ -1094,6 +1098,7 @@ struct Level_Context {
     Chunk_Array <Propeller> propellers = {0};
     Chunk_Array <Trigger> triggers = {0};
     Chunk_Array <Sticky_Texture> sticky_textures = {0};
+    Chunk_Array <Move_Sequence> move_sequences = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};

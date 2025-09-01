@@ -195,6 +195,16 @@ void free_entity(Entity *e) {
         e->propeller = NULL;
     }
     
+    // free move sequence
+    if (e->flags & MOVE_SEQUENCE) {
+        assert(e->move_sequence && e->move_sequence->index >= 0);
+        
+        e->move_sequence->points.free_data();
+        
+        e->level_context->move_sequences.remove(e->move_sequence->index);
+        e->move_sequence = NULL;
+    }
+    
     // free sticky texture
     if (e->flags & STICKY_TEXTURE) {
         assert(e->sticky_texture && e->sticky_texture->index > -1);
@@ -233,11 +243,6 @@ void free_entity(Entity *e) {
         
         e->centipede.segments_ids.free_data();
     }
-    
-    // @CLEANUP: Why exactly we don't free that? We're just leaking without hesitation? Brave. Will see into that when will rewrite entity system.
-    // if (e->flags & MOVE_SEQUENCE) {
-    //     e->move_sequence.points.free_data();
-    // }
     
     // if (e->flags & JUMP_SHOOTER) {
     //     e->jump_shooter.move_points.free_data();
@@ -618,6 +623,7 @@ void clear_level_context(Level_Context *level_context) {
     level_context->propellers.clear();
     level_context->triggers.clear();
     level_context->sticky_textures.clear();
+    level_context->move_sequences.clear();
     
     // Id 0 is invalid for good reasons, so we're adding it here.
     // Entity dummy_entity = {0};
@@ -805,22 +811,22 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & MOVE_SEQUENCE) {
-            if (e->move_sequence.points.count > 0) {
+            if (e->move_sequence->points.count > 0) {
                 fprintf(fptr, "move_sequence_points [ ");
-                for (i32 v = 0; v < e->move_sequence.points.count; v++) {
-                    fprintf(fptr, "{:%f:, :%f:} ", e->move_sequence.points.get_value(v).x, e->move_sequence.points.get_value(v).y); 
+                for (i32 v = 0; v < e->move_sequence->points.count; v++) {
+                    fprintf(fptr, "{:%f:, :%f:} ", e->move_sequence->points.get_value(v).x, e->move_sequence->points.get_value(v).y); 
                 }
                 fprintf(fptr, "] "); 
             }
             
-            fprintf(fptr, "move_sequence_moving:%d: ",                        e->move_sequence.moving);
-            fprintf(fptr, "move_sequence_speed:%f: ",                         e->move_sequence.speed);
-            fprintf(fptr, "move_sequence_loop:%d: ",                          e->move_sequence.loop);
-            fprintf(fptr, "move_sequence_rotate:%d: ",                        e->move_sequence.rotate);
-            fprintf(fptr, "move_sequence_speed_related_player_distance:%d: ", e->move_sequence.speed_related_player_distance);
-            fprintf(fptr, "move_sequence_min_distance:%f: ",                  e->move_sequence.min_distance);
-            fprintf(fptr, "move_sequence_max_distance:%f: ",                  e->move_sequence.max_distance);
-            fprintf(fptr, "move_sequence_max_distance_speed:%f: ",            e->move_sequence.max_distance_speed);
+            fprintf(fptr, "move_sequence_moving:%d: ",                        e->move_sequence->moving);
+            fprintf(fptr, "move_sequence_speed:%f: ",                         e->move_sequence->speed);
+            fprintf(fptr, "move_sequence_loop:%d: ",                          e->move_sequence->loop);
+            fprintf(fptr, "move_sequence_rotate:%d: ",                        e->move_sequence->rotate);
+            fprintf(fptr, "move_sequence_speed_related_player_distance:%d: ", e->move_sequence->speed_related_player_distance);
+            fprintf(fptr, "move_sequence_min_distance:%f: ",                  e->move_sequence->min_distance);
+            fprintf(fptr, "move_sequence_max_distance:%f: ",                  e->move_sequence->max_distance);
+            fprintf(fptr, "move_sequence_max_distance_speed:%f: ",            e->move_sequence->max_distance_speed);
         }
         
         if (e->flags & CENTIPEDE) {
@@ -1317,25 +1323,25 @@ b32 load_level(const char *level_name) {
                 fill_b32_from_string(&new_entity->trigger->starts_moving_sequence, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_moving")) {
-                fill_b32_from_string(&new_entity->move_sequence.moving, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence->moving, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_loop")) {
-                fill_b32_from_string(&new_entity->move_sequence.loop, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence->loop, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_rotate")) {
-                fill_b32_from_string(&new_entity->move_sequence.rotate, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence->rotate, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_speed_related_player_distance")) {
-                fill_b32_from_string(&new_entity->move_sequence.speed_related_player_distance, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->move_sequence->speed_related_player_distance, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_min_distance")) {
-                fill_f32_from_string(&new_entity->move_sequence.min_distance, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence->min_distance, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_max_distance")) {
-                fill_f32_from_string(&new_entity->move_sequence.max_distance, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence->max_distance, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_max_distance_speed")) {
-                fill_f32_from_string(&new_entity->move_sequence.max_distance_speed, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence->max_distance_speed, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "hidden")) {
                 fill_b32_from_string(&new_entity->hidden, splitted_line.get_value(i+1).data);
@@ -1392,10 +1398,10 @@ b32 load_level(const char *level_name) {
                 fill_f32_from_string(&new_entity->jump_shooter.spread, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_speed")) {
-                fill_f32_from_string(&new_entity->move_sequence.speed, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->move_sequence->speed, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_points")) {
-                fill_vector2_array_from_string(&new_entity->move_sequence.points, splitted_line, &i);
+                fill_vector2_array_from_string(&new_entity->move_sequence->points, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "note_content")) {
                 //str_copy(note_to_fill.content, splitted_line.get_value(i+1).data);
                 fill_string(note_to_fill.content, &splitted_line, &i);
@@ -1867,10 +1873,6 @@ void init_spawn_objects() {
     spawn_objects.append(enemy_trigger_object);
     
     Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
-    centipede_entity.move_sequence.moving = true;
-    centipede_entity.move_sequence.loop = true;
-    centipede_entity.move_sequence.rotate = true;
-    centipede_entity.move_sequence.speed = 100;
     centipede_entity.color = ColorBrightness(RED, 0.6f);
     setup_color_changer(&centipede_entity);
     
@@ -1910,9 +1912,9 @@ void init_spawn_objects() {
     
     // we use move sequence on jump shooter only to set jump points
     Entity jump_shooter_entity = make_entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
-    jump_shooter_entity.move_sequence.moving = true;
-    jump_shooter_entity.move_sequence.loop = true;
-    jump_shooter_entity.enemy.max_hits_taken = 6;
+    // jump_shooter_entity.move_sequence->moving = true;
+    // jump_shooter_entity.move_sequence->loop = true;
+    // jump_shooter_entity.enemy.max_hits_taken = 6;
     jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
     setup_color_changer(&jump_shooter_entity);
     
@@ -2312,7 +2314,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             }
 
             segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
-            segment->move_sequence = entity->move_sequence;
+            *segment->move_sequence = *entity->move_sequence;
             
             segment->hidden = entity->hidden;
             
@@ -2421,6 +2423,22 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         if (entity->flags & ENEMY) {
             entity->trigger->player_touch = false;
+        }
+    }
+    
+    // init move sequence
+    if (entity->flags & MOVE_SEQUENCE) {
+        if (!entity->move_sequence || ignore_existing_types) {
+            i32 index = -1;
+            entity->move_sequence = entity->level_context->move_sequences.append({0}, &index);
+            entity->move_sequence->index = index;
+        }
+        
+        if (entity->flags & CENTIPEDE) {
+            entity->move_sequence->moving = true;
+            entity->move_sequence->loop = true;
+            entity->move_sequence->rotate = true;
+            // entity->move_sequence->speed = 100;
         }
     }
     
@@ -3031,6 +3049,7 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->propellers, 16, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->triggers, 32, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->move_sequences, 128, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
@@ -3768,7 +3787,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    // printf("%zu\n", sizeof(Centipede));
+    // printf("%zu\n", sizeof(Entity));
     clear_allocator(&temp_allocator);
 
     frame_rnd = rnd01();
@@ -5096,26 +5115,26 @@ void update_editor_ui() {
             }
             
             INSPECTOR_UI_TOGGLE_FLAGS("No move block: ", "no_move_block", selected->flags, NO_MOVE_BLOCK, ); 
-            INSPECTOR_UI_TOGGLE_FLAGS("Move sequence: ", "entity_move_sequence", selected->flags, MOVE_SEQUENCE, );
+            INSPECTOR_UI_TOGGLE_FLAGS("Move sequence: ", "entity_move_sequence", selected->flags, MOVE_SEQUENCE, init_entity(selected));
             
             // move sequence inspector ui
             if (selected->flags & MOVE_SEQUENCE) {
                 f32 h_pos = 15;
-                INSPECTOR_UI_TOGGLE("Moving: ", "move_sequence_moving", selected->move_sequence.moving, );
-                INSPECTOR_UI_TOGGLE("Loop: ", "move_sequence_loop", selected->move_sequence.loop, );
-                INSPECTOR_UI_TOGGLE("Rotate: ", "move_sequence_rotate", selected->move_sequence.rotate, );
+                INSPECTOR_UI_TOGGLE("Moving: ", "move_sequence_moving", selected->move_sequence->moving, );
+                INSPECTOR_UI_TOGGLE("Loop: ", "move_sequence_loop", selected->move_sequence->loop, );
+                INSPECTOR_UI_TOGGLE("Rotate: ", "move_sequence_rotate", selected->move_sequence->rotate, );
                 
-                INSPECTOR_UI_INPUT_FIELD("Speed: ", "move_sequence_speed", "%.1f", selected->move_sequence.speed, to_f32, );  
+                INSPECTOR_UI_INPUT_FIELD("Speed: ", "move_sequence_speed", "%.1f", selected->move_sequence->speed, to_f32, );  
                 
-                INSPECTOR_UI_TOGGLE("Speed related player distance: : ", "move_sequence_speed_related_player_distance", selected->move_sequence.speed_related_player_distance, );
-                if (selected->move_sequence.speed_related_player_distance) {
+                INSPECTOR_UI_TOGGLE("Speed related player distance: : ", "move_sequence_speed_related_player_distance", selected->move_sequence->speed_related_player_distance, );
+                if (selected->move_sequence->speed_related_player_distance) {
                     f32 h_pos = 25;
-                    INSPECTOR_UI_INPUT_FIELD("Min distance: ", "move_sequence_min_distance", "%.1f", selected->move_sequence.min_distance, to_f32, );  
-                    INSPECTOR_UI_INPUT_FIELD("Max distance: ", "move_sequence_max_distance", "%.1f", selected->move_sequence.max_distance, to_f32, );  
-                    INSPECTOR_UI_INPUT_FIELD("Max distance speed: ", "move_sequence_max_distance_speed", "%.1f", selected->move_sequence.max_distance_speed, to_f32, );  
+                    INSPECTOR_UI_INPUT_FIELD("Min distance: ", "move_sequence_min_distance", "%.1f", selected->move_sequence->min_distance, to_f32, );  
+                    INSPECTOR_UI_INPUT_FIELD("Max distance: ", "move_sequence_max_distance", "%.1f", selected->move_sequence->max_distance, to_f32, );  
+                    INSPECTOR_UI_INPUT_FIELD("Max distance speed: ", "move_sequence_max_distance_speed", "%.1f", selected->move_sequence->max_distance_speed, to_f32, );  
                 }
                 
-                make_ui_text(tprintf("Points count: %d", selected->move_sequence.points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
+                make_ui_text(tprintf("Points count: %d", selected->move_sequence->points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
                 type_info_v_pos += type_font_size;
                 make_ui_text("Ctrl+L clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
                 type_info_v_pos += type_font_size;
@@ -5731,8 +5750,8 @@ inline b32 is_vertex_on_mouse(Vector2 vertex_global) {
 
 void editor_move_entity_points(Entity *entity, Vector2 displacement) {
     if (entity->flags & MOVE_SEQUENCE) {
-        for (i32 i = 0; i < entity->move_sequence.points.count; i++) {
-            *entity->move_sequence.points.get(i) += displacement;
+        for (i32 i = 0; i < entity->move_sequence->points.count; i++) {
+            *entity->move_sequence->points.get(i) += displacement;
         }
     }
     if (entity->flags & TRIGGER) {
@@ -6230,8 +6249,8 @@ void update_editor() {
         //editor move sequence points        
         // We don't want to move points if selected entity already is move sequence or if selected is trigger with cam rails.
         b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger->cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
-        for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence.points.count && !cannot_move_points; p++) {
-            Vector2 *point = e->move_sequence.points.get(p);
+        for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence->points.count && !cannot_move_points; p++) {
+            Vector2 *point = e->move_sequence->points.get(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
                 *point = input.mouse_position;
             }
@@ -6963,20 +6982,20 @@ void update_editor() {
             b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_M);
             
             if (wanna_remove) {
-                for (i32 i = 0; i < selected->move_sequence.points.count; i++) {
-                    Vector2 point = selected->move_sequence.points.get_value(i);   
+                for (i32 i = 0; i < selected->move_sequence->points.count; i++) {
+                    Vector2 point = selected->move_sequence->points.get_value(i);   
                     
                     if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})) {       
-                        selected->move_sequence.points.remove(i);
+                        selected->move_sequence->points.remove(i);
                         break;
                     }
                 }
             }
             if (wanna_add) {
-                selected->move_sequence.points.append(input.mouse_position);
+                selected->move_sequence->points.append(input.mouse_position);
             }
             if (wanna_clear) {
-                selected->move_sequence.points.clear();
+                selected->move_sequence->points.clear();
             }
         }
     }
@@ -8367,8 +8386,8 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             player_data->velocity -= col.normal * dot(player_data->velocity, col.normal);
         }
         
-        if (other->flags & MOVE_SEQUENCE && other->move_sequence.moving) {
-            player_entity->position += other->move_sequence.moved_last_frame;
+        if (other->flags & MOVE_SEQUENCE && other->move_sequence->moving) {
+            player_entity->position += other->move_sequence->moved_last_frame;
         }
         
         f32 angle = fangle(col.normal, player_entity->up);
@@ -8854,7 +8873,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     }
     
     if (entity->flags & MOVE_SEQUENCE) {
-        entity->move_sequence.moving = false;
+        entity->move_sequence->moving = false;
     }
     
     Vector2 vec_to_player = player_entity->position - entity->position;
@@ -9113,7 +9132,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         }
         
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)) {
-            enemy_entity->move_sequence.moving = false;
+            enemy_entity->move_sequence->moving = false;
         }
         
         // explosive kill explosive
@@ -9276,7 +9295,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     
     if (1 || is_enemy_can_take_damage(enemy_entity)) {
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)) {
-            enemy_entity->move_sequence.moving = false;
+            enemy_entity->move_sequence->moving = false;
         }
         agro_enemy(enemy_entity);
     
@@ -9917,7 +9936,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
             assert(segment);
             segment->hidden = connected->hidden;
             if (should_agro) {
-                segment->move_sequence.moving = connected->move_sequence.moving;
+                segment->move_sequence->moving = connected->move_sequence->moving;
                 agro_enemy(segment);
             }
         }
@@ -9932,7 +9951,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     }
     
     if (connected->flags & MOVE_SEQUENCE) {
-        connected->move_sequence.moving = trigger_entity->trigger->starts_moving_sequence;
+        connected->move_sequence->moving = trigger_entity->trigger->starts_moving_sequence;
     }
     
     if (connected->flags & TURRET) {
@@ -10147,7 +10166,7 @@ Collision get_nearest_ground_collision(Vector2 point, f32 radius) {
 }
 
 void update_move_sequence(Entity *entity, f32 dt) {
-    Move_Sequence *sequence = &entity->move_sequence;
+    Move_Sequence *sequence = entity->move_sequence;
     
     if (!sequence->moving || sequence->points.count == 0) {
         sequence->moved_last_frame = Vector2_zero;
@@ -10509,10 +10528,10 @@ inline b32 update_entity(Entity *e, f32 dt) {
             e->enemy.dead_man = true;
             e->enemy.died_time = core.time.game_time;
             e->flags = ENEMY | BIRD_ENEMY | (e->flags & LIGHT); //@WTF?
-            Vector2 rnd = rnd_in_circle();// e->move_sequence.moved_last_frame;
-            e->bird_enemy.velocity = {e->move_sequence.velocity.x * rnd.x, e->move_sequence.velocity.y * rnd.y};
+            Vector2 rnd = rnd_in_circle();// e->move_sequence->moved_last_frame;
+            e->bird_enemy.velocity = {e->move_sequence->velocity.x * rnd.x, e->move_sequence->velocity.y * rnd.y};
 
-            e->move_sequence.moving = false;
+            e->move_sequence->moving = false;
             e->collision_flags = GROUND;
             init_bird_emitters(e);
             add_fire_light_to_entity(e);
@@ -10521,10 +10540,10 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 Entity *segment = get_entity(centipede->segments_ids.get_value(i));
                 
                 segment->flags = ENEMY | BIRD_ENEMY;
-                segment->move_sequence.moving = false;
+                segment->move_sequence->moving = false;
                 segment->collision_flags = GROUND;
-                Vector2 rnd = rnd_in_circle();//*/ segment->move_sequence.moved_last_frame;
-                segment->bird_enemy.velocity = {segment->move_sequence.velocity.x * rnd.x, segment->move_sequence.velocity.y * rnd.y};
+                Vector2 rnd = rnd_in_circle();//*/ segment->move_sequence->moved_last_frame;
+                segment->bird_enemy.velocity = {segment->move_sequence->velocity.x * rnd.x, segment->move_sequence->velocity.y * rnd.y};
                 init_bird_emitters(segment);
             }
         }
@@ -10641,7 +10660,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                     }
                     
                     if (nearest_ground.other_entity->flags & MOVE_SEQUENCE) {
-                        e->position += nearest_ground.other_entity->move_sequence.moved_last_frame;
+                        e->position += nearest_ground.other_entity->move_sequence->moved_last_frame;
                     }
                 }
             } else { // If not found ground
@@ -11181,13 +11200,13 @@ void fill_entities_draw_queue() {
         
         // always draw move sequence
         if (entity->flags & MOVE_SEQUENCE && should_draw_editor_hints()) {
-            if (entity->move_sequence.speed_related_player_distance && editor.selected_entity && editor.selected_entity->id == entity->id) {
-                draw_game_circle(entity->position, entity->move_sequence.max_distance, Fade(RED, 0.05f));
-                draw_game_circle(entity->position, entity->move_sequence.min_distance, Fade(BLUE, 0.2f));
+            if (entity->move_sequence->speed_related_player_distance && editor.selected_entity && editor.selected_entity->id == entity->id) {
+                draw_game_circle(entity->position, entity->move_sequence->max_distance, Fade(RED, 0.05f));
+                draw_game_circle(entity->position, entity->move_sequence->min_distance, Fade(BLUE, 0.2f));
             }
                 
-            for (i32 ii = 0; ii < entity->move_sequence.points.count; ii++) {
-                Vector2 point = entity->move_sequence.points.get_value(ii);
+            for (i32 ii = 0; ii < entity->move_sequence->points.count; ii++) {
+                Vector2 point = entity->move_sequence->points.get_value(ii);
                 
                 Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.2f);
                 
@@ -11207,10 +11226,10 @@ void fill_entities_draw_queue() {
                         }
                     }
                 }
-                if (ii < entity->move_sequence.points.count - 1) {
-                    make_line(point, entity->move_sequence.points.get_value(ii+1), color);
-                } else if (entity->move_sequence.loop) {
-                    make_line(point, entity->move_sequence.points.get_value(0), color);
+                if (ii < entity->move_sequence->points.count - 1) {
+                    make_line(point, entity->move_sequence->points.get_value(ii+1), color);
+                } else if (entity->move_sequence->loop) {
+                    make_line(point, entity->move_sequence->points.get_value(0), color);
                 }
             }
         }
@@ -12550,12 +12569,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         }
     }
     
-    if (e->flags & MOVE_SEQUENCE) {
-        e->move_sequence = to_copy->move_sequence;
-        e->move_sequence.points = {0};
-        e->move_sequence.points = copy_array(&to_copy->move_sequence.points);    
-    }
-    
     
     if (e->flags & DOOR) {
         e->door = to_copy->door;
@@ -12585,6 +12598,25 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         i32 my_index = e->propeller->index;
         *e->propeller = *to_copy->propeller;
         e->propeller->index = my_index;
+    }
+    
+    // copy sticky texture
+    if (e->flags & STICKY_TEXTURE && to_copy->sticky_texture) {
+        assert(e->sticky_texture);
+        i32 my_index = e->sticky_texture->index;
+        *e->sticky_texture = *to_copy->sticky_texture;
+        e->sticky_texture->index = my_index;
+    }
+    
+    // copy move sequence
+    if (e->flags & MOVE_SEQUENCE && to_copy->move_sequence) {
+        assert(e->move_sequence);
+        i32 my_index = e->move_sequence->index;
+        *e->move_sequence = *to_copy->move_sequence;
+        e->move_sequence->index = my_index;
+        
+        e->move_sequence->points = {0};
+        e->move_sequence->points = copy_array(&to_copy->move_sequence->points);
     }
     
     // copy trigger
