@@ -2276,6 +2276,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         // centipede->segments.clear();
         for (i32 i = 0; i < centipede->segments_count; i++) {
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
+            
             segment->centipede_head = entity;
             change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
@@ -2288,7 +2289,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             }
 
             segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
+            
+            assert(segment->move_sequence);
+            i32 segment_index = segment->move_sequence->index;
             *segment->move_sequence = *entity->move_sequence;
+            segment->move_sequence->index = segment_index;
+            // Probably we could think about a way to not copy array for every segment, but I'll probably will rewrite 
+            // segments logic to work without move_sequence, so that doesn't matter currently.
+            segment->move_sequence->points = copy_array(&entity->move_sequence->points);
             
             segment->hidden = entity->hidden;
             
@@ -2346,7 +2354,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     
         if (entity->trigger->cam_rails_points.capacity > 0 && !entity->trigger->start_cam_rails_horizontal && !entity->trigger->start_cam_rails_vertical) {
-            entity->trigger->cam_rails_points.free_data();            
+            // entity->trigger->cam_rails_points.free_data();            
         }
         
         if (entity->flags & KILL_TRIGGER) {
