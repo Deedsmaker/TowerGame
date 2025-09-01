@@ -583,13 +583,10 @@ struct Bird_Enemy : Enemy {
 
 #define MAX_CENTIPEDE_SEGMENTS 64
 
-struct Centipede_Segment {
-    i32 head_id = -1;
-    i32 previous_id = -1;
-};
+struct Entity;
 
 struct Centipede {
-    Array <i32> segments_ids = {0};
+    Array <Entity *> segments = {0};
     
     i32 segments_count = 32;
     b32 spikes_on_right = false;
@@ -637,8 +634,6 @@ struct Text_Drawer{
     const char *text;  
     f32 size = 30;
 };
-
-struct Entity;
 
 struct Collision{
     b32 collided;
@@ -876,7 +871,6 @@ struct Entity {
         Enemy enemy;
         Bird_Enemy *bird_enemy;
         Centipede centipede;
-        Centipede_Segment centipede_segment;
         Jump_Shooter jump_shooter;
     // };
     

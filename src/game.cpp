@@ -237,17 +237,17 @@ void free_entity(Entity *e) {
     
     // free centipede
     if (e->flags & CENTIPEDE) {
-        for (i32 i = 0; i < e->centipede.segments_ids.count; i++) {
+        for (i32 i = 0; i < e->centipede.segments.count; i++) {
             // @CLEANUP: Why we don't call free_entity on segments?
             // Probably that doesn't matter because while game-looping we're just destroy them and when we're clearing context 
             // we'll call it anyway, but nonetheless we should be able to just call free_entity without trouble in such case.
             // Will see into that when will rewrite entities.
-            Entity *segment = get_entity(e->centipede.segments_ids.get_value(i), e->level_context);
+            Entity *segment = e->centipede.segments.get_value(i);
             mark_entity_destroyed(segment);
             segment->enabled = false;
         }
         
-        e->centipede.segments_ids.free_data();
+        e->centipede.segments.free_data();
     }
     
     // free jump shooter
@@ -2271,19 +2271,19 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         // free_entity(entity);
         
         Centipede *centipede = &entity->centipede;
-        centipede->segments_ids.clear();
-        // centipede->segments_ids.append(entity->id);
-        // centipede->segments.clear();
+        // @LEAK: Probably should destroy all already existing segments.
+        centipede->segments.clear();
+        
         for (i32 i = 0; i < centipede->segments_count; i++) {
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
             
             segment->centipede_head = entity;
             change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
-            centipede->segments_ids.append(segment->id);
+            centipede->segments.append(segment);
             Entity *previous;
             if (i > 0) {
-                previous = get_entity(centipede->segments_ids.get_value(i-1));
+                previous = centipede->segments.get_value(i-1);
             } else {
                 previous = entity;
             }
@@ -9013,8 +9013,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 Centipede *head = &enemy_entity->centipede_head->centipede;
                 if (!head->all_segments_dead) {
                     head->all_segments_dead = true;
-                    for (i32 i = 0; i < head->segments_ids.count; i++) {
-                        Entity *segment = get_entity(head->segments_ids.get_value(i));
+                    for (i32 i = 0; i < head->segments.count; i++) {
+                        Entity *segment = head->segments.get_value(i);
                         if (segment && segment->id != enemy_entity->id) {
                             kill_enemy(segment, segment->position, segment->up);
                         } else if (!segment) {
@@ -9711,7 +9711,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     if (connected->flags & CENTIPEDE) {
         assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
         for (i32 i = 0; i < connected->centipede.segments_count; i++) {
-            Entity *segment = get_entity(connected->centipede.segments_ids.get_value(i));
+            Entity *segment = connected->centipede.segments.get_value(i);
             assert(segment);
             segment->hidden = connected->hidden;
             if (should_agro) {
@@ -10236,10 +10236,10 @@ inline b32 update_entity(Entity *e, f32 dt) {
         
         i32 alive_count = 0;
         for (i32 i = 0; i < centipede->segments_count; i++) {
-            Entity *segment = get_entity(centipede->segments_ids.get_value(i));
+            Entity *segment = centipede->segments.get_value(i);
             
             if (!segment->enemy.dead_man) {
-                alive_count++;
+                alive_count += 1;
             }
         }
         
@@ -10262,7 +10262,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             mark_entity_destroyed(e);
             
             for (i32 i = 0; i < centipede->segments_count; i++) {
-                Entity *segment = get_entity(centipede->segments_ids.get_value(i));
+                Entity *segment = centipede->segments.get_value(i);
                 // Centipede itself will tell all the segments to be destroyed.
                 // mark_entity_destroyed(segment);
                 
@@ -12246,8 +12246,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     assert(level_context_for_deep_copy && "Forgot to specify level context for deep copy.");      
                    
-    // str_copy(e->name, to_copy->name);
-        
     if (e->flags & TEXTURE) {
         str_copy(e->texture_name, to_copy->texture_name);
     }
@@ -12257,13 +12255,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     if (e->flags & ENEMY) {
         e->enemy = to_copy->enemy;
     }
-    
-    // from copy_and_add_entity.
-    // e->connected_entities = {0};
-    // e->entities_pointing_at_me = {0};
-    // e->connected_entities = copy_array(&to_copy->connected_entities);
-    // e->entities_pointing_at_me = copy_array(&to_copy->connected_entities);
-    // if (keep_id) entities_pointing_at_me = copy_array(&to_copy->entities_pointing_at_me);
     
     // copy kill switch
     if (e->flags & KILL_SWITCH) {
@@ -12329,6 +12320,14 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         
         e->move_sequence->points = {0};
         e->move_sequence->points = copy_array(&to_copy->move_sequence->points);
+    }
+    
+    // copy bird enemy
+    if (e->flags & BIRD_ENEMY && to_copy->bird_enemy) {
+        assert(e->bird_enemy);
+        i32 my_index = e->bird_enemy->index;
+        *e->bird_enemy = *to_copy->bird_enemy;
+        e->bird_enemy->index = my_index;
     }
     
     // copy trigger
