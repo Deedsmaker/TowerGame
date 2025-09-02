@@ -237,14 +237,9 @@ void free_entity(Entity *e) {
     
     // free centipede
     if (e->flags & CENTIPEDE) {
-        for (i32 i = 0; i < e->centipede.segments.count; i++) {
-            // @CLEANUP: Why we don't call free_entity on segments?
-            // Probably that doesn't matter because while game-looping we're just destroy them and when we're clearing context 
-            // we'll call it anyway, but nonetheless we should be able to just call free_entity without trouble in such case.
-            // Will see into that when will rewrite entities.
+        for_array(i, &e->centipede->segments) {
             Entity *segment = e->centipede.segments.get_value(i);
             mark_entity_destroyed(segment);
-            segment->enabled = false;
         }
         
         e->centipede.segments.free_data();
@@ -2268,10 +2263,18 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
     if (entity->flags & CENTIPEDE && game_state == GAME) {
         // init centipede
-        // free_entity(entity);
         
-        Centipede *centipede = &entity->centipede;
-        // @LEAK: Probably should destroy all already existing segments.
+        if (!entity->centipede || ignore_existing_types) {        
+            i32 index = -1;
+            entity->centipede = entity->level_context->centipedes.append({0}, &index);
+            entity->centipede->index = index;
+        }
+        
+        Centipede *centipede = entity->centipede;
+        
+        for_array(i, &centipede->segments) {
+            mark_entity_destroyed(centipede->segments.get_value(i));
+        }
         centipede->segments.clear();
         
         for (i32 i = 0; i < centipede->segments_count; i++) {
@@ -2304,8 +2307,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             segment->enemy = entity->enemy;
             init_entity(segment);
         }
-        
-        entity->flags ^= ENEMY;
     }
     
     if (entity->flags & JUMP_SHOOTER) {

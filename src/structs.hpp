@@ -585,7 +585,9 @@ struct Bird_Enemy : Enemy {
 
 struct Entity;
 
-struct Centipede {
+// Even though Centipede itself currently can't take damage it still counts as enemy beacuse with that we can 
+// make a settings and inspector and because centipede segment acutually inherit this settings.
+struct Centipede : Enemy {
     Array <Entity *> segments = {0};
     
     i32 segments_count = 32;
@@ -868,10 +870,11 @@ struct Entity {
     
     // };
     // union {
-        Enemy enemy;
-        Bird_Enemy *bird_enemy;
-        Centipede centipede;
-        Jump_Shooter jump_shooter;
+    Enemy enemy;
+    Bird_Enemy *bird_enemy;
+    Centipede *centipede;
+    Enemy *centipede_segment;
+    Jump_Shooter jump_shooter;
     // };
     
     Door door;
