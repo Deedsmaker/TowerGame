@@ -277,6 +277,7 @@ enum Flags : u64{
     KILL_SWITCH            = (static_cast<u64>(1) << 39),
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
+    HOMING_TURRET           = (static_cast<u64>(1) << 42),
 };
 
 struct Move_Point{
@@ -300,22 +301,6 @@ struct Projectile_Settings {
     b32 blocker_clockwise = false;
     f32 launch_speed = 150.0f;
     f32 max_lifetime = 7.0f;
-};
-
-struct Turret {
-    b32 activated = true;
-    i32 shoot_every_tick = 3;
-    i32 start_tick_delay = 0;
-    Vector2 original_up = Vector2_one;
-    b32 homing = false;  
-    b32 see_player = false;
-    
-    i32 last_shot_tick = 0;
-    
-    f32 shoot_width  = 400;
-    f32 shoot_height = 400;
-    
-    Projectile_Settings projectile_settings = {};
 };
 
 struct Enemy {
@@ -371,7 +356,22 @@ struct Enemy {
     
     Hit_Booster hit_booster = {};
     Multiple_Hits multiple_hits = {};
-    Turret turret = {};
+};
+
+struct Turret : Enemy {
+    b32 activated = true;
+    i32 shoot_every_tick = 3;
+    i32 start_tick_delay = 0;
+    Vector2 original_up = Vector2_one;
+    b32 homing = false;  
+    b32 see_player = false;
+    
+    i32 last_shot_tick = 0;
+    
+    f32 shoot_width  = 400;
+    f32 shoot_height = 400;
+    
+    Projectile_Settings projectile_settings = {};
 };
 
 struct Kill_Switch : Enemy {
@@ -877,6 +877,7 @@ struct Entity {
     Centipede_Segment *centipede_segment;
     Jump_Shooter *jump_shooter;
     Kill_Switch *kill_switch;
+    Turret *turret;
     // };
     
     Door door;
@@ -1077,6 +1078,7 @@ struct Level_Context {
     Chunk_Array <Move_Sequence> move_sequences = {0};
     Chunk_Array <Bird_Enemy> bird_enemies = {0};
     Chunk_Array <Jump_Shooter> jump_shooters = {0};
+    Chunk_Array <Turret> turrets = {0};
     
     Chunk_Array <Centipede> centipedes = {0};
     Chunk_Array <Centipede_Segment> centipede_segments = {0};

@@ -220,6 +220,13 @@ void free_entity(Entity *e) {
         e->propeller = NULL;
     }
     
+    // free turret->
+    if (e->flags & TURRET) {
+        assert(e->turret && e->turret->index >= 0);
+        e->level_context->turrets.remove(e->turret->index);
+        e->turret = NULL;
+    }
+    
     // free bird enemy
     if (e->flags & BIRD_ENEMY) {
         assert(e->bird_enemy && e->bird_enemy->index >= 0);
@@ -650,6 +657,7 @@ void clear_level_context(Level_Context *level_context) {
     level_context->bird_enemies.clear();
     level_context->jump_shooters.clear();
     level_context->kill_switches.clear();
+    level_context->turrets.clear();
     
     level_context->centipedes.clear();
     level_context->centipede_segments.clear();
@@ -876,7 +884,7 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & TURRET) {
-            Turret *turret = &e->enemy.turret;
+            Turret *turret = e->turret;
             fprintf(fptr, "turret_projectile_flags:%llu: ", turret->projectile_settings.enemy_flags);
             fprintf(fptr, "turret_shoot_sword_blocker_clockwise:%d: ", turret->projectile_settings.blocker_clockwise);
             fprintf(fptr, "turret_activated:%d: ", turret->activated);
@@ -1352,34 +1360,34 @@ b32 load_level(const char *level_name) {
                 fill_i32_from_string(&new_entity->jump_shooter->explosive_count, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_flags")) {
-                fill_u64_from_string(&new_entity->enemy.turret.projectile_settings.enemy_flags, splitted_line.get_value(i+1).data);
+                fill_u64_from_string(&new_entity->turret->projectile_settings.enemy_flags, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_sword_blocker_clockwise")) {
-                fill_b32_from_string(&new_entity->enemy.turret.projectile_settings.blocker_clockwise, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->turret->projectile_settings.blocker_clockwise, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_homing_projectiles")) {
-                fill_b32_from_string(&new_entity->enemy.turret.homing, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->turret->homing, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_every_tick")) {
-                fill_i32_from_string(&new_entity->enemy.turret.shoot_every_tick, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->turret->shoot_every_tick, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_start_tick_delay")) {
-                fill_i32_from_string(&new_entity->enemy.turret.start_tick_delay, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->turret->start_tick_delay, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_speed")) {
-                fill_f32_from_string(&new_entity->enemy.turret.projectile_settings.launch_speed, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->turret->projectile_settings.launch_speed, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_max_lifetime")) {
-                fill_f32_from_string(&new_entity->enemy.turret.projectile_settings.max_lifetime, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->turret->projectile_settings.max_lifetime, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_width")) {
-                fill_f32_from_string(&new_entity->enemy.turret.shoot_width, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->turret->shoot_width, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_shoot_height")) {
-                fill_f32_from_string(&new_entity->enemy.turret.shoot_height, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->turret->shoot_height, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_activated")) {
-                fill_b32_from_string(&new_entity->enemy.turret.activated, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->turret->activated, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_sword_blockers")) {
                 fill_b32_from_string(&new_entity->jump_shooter->shoot_sword_blockers, splitted_line.get_value(i+1).data);
@@ -1718,14 +1726,6 @@ void init_spawn_objects() {
     spawn_objects.append(big_sword_charge_giver_object);
     
     Entity turret_direct_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
-    turret_direct_entity.enemy.player_cannot_kill = true;
-    {
-        Turret *turret = &turret_direct_entity.enemy.turret;
-        turret->homing = false;
-        turret->projectile_settings.launch_speed = 75;
-        turret->projectile_settings.max_lifetime = 7;
-        turret->shoot_every_tick = 3;
-    }
     turret_direct_entity.color = ColorBrightness(PURPLE, 0.5f);
     setup_color_changer(&turret_direct_entity);
     
@@ -1734,15 +1734,7 @@ void init_spawn_objects() {
     str_copy(turret_direct_object.name, "turret_direct");
     spawn_objects.append(turret_direct_object);
     
-    Entity turret_homing_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
-    turret_homing_entity.enemy.player_cannot_kill = true;
-    {
-        Turret *turret = &turret_homing_entity.enemy.turret;
-        turret->homing = true;
-        turret->projectile_settings.launch_speed = 150;
-        turret->projectile_settings.max_lifetime = 15;
-        turret->shoot_every_tick = 8;
-    }
+    Entity turret_homing_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET | HOMING_TURRET);
     turret_homing_entity.color = ColorBrightness(PURPLE, 0.1f);
     setup_color_changer(&turret_homing_entity);
     
@@ -2164,7 +2156,29 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
     // init turret
     if (entity->flags & TURRET) {
+        if (!entity->turret || ignore_existing_types) {
+            i32 index = -1;
+            entity->turret = entity->level_context->turrets.append({0}, &index);
+            entity->turret->index = index;
+        }
+    
         entity->enemy.player_cannot_kill = true;
+        
+        if (entity->flags & HOMING_TURRET) {
+            entity->enemy.player_cannot_kill = true;
+            Turret *turret = entity->turret;
+            turret->homing = true;
+            turret->projectile_settings.launch_speed = 150;
+            turret->projectile_settings.max_lifetime = 15;
+            turret->shoot_every_tick = 8;
+        } else {
+            entity->enemy.player_cannot_kill = true;
+            Turret *turret = entity->turret;
+            turret->homing = false;
+            turret->projectile_settings.launch_speed = 75;
+            turret->projectile_settings.max_lifetime = 7;
+            turret->shoot_every_tick = 3;
+        }
     }
     
     // init win block
@@ -3045,6 +3059,7 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->bird_enemies, 64, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->jump_shooters, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->kill_switches, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->turrets, 32, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->centipedes, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->centipede_segments, 128, HEAP_ALLOCATOR);
@@ -3544,7 +3559,7 @@ void fixed_game_update(f32 dt) {
                         continue;
                     }
                     
-                    if (entity->flags & TURRET && !entity->enemy.turret.homing) {
+                    if (entity->flags & TURRET && !entity->turret->homing) {
                         continue;
                     }
                     
@@ -5455,7 +5470,7 @@ void update_editor_ui() {
             v_pos += height_add;
             
             if (editor.draw_turret_settings) {
-                Turret *turret = &selected->enemy.turret;
+                Turret *turret = selected->turret;
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Shoot blockers: ", "turret_shoot_blockers", turret->projectile_settings.enemy_flags, BLOCKER, );
                 
@@ -9735,7 +9750,7 @@ void update_editor_entity(Entity *e) {
     
     // update turret editor
     if (e->flags & TURRET) {
-        e->enemy.turret.original_up = e->up;
+        e->turret->original_up = e->up;
     }
     
     if (e->flags & PROPELLER) {
@@ -9747,8 +9762,8 @@ void update_editor_entity(Entity *e) {
 }
 
 void activate_turret(Entity *entity) {
-    entity->enemy.turret.activated = true;
-    entity->enemy.turret.last_shot_tick = state_context.turret_state.current_tick - entity->enemy.turret.start_tick_delay;
+    entity->turret->activated = true;
+    entity->turret->last_shot_tick = state_context.turret_state.current_tick - entity->turret->start_tick_delay;
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected) {
@@ -10111,7 +10126,7 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
 
 global_variable f32 turret_max_angle_diversion = 70;
 inline void update_turret(Entity *entity, f32 dt) {
-    Turret *turret = &entity->enemy.turret;
+    Turret *turret = entity->turret;
     
     if (!turret->activated) {
         // if (turret->homing && entity->rotation != turret->original_angle - turret_max_angle_diversion) {
@@ -10954,7 +10969,7 @@ void fill_entities_draw_queue() {
         
         // always draw turret
         if (entity->flags & TURRET) {
-            Turret *turret = &entity->enemy.turret;
+            Turret *turret = entity->turret;
             if (turret->homing && turret->see_player) {
                 f32 t = get_turret_charge_progress(turret);
                 
@@ -11456,16 +11471,16 @@ void draw_entity(Entity *e) {
         draw_game_texture(e->texture, e->position, e->scale * 2, e->pivot, e->rotation, WHITE);
     } else if (e->flags & TURRET) { // draw turret
         Color color = e->color;
-        if (!e->enemy.turret.activated) {
+        if (!e->turret->activated) {
             color = ColorBrightness(color, -0.4f);
         }
         draw_game_triangle_strip(e, color);
-        if (e->enemy.turret.homing && e->enemy.turret.activated) {
+        if (e->turret->homing && e->turret->activated) {
             // Drawing charge line
             Vector2 start = e->position - e->up * e->scale.y * (1.0f - e->pivot.y); 
             f32 length = e->scale.y * e->pivot.y;
             if (game_state == GAME && !state_context.in_pause_editor) {
-                f32 t = get_turret_charge_progress(&e->enemy.turret);
+                f32 t = get_turret_charge_progress(e->turret);
                 length = lerp(0.0f, length, t * t * t);
             }
             draw_game_line(start, start + e->up * length, e->scale.x * 0.2f, RED);
@@ -12368,6 +12383,14 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         i32 my_index = e->bird_enemy->index;
         *e->bird_enemy = *to_copy->bird_enemy;
         e->bird_enemy->index = my_index;
+    }
+    
+    // copy turret
+    if (e->flags & TURRET && to_copy->turret) {
+        assert(e->turret);
+        i32 my_index = e->turret->index;
+        *e->turret = *to_copy->turret;
+        e->turret->index = my_index;
     }
     
     // copy jump shooter
