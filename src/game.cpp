@@ -3801,7 +3801,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    // printf("%zu\n", sizeof(Entity));
+    // printf("%zu\n", sizeof(Enemy));
     clear_allocator(&temp_allocator);
 
     frame_rnd = rnd01();

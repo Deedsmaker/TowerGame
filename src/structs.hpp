@@ -285,7 +285,7 @@ struct Move_Point{
     Vector2 normal = Vector2_zero;
 };
 
-struct Hit_Booster{
+struct Hit_Booster {
     f32 boost = 175;  
 };
 
@@ -869,16 +869,16 @@ struct Entity {
     
     Move_Sequence *move_sequence;
     
-    // };
-    // union {
     Enemy enemy;
-    Bird_Enemy *bird_enemy;
-    Centipede *centipede;
-    Centipede_Segment *centipede_segment;
-    Jump_Shooter *jump_shooter;
-    Kill_Switch *kill_switch;
-    Turret *turret;
     // };
+    union {
+        Bird_Enemy *bird_enemy;
+        Centipede *centipede;
+        Centipede_Segment *centipede_segment;
+        Jump_Shooter *jump_shooter;
+        Kill_Switch *kill_switch;
+        Turret *turret;
+    };
     
     Door door;
     
