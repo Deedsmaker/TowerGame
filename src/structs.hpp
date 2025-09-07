@@ -379,7 +379,7 @@ struct Enemy {
     Kill_Switch kill_switch = {};
 };
 
-struct Jump_Shooter{
+struct Jump_Shooter : Enemy {
     f32 max_charging_time = 1.5f;
     f32 max_picking_point_time = 1.5f;
     
@@ -423,7 +423,7 @@ struct Jump_Shooter{
     
     b32 shoot_bullet_blockers = false;
     
-    Array <Move_Point> move_points;
+    Array <Move_Point> move_points = {0};
     
     i32 trail_emitter_index = -1;
     i32 flying_emitter_index = -1;
@@ -876,7 +876,7 @@ struct Entity {
     Bird_Enemy *bird_enemy;
     Centipede *centipede;
     Centipede_Segment *centipede_segment;
-    Jump_Shooter jump_shooter;
+    Jump_Shooter *jump_shooter;
     // };
     
     Door door;
@@ -1075,6 +1075,7 @@ struct Level_Context {
     Chunk_Array <Sticky_Texture> sticky_textures = {0};
     Chunk_Array <Move_Sequence> move_sequences = {0};
     Chunk_Array <Bird_Enemy> bird_enemies = {0};
+    Chunk_Array <Jump_Shooter> jump_shooters = {0};
     
     Chunk_Array <Centipede> centipedes = {0};
     Chunk_Array <Centipede_Segment> centipede_segments = {0};

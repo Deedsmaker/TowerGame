@@ -260,7 +260,10 @@ void free_entity(Entity *e) {
     
     // free jump shooter
     if (e->flags & JUMP_SHOOTER) {
-        e->jump_shooter.move_points.free_data();
+        e->jump_shooter->move_points.free_data();
+        
+        e->level_context->jump_shooters.remove(e->jump_shooter->index);
+        e->jump_shooter = NULL;
     }
     
     // free light
@@ -640,6 +643,7 @@ void clear_level_context(Level_Context *level_context) {
     level_context->sticky_textures.clear();
     level_context->move_sequences.clear();
     level_context->bird_enemies.clear();
+    level_context->jump_shooters.clear();
     
     level_context->centipedes.clear();
     level_context->centipede_segments.clear();
@@ -855,14 +859,14 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & JUMP_SHOOTER) {
-            fprintf(fptr, "jump_shooter_shots_count:%d: ", e->jump_shooter.shots_count);
-            fprintf(fptr, "jump_shooter_spread:%f: ", e->jump_shooter.spread);
-            fprintf(fptr, "jump_shooter_explosive_count:%d: ", e->jump_shooter.explosive_count);
-            fprintf(fptr, "jump_shooter_shoot_sword_blockers:%d: ", e->jump_shooter.shoot_sword_blockers);
-            // fprintf(fptr, "jump_shooter_shoot_sword_blockers_clockwise:%d: ", e->jump_shooter.shoot_sword_blockers_clockwise);
-            // fprintf(fptr, "jump_shooter_shoot_sword_blockers_random_direction:%d: ", e->jump_shooter.shoot_sword_blockers_random_direction);
-            fprintf(fptr, "jump_shooter_shoot_sword_blockers_immortal:%d: ", e->jump_shooter.shoot_sword_blockers_immortal);
-            fprintf(fptr, "jump_shooter_shoot_bullet_blockers:%d: ", e->jump_shooter.shoot_bullet_blockers);
+            fprintf(fptr, "jump_shooter_shots_count:%d: ", e->jump_shooter->shots_count);
+            fprintf(fptr, "jump_shooter_spread:%f: ", e->jump_shooter->spread);
+            fprintf(fptr, "jump_shooter_explosive_count:%d: ", e->jump_shooter->explosive_count);
+            fprintf(fptr, "jump_shooter_shoot_sword_blockers:%d: ", e->jump_shooter->shoot_sword_blockers);
+            // fprintf(fptr, "jump_shooter_shoot_sword_blockers_clockwise:%d: ", e->jump_shooter->shoot_sword_blockers_clockwise);
+            // fprintf(fptr, "jump_shooter_shoot_sword_blockers_random_direction:%d: ", e->jump_shooter->shoot_sword_blockers_random_direction);
+            fprintf(fptr, "jump_shooter_shoot_sword_blockers_immortal:%d: ", e->jump_shooter->shoot_sword_blockers_immortal);
+            fprintf(fptr, "jump_shooter_shoot_bullet_blockers:%d: ", e->jump_shooter->shoot_bullet_blockers);
         }
         
         if (e->flags & TURRET) {
@@ -1339,7 +1343,7 @@ b32 load_level(const char *level_name) {
                 fill_b32_from_string(&new_entity->spawn_enemy_when_no_ammo, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_explosive_count")) {
-                fill_i32_from_string(&new_entity->jump_shooter.explosive_count, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->jump_shooter->explosive_count, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "turret_projectile_flags")) {
                 fill_u64_from_string(&new_entity->enemy.turret.projectile_settings.enemy_flags, splitted_line.get_value(i+1).data);
@@ -1372,19 +1376,19 @@ b32 load_level(const char *level_name) {
                 fill_b32_from_string(&new_entity->enemy.turret.activated, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_sword_blockers")) {
-                fill_b32_from_string(&new_entity->jump_shooter.shoot_sword_blockers, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->jump_shooter->shoot_sword_blockers, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_sword_blockers_immortal")) {
-                fill_b32_from_string(&new_entity->jump_shooter.shoot_sword_blockers_immortal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->jump_shooter->shoot_sword_blockers_immortal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shoot_bullet_blockers")) {
-                fill_b32_from_string(&new_entity->jump_shooter.shoot_bullet_blockers, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->jump_shooter->shoot_bullet_blockers, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_shots_count")) {
-                fill_i32_from_string(&new_entity->jump_shooter.shots_count, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->jump_shooter->shots_count, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "jump_shooter_spread")) {
-                fill_f32_from_string(&new_entity->jump_shooter.spread, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->jump_shooter->spread, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "move_sequence_speed")) {
                 fill_f32_from_string(&new_entity->move_sequence->speed, splitted_line.get_value(i+1).data);
@@ -2334,20 +2338,26 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }
     
+    // init jump shooter
     if (entity->flags & JUMP_SHOOTER) {
-        // init jump shooter
+        if (!entity->jump_shooter || ignore_existing_types) {
+            i32 index = -1;
+            entity->jump_shooter = entity->level_context->jump_shooters.append({0}, &index);
+            entity->jump_shooter->index = index;
+        }
+        
         entity->enemy.max_hits_taken = 6;
         free_entity_particle_emitters(entity);
-        entity->jump_shooter.trail_emitter_index  = add_entity_particle_emitter(entity, &air_dust_emitter);
+        entity->jump_shooter->trail_emitter_index  = add_entity_particle_emitter(entity, &air_dust_emitter);
         
-        Particle_Emitter *trail_emitter = get_particle_emitter(entity->jump_shooter.trail_emitter_index);
+        Particle_Emitter *trail_emitter = get_particle_emitter(entity->jump_shooter->trail_emitter_index);
         if (trail_emitter) {
             trail_emitter->follow_entity = false;
             enable_emitter(trail_emitter, entity->position);
         }
         
-        entity->jump_shooter.flying_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
-        Particle_Emitter *flying_emitter = get_particle_emitter(entity->jump_shooter.flying_emitter_index);
+        entity->jump_shooter->flying_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
+        Particle_Emitter *flying_emitter = get_particle_emitter(entity->jump_shooter->flying_emitter_index);
         if (flying_emitter) {
             flying_emitter->follow_entity = false;
         }
@@ -3021,9 +3031,11 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->move_sequences, 128, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->bird_enemies, 64, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->jump_shooters, 8, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->centipedes, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->centipede_segments, 128, HEAP_ALLOCATOR);
+    
     
     init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
@@ -5397,26 +5409,26 @@ void update_editor_ui() {
             v_pos += height_add;
             
             if (editor.draw_jump_shooter_settings) {
-                INSPECTOR_UI_INPUT_FIELD("Shots count:", "jump_shooter_shots_count", "%d", selected->jump_shooter.shots_count, to_i32, );
-                INSPECTOR_UI_INPUT_FIELD("Spread:", "jump_shooter_spread", "%.1f", selected->jump_shooter.spread, to_f32,
-                    selected->jump_shooter.spread = clamp(selected->jump_shooter.spread, 0.0f, 180.0f);
+                INSPECTOR_UI_INPUT_FIELD("Shots count:", "jump_shooter_shots_count", "%d", selected->jump_shooter->shots_count, to_i32, );
+                INSPECTOR_UI_INPUT_FIELD("Spread:", "jump_shooter_spread", "%.1f", selected->jump_shooter->spread, to_f32,
+                    selected->jump_shooter->spread = clamp(selected->jump_shooter->spread, 0.0f, 180.0f);
                 );   
                 
-                INSPECTOR_UI_INPUT_FIELD("Explosive count:", "jump_shooter_explosive_count", "%d", selected->jump_shooter.explosive_count, to_i32, 
-                    selected->jump_shooter.explosive_count = fmin(fmin(selected->jump_shooter.explosive_count, 64), selected->jump_shooter.shots_count);
+                INSPECTOR_UI_INPUT_FIELD("Explosive count:", "jump_shooter_explosive_count", "%d", selected->jump_shooter->explosive_count, to_i32, 
+                    selected->jump_shooter->explosive_count = fmin(fmin(selected->jump_shooter->explosive_count, 64), selected->jump_shooter->shots_count);
                 );
 
-                INSPECTOR_UI_TOGGLE("Shoot sword blockers: ", "shoot_sword_blockers", selected->jump_shooter.shoot_sword_blockers, );
+                INSPECTOR_UI_TOGGLE("Shoot sword blockers: ", "shoot_sword_blockers", selected->jump_shooter->shoot_sword_blockers, );
                 
-                if (selected->jump_shooter.shoot_sword_blockers) {
+                if (selected->jump_shooter->shoot_sword_blockers) {
                     h_pos = 15;
-                    INSPECTOR_UI_TOGGLE("Sword blockers immortal: ", "shoot_sword_blockers_immortal", selected->jump_shooter.shoot_sword_blockers_immortal, );
+                    INSPECTOR_UI_TOGGLE("Sword blockers immortal: ", "shoot_sword_blockers_immortal", selected->jump_shooter->shoot_sword_blockers_immortal, );
                     h_pos = 5;
                 }
                 
                 make_ui_text("Shoot bullet blockers: ", {inspector_position.x + 5, v_pos}, "shoot_bullet_blockers");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->jump_shooter.shoot_bullet_blockers, "shoot_bullet_blockers")) {
-                    selected->jump_shooter.shoot_bullet_blockers = !selected->jump_shooter.shoot_bullet_blockers;
+                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->jump_shooter->shoot_bullet_blockers, "shoot_bullet_blockers")) {
+                    selected->jump_shooter->shoot_bullet_blockers = !selected->jump_shooter->shoot_bullet_blockers;
                 }
                 v_pos += height_add;
             }
@@ -7586,7 +7598,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             if (enemy_entity->flags & BIRD_ENEMY) {
                 sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy->velocity);
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
-                sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter.velocity);
+                sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter->velocity);
             } else if (enemy_entity->flags & WIN_BLOCK) {
                 assert(current_level_context->current_win_blocks_count > 0);
                 current_level_context->current_win_blocks_count -= 1;
@@ -8530,7 +8542,7 @@ inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity
 void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
     assert(shooter_entity->flags & JUMP_SHOOTER);
 
-    Jump_Shooter *shooter = &shooter_entity->jump_shooter;
+    Jump_Shooter *shooter = shooter_entity->jump_shooter;
     Enemy *enemy = &shooter_entity->enemy;
     Entity *other = col.other_entity;
     f32 speed   = magnitude(shooter->velocity);
@@ -9018,7 +9030,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                         other_entity->bird_enemy->velocity += dir_to_other * explosion_add_speed;
                     }
                     if (other_entity->flags & JUMP_SHOOTER) {
-                        other_entity->jump_shooter.velocity += dir_to_other * explosion_add_speed;
+                        other_entity->jump_shooter->velocity += dir_to_other * explosion_add_speed;
                     }
                 } else if (other_entity->flags & PROJECTILE) {
                     mark_entity_destroyed(other_entity);
@@ -9203,7 +9215,7 @@ Vector2 get_entity_velocity(Entity *entity) {
         return entity->bird_enemy->velocity;
     }
     if (entity->flags & JUMP_SHOOTER) {    
-        return entity->jump_shooter.velocity;
+        return entity->jump_shooter->velocity;
     }
     if (entity->flags & PROJECTILE) {
         return entity->projectile.velocity;
@@ -9386,7 +9398,7 @@ void calculate_projectile_collisions(Entity *entity) {
                     other->bird_enemy->velocity += projectile->velocity * 0.05f;
                 }
                 if (other->flags & JUMP_SHOOTER && can_damage) {
-                    other->jump_shooter.velocity += projectile->velocity * 0.05f;
+                    other->jump_shooter->velocity += projectile->velocity * 0.05f;
                 }
                 
                 // We don't want projectiles to hit triggers. That's just not cool.
@@ -10004,7 +10016,7 @@ void update_move_sequence(Entity *entity, f32 dt) {
     }
         
     if (entity->flags & JUMP_SHOOTER) {
-        Jump_Shooter *shooter = &entity->jump_shooter;   
+        // Jump_Shooter *shooter = &entity->jump_shooter;   
     } else {
         Vector2 previous_position = entity->position;
         sequence->wish_position = move_towards(sequence->wish_position, target, speed, dt);
@@ -10308,7 +10320,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
 
     if (e->flags & JUMP_SHOOTER && debug.enemy_ai) {
         // update jump shooter
-        Jump_Shooter *shooter = &e->jump_shooter;
+        Jump_Shooter *shooter = e->jump_shooter;
         Enemy *enemy = &e->enemy;
         
         if (!enemy->in_agro) {
@@ -11371,17 +11383,17 @@ void draw_entity(Entity *e) {
     } else if (e->flags & JUMP_SHOOTER) {
         // draw jump shooter
         
-        if (e->jump_shooter.states.charging) {
-            f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
-            f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
+        if (e->jump_shooter->states.charging) {
+            f32 charging_time = core.time.game_time - e->jump_shooter->states.charging_start_time;
+            f32 charging_t = charging_time / e->jump_shooter->max_charging_time;
             e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, charging_t * charging_t);
         }
-        if (e->jump_shooter.states.picking_point) {
-            f32 picking_point_time = core.time.game_time - e->jump_shooter.states.picking_point_start_time;
-            f32 picking_point_t = picking_point_time / e->jump_shooter.max_picking_point_time;
+        if (e->jump_shooter->states.picking_point) {
+            f32 picking_point_time = core.time.game_time - e->jump_shooter->states.picking_point_start_time;
+            f32 picking_point_t = picking_point_time / e->jump_shooter->max_picking_point_time;
             e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, picking_point_t * picking_point_t);
         }
-        if (e->jump_shooter.states.flying_to_point) {
+        if (e->jump_shooter->states.flying_to_point) {
             e->position += get_perlin_in_circle(25);
         }
 
@@ -11391,14 +11403,14 @@ void draw_entity(Entity *e) {
         Vector2 bullet_hint_position = e->position + e->up * e->scale.y * 0.6f;
         Vector2 bullet_hint_scale = {e->scale.x * 0.7f, e->scale.y * 1.1f};
         
-        if (e->jump_shooter.explosive_count > 0) {
+        if (e->jump_shooter->explosive_count > 0) {
             Color target_color = ColorBrightness(WHITE, 4);
             f32 color_t = abs(sinf(core.time.game_time * 3));
             hint_color = lerp(hint_color, target_color, color_t);
             
-            if (e->jump_shooter.states.charging) {
-                f32 charging_time = core.time.game_time - e->jump_shooter.states.charging_start_time;
-                f32 charging_t = charging_time / e->jump_shooter.max_charging_time;
+            if (e->jump_shooter->states.charging) {
+                f32 charging_time = core.time.game_time - e->jump_shooter->states.charging_start_time;
+                f32 charging_t = charging_time / e->jump_shooter->max_charging_time;
                 
                 f32 radius = lerp(0.0f, 40.0f, charging_t * charging_t);
                 draw_game_circle(bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f, radius, Fade(ORANGE, 0.1f));
@@ -11407,12 +11419,12 @@ void draw_entity(Entity *e) {
         
         draw_game_texture(jump_shooter_bullet_hint_texture, bullet_hint_position, bullet_hint_scale, {0.5f, 1.0f}, e->rotation, hint_color);
         
-        if (e->jump_shooter.shoot_bullet_blockers) {
+        if (e->jump_shooter->shoot_bullet_blockers) {
             draw_game_ring_lines(bullet_hint_position + e->up * e->scale.y * 0.5f, 3, 6, 8, Fade(WHITE, 0.5f));                
         }
         
-        if (e->jump_shooter.shoot_sword_blockers) {
-            if (e->jump_shooter.shoot_sword_blockers_immortal) {
+        if (e->jump_shooter->shoot_sword_blockers) {
+            if (e->jump_shooter->shoot_sword_blockers_immortal) {
                 Vector2 center = bullet_hint_position + e->up * bullet_hint_scale.y * 0.5f;
                 Vector2 triangle1 = {center.x, center.y + 5};
                 Vector2 triangle2 = {center.x - 5, center.y - 5};
@@ -11421,7 +11433,7 @@ void draw_entity(Entity *e) {
             } else {
                 Vector2 scale = {3, 3};
                 scale /= current_level_context->cam.cam2D.zoom;
-                Texture blocker_texture = e->jump_shooter.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+                Texture blocker_texture = e->jump_shooter->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
                 make_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
             }
         }
@@ -12315,7 +12327,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     rotate_to(e, e->rotation);
     setup_color_changer(e);
     
-    
     e->particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
     init_entity(e, true);
     
@@ -12353,6 +12364,17 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         i32 my_index = e->bird_enemy->index;
         *e->bird_enemy = *to_copy->bird_enemy;
         e->bird_enemy->index = my_index;
+    }
+    
+    // copy jump shooter
+    if (e->flags & JUMP_SHOOTER && to_copy->jump_shooter) {
+        assert(e->jump_shooter);
+        i32 my_index = e->jump_shooter->index;
+        *e->jump_shooter = *to_copy->jump_shooter;
+        e->jump_shooter->index = my_index;
+        
+        e->jump_shooter->move_points = {0};
+        e->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points);
     }
     
     // Right now centipede in editor will be just it's head, so no need for strange segments copying.
