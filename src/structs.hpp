@@ -808,6 +808,10 @@ struct Collision_Grid {
     Array <Collision_Grid_Cell> cells = {0};
 };
 
+struct Centipede_Segment : Enemy {
+    Entity *head = NULL;      
+};
+
 struct Entity {
     i32 id = 0;
     b32 need_to_save = true;
@@ -854,8 +858,6 @@ struct Entity {
     b32 spawn_enemy_when_no_ammo = false;
     i32 spawned_enemy_id = -1;
     
-    Entity *centipede_head = NULL;
-    
     Projectile projectile;
     
     // union {
@@ -873,7 +875,7 @@ struct Entity {
     Enemy enemy;
     Bird_Enemy *bird_enemy;
     Centipede *centipede;
-    Enemy *centipede_segment;
+    Centipede_Segment *centipede_segment;
     Jump_Shooter jump_shooter;
     // };
     
@@ -1073,6 +1075,9 @@ struct Level_Context {
     Chunk_Array <Sticky_Texture> sticky_textures = {0};
     Chunk_Array <Move_Sequence> move_sequences = {0};
     Chunk_Array <Bird_Enemy> bird_enemies = {0};
+    
+    Chunk_Array <Centipede> centipedes = {0};
+    Chunk_Array <Centipede_Segment> centipede_segments = {0};
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};

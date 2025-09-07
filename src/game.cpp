@@ -235,14 +235,27 @@ void free_entity(Entity *e) {
         e->enemy.kill_switch.connected.free_data();    
     }
     
+    // free centipede segment
+    if (e->flags & CENTIPEDE_SEGMENT) {
+        assert(e->centipede_segment && e->centipede_segment->index >= 0);
+        
+        e->level_context->centipede_segments.remove(e->centipede_segment->index);
+        e->centipede_segment = NULL;
+    }
+    
     // free centipede
     if (e->flags & CENTIPEDE) {
+        assert(e->centipede && e->centipede->index >= 0);
+    
         for_array(i, &e->centipede->segments) {
-            Entity *segment = e->centipede.segments.get_value(i);
+            Entity *segment = e->centipede->segments.get_value(i);
             mark_entity_destroyed(segment);
         }
         
-        e->centipede.segments.free_data();
+        e->centipede->segments.free_data();
+        
+        e->level_context->centipedes.remove(e->centipede->index);
+        e->centipede = NULL;
     }
     
     // free jump shooter
@@ -628,6 +641,9 @@ void clear_level_context(Level_Context *level_context) {
     level_context->move_sequences.clear();
     level_context->bird_enemies.clear();
     
+    level_context->centipedes.clear();
+    level_context->centipede_segments.clear();
+    
     // Id 0 is invalid for good reasons, so we're adding it here.
     // Entity dummy_entity = {0};
     // copy_and_add_entity(&dummy_entity, level_context);
@@ -833,9 +849,9 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & CENTIPEDE) {
-            fprintf(fptr, "spikes_on_right:%d: ", e->centipede.spikes_on_right);
-            fprintf(fptr, "spikes_on_left:%d: ", e->centipede.spikes_on_left);
-            fprintf(fptr, "segments_count:%d: ", e->centipede.segments_count);
+            fprintf(fptr, "spikes_on_right:%d: ", e->centipede->spikes_on_right);
+            fprintf(fptr, "spikes_on_left:%d: ", e->centipede->spikes_on_left);
+            fprintf(fptr, "segments_count:%d: ", e->centipede->segments_count);
         }
         
         if (e->flags & JUMP_SHOOTER) {
@@ -1254,13 +1270,13 @@ b32 load_level(const char *level_name) {
                 fill_vector2_from_string(&new_entity->trigger->locked_camera_position, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
             } else if (str_equal(splitted_line.get_value(i).data, "spikes_on_right")) {
-                fill_b32_from_string(&new_entity->centipede.spikes_on_right, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->centipede->spikes_on_right, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "spikes_on_left")) {
-                fill_b32_from_string(&new_entity->centipede.spikes_on_left, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->centipede->spikes_on_left, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "segments_count")) {
-                fill_i32_from_string(&new_entity->centipede.segments_count, splitted_line.get_value(i+1).data);
+                fill_i32_from_string(&new_entity->centipede->segments_count, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "door_open")) {
                 fill_b32_from_string(&new_entity->door.is_open, splitted_line.get_value(i+1).data);
@@ -2261,14 +2277,25 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->trigger->player_touch = false;
     }
     
-    if (entity->flags & CENTIPEDE && game_state == GAME) {
-        // init centipede
-        
+    // init centipede
+    if (entity->flags & CENTIPEDE) {
         if (!entity->centipede || ignore_existing_types) {        
             i32 index = -1;
             entity->centipede = entity->level_context->centipedes.append({0}, &index);
             entity->centipede->index = index;
         }
+    }
+    // init centipede segment.
+    if (entity->flags & CENTIPEDE_SEGMENT) {
+        if (!entity->centipede_segment || ignore_existing_types) {
+            i32 index = -1;
+            entity->centipede_segment = entity->level_context->centipede_segments.append({0}, &index);
+            entity->centipede_segment->index = index;
+        }
+    }
+    
+    // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
+    if (entity->flags & CENTIPEDE && game_state == GAME) {
         
         Centipede *centipede = entity->centipede;
         
@@ -2279,17 +2306,15 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         for (i32 i = 0; i < centipede->segments_count; i++) {
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
+            assert(segment->centipede_segment);
             
-            segment->centipede_head = entity;
+            segment->centipede_segment->head = entity;
             change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
             centipede->segments.append(segment);
             Entity *previous;
-            if (i > 0) {
-                previous = centipede->segments.get_value(i-1);
-            } else {
-                previous = entity;
-            }
+            if (i > 0) previous = centipede->segments.get_value(i-1);
+            else       previous = entity;
 
             segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
             
@@ -2996,6 +3021,9 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->move_sequences, 128, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->bird_enemies, 64, HEAP_ALLOCATOR);
+    
+    init_chunk_array(&level_context->centipedes, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->centipede_segments, 128, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
 
@@ -5352,11 +5380,11 @@ void update_editor_ui() {
             v_pos += height_add;
             
             if (editor.draw_centipede_settings) {
-                INSPECTOR_UI_TOGGLE("Spikes on right: ", "spikes_on_right", selected->centipede.spikes_on_right, );
-                INSPECTOR_UI_TOGGLE("Spikes on left: ", "spikes_on_left", selected->centipede.spikes_on_left, );
+                INSPECTOR_UI_TOGGLE("Spikes on right: ", "spikes_on_right", selected->centipede->spikes_on_right, );
+                INSPECTOR_UI_TOGGLE("Spikes on left: ", "spikes_on_left", selected->centipede->spikes_on_left, );
 
-                INSPECTOR_UI_INPUT_FIELD("Segments count:", "segments_count", "%d", selected->centipede.segments_count, to_i32,
-                    selected->centipede.segments_count = fminf(selected->centipede.segments_count, MAX_CENTIPEDE_SEGMENTS);
+                INSPECTOR_UI_INPUT_FIELD("Segments count:", "segments_count", "%d", selected->centipede->segments_count, to_i32,
+                    selected->centipede->segments_count = fminf(selected->centipede->segments_count, MAX_CENTIPEDE_SEGMENTS);
                 );
             }
         }
@@ -8244,13 +8272,13 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         }
         
         if (other->flags & CENTIPEDE_SEGMENT) {
-            if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left) {
+            if (other->centipede_segment->head->centipede->spikes_on_right && other->centipede_segment->head->centipede->spikes_on_left) {
                 kill_player();
                 return;
-            } else if (!other->centipede_head->centipede.spikes_on_right && !other->centipede_head->centipede.spikes_on_left) {
+            } else if (!other->centipede_segment->head->centipede->spikes_on_right && !other->centipede_segment->head->centipede->spikes_on_left) {
                 
             } else {
-                Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
+                Vector2 side = other->centipede_segment->head->centipede->spikes_on_right ? other->right : (other->right * -1.0f);
                 f32 side_dot = dot(side, player_entity->position - other->position);
                 // so we on side of the centipede segments where are SPIKES
                 if (side_dot > 0.1f) {
@@ -8385,13 +8413,13 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         }
         
         if (other->flags & CENTIPEDE_SEGMENT) {
-            if (other->centipede_head->centipede.spikes_on_right && other->centipede_head->centipede.spikes_on_left) {
+            if (other->centipede_segment->head->centipede->spikes_on_right && other->centipede_segment->head->centipede->spikes_on_left) {
                 kill_player();
                 return;
-            } else if (!other->centipede_head->centipede.spikes_on_right && !other->centipede_head->centipede.spikes_on_left) {
+            } else if (!other->centipede_segment->head->centipede->spikes_on_right && !other->centipede_segment->head->centipede->spikes_on_left) {
                 
             } else {
-                Vector2 side = other->centipede_head->centipede.spikes_on_right ? other->right : (other->right * -1.0f);
+                Vector2 side = other->centipede_segment->head->centipede->spikes_on_right ? other->right : (other->right * -1.0f);
                 f32 side_dot = dot(side, player_entity->position - other->position);
                 // so we on side of the centipede segments where are SPIKES
                 if (side_dot > 0) {
@@ -9011,7 +9039,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             // centipede explode segments
             if (enemy_entity->flags & CENTIPEDE_SEGMENT) {
                 // If we don't explode all segments at once then weird things occur when some segments in ground.
-                Centipede *head = &enemy_entity->centipede_head->centipede;
+                Centipede *head = enemy_entity->centipede_segment->head->centipede;
                 if (!head->all_segments_dead) {
                     head->all_segments_dead = true;
                     for (i32 i = 0; i < head->segments.count; i++) {
@@ -9711,8 +9739,8 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     
     if (connected->flags & CENTIPEDE) {
         assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
-        for (i32 i = 0; i < connected->centipede.segments_count; i++) {
-            Entity *segment = connected->centipede.segments.get_value(i);
+        for (i32 i = 0; i < connected->centipede->segments_count; i++) {
+            Entity *segment = connected->centipede->segments.get_value(i);
             assert(segment);
             segment->hidden = connected->hidden;
             if (should_agro) {
@@ -10233,7 +10261,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     
     if (e->flags & CENTIPEDE && debug.enemy_ai && !e->enemy.dead_man) {
         // update centipede
-        Centipede *centipede = &e->centipede;
+        Centipede *centipede = e->centipede;
         
         i32 alive_count = 0;
         for (i32 i = 0; i < centipede->segments_count; i++) {
@@ -11323,14 +11351,14 @@ void draw_entity(Entity *e) {
             color = Fade(BLACK, 0.3f);
         }
         draw_game_triangle_strip(e, color);
-        if (e->centipede_head->centipede.spikes_on_right) {
+        if (e->centipede_segment->head->centipede->spikes_on_right) {
             draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
         } else {
             if (!e->enemy.dead_man) {
                 draw_game_circle(e->position + e->right * e->scale.x * 0.5f, 2.0f, GREEN);
             }
         }
-        if (e->centipede_head->centipede.spikes_on_left) {
+        if (e->centipede_segment->head->centipede->spikes_on_left) {
             draw_spikes(e, e->up, e->right * -1.0f, e->scale.y, e->scale.x);
         } else {
             if (!e->enemy.dead_man) {
@@ -12253,10 +12281,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     e->color_changer = to_copy->color_changer;
     
-    if (e->flags & ENEMY) {
-        e->enemy = to_copy->enemy;
-    }
-    
     // copy kill switch
     if (e->flags & KILL_SWITCH) {
         Kill_Switch *kill_switch = &e->enemy.kill_switch;
@@ -12329,6 +12353,24 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         i32 my_index = e->bird_enemy->index;
         *e->bird_enemy = *to_copy->bird_enemy;
         e->bird_enemy->index = my_index;
+    }
+    
+    // Right now centipede in editor will be just it's head, so no need for strange segments copying.
+    // And in case of copying level context it's should work fine out of a box.
+    //
+    // copy centipede
+    if (e->flags & CENTIPEDE && to_copy->centipede) {
+        assert(e->centipede);
+        i32 my_index = e->centipede->index;
+        *e->centipede = *to_copy->centipede;
+        e->centipede->index = my_index;
+    }
+    // copy centipede segment
+    if (e->flags & CENTIPEDE_SEGMENT && to_copy->centipede_segment) {
+        assert(e->centipede_segment);
+        i32 my_index = e->centipede_segment->index;
+        *e->centipede_segment = *to_copy->centipede_segment;
+        e->centipede_segment->index = my_index;
     }
     
     // copy trigger
