@@ -288,7 +288,7 @@ struct Hit_Booster{
     f32 boost = 175;  
 };
 
-struct Multiple_Hits{
+struct Multiple_Hits {
     i32 made_hits = 0;
     i32 required_hits = 40;
     f32 seconds_to_regen = 1.0f;
@@ -316,10 +316,6 @@ struct Turret {
     f32 shoot_height = 400;
     
     Projectile_Settings projectile_settings = {};
-};
-
-struct Kill_Switch {
-    Array <i32> connected = {0};   
 };
 
 struct Enemy {
@@ -376,7 +372,10 @@ struct Enemy {
     Hit_Booster hit_booster = {};
     Multiple_Hits multiple_hits = {};
     Turret turret = {};
-    Kill_Switch kill_switch = {};
+};
+
+struct Kill_Switch : Enemy {
+    Array <i32> connected = {0};   
 };
 
 struct Jump_Shooter : Enemy {
@@ -877,6 +876,7 @@ struct Entity {
     Centipede *centipede;
     Centipede_Segment *centipede_segment;
     Jump_Shooter *jump_shooter;
+    Kill_Switch *kill_switch;
     // };
     
     Door door;
@@ -1072,6 +1072,7 @@ struct Level_Context {
     
     Chunk_Array <Propeller> propellers = {0};
     Chunk_Array <Trigger> triggers = {0};
+    Chunk_Array <Kill_Switch> kill_switches = {0};
     Chunk_Array <Sticky_Texture> sticky_textures = {0};
     Chunk_Array <Move_Sequence> move_sequences = {0};
     Chunk_Array <Bird_Enemy> bird_enemies = {0};
@@ -1096,17 +1097,17 @@ struct Level_Context {
     b32 lightmaps_render_textures_loaded = false;
 };
 
-struct Turret_State{
+struct Turret_State {
     f32 tick_delay = 0.2f;
     b32 ticked_this_frame = false;
     i32 current_tick = 0;
     f32 tick_countdown = 0.2f;
 };
 
-struct State_Context{
+struct State_Context {
     b32 playing_relax = false;
 
-    struct Timers{
+    struct Timers {
         f32 last_bird_attack_time = -11110;
         f32 last_jump_shooter_attack_time = -11110;
         f32 background_flash_time = -21;
@@ -1117,7 +1118,7 @@ struct State_Context{
     };
     Timers timers = {};
     
-    struct Death_Instinct{
+    struct Death_Instinct {
         f32 allowed_duration_without_cooldown = 0.5f;
         f32 duration = 2;
         f32 cooldown = 12;
@@ -1137,7 +1138,7 @@ struct State_Context{
     };
     Death_Instinct death_instinct = {};
     
-    struct Cam_State{
+    struct Cam_State {
         f32 trauma = 0;
         f32 trauma_decrease_rate = 1.5f;
         b32 locked = false;

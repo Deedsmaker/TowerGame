@@ -232,7 +232,12 @@ void free_entity(Entity *e) {
     
     // free kill switch
     if (e->flags & KILL_SWITCH) {
-        e->enemy.kill_switch.connected.free_data();    
+        assert(e->kill_switch && e->kill_switch->index >= 0);
+    
+        e->kill_switch->connected.free_data();    
+        
+        e->level_context->kill_switches.remove(e->kill_switch->index);
+        e->kill_switch = NULL;
     }
     
     // free centipede segment
@@ -644,6 +649,7 @@ void clear_level_context(Level_Context *level_context) {
     level_context->move_sequences.clear();
     level_context->bird_enemies.clear();
     level_context->jump_shooters.clear();
+    level_context->kill_switches.clear();
     
     level_context->centipedes.clear();
     level_context->centipede_segments.clear();
@@ -824,10 +830,10 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & KILL_SWITCH) {
-            if (e->enemy.kill_switch.connected.count > 0) {
+            if (e->kill_switch->connected.count > 0) {
                 fprintf(fptr, "kill_switch_connected [ ");
-                for (i32 v = 0; v < e->enemy.kill_switch.connected.count; v++) {
-                    fprintf(fptr, ":%d: ", e->enemy.kill_switch.connected.get_value(v)); 
+                for (i32 v = 0; v < e->kill_switch->connected.count; v++) {
+                    fprintf(fptr, ":%d: ", e->kill_switch->connected.get_value(v)); 
                 }
                 fprintf(fptr, "] "); 
             }
@@ -1160,7 +1166,7 @@ b32 load_level(const char *level_name) {
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_connected")) {
                 fill_int_array_from_string(&new_entity->trigger->connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "kill_switch_connected")) {
-                fill_int_array_from_string(&new_entity->enemy.kill_switch.connected, splitted_line, &i);
+                fill_int_array_from_string(&new_entity->kill_switch->connected, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_tracking")) {
                 fill_int_array_from_string(&new_entity->trigger->tracking, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "enemy_big_or_small_killable")) {
@@ -1484,9 +1490,9 @@ b32 load_level(const char *level_name) {
                 Entity *another_loaded = loaded_entities.get(j);
                 
                 // Explainded earlier.
-                i32 connected_index = new_entity->enemy.kill_switch.connected.find(another_loaded->id);
+                i32 connected_index = new_entity->kill_switch->connected.find(another_loaded->id);
                 if (connected_index >= 0) {
-                    new_entity->enemy.kill_switch.connected.insert(j + 1, connected_index);
+                    new_entity->kill_switch->connected.insert(j + 1, connected_index);
                 }
             }
         }
@@ -2138,7 +2144,13 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
     // init kill switch
     if (entity->flags & KILL_SWITCH) {
-        entity->enemy.max_hits_taken = 5;
+        if (!entity->kill_switch || ignore_existing_types) {
+            i32 index = -1;
+            entity->kill_switch = entity->level_context->kill_switches.append({0}, &index);
+            entity->kill_switch->index = index;
+        }
+    
+        entity->kill_switch->max_hits_taken = 5;
     }
     
     if (entity->flags & ENEMY_BARRIER) {
@@ -3032,6 +3044,7 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->move_sequences, 128, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->bird_enemies, 64, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->jump_shooters, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->kill_switches, 8, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->centipedes, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->centipede_segments, 128, HEAP_ALLOCATOR);
@@ -5296,7 +5309,7 @@ void update_editor_ui() {
             type_info_v_pos += type_font_size;
             make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(tprintf("Connected count: %d", selected->trigger->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "kill_switch_connected_count");
+            make_ui_text(tprintf("Connected count: %d", selected->kill_switch->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "kill_switch_connected_count");
             type_info_v_pos += type_font_size;
             make_ui_text("Kill switch settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "kill_switch_settings");
             type_info_v_pos += type_font_size;
@@ -6627,8 +6640,8 @@ void update_editor() {
                             entity->trigger->connected.append(spawned_id);
                         }
                         
-                        if (entity->flags & KILL_SWITCH && entity->enemy.kill_switch.connected.contains(originally_copied_id)) {
-                            entity->enemy.kill_switch.connected.append(spawned_id);
+                        if (entity->flags & KILL_SWITCH && entity->kill_switch->connected.contains(originally_copied_id)) {
+                            entity->kill_switch->connected.append(spawned_id);
                         }
                     }
                 }
@@ -6885,7 +6898,7 @@ void update_editor() {
             b32 wanna_assign = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_A);
             b32 wanna_remove = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_D);
             
-            Kill_Switch *kill_switch = &selected->enemy.kill_switch;
+            Kill_Switch *kill_switch = selected->kill_switch;
             //kill switch assign or remove
             if (wanna_assign || wanna_remove) {
                 fill_collisions(&mouse_entity, &collisions_buffer, ENEMY);
@@ -8963,7 +8976,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         
         // kill switch death
         if (enemy_entity->flags & KILL_SWITCH) {
-            Kill_Switch *kill_switch = &enemy->kill_switch;
+            Kill_Switch *kill_switch = enemy_entity->kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
                 Entity *connected = get_entity(kill_switch->connected.get_value(i));
                 if (!connected) {
@@ -9690,7 +9703,7 @@ inline void verify_trigger_connected(Entity *entity) {
 inline void verify_kill_switch_connected(Entity *entity) {
     assert(entity->flags & KILL_SWITCH);
     
-    Kill_Switch *kill_switch = &entity->enemy.kill_switch;
+    Kill_Switch *kill_switch = entity->kill_switch;
     for_array(i, &kill_switch->connected) {
         Entity *connected = get_entity(kill_switch->connected.get_value(i));
         if (connected->will_be_destroyed) {
@@ -11100,7 +11113,7 @@ void fill_entities_draw_queue() {
         
         // always draw kill switch
         if (entity->flags & KILL_SWITCH) {
-            Kill_Switch *kill_switch = &entity->enemy.kill_switch;
+            Kill_Switch *kill_switch = entity->kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
                 Entity *connected = get_entity(kill_switch->connected.get_value(i));                
                 if (!connected) {
@@ -12293,15 +12306,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     e->color_changer = to_copy->color_changer;
     
-    // copy kill switch
-    if (e->flags & KILL_SWITCH) {
-        Kill_Switch *kill_switch = &e->enemy.kill_switch;
-        Kill_Switch *copy_kill_switch = &to_copy->enemy.kill_switch;
-        *kill_switch = *copy_kill_switch;
-        kill_switch->connected = {0};
-        kill_switch->connected = copy_array(&copy_kill_switch->connected);
-    }
-    
     if (e->flags & NOTE) {
         e->note_index = add_note("");
         if (e->note_index != -1 && to_copy->note_index != -1) {
@@ -12393,6 +12397,19 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         i32 my_index = e->centipede_segment->index;
         *e->centipede_segment = *to_copy->centipede_segment;
         e->centipede_segment->index = my_index;
+    }
+    
+    // copy kill switch
+    if (e->flags & KILL_SWITCH && to_copy->kill_switch) {
+        assert(e->kill_switch);
+    
+        i32 my_index = e->kill_switch->index;
+        *e->kill_switch = *to_copy->kill_switch;
+        e->kill_switch->index = my_index;
+        
+        
+        e->kill_switch->connected = {0};
+        e->kill_switch->connected = copy_array(&to_copy->kill_switch->connected);
     }
     
     // copy trigger
