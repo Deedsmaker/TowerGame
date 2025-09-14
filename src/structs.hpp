@@ -767,6 +767,7 @@ enum Projectile_Type{
 };
 
 struct Projectile {
+    i32 index = -1;
     Projectile_Type type = UNDEFINED_PROJECTILE;
     Vector2 velocity = {0, 0};
     f32 birth_time = 0;
@@ -857,7 +858,6 @@ struct Entity {
     b32 spawn_enemy_when_no_ammo = false;
     i32 spawned_enemy_id = -1;
     
-    Projectile projectile;
     
     // union {
         
@@ -865,6 +865,7 @@ struct Entity {
         Propeller *propeller;
         Trigger *trigger;
         Sticky_Texture *sticky_texture;
+        Projectile *projectile;
     };
     
     Move_Sequence *move_sequence;
@@ -1080,6 +1081,8 @@ struct Level_Context {
     Chunk_Array <Bird_Enemy> bird_enemies = {0};
     Chunk_Array <Jump_Shooter> jump_shooters = {0};
     Chunk_Array <Turret> turrets = {0};
+    
+    Chunk_Array <Projectile> projectiles = {0};
     
     Chunk_Array <Enemy> just_enemies = {0};
     

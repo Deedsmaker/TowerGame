@@ -295,6 +295,14 @@ void free_entity(Entity *e) {
         e->union_enemy = NULL;
     }
     
+    // free projectile 
+    if (e->flags & PROJECTILE && e->projectile) {
+        assert(e->projectile->index >= 0);
+        
+        e->level_context->projectiles.remove(e->projectile->index);
+        e->projectile = NULL;
+    }
+    
     e->color_changer.changing = false;
     
     free_entity_particle_emitters(e);
@@ -669,6 +677,8 @@ void clear_level_context(Level_Context *level_context) {
     level_context->jump_shooters.clear();
     level_context->kill_switches.clear();
     level_context->turrets.clear();
+    
+    level_context->projectiles.clear();
     
     level_context->just_enemies.clear();
     
@@ -2463,6 +2473,15 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->union_enemy->sword_required_sticky_id = sticky_entity->id;
     }
     
+    // init projectile
+    if (entity->flags & PROJECTILE) {
+        if (!entity->projectile || ignore_existing_types) {
+            i32 index = -1;
+            entity->projectile = entity->level_context->projectiles.append({0}, &index);
+            entity->projectile->index = index;
+        }
+    }
+    
     calculate_bounds(entity);
     setup_color_changer(entity);
 } // end init entity
@@ -3067,6 +3086,8 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->jump_shooters, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->kill_switches, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->turrets, 32, HEAP_ALLOCATOR);
+    
+    init_chunk_array(&level_context->projectiles, 256, HEAP_ALLOCATOR);
     
     init_chunk_array(&level_context->just_enemies, 64, HEAP_ALLOCATOR);
     
@@ -9233,12 +9254,12 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
 
 void add_rifle_projectile(Vector2 start_position, Vector2 velocity) {
     Entity *projectile_entity = add_entity(start_position, {2, 2}, {0.5f, 0.5f}, 0, PINK, PROJECTILE | PARTICLE_EMITTER);
-    projectile_entity->projectile.type  = PLAYER_RIFLE_PROJECTILE;
-    projectile_entity->projectile.birth_time = core.time.game_time;
-    projectile_entity->projectile.velocity = velocity;
-    projectile_entity->projectile.max_lifetime = 7;
+    projectile_entity->projectile->type  = PLAYER_RIFLE_PROJECTILE;
+    projectile_entity->projectile->birth_time = core.time.game_time;
+    projectile_entity->projectile->velocity = velocity;
+    projectile_entity->projectile->max_lifetime = 7;
     
-    projectile_entity->projectile.trail_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &bullet_trail_emitter_copy, start_position, true);
+    projectile_entity->projectile->trail_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &bullet_trail_emitter_copy, start_position, true);
     add_and_enable_entity_particle_emitter(projectile_entity, &bullet_trail_emitter_copy, start_position, true);
     add_and_enable_entity_particle_emitter(projectile_entity, &magical_sparks_emitter_copy, start_position, true);
     add_and_enable_entity_particle_emitter(projectile_entity, &white_sparks_emitter_copy, start_position, true);
@@ -9276,7 +9297,7 @@ Vector2 get_entity_velocity(Entity *entity) {
         return entity->jump_shooter->velocity;
     }
     if (entity->flags & PROJECTILE) {
-        return entity->projectile.velocity;
+        return entity->projectile->velocity;
     }
     return Vector2_zero;
 }
@@ -9404,7 +9425,7 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
 }
 
 void calculate_projectile_collisions(Entity *entity) {
-    Projectile *projectile = &entity->projectile;
+    Projectile *projectile = entity->projectile;
     
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
         fill_collisions(entity, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
@@ -9596,7 +9617,7 @@ void calculate_projectile_collisions(Entity *entity) {
 void update_projectile(Entity *entity, f32 dt) {
     assert(entity->flags & PROJECTILE);
     
-    Projectile *projectile = &entity->projectile;
+    Projectile *projectile = entity->projectile;
     f32 lifetime = core.time.game_time - projectile->birth_time;
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
@@ -10140,14 +10161,14 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
     }
     
     // @CLEANUP: Right now we set additional projectile enemy flags directly to entity, but when we redo entity system we will 
-    // want to set that on enemy of spawned projectile.
+    // want to set that on enemy of spawned projectile->
     Entity *projectile_entity = add_entity(position, scale, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | settings.enemy_flags);
     change_color(projectile_entity, color);
-    projectile_entity->projectile.birth_time = core.time.game_time;
-    projectile_entity->projectile.type = type;
-    projectile_entity->projectile.velocity = direction * settings.launch_speed;
+    projectile_entity->projectile->birth_time = core.time.game_time;
+    projectile_entity->projectile->type = type;
+    projectile_entity->projectile->velocity = direction * settings.launch_speed;
     change_up(projectile_entity, direction);
-    projectile_entity->projectile.max_lifetime = settings.max_lifetime;
+    projectile_entity->projectile->max_lifetime = settings.max_lifetime;
     
     if (projectile_entity->flags & BLOCKER) {
         projectile_entity->union_enemy->blocker_clockwise = settings.blocker_clockwise;
@@ -10574,10 +10595,10 @@ inline b32 update_entity(Entity *e, f32 dt) {
                     Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | additional_flags);
                     assert(projectile_entity->union_enemy);
                     change_color(projectile_entity, ColorBrightness(RED, 0.4f));
-                    projectile_entity->projectile.birth_time = core.time.game_time;
-                    projectile_entity->projectile.type = JUMP_SHOOTER_PROJECTILE;
-                    projectile_entity->projectile.velocity = direction * speed;
-                    projectile_entity->projectile.max_lifetime = 15;
+                    projectile_entity->projectile->birth_time = core.time.game_time;
+                    projectile_entity->projectile->type = JUMP_SHOOTER_PROJECTILE;
+                    projectile_entity->projectile->velocity = direction * speed;
+                    projectile_entity->projectile->max_lifetime = 15;
                     projectile_entity->union_enemy->gives_ammo = false;
                     
                     if (shooter->shoot_sword_blockers) {
@@ -12486,6 +12507,26 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         
         e->trigger->cam_rails_points = {0};
         e->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points);
+    }
+    
+    // We actually could copy all enemy data above, but that's not that importnat because data should stay the same.
+    // (Unless some type would make some manipulations on enemy data after copying, but we'll leave it be for now).
+    // copy enemy
+    if (e->flags & ENEMY && to_copy->union_enemy) {
+        assert(e->union_enemy);
+        
+        i32 my_index = e->union_enemy->index;
+        *e->union_enemy = *to_copy->union_enemy;
+        e->union_enemy->index = my_index;
+    }
+    
+    // copy projectile
+    if (e->flags & PROJECTILE && to_copy->projectile) {
+        assert(e->projectile);
+        
+        i32 my_index = -1;
+        *e->projectile = *to_copy->projectile;
+        e->projectile->index = my_index;
     }
     
     return e;
