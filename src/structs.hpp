@@ -766,7 +766,7 @@ enum Projectile_Type{
     TURRET_HOMING_PROJECTILE = 4
 };
 
-struct Projectile{
+struct Projectile {
     Projectile_Type type = UNDEFINED_PROJECTILE;
     Vector2 velocity = {0, 0};
     f32 birth_time = 0;
@@ -869,9 +869,10 @@ struct Entity {
     
     Move_Sequence *move_sequence;
     
-    Enemy enemy;
+    // Enemy enemy;
     // };
     union {
+        Enemy *union_enemy;
         Bird_Enemy *bird_enemy;
         Centipede *centipede;
         Centipede_Segment *centipede_segment;
@@ -1079,6 +1080,8 @@ struct Level_Context {
     Chunk_Array <Bird_Enemy> bird_enemies = {0};
     Chunk_Array <Jump_Shooter> jump_shooters = {0};
     Chunk_Array <Turret> turrets = {0};
+    
+    Chunk_Array <Enemy> just_enemies = {0};
     
     Chunk_Array <Centipede> centipedes = {0};
     Chunk_Array <Centipede_Segment> centipede_segments = {0};

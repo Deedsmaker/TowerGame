@@ -284,6 +284,17 @@ void free_entity(Entity *e) {
         e->lights.free_data();
     }
     
+    // free enemy    
+    if (e->flags & ENEMY && e->union_enemy) { 
+        // We'll be here if entity is marked as enemy and it was not previously freed, which could mean that all of his data        
+        // is contained in base Enemy struct.
+        
+        assert(e->union_enemy->index >= 0);
+        
+        e->level_context->just_enemies.remove(e->union_enemy->index);
+        e->union_enemy = NULL;
+    }
+    
     e->color_changer.changing = false;
     
     free_entity_particle_emitters(e);
@@ -659,6 +670,8 @@ void clear_level_context(Level_Context *level_context) {
     level_context->kill_switches.clear();
     level_context->turrets.clear();
     
+    level_context->just_enemies.clear();
+    
     level_context->centipedes.clear();
     level_context->centipede_segments.clear();
     
@@ -902,24 +915,24 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & BLOCKER) {
-            fprintf(fptr, "blocker_clockwise:%d: ", e->enemy.blocker_clockwise);
-            fprintf(fptr, "blocker_immortal:%d: ", e->enemy.blocker_immortal);
+            fprintf(fptr, "blocker_clockwise:%d: ", e->union_enemy->blocker_clockwise);
+            fprintf(fptr, "blocker_immortal:%d: ", e->union_enemy->blocker_immortal);
         }
         
         if (e->flags & SWORD_SIZE_REQUIRED) {
-            fprintf(fptr, "enemy_big_or_small_killable:%d: ", e->enemy.big_sword_killable);
+            fprintf(fptr, "enemy_big_or_small_killable:%d: ", e->union_enemy->big_sword_killable);
         }
         
-        if (e->flags & ENEMY && e->enemy.sword_kill_speed_modifier != 1) {
-            fprintf(fptr, "sword_kill_speed_modifier:%.1f: ", e->enemy.sword_kill_speed_modifier);
+        if (e->flags & ENEMY && e->union_enemy->sword_kill_speed_modifier != 1) {
+            fprintf(fptr, "sword_kill_speed_modifier:%.1f: ", e->union_enemy->sword_kill_speed_modifier);
         }
         
         if (e->flags & ENEMY) {
-            fprintf(fptr, "enemy_gives_ammo:%d: ", e->enemy.gives_ammo);
+            fprintf(fptr, "enemy_gives_ammo:%d: ", e->union_enemy->gives_ammo);
         }
         
         if (e->flags & EXPLOSIVE) {
-            fprintf(fptr, "explosive_radius_multiplier:%fs: ", e->enemy.explosive_radius_multiplier);
+            fprintf(fptr, "explosive_radius_multiplier:%fs: ", e->union_enemy->explosive_radius_multiplier);
         }
         
         if (e->flags & PROPELLER) {
@@ -928,8 +941,8 @@ i32 save_level(const char *level_name) {
         }
         
         if (e->flags & SHOOT_BLOCKER) {
-            fprintf(fptr, "shoot_blocker_direction{:%f:, :%f:} ", e->enemy.shoot_blocker_direction.x, e->enemy.shoot_blocker_direction.y);
-            fprintf(fptr, "shoot_blocker_immortal:%d: ", e->enemy.shoot_blocker_immortal);
+            fprintf(fptr, "shoot_blocker_direction{:%f:, :%f:} ", e->union_enemy->shoot_blocker_direction.x, e->union_enemy->shoot_blocker_direction.y);
+            fprintf(fptr, "shoot_blocker_immortal:%d: ", e->union_enemy->shoot_blocker_immortal);
         }
         
         if (e->flags & TEXTURE) {
@@ -1178,13 +1191,13 @@ b32 load_level(const char *level_name) {
             } else if (str_equal(splitted_line.get_value(i).data, "trigger_tracking")) {
                 fill_int_array_from_string(&new_entity->trigger->tracking, splitted_line, &i);
             } else if (str_equal(splitted_line.get_value(i).data, "enemy_big_or_small_killable")) {
-                fill_b32_from_string(&new_entity->enemy.big_sword_killable, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->union_enemy->big_sword_killable, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "blocker_clockwise")) {
-                fill_b32_from_string(&new_entity->enemy.blocker_clockwise, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->union_enemy->blocker_clockwise, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "blocker_immortal")) {
-                fill_b32_from_string(&new_entity->enemy.blocker_immortal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->union_enemy->blocker_immortal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "propeller_power")) {
                 fill_f32_from_string(&new_entity->propeller->power, splitted_line.get_value(i+1).data);
@@ -1193,19 +1206,19 @@ b32 load_level(const char *level_name) {
                 fill_b32_from_string(&new_entity->propeller->spin_sensitive, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "sword_kill_speed_modifier")) {
-                fill_f32_from_string(&new_entity->enemy.sword_kill_speed_modifier, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->union_enemy->sword_kill_speed_modifier, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "shoot_blocker_direction")) {
-                fill_vector2_from_string(&new_entity->enemy.shoot_blocker_direction, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
+                fill_vector2_from_string(&new_entity->union_enemy->shoot_blocker_direction, splitted_line.get_value(i+1).data, splitted_line.get_value(i+2).data);
                 i += 2;
             } else if (str_equal(splitted_line.get_value(i).data, "shoot_blocker_immortal")) {
-                fill_b32_from_string(&new_entity->enemy.shoot_blocker_immortal, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->union_enemy->shoot_blocker_immortal, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "enemy_gives_ammo")) {
-                fill_b32_from_string(&new_entity->enemy.gives_ammo, splitted_line.get_value(i+1).data);
+                fill_b32_from_string(&new_entity->union_enemy->gives_ammo, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "explosive_radius_multiplier")) {
-                fill_f32_from_string(&new_entity->enemy.explosive_radius_multiplier, splitted_line.get_value(i+1).data);
+                fill_f32_from_string(&new_entity->union_enemy->explosive_radius_multiplier, splitted_line.get_value(i+1).data);
                 i++;
             } else if (str_equal(splitted_line.get_value(i).data, "light_shadows_size_flag")) {
                 fill_i32_from_string(&current_level_context->lights.get(new_entity->lights.get_value(0))->shadows_size_flags, splitted_line.get_value(i+1).data);
@@ -1875,7 +1888,6 @@ void init_spawn_objects() {
     
     Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
-    hit_booster_entity.enemy.max_hits_taken = -1;
     setup_color_changer(&hit_booster_entity);
     
     Spawn_Object hit_booster_object;
@@ -1887,7 +1899,6 @@ void init_spawn_objects() {
     Entity jump_shooter_entity = make_entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
     // jump_shooter_entity.move_sequence->moving = true;
     // jump_shooter_entity.move_sequence->loop = true;
-    // jump_shooter_entity.enemy.max_hits_taken = 6;
     jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
     setup_color_changer(&jump_shooter_entity);
     
@@ -2096,27 +2107,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->texture = get_texture("Prop");
     }
 
-    // Load normal maps.
-    if (entity->flags & TEXTURE) {
-        for (i32 i = 0; i < normal_maps.count; i++) {        
-            // We allow one normal map for different textures, but then texture should start with normal map name
-            // and after normal map name *could* be '_'.
-            // For example normal map "Brick_normal_map" will go to "Brick" and "Brick_v1", but not to "Brick1".
-            Texture_Data *normal_map = normal_maps.get(i);
-            if (str_start_with(entity->texture_name, normal_map->name)
-                && (entity->texture_name[str_len(normal_map->name)] == '_' || entity->texture_name[str_len(normal_map->name)] == '\0')) {
-                entity->have_normal_map = true;
-                entity->normal_map_texture = normal_map->texture;
-            }
-        }
-    }
-
-    if (entity->flags & ENEMY) {
-        entity->enemy.original_scale = entity->scale;
-    }
-    
-    // init bird enemy
-    if (entity->flags & BIRD_ENEMY) {
+    // Here we're initing concrete enemy types, which could not be mixed (unlike some modifiers like BLOCKER that could 
+    // require union_enemy set to itself.
+    //
+    // It's all in the else-if statements so that we could know for sure if some enemy entity should be put in 
+    // just_enemies array, where stored enemies that just use base Enemy struct (for now that's a AMMO_PACK for one, which 
+    // don't need separate data besides basic Enemy.
+    if (0) {
+    } else if (entity->flags & BIRD_ENEMY) { // init bird enemy 
         entity->collision_flags = (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
         change_color(entity, entity->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
         
@@ -2132,10 +2130,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->bird_enemy->sword_kill_speed_modifier = 4;
         
         init_bird_emitters(entity);
-    }
-    
-    // init kill switch
-    if (entity->flags & KILL_SWITCH) {
+    } else if (entity->flags & KILL_SWITCH) { // init kill switch
         if (!entity->kill_switch || ignore_existing_types) {
             i32 index = -1;
             entity->kill_switch = entity->level_context->kill_switches.append({0}, &index);
@@ -2143,79 +2138,134 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     
         entity->kill_switch->max_hits_taken = 5;
-    }
-    
-    if (entity->flags & ENEMY_BARRIER) {
-        entity->enemy.max_hits_taken = 5;
-    }
-    
-    // init hit booster
-    if (entity->flags & HIT_BOOSTER) {
-        entity->enemy.max_hits_taken = -1;
-    }
-    
-    // init turret
-    if (entity->flags & TURRET) {
+    } else if (entity->flags & TURRET) {  // init turret
         if (!entity->turret || ignore_existing_types) {
             i32 index = -1;
             entity->turret = entity->level_context->turrets.append({0}, &index);
             entity->turret->index = index;
         }
     
-        entity->enemy.player_cannot_kill = true;
+        entity->turret->player_cannot_kill = true;
         
         if (entity->flags & HOMING_TURRET) {
-            entity->enemy.player_cannot_kill = true;
             Turret *turret = entity->turret;
             turret->homing = true;
             turret->projectile_settings.launch_speed = 150;
             turret->projectile_settings.max_lifetime = 15;
             turret->shoot_every_tick = 8;
         } else {
-            entity->enemy.player_cannot_kill = true;
             Turret *turret = entity->turret;
             turret->homing = false;
             turret->projectile_settings.launch_speed = 75;
             turret->projectile_settings.max_lifetime = 7;
             turret->shoot_every_tick = 3;
         }
-    }
-    
-    // init win block
-    if (entity->flags & WIN_BLOCK) {
-        // That's for projectile to reflect, but projectiles do not damage win block.
-        entity->enemy.max_hits_taken = 5;
-    }
-    
-    // init explosive
-    if (entity->flags & EXPLOSIVE) {
-        entity->flags |= LIGHT;
-        entity->color_changer.change_time = 5.0f;
-        Light explosive_light = {};
-        // explosive_light.make_backshadows = false; @WTF screen goes black in game mode with this shit. Should change the way lights stored and way we get access to them so don't bother, but wtf ebat (also render doc don't loading with this shit)
-        if (entity->enemy.explosive_radius_multiplier >= 3) {
-            explosive_light.shadows_size_flags = BIG_LIGHT;
-            explosive_light.backshadows_size_flags = BIG_LIGHT;
-            explosive_light.make_backshadows = true;
-            explosive_light.make_shadows     = true;
-        } else if (entity->enemy.explosive_radius_multiplier > 1.5f) {
-            explosive_light.shadows_size_flags = MEDIUM_LIGHT;
-            explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
-            explosive_light.make_backshadows = true;
-            explosive_light.make_shadows     = true;
-        } else {
-            explosive_light.make_shadows     = false;
-            explosive_light.make_backshadows = false;
+    } else if (entity->flags & CENTIPEDE) { // init centipede
+        if (!entity->centipede || ignore_existing_types) {        
+            i32 index = -1;
+            entity->centipede = entity->level_context->centipedes.append({0}, &index);
+            entity->centipede->index = index;
         }
         
-        Light *new_light = copy_and_add_light_to_entity(entity, &explosive_light, true);
-        if (new_light) {
-            new_light->radius = 120;
-            new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 1.0f);
-            new_light->power = 1.0f;
+            // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
+        if (game_state == GAME) {
+            assert(entity->centipede);     
+            Centipede *centipede = entity->centipede;
+            
+            for_array(i, &centipede->segments) {
+                mark_entity_destroyed(centipede->segments.get_value(i));
+            }
+            centipede->segments.clear();
+            
+            for (i32 i = 0; i < centipede->segments_count; i++) {
+                Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
+                assert(segment->centipede_segment);
+                
+                segment->centipede_segment->head = entity;
+                change_up(segment, entity->up);
+                segment->draw_order = entity->draw_order + 1;
+                centipede->segments.append(segment);
+                Entity *previous;
+                if (i > 0) previous = centipede->segments.get_value(i-1);
+                else       previous = entity;
+    
+                segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
+                
+                assert(segment->move_sequence);
+                i32 segment_index = segment->move_sequence->index;
+                *segment->move_sequence = *entity->move_sequence;
+                segment->move_sequence->index = segment_index;
+                // Probably we could think about a way to not copy array for every segment, but I'll probably will rewrite 
+                // segments logic to work without move_sequence, so that doesn't matter currently.
+                segment->move_sequence->points = copy_array(&entity->move_sequence->points);
+                
+                segment->hidden = entity->hidden;
+                
+                segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
+                
+                *segment->union_enemy = *entity->union_enemy; // Just copying enemy settings that were applied to centipede in editor.
+                
+                init_entity(segment);
+            }
         }
+    } else if (entity->flags & CENTIPEDE_SEGMENT) {    // init centipede segment.
+        if (!entity->centipede_segment || ignore_existing_types) {
+            i32 index = -1;
+            entity->centipede_segment = entity->level_context->centipede_segments.append({0}, &index);
+            entity->centipede_segment->index = index;
+        }
+    } else if (entity->flags & JUMP_SHOOTER) { // init jump shooter
+        if (!entity->jump_shooter || ignore_existing_types) {
+            i32 index = -1;
+            entity->jump_shooter = entity->level_context->jump_shooters.append({0}, &index);
+            entity->jump_shooter->index = index;
+        }
+        
+        entity->jump_shooter->max_hits_taken = 6;
+        free_entity_particle_emitters(entity);
+        entity->jump_shooter->trail_emitter_index  = add_entity_particle_emitter(entity, &air_dust_emitter);
+        
+        Particle_Emitter *trail_emitter = get_particle_emitter(entity->jump_shooter->trail_emitter_index);
+        if (trail_emitter) {
+            trail_emitter->follow_entity = false;
+            enable_emitter(trail_emitter, entity->position);
+        }
+        
+        entity->jump_shooter->flying_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
+        Particle_Emitter *flying_emitter = get_particle_emitter(entity->jump_shooter->flying_emitter_index);
+        if (flying_emitter) {
+            flying_emitter->follow_entity = false;
+        }
+        
+        entity->jump_shooter->sword_kill_speed_modifier = 10;
+    } else if (entity->flags & ENEMY) { // init enemy
+        if (!entity->union_enemy || ignore_existing_types) {
+            // We'll be here if entity is makred as enemy but was not previously inited, which means that it's just a enemy
+            // without separate type and array.
+                     
+            i32 index = -1;
+            entity->union_enemy = entity->level_context->just_enemies.append({0}, &index);
+            entity->union_enemy->index = index;
+        }
+        
+        entity->union_enemy->original_scale = entity->scale;
     }
     
+    // Load normal maps.
+    if (entity->flags & TEXTURE) {
+        for (i32 i = 0; i < normal_maps.count; i++) {        
+            // We allow one normal map for different textures, but then texture should start with normal map name
+            // and after normal map name *could* be '_'.
+            // For example normal map "Brick_normal_map" will go to "Brick" and "Brick_v1", but not to "Brick1".
+            Texture_Data *normal_map = normal_maps.get(i);
+            if (str_start_with(entity->texture_name, normal_map->name)
+                && (entity->texture_name[str_len(normal_map->name)] == '_' || entity->texture_name[str_len(normal_map->name)] == '\0')) {
+                entity->have_normal_map = true;
+                entity->normal_map_texture = normal_map->texture;
+            }
+        }
+    }
+
     // init no move block
     if (entity->flags & NO_MOVE_BLOCK) {
         Light light = {0};
@@ -2224,62 +2274,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         light.opacity = 0.5f;
         
         Light *new_light = copy_and_add_light_to_entity(entity, &light, true);
-    }
-    
-    if (entity->flags & BLOCKER && game_state == GAME) {
-        // init blocker
-        if (entity->enemy.blocker_sticky_id > 0) {
-            mark_entity_destroyed(get_entity(entity->enemy.blocker_sticky_id));
-        }
-        
-        if (!entity->enemy.blocker_immortal) {
-            Texture texture = entity->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-            Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
-            // str_copy(sticky_entity->name, "blocker_attack_mark");
-            sticky_entity->need_to_save = false;
-            //sticky_entity->texture = texture;
-            sticky_entity->draw_order = 1;
-            sticky_entity->sticky_texture->max_lifetime   = 0;
-            // sticky_entity->sticky_texture->line_color  = Fade(ORANGE, 0.3f);
-            sticky_entity->sticky_texture->need_to_follow = true;
-            sticky_entity->sticky_texture->follow_id  = entity->id;
-            sticky_entity->sticky_texture->birth_time = core.time.game_time;
-            
-            sticky_entity->sticky_texture->alpha = 0.8f;
-            
-            entity->enemy.blocker_sticky_id = sticky_entity->id;
-        }
-    }
-    
-    if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME) {
-        // init sword size required
-        if (entity->enemy.sword_required_sticky_id > 0) {
-            mark_entity_destroyed(get_entity(entity->enemy.sword_required_sticky_id));
-        }
-        
-        Texture texture = entity->enemy.big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
-        Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
-        
-        sticky_entity->sticky_texture->base_size = {4, 8};
-        if (!entity->enemy.big_sword_killable) {
-            sticky_entity->sticky_texture->base_size = {6, 12};
-            sticky_entity->sticky_texture->alpha = 0.8f;
-        } else {
-            sticky_entity->sticky_texture->alpha = 0.4f;
-        }
-        
-        // str_copy(sticky_entity->name, "sword_size_attack_mark");
-        sticky_entity->need_to_save = false;
-        //sticky_entity->texture = texture;
-        sticky_entity->draw_order = 1;
-        sticky_entity->sticky_texture->max_lifetime   = 0;
-        // sticky_entity->sticky_texture->line_color     = Fade(BLUE, 0.3f);
-        sticky_entity->sticky_texture->need_to_follow = true;
-        // sticky_entity->sticky_texture->draw_line      = true;
-        sticky_entity->sticky_texture->follow_id  = entity->id;
-        sticky_entity->sticky_texture->birth_time = core.time.game_time;
-        
-        entity->enemy.sword_required_sticky_id = sticky_entity->id;
     }
     
     // init propeller
@@ -2305,106 +2299,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & DOOR) {
         entity->flags |= TRIGGER;
         entity->trigger->player_touch = false;
-    }
-    
-    // init centipede
-    if (entity->flags & CENTIPEDE) {
-        if (!entity->centipede || ignore_existing_types) {        
-            i32 index = -1;
-            entity->centipede = entity->level_context->centipedes.append({0}, &index);
-            entity->centipede->index = index;
-        }
-    }
-    // init centipede segment.
-    if (entity->flags & CENTIPEDE_SEGMENT) {
-        if (!entity->centipede_segment || ignore_existing_types) {
-            i32 index = -1;
-            entity->centipede_segment = entity->level_context->centipede_segments.append({0}, &index);
-            entity->centipede_segment->index = index;
-        }
-    }
-    
-    // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
-    if (entity->flags & CENTIPEDE && game_state == GAME) {
-        
-        Centipede *centipede = entity->centipede;
-        
-        for_array(i, &centipede->segments) {
-            mark_entity_destroyed(centipede->segments.get_value(i));
-        }
-        centipede->segments.clear();
-        
-        for (i32 i = 0; i < centipede->segments_count; i++) {
-            Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
-            assert(segment->centipede_segment);
-            
-            segment->centipede_segment->head = entity;
-            change_up(segment, entity->up);
-            segment->draw_order = entity->draw_order + 1;
-            centipede->segments.append(segment);
-            Entity *previous;
-            if (i > 0) previous = centipede->segments.get_value(i-1);
-            else       previous = entity;
-
-            segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
-            
-            assert(segment->move_sequence);
-            i32 segment_index = segment->move_sequence->index;
-            *segment->move_sequence = *entity->move_sequence;
-            segment->move_sequence->index = segment_index;
-            // Probably we could think about a way to not copy array for every segment, but I'll probably will rewrite 
-            // segments logic to work without move_sequence, so that doesn't matter currently.
-            segment->move_sequence->points = copy_array(&entity->move_sequence->points);
-            
-            segment->hidden = entity->hidden;
-            
-            segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
-            segment->enemy = entity->enemy;
-            init_entity(segment);
-        }
-    }
-    
-    // init jump shooter
-    if (entity->flags & JUMP_SHOOTER) {
-        if (!entity->jump_shooter || ignore_existing_types) {
-            i32 index = -1;
-            entity->jump_shooter = entity->level_context->jump_shooters.append({0}, &index);
-            entity->jump_shooter->index = index;
-        }
-        
-        entity->enemy.max_hits_taken = 6;
-        free_entity_particle_emitters(entity);
-        entity->jump_shooter->trail_emitter_index  = add_entity_particle_emitter(entity, &air_dust_emitter);
-        
-        Particle_Emitter *trail_emitter = get_particle_emitter(entity->jump_shooter->trail_emitter_index);
-        if (trail_emitter) {
-            trail_emitter->follow_entity = false;
-            enable_emitter(trail_emitter, entity->position);
-        }
-        
-        entity->jump_shooter->flying_emitter_index = add_entity_particle_emitter(entity, &small_air_dust_trail_emitter_copy);
-        Particle_Emitter *flying_emitter = get_particle_emitter(entity->jump_shooter->flying_emitter_index);
-        if (flying_emitter) {
-            flying_emitter->follow_entity = false;
-        }
-        
-        entity->enemy.sword_kill_speed_modifier = 10;
-    }
-    
-    //init light
-    if (entity->flags & LIGHT) {
-        // Light old_light = {};
-        // if (entity->light_index != -1) {
-        //     Light *current_light = current_level_context->lights.get(entity->light_index);           
-        //     UnloadRenderTexture(current_light->shadowmask_rt);
-        //     UnloadRenderTexture(current_light->geometry_rt);
-        //     UnloadRenderTexture(current_light->backshadows_rt);
-        //     current_light->exists = false;
-        //     old_light = *current_light;
-        //     *current_light = {};
-        //     entity->light_index = -1;
-        // }
-        // init_entity_light(entity, NULL, true);
     }
     
     // init trigger 
@@ -2448,6 +2342,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }
     
+    // init sticky texture
     if (entity->flags & STICKY_TEXTURE) { 
         if (!entity->sticky_texture || ignore_existing_types) {
             i32 index = -1;
@@ -2455,7 +2350,119 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->sticky_texture->index = index;
         }
     }
-
+    
+    // init hit booster
+    if (entity->flags & HIT_BOOSTER) {
+        assert(entity->union_enemy);
+        entity->union_enemy->max_hits_taken = -1;
+    }
+    
+    // init enemy barrier
+    if (entity->flags & ENEMY_BARRIER) {
+        assert(entity->union_enemy);
+    
+        entity->union_enemy->max_hits_taken = 5;
+    }
+    
+    // init explosive
+    if (entity->flags & EXPLOSIVE) {
+        assert(entity->union_enemy);
+    
+        entity->flags |= LIGHT;
+        entity->color_changer.change_time = 5.0f;
+        Light explosive_light = {};
+        // explosive_light.make_backshadows = false; @WTF screen goes black in game mode with this shit. Should change the way lights stored and way we get access to them so don't bother, but wtf ebat (also render doc don't loading with this shit)
+        if (entity->union_enemy->explosive_radius_multiplier >= 3) {
+            explosive_light.shadows_size_flags = BIG_LIGHT;
+            explosive_light.backshadows_size_flags = BIG_LIGHT;
+            explosive_light.make_backshadows = true;
+            explosive_light.make_shadows     = true;
+        } else if (entity->union_enemy->explosive_radius_multiplier > 1.5f) {
+            explosive_light.shadows_size_flags = MEDIUM_LIGHT;
+            explosive_light.backshadows_size_flags = MEDIUM_LIGHT;
+            explosive_light.make_backshadows = true;
+            explosive_light.make_shadows     = true;
+        } else {
+            explosive_light.make_shadows     = false;
+            explosive_light.make_backshadows = false;
+        }
+        
+        Light *new_light = copy_and_add_light_to_entity(entity, &explosive_light, true);
+        if (new_light) {
+            new_light->radius = 120;
+            new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 1.0f);
+            new_light->power = 1.0f;
+        }
+    }
+    
+    // init win block
+    if (entity->flags & WIN_BLOCK) {
+        assert(entity->union_enemy);
+    
+        // That's for projectile to reflect, but projectiles do not damage win block.
+        entity->union_enemy->max_hits_taken = 5;
+    }
+    
+    // init blocker
+    if (entity->flags & BLOCKER && game_state == GAME) {
+        assert(entity->union_enemy);
+    
+        if (entity->union_enemy->blocker_sticky_id > 0) {
+            mark_entity_destroyed(get_entity(entity->union_enemy->blocker_sticky_id));
+        }
+        
+        if (!entity->union_enemy->blocker_immortal) {
+            Texture texture = entity->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+            Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
+            // str_copy(sticky_entity->name, "blocker_attack_mark");
+            sticky_entity->need_to_save = false;
+            //sticky_entity->texture = texture;
+            sticky_entity->draw_order = 1;
+            sticky_entity->sticky_texture->max_lifetime   = 0;
+            // sticky_entity->sticky_texture->line_color  = Fade(ORANGE, 0.3f);
+            sticky_entity->sticky_texture->need_to_follow = true;
+            sticky_entity->sticky_texture->follow_id  = entity->id;
+            sticky_entity->sticky_texture->birth_time = core.time.game_time;
+            
+            sticky_entity->sticky_texture->alpha = 0.8f;
+            
+            entity->union_enemy->blocker_sticky_id = sticky_entity->id;
+        }
+    }
+    
+    // init sword size required
+    if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME) {
+        assert(entity->union_enemy);
+    
+        if (entity->union_enemy->sword_required_sticky_id > 0) {
+            mark_entity_destroyed(get_entity(entity->union_enemy->sword_required_sticky_id));
+        }
+        
+        Texture texture = entity->union_enemy->big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
+        Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
+        
+        sticky_entity->sticky_texture->base_size = {4, 8};
+        if (!entity->union_enemy->big_sword_killable) {
+            sticky_entity->sticky_texture->base_size = {6, 12};
+            sticky_entity->sticky_texture->alpha = 0.8f;
+        } else {
+            sticky_entity->sticky_texture->alpha = 0.4f;
+        }
+        
+        // str_copy(sticky_entity->name, "sword_size_attack_mark");
+        sticky_entity->need_to_save = false;
+        //sticky_entity->texture = texture;
+        sticky_entity->draw_order = 1;
+        sticky_entity->sticky_texture->max_lifetime   = 0;
+        // sticky_entity->sticky_texture->line_color     = Fade(BLUE, 0.3f);
+        sticky_entity->sticky_texture->need_to_follow = true;
+        // sticky_entity->sticky_texture->draw_line      = true;
+        sticky_entity->sticky_texture->follow_id  = entity->id;
+        sticky_entity->sticky_texture->birth_time = core.time.game_time;
+        
+        entity->union_enemy->sword_required_sticky_id = sticky_entity->id;
+    }
+    
     calculate_bounds(entity);
     setup_color_changer(entity);
 } // end init entity
@@ -3061,6 +3068,8 @@ void init_level_context(Level_Context *level_context) {
     init_chunk_array(&level_context->kill_switches, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->turrets, 32, HEAP_ALLOCATOR);
     
+    init_chunk_array(&level_context->just_enemies, 64, HEAP_ALLOCATOR);
+    
     init_chunk_array(&level_context->centipedes, 8, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->centipede_segments, 128, HEAP_ALLOCATOR);
     
@@ -3555,7 +3564,8 @@ void fixed_game_update(f32 dt) {
                 memset(direction_enemies_count, 0, sizeof(direction_enemies_count));
                 // @OPTIMIZATION: Of course here we want just to through enemies, not through all entities.
                 ForEntities(entity, ENEMY) {
-                    if (entity->flags == ENEMY || entity->flags & AMMO_PACK || entity->flags & HIT_BOOSTER || entity->flags & PROJECTILE || !entity->enemy.in_agro || entity->enemy.dead_man || entity->flags & PROJECTILE) {
+                    assert(entity->union_enemy);
+                    if (entity->flags == ENEMY || entity->flags & AMMO_PACK || entity->flags & HIT_BOOSTER || entity->flags & PROJECTILE || !entity->union_enemy->in_agro || entity->union_enemy->dead_man || entity->flags & PROJECTILE) {
                         continue;
                     }
                     
@@ -3801,7 +3811,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    // printf("%zu\n", sizeof(Enemy));
+    // printf("%zu\n", sizeof(Entity));
     clear_allocator(&temp_allocator);
 
     frame_rnd = rnd01();
@@ -5332,13 +5342,15 @@ void update_editor_ui() {
         
         // enemy inspector
         if (selected->flags & ENEMY) {
+            assert(selected->union_enemy);
+        
             if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Enemy settings", "enemy_settings")) {
                 editor.draw_enemy_settings = !editor.draw_enemy_settings;
             }
             v_pos += height_add;
             
             if (editor.draw_enemy_settings) {
-                INSPECTOR_UI_TOGGLE("Gives ammo: ", "enemy_gives_ammo", selected->enemy.gives_ammo, );
+                INSPECTOR_UI_TOGGLE("Gives ammo: ", "enemy_gives_ammo", selected->union_enemy->gives_ammo, );
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Explosive: ", "enemy_explosive", selected->flags, EXPLOSIVE, 
                     if (!(selected->flags & EXPLOSIVE)) {
@@ -5354,8 +5366,8 @@ void update_editor_ui() {
                 
                 if (selected->flags & EXPLOSIVE) {
                     h_pos = 25;
-                    INSPECTOR_UI_INPUT_FIELD("Explosion radius: ", "explosive_radius_multiplier", "%.1f", selected->enemy.explosive_radius_multiplier, to_f32, 
-                        selected->enemy.explosive_radius_multiplier = fmaxf(selected->enemy.explosive_radius_multiplier, 0);
+                    INSPECTOR_UI_INPUT_FIELD("Explosion radius: ", "explosive_radius_multiplier", "%.1f", selected->union_enemy->explosive_radius_multiplier, to_f32, 
+                        selected->union_enemy->explosive_radius_multiplier = fmaxf(selected->union_enemy->explosive_radius_multiplier, 0);
                         init_entity(selected);
                     );
                     h_pos = 5;
@@ -5365,9 +5377,9 @@ void update_editor_ui() {
                 
                 if (selected->flags & BLOCKER) {
                     h_pos = 25;
-                    INSPECTOR_UI_TOGGLE("Blocker immortal: ", "blocker_immortal", selected->enemy.blocker_immortal, init_entity(selected));
-                    if (!selected->enemy.blocker_immortal) {
-                        INSPECTOR_UI_TOGGLE("Blocker clockwise: ", "blocker_clockwise", selected->enemy.blocker_clockwise, init_entity(selected));
+                    INSPECTOR_UI_TOGGLE("Blocker immortal: ", "blocker_immortal", selected->union_enemy->blocker_immortal, init_entity(selected));
+                    if (!selected->union_enemy->blocker_immortal) {
+                        INSPECTOR_UI_TOGGLE("Blocker clockwise: ", "blocker_clockwise", selected->union_enemy->blocker_clockwise, init_entity(selected));
                     }
                     h_pos = 5;
                 }
@@ -5375,14 +5387,14 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE_FLAGS("Shoot blocker: ", "enemy_shoot_blocker", selected->flags, SHOOT_BLOCKER, init_entity(selected)); 
                 if (selected->flags & SHOOT_BLOCKER) {
                     h_pos = 25;
-                    INSPECTOR_UI_TOGGLE("Shoot blocker immortal: ", "shoot_blocker_immortal", selected->enemy.shoot_blocker_immortal, init_entity(selected));
+                    INSPECTOR_UI_TOGGLE("Shoot blocker immortal: ", "shoot_blocker_immortal", selected->union_enemy->shoot_blocker_immortal, init_entity(selected));
                     h_pos = 5;
                 }
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Sword size required: ", "enemy_sword_size_required", selected->flags, SWORD_SIZE_REQUIRED, init_entity(selected)); 
                 if (selected->flags & SWORD_SIZE_REQUIRED) {
                     h_pos = 25;
-                    INSPECTOR_UI_TOGGLE("Big (1) or small (0) killable: ", "enemy_big_or_small_killable", selected->enemy.big_sword_killable, init_entity(selected));
+                    INSPECTOR_UI_TOGGLE("Big (1) or small (0) killable: ", "enemy_big_or_small_killable", selected->union_enemy->big_sword_killable, init_entity(selected));
                 
                     h_pos = 5;
                 }
@@ -5390,12 +5402,12 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE_FLAGS("Multiple hits: ", "enemy_multiple_hits", selected->flags, MULTIPLE_HITS, init_entity(selected)); 
             }
         
-            make_ui_text(tprintf("Ctrl+O/P Sword kill speed: %.1f", selected->enemy.sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
+            make_ui_text(tprintf("Ctrl+O/P Sword kill speed: %.1f", selected->union_enemy->sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
             type_info_v_pos += type_font_size;
             
             if (selected->flags & SHOOT_BLOCKER) {
-                if (!selected->enemy.shoot_blocker_immortal) {
-                    make_ui_text(tprintf("Ctrl+F/G Shoot Block Vector: {%.2f, %.2f}", selected->enemy.shoot_blocker_direction.x, selected->enemy.shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
+                if (!selected->union_enemy->shoot_blocker_immortal) {
+                    make_ui_text(tprintf("Ctrl+F/G Shoot Block Vector: {%.2f, %.2f}", selected->union_enemy->shoot_blocker_direction.x, selected->union_enemy->shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
                     type_info_v_pos += type_font_size;
                 }
             }
@@ -6938,8 +6950,10 @@ void update_editor() {
             }
         }
         
-        //enemy components
+        // editor enemy components
         if (selected->flags & ENEMY) {
+            assert(selected->union_enemy);
+        
             b32 wanna_increase_sword_kill_speed  = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_P);
             b32 wanna_decrease_sword_kill_speed  = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_O);
             
@@ -6947,12 +6961,12 @@ void update_editor() {
             
             if (wanna_increase_sword_kill_speed || wanna_decrease_sword_kill_speed) {   
                 f32 speed_change = wanna_increase_sword_kill_speed ? 0.5f : -0.5f;
-                selected->enemy.sword_kill_speed_modifier += speed_change;
+                selected->union_enemy->sword_kill_speed_modifier += speed_change;
             }
             
             if (wanna_rotate_shoot_blocker_direction && selected->flags & SHOOT_BLOCKER) {
                 f32 speed = IsKeyDown(KEY_F) ? -40 : 40;
-                selected->enemy.shoot_blocker_direction = get_rotated_vector(selected->enemy.shoot_blocker_direction, speed * core.time.real_dt);
+                selected->union_enemy->shoot_blocker_direction = get_rotated_vector(selected->union_enemy->shoot_blocker_direction, speed * core.time.real_dt);
             }
         }
         
@@ -7520,14 +7534,18 @@ inline b32 is_sword_can_damage() {
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity) {
-    return is_sword_can_damage() && !blocker_entity->enemy.blocker_immortal && (blocker_entity->enemy.blocker_clockwise ? player_data->sword_spin_direction > 0 : player_data->sword_spin_direction < 0);
+    assert(blocker_entity->union_enemy);
+    return is_sword_can_damage() && !blocker_entity->union_enemy->blocker_immortal && (blocker_entity->union_enemy->blocker_clockwise ? player_data->sword_spin_direction > 0 : player_data->sword_spin_direction < 0);
 }
 
 inline b32 can_damage_sword_size_required_enemy(Entity *enemy_entity) {
-    return is_sword_can_damage() && player_data->in_big_sword == enemy_entity->enemy.big_sword_killable;
+    assert(enemy_entity->union_enemy);
+    return is_sword_can_damage() && player_data->in_big_sword == enemy_entity->union_enemy->big_sword_killable;
 }
 
 inline b32 can_sword_damage_enemy(Entity *enemy_entity) {
+    assert(enemy_entity->union_enemy);
+
     b32 sword_can_damage = is_sword_can_damage();
     b32 is_blocker_damageble = true;
     if (enemy_entity->flags & BLOCKER) {
@@ -7538,15 +7556,17 @@ inline b32 can_sword_damage_enemy(Entity *enemy_entity) {
         is_sword_size_required_damageble = can_damage_sword_size_required_enemy(enemy_entity);
     }
     
-    return sword_can_damage && ((is_blocker_damageble && is_sword_size_required_damageble) || enemy_entity->enemy.dead_man);
+    return sword_can_damage && ((is_blocker_damageble && is_sword_size_required_damageble) || enemy_entity->union_enemy->dead_man);
 }
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
+    assert(enemy_entity->union_enemy);
+
     Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
     enemy_velocity->x = player_data->sword_spin_direction * 50 + enemy_velocity->x;
     
-    if (!enemy_entity->enemy.dead_man) {
+    if (!enemy_entity->union_enemy->dead_man) {
         add_hitstop(0.1f);
     }
     
@@ -7572,12 +7592,13 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
     if (!can_sword_damage_enemy(enemy_entity)) {
         return false;
     }
+    assert(enemy_entity->union_enemy);
 
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !is_player_in_stun() && is_enemy_can_take_damage(enemy_entity)) {
         b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
                 
-        Enemy *enemy = &enemy_entity->enemy;
+        Enemy *enemy = enemy_entity->union_enemy;
                 
         if (enemy_entity->flags & AMMO_PACK) {
             add_player_ammo(1);
@@ -7994,7 +8015,8 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                 
                 if (contiguous_failed_shots_count <= 5) {
                     ForEntities(entity, SHOOT_STOPER) {
-                        if (entity->enemy.in_agro) {
+                        assert(entity->union_enemy);
+                        if (entity->union_enemy->in_agro) {
                         
                             Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
                             sticky_line->sticky_texture->draw_line = true;
@@ -8297,7 +8319,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             continue;
         }
         
-        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal) {
+        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal) {
             continue;
         }
         
@@ -8413,7 +8435,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             continue;
         }
         
-        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->enemy.shoot_blocker_immortal) {
+        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal) {
             continue;
         }
         
@@ -8571,7 +8593,6 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
     assert(shooter_entity->flags & JUMP_SHOOTER);
 
     Jump_Shooter *shooter = shooter_entity->jump_shooter;
-    Enemy *enemy = &shooter_entity->enemy;
     Entity *other = col.other_entity;
     f32 speed   = magnitude(shooter->velocity);
     f32 speed_t = clamp01(speed / 300.0f);
@@ -8580,7 +8601,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
     
     b32 should_respond = true;
     
-    if (!enemy->dead_man && other->flags & PLAYER && shooter->states.flying_to_point) {
+    if (!shooter->dead_man && other->flags & PLAYER && shooter->states.flying_to_point) {
         if (can_sword_damage_enemy(shooter_entity)) {
             try_sword_damage_enemy(shooter_entity, shooter_entity->position);
         } else {
@@ -8591,7 +8612,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
     if (other->flags & GROUND) {
         resolve_collision(shooter_entity, col);
         
-        if (enemy->dead_man) {
+        if (shooter->dead_man) {
             emit_particles(&fire_emitter, shooter_entity->position, col.normal, 4, 3);
             play_sound("Explosion", shooter_entity->position, 0.3f);
             add_explosion_light(shooter_entity->position, rnd(100.0f, 250.0f), 0.15f, 0.4f, ColorBrightness(RED, 0.5f));
@@ -8615,8 +8636,8 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
             shooter->velocity = reflected_vector(shooter->velocity * 0.7f, col.normal);
             emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 0.5f);
             
-            if (enemy->was_in_stun) {
-                enemy->stun_start_time = -234;
+            if (shooter->was_in_stun) {
+                shooter->stun_start_time = -234;
             }
         }
     }
@@ -8730,14 +8751,15 @@ void move_by_velocity_with_collisions(Entity *entity, Vector2 velocity, f32 max_
 void update_bird_enemy(Entity *entity, f32 dt) {
     assert(entity->flags & BIRD_ENEMY);
     assert(entity->flags & ENEMY);
+    assert(entity->bird_enemy);
     
     Bird_Enemy *bird = entity->bird_enemy;
     Enemy *enemy = entity->bird_enemy;
     
-    if (!entity->enemy.in_agro && !enemy->dead_man) {
+    if (!bird->in_agro && !enemy->dead_man) {
         return;
-    } else if (entity->enemy.just_awake) {
-        entity->enemy.just_awake = false;
+    } else if (bird->just_awake) {
+        bird->just_awake = false;
         bird->roaming = true;
         bird->roam_start_time = core.time.game_time;
         enemy->birth_time = core.time.game_time;
@@ -8805,7 +8827,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
             if (time_since_last_bird_attacked >= 0.4f) {
                 //bird start attack
                 state_context.timers.last_bird_attack_time = core.time.game_time;
-                change_scale(entity, entity->enemy.original_scale);
+                change_scale(entity, bird->original_scale);
             
                 change_up(entity, dir_to_player);         
                 bird->charging = false;
@@ -8892,7 +8914,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
         f32 charging_time = core.time.game_time - bird->charging_start_time;
         f32 t = clamp01(charging_time / bird->max_charging_time);
         
-        change_scale(entity, lerp(entity->enemy.original_scale, {entity->enemy.original_scale.x * 1.2f, entity->enemy.original_scale.y * 2.0f}, t * t));
+        change_scale(entity, lerp(bird->original_scale, {bird->original_scale.x * 1.2f, bird->original_scale.y * 2.0f}, t * t));
         
         bird->velocity = move_towards(bird->velocity, Vector2_zero, bird_speed * 0.8f, dt);
         if (t < 0.4f) {
@@ -8932,8 +8954,9 @@ void update_bird_enemy(Entity *entity, f32 dt) {
 
 inline f32 get_explosion_radius(Entity *entity, f32 base_radius) {
     assert(entity->flags & EXPLOSIVE);
+    assert(entity->union_enemy);
 
-    base_radius *= entity->enemy.explosive_radius_multiplier;
+    base_radius *= entity->union_enemy->explosive_radius_multiplier;
 
     f32 scale_sum = (entity->scale.x * 0.5f + entity->scale.y * 0.5f);
     f32 scale_progress = clamp01(scale_sum / 200.0f);
@@ -8959,8 +8982,9 @@ void add_explosion_trauma(f32 explosion_radius) {
 
 void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 can_wait, f32 particles_speed_modifier) {
     assert(enemy_entity->flags & ENEMY);
+    assert(enemy_entity->union_enemy);
     
-    Enemy *enemy = &enemy_entity->enemy;
+    Enemy *enemy = enemy_entity->union_enemy;
     if (1 || !enemy->dead_man) {
         if (can_wait) {
             if (enemy_entity->flags & EXPLOSIVE && core.time.app_time - state_context.timers.last_explosion_app_time < 0.01f) {
@@ -9008,6 +9032,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         
         // explosive kill explosive
         if (enemy_entity->flags & EXPLOSIVE) {
+            assert(enemy_entity->union_enemy);
+        
             state_context.timers.last_explosion_app_time = core.time.app_time;
             f32 explosion_radius = get_explosion_radius(enemy_entity);
             
@@ -9049,8 +9075,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     continue;
                 }
                 
-                if (other_entity->flags & ENEMY && other_entity->enemy.max_hits_taken >= 0) {
-                    if (!other_entity->enemy.dead_man) {
+                if (other_entity->flags & ENEMY && other_entity->union_enemy->max_hits_taken >= 0) {
+                    if (!other_entity->union_enemy->dead_man) {
                         stun_enemy(other_entity, other_entity->position, dir_to_other, true);
                     }
                     
@@ -9098,16 +9124,17 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
 
 inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit_time) {
     assert(enemy_entity->flags & ENEMY);
+    assert(enemy_entity->union_enemy);
 
-    if (enemy_entity->flags & CENTIPEDE_SEGMENT && enemy_entity->enemy.dead_man) {
+    if (enemy_entity->flags & CENTIPEDE_SEGMENT && enemy_entity->union_enemy->dead_man) {
         return false;
     }
     
-    if (enemy_entity->enemy.player_cannot_kill) {
+    if (enemy_entity->union_enemy->player_cannot_kill) {
         return false;
     }
     
-    if (enemy_entity->flags & TRIGGER && enemy_entity->enemy.dead_man) {
+    if (enemy_entity->flags & TRIGGER && enemy_entity->union_enemy->dead_man) {
         return false;
     }
     
@@ -9120,16 +9147,18 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
         immune_time = 0.078f;
     }
     
-    b32 recently_got_hit = (core.time.game_time - enemy_entity->enemy.last_hit_time) <= immune_time;
+    b32 recently_got_hit = (core.time.game_time - enemy_entity->union_enemy->last_hit_time) <= immune_time;
     return !recently_got_hit;
 }
 
 void agro_enemy(Entity *entity) {
-    if (entity->enemy.in_agro || entity->enemy.dead_man) {
+    assert(entity->union_enemy);
+
+    if (entity->union_enemy->in_agro || entity->union_enemy->dead_man) {
         return;
     }
 
-    entity->enemy.in_agro = true;
+    entity->union_enemy->in_agro = true;
     
     add_explosion_light(entity->position, (entity->scale.y + entity->scale.x) * 10, 0.1f, 2.2f, Fade(ColorBrightness(RED, 0.5f), 0.2f), SMALL_LIGHT, entity->id);
     
@@ -9152,8 +9181,9 @@ inline Particle_Emitter *get_sword_kill_particle_emitter(Entity *enemy_entity) {
 
 void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direction, b32 serious) {
     assert(enemy_entity->flags & ENEMY);
+    assert(enemy_entity->union_enemy);
     
-    Enemy *enemy = &enemy_entity->enemy;
+    Enemy *enemy = enemy_entity->union_enemy;
     
     if (enemy_entity->flags & EXPLOSIVE) {
         kill_enemy(enemy_entity, kill_position, kill_direction);
@@ -9262,7 +9292,9 @@ inline f32 get_death_instinct_radius(Vector2 threat_scale) {
 
 b32 is_death_instinct_threat_active() {
     Entity *threat_entity = get_entity(state_context.death_instinct.threat_entity_id);
-    b32 entity_alive = threat_entity && !threat_entity->destroyed && !threat_entity->enemy.dead_man;
+    assert(threat_entity->union_enemy);
+    
+    b32 entity_alive = threat_entity && !threat_entity->destroyed && !threat_entity->union_enemy->dead_man;
     
     f32 since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
     b32 is_no_cooldown_on_stop = since_death_instinct <= state_context.death_instinct.allowed_duration_without_cooldown; 
@@ -9301,6 +9333,7 @@ void stop_death_instinct() {
     f32 time_since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
 
     Entity *threat_entity = get_entity(state_context.death_instinct.threat_entity_id);
+    assert(threat_entity->union_enemy);
 
     b32 is_threat_status_gives_cooldown = true;
     if (state_context.death_instinct.last_reason == ENEMY_ATTACKING) {
@@ -9313,7 +9346,7 @@ void stop_death_instinct() {
     } else if (state_context.death_instinct.last_reason == SWORD_WILL_EXPLODE) {
         // If there was explosive we want start cooldown if threat is still alive so player evaded explosion. 
         // That's because if player killed it - he taked risk and succeeded.
-        is_threat_status_gives_cooldown = (threat_entity && !threat_entity->enemy.dead_man);
+        is_threat_status_gives_cooldown = (threat_entity && !threat_entity->union_enemy->dead_man);
     }
     b32 should_start_cooldown = time_since_death_instinct >= state_context.death_instinct.allowed_duration_without_cooldown && is_threat_status_gives_cooldown;
 
@@ -9405,7 +9438,8 @@ void calculate_projectile_collisions(Entity *entity) {
                 b32 killed = false;
                 b32 can_damage = true;
                 
-                Enemy *enemy = &other->enemy;
+                assert(other->union_enemy);
+                Enemy *enemy = other->union_enemy;
                 
                 if (other->flags & SHOOT_BLOCKER) {
                     Vector2 shoot_blocker_direction = get_rotated_vector(enemy->shoot_blocker_direction, other->rotation);
@@ -9506,7 +9540,8 @@ void calculate_projectile_collisions(Entity *entity) {
     } else if (projectile->type == JUMP_SHOOTER_PROJECTILE) {
         fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
         // @CLEANUP We don't need JUMP_SHOOTER_PROJECTILE anymore because we don't want jump shooter.        
-        Enemy *enemy = &entity->enemy;
+        assert(entity->union_enemy);
+        Enemy *enemy = entity->union_enemy;
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
@@ -9536,7 +9571,8 @@ void calculate_projectile_collisions(Entity *entity) {
         }
     } else if (projectile->type == TURRET_DIRECT_PROJECTILE || projectile->type == TURRET_HOMING_PROJECTILE) {
         fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
-        Enemy *enemy = &entity->enemy;
+        assert(entity->union_enemy);
+        Enemy *enemy = entity->union_enemy;
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
@@ -9634,7 +9670,7 @@ void update_projectile(Entity *entity, f32 dt) {
             projectile->velocity *= 1.0f - (dt * damping_factor);
             projectile->dying = true;
             if (entity->flags & EXPLOSIVE || entity->flags & BLOCKER) {
-                disable_emitter(entity->enemy.alarm_emitter_index);
+                disable_emitter(entity->union_enemy->alarm_emitter_index);
             }
         } else {
         }
@@ -9684,7 +9720,7 @@ void update_sticky_texture(Entity *entity, f32 dt) {
         }
         entity->position = lerp(entity->position, target_position, dt * 40);
         
-        if (follow_entity->flags & ENEMY && follow_entity->enemy.dead_man && !st->should_draw_until_expires) {
+        if (follow_entity->flags & ENEMY && follow_entity->union_enemy->dead_man && !st->should_draw_until_expires) {
            st->should_draw_texture = false;
        }
     }
@@ -9813,7 +9849,7 @@ i32 update_trigger(Entity *e) {
         trigger_now = true;
     }
     
-    if (e->flags & ENEMY && e->enemy.dead_man) {
+    if (e->flags & ENEMY && e->union_enemy->dead_man) {
         if (e->trigger->triggered) {
             return TRIGGER_SOME_ACTION;
         }
@@ -9836,7 +9872,7 @@ i32 update_trigger(Entity *e) {
             
             Entity *tracking_entity = get_entity(id);
 
-            if (!tracking_entity->enemy.dead_man) {
+            if (!tracking_entity->union_enemy->dead_man) {
                 found_enemy = true;
                 break;
             } 
@@ -10114,19 +10150,20 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
     projectile_entity->projectile.max_lifetime = settings.max_lifetime;
     
     if (projectile_entity->flags & BLOCKER) {
-        projectile_entity->enemy.blocker_clockwise = settings.blocker_clockwise;
+        projectile_entity->union_enemy->blocker_clockwise = settings.blocker_clockwise;
     }
     
     if (type == TURRET_HOMING_PROJECTILE) {
         add_and_enable_entity_particle_emitter(projectile_entity, &small_air_dust_trail_emitter_copy, projectile_entity->position, true);
     }
-    projectile_entity->enemy.alarm_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &alarm_smoke_emitter_copy, projectile_entity->position, true);
+    projectile_entity->union_enemy->alarm_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &alarm_smoke_emitter_copy, projectile_entity->position, true);
     init_entity(projectile_entity);
 }
 
 global_variable f32 turret_max_angle_diversion = 70;
 inline void update_turret(Entity *entity, f32 dt) {
     Turret *turret = entity->turret;
+    assert(turret);
     
     if (!turret->activated) {
         // if (turret->homing && entity->rotation != turret->original_angle - turret_max_angle_diversion) {
@@ -10149,10 +10186,10 @@ inline void update_turret(Entity *entity, f32 dt) {
         // f32 sqr_distance = sqr_magnitude(vec_to_player);
             
         if (!check_rectangles_collision(player_entity->position, player_entity->scale, entity->position, {turret->shoot_width, turret->shoot_height})) {
-            entity->enemy.in_agro = false;
+            turret->in_agro = false;
             player_in_range = false;
         } else {
-            entity->enemy.in_agro = true;
+            turret->in_agro = true;
             Vector2 vec_to_player = player_entity->position - entity->position;
             Vector2 dir = normalized(vec_to_player);
             // This (- 2) because of the shitty raycast where we could hit obstacle *behind* player and count that as we don't 
@@ -10237,7 +10274,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
       
     // update explosive
     if (e->flags & EXPLOSIVE) {
-        if (e->enemy.should_explode && !e->enemy.dead_man) {
+        if (e->union_enemy->should_explode && !e->union_enemy->dead_man) {
             if (core.time.app_time - state_context.timers.last_explosion_app_time >= 0.01f) {    
                 kill_enemy(e, e->position, e->up, false);
             }
@@ -10255,7 +10292,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     
     // update multiple hits
     if (e->flags & MULTIPLE_HITS) {
-        Multiple_Hits *mod = &e->enemy.multiple_hits;
+        Multiple_Hits *mod = &e->union_enemy->multiple_hits;
         assert(mod->made_hits <= mod->required_hits && mod->made_hits >= 0);
         if (mod->made_hits > 0 && mod->seconds_to_regen > 0) {    
             mod->timer += dt;
@@ -10299,7 +10336,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         update_move_sequence(e, dt);
     }
     
-    if (e->flags & CENTIPEDE && debug.enemy_ai && !e->enemy.dead_man) {
+    if (e->flags & CENTIPEDE && debug.enemy_ai && !e->centipede->dead_man) {
         // update centipede
         Centipede *centipede = e->centipede;
         
@@ -10307,7 +10344,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         for (i32 i = 0; i < centipede->segments_count; i++) {
             Entity *segment = centipede->segments.get_value(i);
             
-            if (!segment->enemy.dead_man) {
+            if (!segment->centipede_segment->dead_man) {
                 alive_count += 1;
             }
         }
@@ -10349,18 +10386,17 @@ inline b32 update_entity(Entity *e, f32 dt) {
     if (e->flags & JUMP_SHOOTER && debug.enemy_ai) {
         // update jump shooter
         Jump_Shooter *shooter = e->jump_shooter;
-        Enemy *enemy = &e->enemy;
         
-        if (!enemy->in_agro) {
+        if (!shooter->in_agro) {
             shooter->states = {};
             shooter->states.standing_start_time = core.time.game_time;
         }
         
-        f32 in_stun_time = core.time.game_time - enemy->stun_start_time;
+        f32 in_stun_time = core.time.game_time - shooter->stun_start_time;
         
-        b32 is_stunned = in_stun_time <= enemy->max_stun_time;
+        b32 is_stunned = in_stun_time <= shooter->max_stun_time;
         
-        if (enemy->dead_man || is_stunned) {
+        if (shooter->dead_man || is_stunned) {
             shooter->velocity.y -= GRAVITY * dt;
             rotate(e, shooter->velocity.x * 30 * dt);
             shooter->states = {};
@@ -10369,13 +10405,13 @@ inline b32 update_entity(Entity *e, f32 dt) {
             shooter->states.standing_start_time = core.time.game_time;
             
             if (is_stunned) {
-                enemy->was_in_stun = true;
+                shooter->was_in_stun = true;
             }
-        } else if (enemy->was_in_stun) {
+        } else if (shooter->was_in_stun) {
             shooter->states.standing = true;
             shooter->states.standing_start_time = core.time.game_time;
             
-            enemy->was_in_stun = false;
+            shooter->was_in_stun = false;
         }
         
         f32 block_direction_switch_time = 1.5f;
@@ -10401,26 +10437,26 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 if (standing_time <= 1.0f) {
                     f32 landing_t = clamp01(standing_time / 1.0f);
                     
-                    Vector2 target_scale = {e->enemy.original_scale.x * 1.5f, e->enemy.original_scale.y * 0.5f};
+                    Vector2 target_scale = {shooter->original_scale.x * 1.5f, shooter->original_scale.y * 0.5f};
                     if (landing_t <= 0.20f) {
                         f32 t = clamp01(landing_t / 0.25f);
-                        change_scale(e, lerp(e->enemy.original_scale, target_scale, EaseOutElastic(t)));
+                        change_scale(e, lerp(shooter->original_scale, target_scale, EaseOutElastic(t)));
                     } else {
                         f32 t = clamp01((landing_t - 0.25f) / (1.0f - 0.25f));
-                        change_scale(e, lerp(target_scale, e->enemy.original_scale, EaseInOutElastic(t)));
+                        change_scale(e, lerp(target_scale, shooter->original_scale, EaseInOutElastic(t)));
                     }
                 }
                 // squeezing animation
                 if (standing_time >= max_standing_time - 1.0f) {
                     f32 anim_t = clamp01((standing_time - (max_standing_time - 1.0f)) / 1.0f);
                     
-                    Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 0.7f};
+                    Vector2 target_scale = {shooter->original_scale.x * 1.4f, shooter->original_scale.y * 0.7f};
                     if (anim_t <= 0.85f) {
                         f32 t = anim_t / 0.85f;
-                        change_scale(e, lerp(e->enemy.original_scale, target_scale, t * t));
+                        change_scale(e, lerp(shooter->original_scale, target_scale, t * t));
                     } else {
                         f32 t = (anim_t - 0.85f) / 0.3f;
-                        change_scale(e, lerp(target_scale, e->enemy.original_scale, sqrtf(t)));
+                        change_scale(e, lerp(target_scale, shooter->original_scale, sqrtf(t)));
                     }
                 } 
                 //jump shooter jump
@@ -10536,23 +10572,24 @@ inline b32 update_entity(Entity *e, f32 dt) {
                     }
                     
                     Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | additional_flags);
+                    assert(projectile_entity->union_enemy);
                     change_color(projectile_entity, ColorBrightness(RED, 0.4f));
                     projectile_entity->projectile.birth_time = core.time.game_time;
                     projectile_entity->projectile.type = JUMP_SHOOTER_PROJECTILE;
                     projectile_entity->projectile.velocity = direction * speed;
                     projectile_entity->projectile.max_lifetime = 15;
-                    projectile_entity->enemy.gives_ammo = false;
+                    projectile_entity->union_enemy->gives_ammo = false;
                     
                     if (shooter->shoot_sword_blockers) {
-                        projectile_entity->enemy.blocker_clockwise = shooter->blocker_clockwise;
-                        projectile_entity->enemy.blocker_immortal  = shooter->shoot_sword_blockers_immortal;
+                        projectile_entity->union_enemy->blocker_clockwise = shooter->blocker_clockwise;
+                        projectile_entity->union_enemy->blocker_immortal  = shooter->shoot_sword_blockers_immortal;
                     }
                     if (shooter->shoot_bullet_blockers) {
-                        projectile_entity->enemy.shoot_blocker_immortal = true;
+                        projectile_entity->union_enemy->shoot_blocker_immortal = true;
                     }
                     
                     add_and_enable_entity_particle_emitter(projectile_entity, &small_air_dust_trail_emitter_copy, projectile_entity->position, true);
-                    projectile_entity->enemy.alarm_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &alarm_smoke_emitter_copy, projectile_entity->position, true);
+                    projectile_entity->union_enemy->alarm_emitter_index = add_and_enable_entity_particle_emitter(projectile_entity, &alarm_smoke_emitter_copy, projectile_entity->position, true);
                     init_entity(projectile_entity);
                 }
                 
@@ -10605,8 +10642,8 @@ inline b32 update_entity(Entity *e, f32 dt) {
             f32 look_speed = lerp(0.0f, 14.0f, picking_point_t * picking_point_t);
             change_up(e, move_towards(e->up, dir, look_speed, dt));
             
-            Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 1.7f};
-            change_scale(e, lerp(e->enemy.original_scale, target_scale, picking_point_t * picking_point_t));
+            Vector2 target_scale = {shooter->original_scale.x * 1.4f, shooter->original_scale.y * 1.7f};
+            change_scale(e, lerp(shooter->original_scale, target_scale, picking_point_t * picking_point_t));
             
             if (trail_emitter) {
                 trail_emitter->direction = e->up * -1;
@@ -10640,8 +10677,8 @@ inline b32 update_entity(Entity *e, f32 dt) {
             f32 flying_t = clamp01(flying_time / max_flying_time);
             // when we fly we just wait for ground collision to change state and if it took too long - we should die
             
-            Vector2 target_scale = {e->enemy.original_scale.x * 1.4f, e->enemy.original_scale.y * 1.7f};
-            change_scale(e, lerp(target_scale, e->enemy.original_scale, sqrtf(flying_t)));
+            Vector2 target_scale = {shooter->original_scale.x * 1.4f, shooter->original_scale.y * 1.7f};
+            change_scale(e, lerp(target_scale, shooter->original_scale, sqrtf(flying_t)));
             
             if (flying_time >= 10.0f) {
                 kill_enemy(e, e->position, e->up);
@@ -10925,7 +10962,7 @@ void fill_entities_draw_queue() {
             local_persist Color attacking_line_color = Fade(RED, 0.6f);
             local_persist f32 charging_line_width = 1.5f;
             local_persist f32 attacking_line_width = 7.0f;
-            if (bird->charging && !entity->enemy.dead_man) {
+            if (bird->charging && !bird->dead_man) {
                 f32 charging_time = core.time.game_time - entity->bird_enemy->charging_start_time;
                 f32 t = clamp01(charging_time / entity->bird_enemy->max_charging_time);
                 Color attack_line_color = color_fade(charging_line_color, t * t);
@@ -10941,7 +10978,7 @@ void fill_entities_draw_queue() {
                 make_line(entity->position, attack_line_target_position, attack_line_width, attack_line_color);
             }
             
-            if (bird->attacking && !entity->enemy.dead_man) {
+            if (bird->attacking && !bird->dead_man) {
                 f32 attacking_time = core.time.game_time - bird->attack_start_time;
                 f32 t = clamp01(attacking_time / bird->max_attack_time);
                 
@@ -11119,7 +11156,7 @@ void fill_entities_draw_queue() {
                 if (is_trigger_selected && should_draw_editor_hints()) {
                     make_line(entity->position, tracked_entity->position, GREEN);
                 } else if (trigger->draw_lines_to_tracked && game_state != EDITOR) {
-                    if ((tracked_entity->flags & ENEMY | CENTIPEDE) && !tracked_entity->enemy.dead_man) {
+                    if ((tracked_entity->flags & ENEMY | CENTIPEDE) && !tracked_entity->union_enemy->dead_man) {
                         make_line(entity->position, tracked_entity->position, 1.0f, Fade(PINK, 0.3f));
                     }
                 }
@@ -11172,14 +11209,14 @@ void fill_entities_draw_queue() {
                     }
                     
                     if (follow_entity->flags & SWORD_SIZE_REQUIRED && st->should_draw_texture) {
-                        make_light(follow_entity->position, 75, 1.5, 0.7f, follow_entity->enemy.big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
+                        make_light(follow_entity->position, 75, 1.5, 0.7f, follow_entity->union_enemy->big_sword_killable ? ColorBrightness(RED, 0.4f) : BLUE);
                     }
                 }
                 
                 if (st->draw_line && st->need_to_follow && player_entity) {
                     Color line_color = st->line_color;
                     if (follow_entity && follow_entity->flags & ENEMY && st->max_lifetime > 0 && !(follow_entity->flags & SHOOT_STOPER)) {
-                        line_color = follow_entity->enemy.dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
+                        line_color = follow_entity->union_enemy->dead_man ? color_fade(SKYBLUE, 0.3f) : color_fade(RED, 0.3f);
                     }
         
                     Vector2 vec_to_follow = entity->position - player_entity->position;
@@ -11386,7 +11423,7 @@ void draw_entity(Entity *e) {
         draw_bird_enemy(e);
     } else if (e->flags & CENTIPEDE_SEGMENT) {
         Color color = e->color;
-        if (e->enemy.dead_man) {
+        if (e->union_enemy->dead_man) {
             //color = Fade(color, 0.3f);
             color = Fade(BLACK, 0.3f);
         }
@@ -11394,14 +11431,14 @@ void draw_entity(Entity *e) {
         if (e->centipede_segment->head->centipede->spikes_on_right) {
             draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
         } else {
-            if (!e->enemy.dead_man) {
+            if (!e->union_enemy->dead_man) {
                 draw_game_circle(e->position + e->right * e->scale.x * 0.5f, 2.0f, GREEN);
             }
         }
         if (e->centipede_segment->head->centipede->spikes_on_left) {
             draw_spikes(e, e->up, e->right * -1.0f, e->scale.y, e->scale.x);
         } else {
-            if (!e->enemy.dead_man) {
+            if (!e->union_enemy->dead_man) {
                 draw_game_circle(e->position - e->right * e->scale.x * 0.5f, 2.0f, GREEN);
             }
         }
@@ -11487,7 +11524,7 @@ void draw_entity(Entity *e) {
         }
     } else if (e->flags & ENEMY && e->flags & TRIGGER) {
         Color color = e->color;
-        if (e->enemy.dead_man) {
+        if (e->union_enemy->dead_man) {
             color = ColorTint(color, ColorBrightness(BROWN, 0.15f));
             color = ColorBrightness(color, 0.1f);
             // color = color_fade(color, 0.6f);
@@ -11522,7 +11559,7 @@ void draw_entity(Entity *e) {
         Vector2 position = e->position - Vector2_up * 5 - Vector2_right * width * 0.5f;
         draw_game_rect(position, {width, height}, {0, 0}, 0, Fade(BROWN, 0.9f));
         
-        f32 progress = (f32)e->enemy.multiple_hits.made_hits / (f32)e->enemy.multiple_hits.required_hits;
+        f32 progress = (f32)e->union_enemy->multiple_hits.made_hits / (f32)e->union_enemy->multiple_hits.required_hits;
         width *= progress;
         draw_game_rect(position, {width, height}, {0, 0}, 0, PINK);
     }
@@ -11579,12 +11616,12 @@ void draw_entity(Entity *e) {
         draw_game_triangle_strip(e, e->color * 0.1f);
     }
     
-    if (e->flags & BLOCKER && (game_state == EDITOR) && !e->enemy.blocker_immortal) {
-        Texture texture = e->enemy.blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
+    if (e->flags & BLOCKER && (game_state == EDITOR) && !e->union_enemy->blocker_immortal) {
+        Texture texture = e->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
         
         draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.6f));
     }
-    if (e->flags & BLOCKER && e->enemy.blocker_immortal) {
+    if (e->flags & BLOCKER && e->union_enemy->blocker_immortal) {
         Vector2 triangle1 = {e->position.x, e->position.y + 3};
         Vector2 triangle2 = {e->position.x - 3, e->position.y - 3};
         Vector2 triangle3 = {e->position.x + 3, e->position.y - 3};
@@ -11592,7 +11629,7 @@ void draw_entity(Entity *e) {
     }
     
     if (e->flags & SWORD_SIZE_REQUIRED && (game_state == EDITOR)) {
-        Texture texture = e->enemy.big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
+        Texture texture = e->union_enemy->big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
         
         draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
     }
@@ -11600,10 +11637,10 @@ void draw_entity(Entity *e) {
     
     if (e->flags & SHOOT_BLOCKER) {
         // draw shoot blockers
-        if (e->enemy.shoot_blocker_immortal) {
+        if (e->union_enemy->shoot_blocker_immortal) {
             draw_game_ring_lines(e->position, 3, 6, 8, WHITE);                
         } else {
-            Vector2 direction = get_rotated_vector(e->enemy.shoot_blocker_direction, e->rotation);
+            Vector2 direction = get_rotated_vector(e->union_enemy->shoot_blocker_direction, e->rotation);
             f32 len        = e->scale.x * 0.4f + e->scale.y * 0.4f;
             
             Vector2 start_position = e->position - direction * len;
