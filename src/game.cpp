@@ -2232,7 +2232,9 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
                 
                 segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
                 
+                i32 my_index = segment->union_enemy->index;
                 *segment->union_enemy = *entity->union_enemy; // Just copying enemy settings that were applied to centipede in editor.
+                segment->union_enemy->index =my_index;
                 
                 init_entity(segment);
             }
