@@ -90,6 +90,8 @@ Shader env_light_shader;
 
 Shader gaussian_blur_shader;
 
+global_variable Array <String> entities_names = {0};
+
 global_variable Image white_pixel_image;
 global_variable Texture white_pixel_texture;
 global_variable Image white_transparent_pixel_image;
@@ -1673,6 +1675,12 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
         return make_string(allocator, "Ground");  
     } else if (entity->flags & BIRD_ENEMY) {
         return make_string(allocator, "Bird_enemy");  
+    } else if (entity->flags & CENTIPEDE) {
+        return make_string(allocator, "Centipede");  
+    } else if (entity->flags & CENTIPEDE_SEGMENT) {
+        return make_string(allocator, "Centipede_segment");  
+    } else if (entity->flags & AMMO_PACK) {
+        return make_string(allocator, "Ammo_pack");  
     } 
         
     return make_string(allocator, "No_name");
@@ -2091,6 +2099,17 @@ void init_propeller_emitter_settings(Entity *e, Particle_Emitter *air_emitter) {
     air_emitter->direction           = e->up;
 }
 
+String *register_entity_name(Entity *entity) {
+    String name = temp_entity_name(entity);
+    
+    i32 index = entities_names.find(name);
+    if (index < 0) {
+        return entities_names.append(get_entity_name(entity, HEAP_ALLOCATOR));
+    }
+    
+    return entities_names.get(index);
+}
+
 // In default case ignore_existing_types is set to false, which means that when we're going to re-init entity
 // for any reason - we will not add new type info to type array if one already set (for example trigger or enemy)
 // and we will keep old one and re-init other things.
@@ -2481,6 +2500,8 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->projectile->index = index;
         }
     }
+    
+    entity->name = register_entity_name(entity);
     
     calculate_bounds(entity);
     setup_color_changer(entity);

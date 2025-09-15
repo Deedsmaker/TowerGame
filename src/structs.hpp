@@ -820,7 +820,7 @@ struct Entity {
     
     Level_Context *level_context = NULL;
     
-    // Maybe we should add entity name as a pointer to string for debugging purposes.
+    String *name;
 
     b32 enabled = 12;
     
