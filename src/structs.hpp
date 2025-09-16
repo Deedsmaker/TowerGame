@@ -580,8 +580,6 @@ struct Bird_Enemy : Enemy {
     // Sound_Handler *attack_sound = NULL;
 };
 
-#define MAX_CENTIPEDE_SEGMENTS 64
-
 struct Entity;
 
 // Even though Centipede itself currently can't take damage it still counts as enemy beacuse with that we can 

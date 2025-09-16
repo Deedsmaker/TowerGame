@@ -4539,6 +4539,7 @@ void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> verti
     for (i32 i = 0; i < collision_cells_buffer.count; i++) {
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
         
+        // Here we just combine static and dynamic entities.
         Array <i32> entities_in_cell = {.allocator = &temp_allocator};
         entities_in_cell.append_another_array(&cell->dynamic_entities);
         entities_in_cell.append_another_array(&cell->static_entities);
@@ -4546,7 +4547,7 @@ void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> verti
         for (i32 c = 0; c < entities_in_cell.count; c++) {
             Entity *other = get_entity(entities_in_cell.get_value(c));
             
-            if (other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && game_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id)) {
+            if (other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && game_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id) || other->will_be_destroyed) {
                 continue;
             }
             
@@ -4561,7 +4562,7 @@ void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> verti
     }
 }
 
-void fill_collisions(Entity *entity, Array<Collision> *result, FLAGS include_flags) {
+void fill_collisions(Entity *entity, Array <Collision> *result, FLAGS include_flags) {
     if (entity->destroyed || !entity->enabled) {
         return;
     }
@@ -5485,7 +5486,7 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE("Spikes on left: ", "spikes_on_left", selected->centipede->spikes_on_left, );
 
                 INSPECTOR_UI_INPUT_FIELD("Segments count:", "segments_count", "%d", selected->centipede->segments_count, to_i32,
-                    selected->centipede->segments_count = fminf(selected->centipede->segments_count, MAX_CENTIPEDE_SEGMENTS);
+                    selected->centipede->segments_count = fminf(selected->centipede->segments_count, 128);
                 );
             }
         }
@@ -10393,6 +10394,9 @@ inline b32 update_entity(Entity *e, f32 dt) {
         // update centipede
         Centipede *centipede = e->centipede;
         
+        // @SPEED: We could make this faster by just not checking every segment every frame and just let segments tell centipede
+        // that they're dead. But actually we'll remove move_sequence from centiepde eventually and it will update segments 
+        // by itself probably, so that's not actually a problem.
         i32 alive_count = 0;
         for (i32 i = 0; i < centipede->segments_count; i++) {
             Entity *segment = centipede->segments.get_value(i);
@@ -10423,7 +10427,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             for (i32 i = 0; i < centipede->segments_count; i++) {
                 Entity *segment = centipede->segments.get_value(i);
                 // Centipede itself will tell all the segments to be destroyed.
-                // mark_entity_destroyed(segment);
+                mark_entity_destroyed(segment);
                 
                 // segment->flags = ENEMY | BIRD_ENEMY;
                 // segment->move_sequence->moving = false;
@@ -11728,6 +11732,10 @@ void draw_entities() {
     
     for (i32 entity_index = 0; entity_index < entities->count; entity_index++) {
         Entity *e = entities->get(entity_index);
+        
+        if (e->destroyed || e->will_be_destroyed) {
+            continue;
+        }
         
         if (game_state == GAME && !session_context.updated_today) {
             //
