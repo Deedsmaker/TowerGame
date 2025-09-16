@@ -629,11 +629,6 @@ struct Color_Changer{
     f32 change_time = 2.0f;
 };
 
-struct Text_Drawer{
-    const char *text;  
-    f32 size = 30;
-};
-
 struct Collision{
     b32 collided;
     f32 overlap;
