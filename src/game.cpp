@@ -2196,7 +2196,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->centipede->index = index;
         }
         
-            // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
+        // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
         if (game_state == GAME) {
             assert(entity->centipede);     
             Centipede *centipede = entity->centipede;
@@ -2240,6 +2240,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             }
         }
     } else if (entity->flags & CENTIPEDE_SEGMENT) {    // init centipede segment.
+        assert(!(entity->flags & CENTIPEDE));
         if (!entity->centipede_segment || ignore_existing_types) {
             i32 index = -1;
             entity->centipede_segment = entity->level_context->centipede_segments.append({0}, &index);
@@ -2278,7 +2279,11 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->union_enemy = entity->level_context->just_enemies.append({0}, &index);
             entity->union_enemy->index = index;
         }
-        
+    }
+    
+    // That's for things that we want to init for every enemy.
+    if (entity->flags & ENEMY) {
+        assert(entity->union_enemy);
         entity->union_enemy->original_scale = entity->scale;
     }
     
@@ -9173,6 +9178,9 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
     if (enemy_entity->flags & CENTIPEDE_SEGMENT && enemy_entity->union_enemy->dead_man) {
         return false;
     }
+    if (enemy_entity->flags & CENTIPEDE) {
+        return false;
+    }
     
     if (enemy_entity->union_enemy->player_cannot_kill) {
         return false;
@@ -9592,6 +9600,7 @@ void calculate_projectile_collisions(Entity *entity) {
             Entity *other = col.other_entity;
             
             if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT) {
+                assert(!(other->flags & CENTIPEDE));
                 kill_enemy(entity, col.point, col.normal);
                 emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
             }
@@ -11466,6 +11475,7 @@ void draw_entity(Entity *e) {
     if (e->flags & BIRD_ENEMY) {
         draw_bird_enemy(e);
     } else if (e->flags & CENTIPEDE_SEGMENT) {
+        assert(!(e->flags & CENTIPEDE));
         Color color = e->color;
         if (e->union_enemy->dead_man) {
             //color = Fade(color, 0.3f);
@@ -12497,6 +12507,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     }
     // copy centipede segment
     if (e->flags & CENTIPEDE_SEGMENT && to_copy->centipede_segment) {
+        assert(!(e->flags & CENTIPEDE));
         assert(e->centipede_segment);
         i32 my_index = e->centipede_segment->index;
         *e->centipede_segment = *to_copy->centipede_segment;
