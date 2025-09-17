@@ -11349,7 +11349,7 @@ inline b32 should_draw_editor_hints() {
 }
 
 void draw_entity(Entity *e) {
-    if (!e->enabled) {
+    if (!e->enabled || e->will_be_destroyed) {
         return;
     }
     
