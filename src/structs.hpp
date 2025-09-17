@@ -14,19 +14,14 @@ struct Level_Context;
 
 #define LINE_TRAIL_MAX_POINTS 128
 
-struct Consts{
-      
-};
-Consts consts = {};
-
-struct Line_Trail{
+struct Line_Trail {
     b32 occupied = false;
     Static_Array <Vector2, LINE_TRAIL_MAX_POINTS> positions = {0};
     Vector2 last_added_position = Vector2_zero;
     i32 start_index = 0;
 };
 
-enum Particle_Shape{
+enum Particle_Shape {
     SQUARE,
     PARTICLE_TEXTURE,
     PARTICLE_LINE
@@ -51,7 +46,7 @@ struct Particle {
     Color color = YELLOW;
 };
 
-enum Particle_Spawn_Area{
+enum Particle_Spawn_Area {
     CIRCLE = 0,  
     BOX = 1
 };
@@ -114,13 +109,13 @@ constexpr i32 MAX_PARTICLES = BIG_COUNT_PARTICLES_START_INDEX + MAX_BIG_COUNT_PA
 // Also we will have small emitters to go through.
 //
 
-enum Particle_Emitter_Count{
+enum Particle_Emitter_Count {
     SMALL_PARTICLE_COUNT,  
     MEDIUM_PARTICLE_COUNT,
     BIG_PARTICLE_COUNT
 };
 
-struct Particle_Emitter{
+struct Particle_Emitter {
     char tag_16[16] = "Untagged";    
 
     // These just 'copy' emitters.
@@ -176,7 +171,7 @@ struct Particle_Emitter{
     
     Vector2 spawn_offset = Vector2_zero;
     
-    union{
+    union {
         f32 spawn_radius;
         Vector2 spawn_area;
     };
@@ -215,14 +210,14 @@ struct Particle_Emitter{
     Color color = YELLOW;
 };
 
-struct Texture_Data{
+struct Texture_Data {
     char name[64] = "\0";  
     Texture texture = {};
 };
 
 #define MAX_SINGLE_SOUND 16
 
-struct Sound_Handler{
+struct Sound_Handler {
     char name[64] = "\0";
     Static_Array <Sound, MAX_SINGLE_SOUND> buffer = {0};
     
@@ -235,7 +230,7 @@ struct Sound_Handler{
     f32 pitch_variation = 0.3f;
 };
 
-enum Flags : u64{
+enum Flags : u64 {
     GROUND              = 1 << 0,
     
     PLAYER              = 1 << 2,
@@ -280,7 +275,7 @@ enum Flags : u64{
     HOMING_TURRET           = (static_cast<u64>(1) << 42),
 };
 
-struct Move_Point{
+struct Move_Point {
     Vector2 position = Vector2_zero;  
     Vector2 normal = Vector2_zero;
 };
@@ -384,7 +379,7 @@ struct Jump_Shooter : Enemy {
     
     Vector2 jump_direction = Vector2_up;
 
-    struct shooter_states{
+    struct shooter_states {
         f32 standing_start_time      = 0;
         f32 jump_start_time          = 0;
         f32 charging_start_time      = 0;
@@ -462,7 +457,7 @@ struct Door {
     f32 time_to_close = 1.5f;
 };
 
-enum Trigger_Action_Type{
+enum Trigger_Action_Type {
     TRIGGER_SOME_ACTION = 1 << 0,  
     TRIGGER_LEVEL_LOAD  = 1 << 1
 };
@@ -516,7 +511,7 @@ struct Trigger {
     Vector2 locked_camera_position = Vector2_zero;
 };
 
-struct Velocity_Move{
+struct Velocity_Move {
     f32 acceleration = 150;  
     f32 deceleration = 1000;
     
@@ -541,7 +536,7 @@ Vector2 bird_formation_positions[MAX_BIRD_POSITIONS] = {
         {0, 80}, {-30, 50}, {30, 50}, {0, 40}, {-100, 30}, {100, 30}, {-80, 50}, {80, 50}
 };
 
-struct Bird_Slot{
+struct Bird_Slot {
     b32 occupied = false;  
     i32 index = -1;    
 };
@@ -615,7 +610,7 @@ struct Sticky_Texture {
     f32 birth_time = 0;
 };
 
-struct Color_Changer{
+struct Color_Changer {
     b32 frame_changing = false;
     
     b32 changing = false;
@@ -629,7 +624,7 @@ struct Color_Changer{
     f32 change_time = 2.0f;
 };
 
-struct Collision{
+struct Collision {
     b32 collided;
     f32 overlap;
     Entity *other_entity;
@@ -639,7 +634,7 @@ struct Collision{
     Vector2 dir_to_first;
 };
 
-struct Bounds{
+struct Bounds {
     Vector2 size;  
     Vector2 offset;
 };
@@ -718,7 +713,7 @@ struct Player {
     b32 on_moving_object = false;
     Vector2 moving_object_velocity = Vector2_zero;
     
-    struct Connected_Entities_Ids{
+    struct Connected_Entities_Ids {
         i32 ground_checker_id = -1;
         i32 left_wall_checker_id = -1;
         i32 right_wall_checker_id = -1;
@@ -751,7 +746,7 @@ struct Player {
     i32 tires_emitter_index = -1;
 };
 
-enum Projectile_Type{  
+enum Projectile_Type { 
     UNDEFINED_PROJECTILE     = 0,
     PLAYER_RIFLE_PROJECTILE  = 1,
     JUMP_SHOOTER_PROJECTILE  = 2,
@@ -788,7 +783,7 @@ struct Projectile {
 
 #define MAX_COLLISION_CELL_OBJECTS 256
 
-struct Collision_Grid_Cell{
+struct Collision_Grid_Cell {
     Array <i32> dynamic_entities = {0};
     Array <i32> static_entities = {0};
 };
@@ -946,14 +941,14 @@ global_variable Player *player_data = {};
 global_variable Player real_player_data = {};
 global_variable Player replay_player_data = {};
 
-struct Spawn_Object{
+struct Spawn_Object {
     char name[64];
     Entity entity = {0};
 };
 
 //scale 150 should be full screen;
 
-struct Cam{
+struct Cam {
     Vector2 position = Vector2_zero;
     f32 target_zoom = 0.35f;
     
@@ -974,7 +969,7 @@ struct Cam{
 struct Particle;
 struct Particle_Emitter;
 
-struct Time{      
+struct Time {      
     f32 target_dt = TARGET_FRAME_TIME;
     f32 previous_dt = 0;
     f32 dt = 0;  
@@ -990,11 +985,9 @@ struct Time{
     f32 hitstop = 0;
 };
 
-struct Core{
+struct Core {
     Time time;
 };
-
-#define MAX_ENTITIES 10000
 
 struct Speedrun_Timer {
     b32 level_timer_active = false;    
@@ -1196,14 +1189,14 @@ struct Session_Context{
     Speedrun_Timer speedrun_timer = {};
 };
 
-struct Line{
+struct Line {
     Vector2 start_position  = Vector2_zero;  
     Vector2 target_position = Vector2_zero;
     f32 thick = 0;
     Color color = PINK;
 };
 
-struct Ring_Lines{
+struct Ring_Lines {
     Vector2 center = Vector2_zero;  
     f32 inner_radius = 0;  
     f32 outer_radius = 0;  
@@ -1211,7 +1204,7 @@ struct Ring_Lines{
     Color color = PINK;
 };
 
-struct Rect_Lines{
+struct Rect_Lines {
     Vector2 position = Vector2_zero;  
     Vector2 scale = Vector2_one;
     Vector2 pivot = {0.5f, 0.5f};
@@ -1219,7 +1212,7 @@ struct Rect_Lines{
     Color color = PINK;
 };
 
-struct Immediate_Texture{
+struct Immediate_Texture {
     Texture texture = {};
     Vector2 position = Vector2_zero;
     Vector2 scale = Vector2_one;
@@ -1228,13 +1221,13 @@ struct Immediate_Texture{
     Color color = WHITE;
 };
 
-struct Outline{
+struct Outline {
     Vector2 position = Vector2_zero;
     Static_Array <Vector2, MAX_VERTICES> vertices = {0};
     Color color = PINK;
 };
 
-struct Render{
+struct Render {
     Array <Line> lines_to_draw                   = {0};
     Array <Ring_Lines> ring_lines_to_draw        = {0};
     Array <Rect_Lines> rect_lines_to_draw        = {0};
@@ -1250,7 +1243,7 @@ struct Render{
     RenderTexture main_render_texture;
 };
 
-enum Hold_Flags{
+enum Hold_Flags {
     UP         = 1 << 1,
     DOWN       = 1 << 2,
     RIGHT      = 1 << 3,
@@ -1260,7 +1253,7 @@ enum Hold_Flags{
     SWORD_BIG_DOWN = 1 << 10
 };
 
-enum Press_Flags{
+enum Press_Flags {
     JUMP           = 1 << 1,
     SHOOT          = 1 << 2,
     SPIN           = 1 << 3,
@@ -1269,7 +1262,7 @@ enum Press_Flags{
     SHOOT_RELEASED = 1 << 6
 };
 
-struct Input{
+struct Input {
     // @HACK. Gotta do real replays.
     Vector2 player_position = Vector2_zero;
 
@@ -1290,12 +1283,12 @@ struct Input{
 };
 
 #define MAX_INPUT_RECORDS (FIXED_FPS * 60)
-struct Replay_Frame_Data{
+struct Replay_Frame_Data {
     Input frame_input = {};  
     // Time frame_time_data = {};
 };
 
-struct Level_Replay{
+struct Level_Replay {
     i32 start_frame = 0;    
     Array <Replay_Frame_Data> input_record = {0};
 };
@@ -1304,12 +1297,12 @@ struct Level_Replay{
 //     Context context;  
 // };
 
-struct Circle{
+struct Circle {
     Vector2 position;  
     f32 radius;
 };
 
-enum Entity_Edge_Type{
+enum Entity_Edge_Type {
     NONE,  
     LEFT_EDGE,
     RIGHT_EDGE,
@@ -1424,12 +1417,12 @@ struct Editor {
     b32 draw_light_settings = false;
 };
 
-struct Log_Message{
+struct Log_Message {
     char data[256] = "\0";  
     f32 birth_time = -12;
 };
 
-struct Debug{
+struct Debug {
     f32 last_zoom = 0.35f;
 
     b32 full_light = false;
