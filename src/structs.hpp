@@ -1474,7 +1474,6 @@ struct Console {
     Array <Medium_Str> history = {0};
     int history_max = 0;
     
-    // String str = String();
     String_Builder content_builder = {0};
     
     f32 closed_time = -12;

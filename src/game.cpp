@@ -124,8 +124,9 @@ Sound_Handler *missing_sound = NULL;
 #include "ui.hpp"
 #include "lightmaps.cpp"
 
-#include "entity_ids.cpp"
+// #include "entity_ids.cpp"
 #include "dynamic_lights.cpp"
+#include "undo.cpp"
 
 Player last_player_data = {};
 Player death_player_data = {};
