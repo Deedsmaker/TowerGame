@@ -4690,97 +4690,81 @@ void move_vertex(Entity *entity, Vector2 target_position, i32 vertex_index) {
     calculate_bounds(entity);
 }
 
-void add_undo_action(Undo_Action undo_action) {
-    // We're appending undo only on current editor level context and not in undo level context, just because every level should
-    // know it's undos.
-    Undo_Action *new_undo = current_level_context->undo_actions.append(undo_action);
+// void add_undo_action(Undo_Action undo_action) {
+//     // We're appending undo only on current editor level context and not in undo level context, just because every level should
+//     // know it's undos.
+//     Undo_Action *new_undo = current_level_context->undo_actions.append(undo_action);
     
-    Level_Context *original_level_context = current_level_context;
-    switch_current_level_context(&undo_level_context);
-    // for (i32 i = 0; i < new_undo->deleted_entities.count; i++) {
-    //     free_entity(new_undo->deleted_entities.get_value(i));
-    // }
-    // new_undo->deleted_entities.clear();
+//     Level_Context *original_level_context = current_level_context;
+//     switch_current_level_context(&undo_level_context);
+//     // for (i32 i = 0; i < new_undo->deleted_entities.count; i++) {
+//     //     free_entity(new_undo->deleted_entities.get_value(i));
+//     // }
+//     // new_undo->deleted_entities.clear();
     
-    if (original_level_context->undo_actions.count >= MAX_UNDOS) {
-        for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
-            original_level_context->undo_actions.get(i)->changed_entities.clear();
-            for (i32 d = 0; d < new_undo->deleted_entities.count; d++) {
-                free_entity(new_undo->deleted_entities.get_value(d));
-            }
-            original_level_context->undo_actions.get(i)->deleted_entities.clear();
-        }
-        original_level_context->undo_actions.remove_first_half();
-    }
+//     if (original_level_context->undo_actions.count >= MAX_UNDOS) {
+//         for (i32 i = 0; i < (i32)(MAX_UNDOS * 0.5f); i++) {
+//             original_level_context->undo_actions.get(i)->changed_entities.clear();
+//             for (i32 d = 0; d < new_undo->deleted_entities.count; d++) {
+//                 free_entity(new_undo->deleted_entities.get_value(d));
+//             }
+//             original_level_context->undo_actions.get(i)->deleted_entities.clear();
+//         }
+//         original_level_context->undo_actions.remove_first_half();
+//     }
     
-    switch_current_level_context(original_level_context);
+//     switch_current_level_context(original_level_context);
     
-    editor.max_undos_added = original_level_context->undo_actions.count;
-    
-}
+//     editor.max_undos_added = original_level_context->undo_actions.count;
+// }
 
-void undo_add_position(Entity *entity, Vector2 position_change) {
-    Undo_Action undo_action;
-    undo_action.position_change = position_change;
-    undo_action.moved_entity_points = editor.move_entity_points;
-    undo_action.entity_id = entity->id;
-    add_undo_action(undo_action);
-}
+// // void undo_add_multiselect_position_change(Vector2 change) {
+//     Undo_Action undo_action;
+//     undo_action.position_change = change;
+//     undo_action.moved_entity_points = editor.multiselection.entities.count > 1 ? true : editor.move_entity_points;
 
-void undo_add_multiselect_position_change(Vector2 change) {
-    Undo_Action undo_action;
-    undo_action.position_change = change;
-    undo_action.moved_entity_points = editor.multiselection.entities.count > 1 ? true : editor.move_entity_points;
+//     for (i32 i = 0; i < editor.multiselection.entities.count; i++) {
+//         undo_action.changed_entities.append(editor.multiselection.entities.get_value(i));
+//     }
+    
+//     add_undo_action(undo_action);
+// }
 
-    for (i32 i = 0; i < editor.multiselection.entities.count; i++) {
-        undo_action.changed_entities.append(editor.multiselection.entities.get_value(i));
-    }
+// // void undo_add_scaling(Entity *entity, Vector2 scale_change) {
+//     Undo_Action undo_action;
+//     undo_action.entity_id = entity->id;
+//     undo_action.scale_change = scale_change;
     
-    add_undo_action(undo_action);
-}
+//     //SHOULD REMEMBER THEM BEFORE
+//     undo_apply_vertices_change(editor.selected_entity, &undo_action);
+    
+//     add_undo_action(undo_action);
+// }
 
-void undo_add_draw_order(Entity *entity, i32 draw_order_change) {
-    Undo_Action undo_action;
-    undo_action.draw_order_change = draw_order_change;
-    undo_action.entity_id = entity->id;
-    add_undo_action(undo_action);
-}
-
-void undo_add_scaling(Entity *entity, Vector2 scale_change) {
-    Undo_Action undo_action;
-    undo_action.entity_id = entity->id;
-    undo_action.scale_change = scale_change;
+// // void undo_add_rotation(Entity *entity, f32 rotation_change) {
+//     Undo_Action undo_action;
+//     undo_action.entity_id = entity->id;
+//     undo_action.rotation_change = rotation_change;
     
-    //SHOULD REMEMBER THEM BEFORE
-    undo_apply_vertices_change(editor.selected_entity, &undo_action);
+//     //SHOULD REMEMBER THEM BEFORE
+//     undo_apply_vertices_change(entity, &undo_action);
     
-    add_undo_action(undo_action);
-}
-
-void undo_add_rotation(Entity *entity, f32 rotation_change) {
-    Undo_Action undo_action;
-    undo_action.entity_id = entity->id;
-    undo_action.rotation_change = rotation_change;
-    
-    //SHOULD REMEMBER THEM BEFORE
-    undo_apply_vertices_change(entity, &undo_action);
-    
-    add_undo_action(undo_action);
-}
+//     add_undo_action(undo_action);
+// }
 
 void editor_delete_entity(Entity *entity, b32 add_undo) {
-    if (add_undo) {
-        Undo_Action undo_action = {};
-        undo_action.entity_was_deleted = true;
-        Level_Context *original_level_context = current_level_context;
-        switch_current_level_context(&undo_level_context);
-        undo_action.deleted_entities.append(copy_and_add_entity(editor.selected_entity, &undo_level_context));
-        undo_action.changed_entities.append(editor.selected_entity->id);
-        switch_current_level_context(original_level_context);
-        // copy_entity(&undo_action.deleted_entity, editor.selected_entity);
-        // undo_action.entity_id = undo_action.deleted_entity.id;
-        add_undo_action(undo_action);
-    }
+    // if (add_undo) {
+    //     Undo_Action undo_action = {};
+    //     undo_action.entity_was_deleted = true;
+    //     Level_Context *original_level_context = current_level_context;
+    //     switch_current_level_context(&undo_level_context);
+    //     undo_action.deleted_entities.append(copy_and_add_entity(editor.selected_entity, &undo_level_context));
+    //     undo_action.changed_entities.append(editor.selected_entity->id);
+    //     switch_current_level_context(original_level_context);
+    //     // copy_entity(&undo_action.deleted_entity, editor.selected_entity);
+    //     // undo_action.entity_id = undo_action.deleted_entity.id;
+    //     add_undo_action(undo_action);
+    // }
     mark_entity_destroyed(entity);
     // editor.selected_entity = NULL;
     assign_selected_entity(NULL);
@@ -4788,15 +4772,15 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
     editor.cursor_entity   = NULL;
 }
 
-void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *undo_action) {    
-    if (undo_action) {
-        undo_action->changed_entities.clear();
-        undo_action->deleted_entities.clear();
-    }
+void editor_delete_multiselected_entities(b32 add_undo_to_list) {    
+    // if (undo_action) {
+    //     undo_action->changed_entities.clear();
+    //     undo_action->deleted_entities.clear();
+    // }
 
-    if (undo_action && add_undo_to_list) {
-        undo_action->entity_was_deleted = true;
-    }
+    // if (undo_action && add_undo_to_list) {
+    //     undo_action->entity_was_deleted = true;
+    // }
     for (i32 i = 0; i < editor.multiselection.entities.count; i++) {
         Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
         if (!entity) {
@@ -4806,26 +4790,21 @@ void editor_delete_multiselected_entities(b32 add_undo_to_list, Undo_Action *und
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&undo_level_context);
         
-        if (undo_action) {
-            // @LEAK: Check if we're freeing all stuff in deleted_entities.
-            undo_action->deleted_entities.append(copy_and_add_entity(entity, &undo_level_context));
-            undo_action->changed_entities.append(entity->id);
-        }
+        // if (undo_action) {
+        //     // @LEAK: Check if we're freeing all stuff in deleted_entities.
+        //     undo_action->deleted_entities.append(copy_and_add_entity(entity, &undo_level_context));
+        //     undo_action->changed_entities.append(entity->id);
+        // }
         switch_current_level_context(original_level_context);
         editor_delete_entity(entity, false);
     }
     
-    if (add_undo_to_list) {
-        add_undo_action(*undo_action);
-    }
+    // if (add_undo_to_list) {
+    //     add_undo_action(*undo_action);
+    // }
         
     // Do not add multiselection selection type undo here, because on undo/redo we selecting them if we deleted them.
     editor.multiselection.entities.clear();
-}
-
-inline void editor_delete_multiselected_entities() {
-    Undo_Action undo_action = {};
-    editor_delete_multiselected_entities(true, &undo_action);
 }
 
 void editor_delete_entity(i32 entity_id, b32 add_undo) {
@@ -4833,32 +4812,32 @@ void editor_delete_entity(i32 entity_id, b32 add_undo) {
     editor_delete_entity(get_entity(entity_id), add_undo);
 }
 
-void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action) {
-    for (i32 i = 0; i < entity->vertices.count; i++) {
-        *undo_action->vertices_change.append(entity->vertices.get_value(i) - editor.vertices_start.get_value(i));
-        *undo_action->unscaled_vertices_change.append(entity->unscaled_vertices.get_value(i) - editor.unscaled_vertices_start.get_value(i));
-    }
-    undo_action->vertices_change.count = entity->vertices.count;
-    undo_action->unscaled_vertices_change.count = entity->unscaled_vertices.count;
-    undo_action->entity_id = entity->id;
-}
+// void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action) {
+//     for (i32 i = 0; i < entity->vertices.count; i++) {
+//         *undo_action->vertices_change.append(entity->vertices.get_value(i) - editor.vertices_start.get_value(i));
+//         *undo_action->unscaled_vertices_change.append(entity->unscaled_vertices.get_value(i) - editor.unscaled_vertices_start.get_value(i));
+//     }
+//     undo_action->vertices_change.count = entity->vertices.count;
+//     undo_action->unscaled_vertices_change.count = entity->unscaled_vertices.count;
+//     undo_action->entity_id = entity->id;
+// }
 
-void undo_add_vertices_change(Entity *entity) {
-    Undo_Action undo_action = {};   
-    undo_apply_vertices_change(entity, &undo_action);
-    add_undo_action(undo_action);
-}
+// // void undo_add_vertices_change(Entity *entity) {
+//     Undo_Action undo_action = {};   
+//     undo_apply_vertices_change(entity, &undo_action);
+//     add_undo_action(undo_action);
+// }
 
-void undo_remember_vertices_start(Entity *entity) {
-    editor.vertices_start.clear();
-    editor.unscaled_vertices_start.clear();
-    for (i32 i = 0; i < entity->vertices.count; i++) {
-        *editor.vertices_start.append(entity->vertices.get_value(i));
-        *editor.unscaled_vertices_start.append( entity->unscaled_vertices.get_value(i));
-    }
-    editor.vertices_start.count = entity->vertices.count; 
-    editor.unscaled_vertices_start.count = entity->unscaled_vertices.count; 
-}
+// // void undo_remember_vertices_start(Entity *entity) {
+//     editor.vertices_start.clear();
+//     editor.unscaled_vertices_start.clear();
+//     for (i32 i = 0; i < entity->vertices.count; i++) {
+//         *editor.vertices_start.append(entity->vertices.get_value(i));
+//         *editor.unscaled_vertices_start.append( entity->unscaled_vertices.get_value(i));
+//     }
+//     editor.vertices_start.count = entity->vertices.count; 
+//     editor.unscaled_vertices_start.count = entity->unscaled_vertices.count; 
+// }
 
 // New selected could be NULL, which means that we're not selecting anyone anymore.
 void assign_selected_entity(Entity *new_selected) {
@@ -5080,7 +5059,7 @@ void update_editor_ui() {
             } else {
                 assert(false);
             }
-            undo_add_position(selected, selected->position - old_position);
+//             undo_add_position(selected, selected->position - old_position);
         }
         // v_pos += height_add;
 
@@ -5098,7 +5077,7 @@ void update_editor_ui() {
             ) {
             Vector2 old_scale = editor.selected_entity->scale;
             Vector2 new_scale = old_scale;
-            undo_remember_vertices_start(editor.selected_entity);
+//             undo_remember_vertices_start(editor.selected_entity);
             
             if (str_equal(focus_input_field.tag, "inspector_scale_x")) {
                 new_scale.x = to_f32(focus_input_field.content);
@@ -5113,7 +5092,7 @@ void update_editor_ui() {
                 add_scale(editor.selected_entity, scale_add);
             }
             
-            undo_add_scaling(editor.selected_entity, scale_add);
+//             undo_add_scaling(editor.selected_entity, scale_add);
         }
         v_pos += height_add;
         
@@ -5123,7 +5102,7 @@ void update_editor_ui() {
             f32 old_rotation = editor.selected_entity->rotation;
             f32 new_rotation = old_rotation;
             
-            undo_remember_vertices_start(editor.selected_entity);
+//             undo_remember_vertices_start(editor.selected_entity);
             
             if (str_equal(focus_input_field.tag, "inspector_rotation")) {
                 new_rotation = to_f32(focus_input_field.content);
@@ -5136,7 +5115,7 @@ void update_editor_ui() {
                 rotate(editor.selected_entity, rotation_add);
             }
             
-            undo_add_rotation(editor.selected_entity, rotation_add);
+//             undo_add_rotation(editor.selected_entity, rotation_add);
         }
         v_pos += height_add;
         
@@ -5164,7 +5143,7 @@ void update_editor_ui() {
                     editor.selected_entity->draw_order += draw_order_add;
                 }
                 
-                undo_add_draw_order(editor.selected_entity, draw_order_add);
+//                 undo_add_draw_order(editor.selected_entity, draw_order_add);
             }
         }
         v_pos += height_add;
@@ -5675,12 +5654,12 @@ void update_editor_ui() {
                 entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
                 
-                Undo_Action undo_action;
-                // @LEAK: Check that we free that.
-                undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
-                undo_action.entity_id = entity->id;
-                undo_action.entity_was_spawned = true;
-                add_undo_action(undo_action);
+                // Undo_Action undo_action;
+                // // @LEAK: Check that we free that.
+                // undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
+                // undo_action.entity_id = entity->id;
+                // undo_action.entity_was_spawned = true;
+                // add_undo_action(undo_action);
             }
             
             if (obj.entity.flags & TEXTURE) {
@@ -5760,12 +5739,12 @@ Entity *editor_spawn_entity(const char *name, Vector2 position) {
     Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5));
     
     if (entity) {
-        Undo_Action undo_action;
-        // @LEAK: Check that we're freeing this.
-        undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
-        undo_action.entity_id = entity->id;
-        undo_action.entity_was_spawned = true;
-        add_undo_action(undo_action);
+        // Undo_Action undo_action;
+        // // @LEAK: Check that we're freeing this.
+        // undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
+        // undo_action.entity_id = entity->id;
+        // undo_action.entity_was_spawned = true;
+        // add_undo_action(undo_action);
     }
     
     return entity;
@@ -5805,17 +5784,17 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     Vector2 new_position = closest_vertex_global - *entity_vertex;
     Vector2 position_change = new_position - entity->position;
     entity->position = new_position;     
-    undo_add_position(entity, position_change);
+//     undo_add_position(entity, position_change);
     
     // // Because when we start moving vertex we remembering these vertices already. 
     // // So if we do that here aswell - on undo vertices will go on place where we pressed button.
     // // Really need to change undo system though.
     // if (!editor.moving_vertex_entity) {
-    //     undo_remember_vertices_start(editor.selected_entity);
+//     //     undo_remember_vertices_start(editor.selected_entity);
     // }
     // move_vertex(editor.selected_entity, closest_vertex_global, vertex_index);
 
-    // undo_add_vertices_change(editor.selected_entity);
+//     // undo_add_vertices_change(editor.selected_entity);
     
     return true;
 }
@@ -5873,46 +5852,46 @@ void editor_mouse_move_entity(Entity *entity) {
     }
 }
 
-void restore_deleted_entities(Undo_Action *action) {
-    assert(action->deleted_entities.count > 0);
-    assert(action->deleted_entities.count == action->changed_entities.count);
-    editor.multiselection.entities.clear();
-    for (i32 i = 0; i < action->deleted_entities.count; i++) {            
-        i32 deleted_entity_id = action->changed_entities.get_value(i);
-        // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
-        // he's taked that id - on undo we should remove him.
-        // assert(get_entity(deleted_entity_id) == NULL);
-        // @TODO: Here we actually would like to 
-        Entity *deleted_entity = action->deleted_entities.get_value(i);
+// void restore_deleted_entities(Undo_Action *action) {
+//     assert(action->deleted_entities.count > 0);
+//     assert(action->deleted_entities.count == action->changed_entities.count);
+//     editor.multiselection.entities.clear();
+//     for (i32 i = 0; i < action->deleted_entities.count; i++) {            
+//         i32 deleted_entity_id = action->changed_entities.get_value(i);
+//         // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
+//         // he's taked that id - on undo we should remove him.
+//         // assert(get_entity(deleted_entity_id) == NULL);
+//         // @TODO: Here we actually would like to 
+//         Entity *deleted_entity = action->deleted_entities.get_value(i);
         
-        Entity *restored_entity = copy_and_add_entity(deleted_entity, current_level_context, deleted_entity->id);
-        restored_entity->id = deleted_entity_id;
+//         Entity *restored_entity = copy_and_add_entity(deleted_entity, current_level_context, deleted_entity->id);
+//         restored_entity->id = deleted_entity_id;
         
-        if (action->changed_entities.count > 1) {
-            editor.multiselection.entities.append(deleted_entity_id);
-        } else {
-            // editor.selected_entity = restored_entity;
-            assign_selected_entity(restored_entity);
-        }
-    }
-}
+//         if (action->changed_entities.count > 1) {
+//             editor.multiselection.entities.append(deleted_entity_id);
+//         } else {
+//             // editor.selected_entity = restored_entity;
+//             assign_selected_entity(restored_entity);
+//         }
+//     }
+// }
 
 void add_to_multiselection(i32 id, b32 add_to_undo) {
     if (!editor.multiselection.entities.contains(id)) {
         editor.multiselection.entities.append(id);
         
         if (add_to_undo) {
-            Undo_Action undo_action = {};
-            undo_action.added_to_multiselection = true;
-            undo_action.changed_entities.append(id);
-            add_undo_action(undo_action);
+            // Undo_Action undo_action = {};
+            // undo_action.added_to_multiselection = true;
+            // undo_action.changed_entities.append(id);
+            // add_undo_action(undo_action);
         }
     }
 }
 
 void add_to_multiselection(Array<i32> *ids, b32 add_to_undo) {
-    Undo_Action undo_action = {};
-    undo_action.added_to_multiselection = true;
+    // Undo_Action undo_action = {};
+    // undo_action.added_to_multiselection = true;
     
     for (i32 i = 0 ; i < ids->count; i++) {
         i32 id = ids->get_value(i);
@@ -5921,19 +5900,19 @@ void add_to_multiselection(Array<i32> *ids, b32 add_to_undo) {
             editor.multiselection.entities.append(id);
             
             if (add_to_undo) {
-                undo_action.changed_entities.append(id);
+                // undo_action.changed_entities.append(id);
             }
         }
     }
     
-    if (add_to_undo && undo_action.changed_entities.count > 0) {
-        add_undo_action(undo_action);
-    }
+    // if (add_to_undo && undo_action.changed_entities.count > 0) {
+        // add_undo_action(undo_action);
+    // }
 }
 
 void remove_from_multiselection(Array<i32> *ids, b32 add_to_undo) {
-    Undo_Action undo_action = {};
-    undo_action.removed_from_multiselection = true;
+    // Undo_Action undo_action = {};
+    // undo_action.removed_from_multiselection = true;
 
     for (i32 i = 0; i < ids->count; i++) {
         i32 id = ids->get_value(i);
@@ -5942,14 +5921,14 @@ void remove_from_multiselection(Array<i32> *ids, b32 add_to_undo) {
             editor.multiselection.entities.remove(index_to_remove_from_multiselected);
             
             if (add_to_undo) {
-                undo_action.changed_entities.append(id);
+                // undo_action.changed_entities.append(id);
             }
         }
     }
     
-    if (add_to_undo && undo_action.changed_entities.count > 0) {
-        add_undo_action(undo_action);
-    }
+    // if (add_to_ulndo && undo_action.changed_entities.count > 0) {
+    //     add_undo_action(undo_action);
+    // }
 }
 
 void remove_from_multiselection(i32 id, b32 add_to_undo) {
@@ -5957,12 +5936,12 @@ void remove_from_multiselection(i32 id, b32 add_to_undo) {
     if (index >= 0) {
         editor.multiselection.entities.remove(index);
         
-        if (add_to_undo) {
-            Undo_Action undo_action = {};
-            undo_action.removed_from_multiselection = true;
-            undo_action.changed_entities.append(id);
-            add_undo_action(undo_action);
-        }
+        // if (add_to_undo) {
+        //     Undo_Action undo_action = {};
+        //     undo_action.removed_from_multiselection = true;
+        //     undo_action.changed_entities.append(id);
+        //     add_undo_action(undo_action);
+        // }
     }
 }
 
@@ -5970,12 +5949,12 @@ void remove_from_multiselection(i32 id, b32 add_to_undo) {
 // we will select the same entities.
 void clear_multiselected_entities(b32 add_to_undo) {
     if (add_to_undo && editor.multiselection.entities.count > 0) {
-        Undo_Action undo_action = {};
-        undo_action.removed_from_multiselection = true;
+        // Undo_Action undo_action = {};
+        // undo_action.removed_from_multiselection = true;
         for (i32 i = 0; i < editor.multiselection.entities.count; i++) {
-            undo_action.changed_entities.append(editor.multiselection.entities.get_value(i));
+            // undo_action.changed_entities.append(editor.multiselection.entities.get_value(i));
         }
-        add_undo_action(undo_action);
+        // add_undo_action(undo_action);
     }
     
     editor.multiselection.entities.clear();
@@ -6047,7 +6026,7 @@ void try_move_entity_edges(Entity *e) {
         if (editor.moving_entity_edge_type != NONE) {
             // So we really clicked on edge this frame and we should remember vertices because I am just writed retarded 
             // undo system long ago and this shit needs full rewrite.
-            undo_remember_vertices_start(e);
+//             undo_remember_vertices_start(e);
             editor.moving_edge_start_entity_position = e->position;
             editor.moving_edge_start_entity_scale = e->scale;
         }
@@ -6111,13 +6090,13 @@ void rotate_multiselected(f32 to_rotate) {
         
         // @TODO: Should rewrite undo system and make that we add to undo all the changes at once so we don't have to undo
         // a thousand times.
-        undo_remember_vertices_start(entity);
+//         undo_remember_vertices_start(entity);
         rotate(entity, to_rotate);
-        undo_add_rotation(entity, (to_rotate));
+//         undo_add_rotation(entity, (to_rotate));
         
         Vector2 before_position = entity->position;
         rotate_around_point(&entity->position, editor.multiselection.center, to_rotate);
-        undo_add_position(entity, entity->position - before_position);
+//         undo_add_position(entity, entity->position - before_position);
     }
 }
 
@@ -6217,8 +6196,8 @@ void update_editor() {
         Vector2 grid_target_pos = current_level_context->cam.position;
         session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
     }
-    Undo_Action undo_action;
-    b32 something_in_undo = false;
+    // Undo_Action undo_action;
+    // b32 something_in_undo = false;
     b32 can_control_with_single_button = !focus_input_field.in_focus && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_LEFT_ALT);
     b32 can_select = !clicked_ui;
     
@@ -6308,15 +6287,15 @@ void update_editor() {
                 if (e->scale != editor.moving_edge_start_entity_scale) {
                     Vector2 position_change = e->position - editor.moving_edge_start_entity_position;
                     Vector2 scale_change    = e->scale - editor.moving_edge_start_entity_scale;
-                    Undo_Action undo_action = {};
-                    undo_action.position_change = position_change;
-                    undo_action.moved_entity_points = false;
-                    undo_action.scale_change = scale_change;
+                    // Undo_Action undo_action = {};
+                    // undo_action.position_change = position_change;
+                    // undo_action.moved_entity_points = false;
+                    // undo_action.scale_change = scale_change;
                     
                     // We remembered vertices when just clicked on edge in try_move_entity_edges.
-                    undo_apply_vertices_change(e, &undo_action);
+                    // undo_apply_vertices_change(e, &undo_action);
                     
-                    add_undo_action(undo_action);
+                    // add_undo_action(undo_action);
                 }
                 editor.moving_entity_edge_type = NONE;
                 editor.moving_entity_edge_id = -1;
@@ -6345,7 +6324,7 @@ void update_editor() {
     //assign move vertex
     // if (need_move_vertices && moving_vertex_entity_candidate) {
     //     assign_moving_vertex_entity (moving_vertex_entity_candidate, moving_vertex_candidate);
-    //     undo_remember_vertices_start(moving_vertex_entity_candidate);
+//     //     undo_remember_vertices_start(moving_vertex_entity_candidate);
     // }
     
     // if (need_snap_vertex && editor.moving_vertex && editor.moving_vertex_entity) {
@@ -6485,7 +6464,7 @@ void update_editor() {
             editor.dragging_start = input.mouse_position;
         }
         if (was_moving_multiselected && !should_move_multiselected) {
-            undo_add_multiselect_position_change(multiselection->total_displacement_for_undo);
+//             undo_add_multiselect_position_change(multiselection->total_displacement_for_undo);
         }
         
         was_moving_multiselected = should_move_multiselected;
@@ -6562,7 +6541,7 @@ void update_editor() {
         multiselection->center = {most_left_entity_position.x + (most_right_entity_position.x - most_left_entity_position.x) * 0.5f, most_bottom_entity_position.y + (most_top_entity_position.y - most_bottom_entity_position.y) * 0.5f};
         
         if (IsKeyPressed(KEY_X)) {
-            editor_delete_multiselected_entities();
+            // editor_delete_multiselected_entities();
         }
     }
     
@@ -6586,15 +6565,15 @@ void update_editor() {
         editor.selected_this_click = false;
         
         if (editor.dragging_entity) {
-            undo_add_position(editor.dragging_entity, editor.dragging_entity->position - editor.dragging_start);
+//             undo_add_position(editor.dragging_entity, editor.dragging_entity->position - editor.dragging_start);
         }
         
         editor.dragging_entity = NULL;
         
         if (editor.moving_vertex_entity) {
-            something_in_undo = true;
-            undo_action.entity_id = editor.moving_vertex_entity->id;
-            undo_apply_vertices_change(editor.moving_vertex_entity, &undo_action);
+            // something_in_undo = true;
+            // undo_action.entity_id = editor.moving_vertex_entity->id;
+            // undo_apply_vertices_change(editor.moving_vertex_entity, &undo_action);
         }
         
         editor.moving_vertex = NULL;
@@ -6608,9 +6587,9 @@ void update_editor() {
             Vector2 next_position = round_to_factor(editor.selected_entity->position + tap_move, CELL_SIZE);
             Vector2 move_amount = next_position - editor.selected_entity->position;
             editor.selected_entity->position += move_amount;
-            undo_action.position_change = move_amount;
-            undo_action.entity_id = editor.selected_entity->id;
-            something_in_undo = true;
+            // undo_action.position_change = move_amount;
+            // undo_action.entity_id = editor.selected_entity->id;
+            // something_in_undo = true;
         }
     }
     
@@ -6652,8 +6631,8 @@ void update_editor() {
             
             assign_selected_entity(NULL);
             
-            Undo_Action undo_action = {};
-            undo_action.entity_was_spawned = true;
+            // Undo_Action undo_action = {};
+            // undo_action.entity_was_spawned = true;
         
             local_persist Array<i32> spawned_entities = {0};
             spawned_entities.clear();
@@ -6671,11 +6650,11 @@ void update_editor() {
                     multiselection->entities.append(spawned->id);
                 }
                 
-                undo_action.changed_entities.append(spawned->id);
+                // undo_action.changed_entities.append(spawned->id);
             }
             assert(spawned_entities.count == editor.copied_entities.count);
             
-            add_undo_action(undo_action);
+            // add_undo_action(undo_action);
             
             // Right now we want to verify connected entities only to triggers.
             // Again - that's because when we copy trigger and in multiselected was his connected guys - they will have different
@@ -6775,7 +6754,7 @@ void update_editor() {
         f32 speed = 50;
         if (!editor.is_rotating_entity && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_Q))) {
             editor.rotating_start = editor.selected_entity->rotation;
-            undo_remember_vertices_start(editor.selected_entity);
+//             undo_remember_vertices_start(editor.selected_entity);
             editor.is_rotating_entity = true;
         } 
         
@@ -6790,7 +6769,7 @@ void update_editor() {
         }
         
         if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))) {
-            undo_add_rotation(editor.selected_entity, editor.selected_entity->rotation - editor.rotating_start);
+//             undo_add_rotation(editor.selected_entity, editor.selected_entity->rotation - editor.rotating_start);
             editor.is_rotating_entity = false;
         } 
     } else if ((editor.selected_entity || multiselection->entities.count > 1) && can_control_with_single_button) {
@@ -6811,9 +6790,9 @@ void update_editor() {
             } else {
             f32 next_rotation = round_to_factor(editor.selected_entity->rotation + to_rotate, 15);
             to_rotate = next_rotation - editor.selected_entity->rotation;
-            undo_remember_vertices_start(editor.selected_entity);
+//             undo_remember_vertices_start(editor.selected_entity);
             rotate(editor.selected_entity, to_rotate);
-            undo_add_rotation(editor.selected_entity, (to_rotate));
+//             undo_add_rotation(editor.selected_entity, (to_rotate));
         }
         }
         
@@ -6828,9 +6807,9 @@ void update_editor() {
                 if (multiselection->entities.count > 1) {
                     rotate_multiselected(direction);                    
                 } else {
-                undo_remember_vertices_start(editor.selected_entity);
+//                 undo_remember_vertices_start(editor.selected_entity);
                 rotate(editor.selected_entity, direction);
-                undo_add_rotation(editor.selected_entity, (direction));
+//                 undo_add_rotation(editor.selected_entity, (direction));
                 }
                 holding_time = 0;
             }
@@ -6844,7 +6823,7 @@ void update_editor() {
         
         if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))) {
             editor.scaling_start = editor.selected_entity->scale;
-            undo_remember_vertices_start(editor.selected_entity);
+//             undo_remember_vertices_start(editor.selected_entity);
             editor.is_scaling_entity = true;
         }
         if      (IsKeyDown(KEY_W)) scaling.y += speed * dt;
@@ -6859,7 +6838,7 @@ void update_editor() {
         if (editor.is_scaling_entity && (IsKeyUp(KEY_W) && IsKeyUp(KEY_S) && IsKeyUp(KEY_A) && IsKeyUp(KEY_D))) {
             Vector2 scale_change = editor.selected_entity->scale - editor.scaling_start;
             
-            undo_add_scaling(editor.selected_entity, scale_change);
+//             undo_add_scaling(editor.selected_entity, scale_change);
             editor.is_scaling_entity = false;
         } 
     } else if (editor.selected_entity && can_control_with_single_button && editor.moving_entity_edge_type == NONE) {
@@ -6878,9 +6857,9 @@ void update_editor() {
             next_scale = {round_to_factor(next_scale.x, scale_amount), round_to_factor(next_scale.y, scale_amount)};
             scaling = next_scale - editor.selected_entity->scale;
         
-            undo_remember_vertices_start(editor.selected_entity);
+//             undo_remember_vertices_start(editor.selected_entity);
             add_scale(editor.selected_entity, scaling);
-            undo_add_scaling(editor.selected_entity, scaling);
+//             undo_add_scaling(editor.selected_entity, scaling);
         }
         
         if (IsKeyReleased(KEY_W) || IsKeyReleased(KEY_S) || IsKeyReleased(KEY_A) || IsKeyReleased(KEY_D)) {
@@ -6904,9 +6883,9 @@ void update_editor() {
                 if      (IsKeyDown(KEY_D)) scaling.x += scale_amount;
                 else if (IsKeyDown(KEY_A)) scaling.x -= scale_amount;
                 
-                undo_remember_vertices_start(editor.selected_entity);
+//                 undo_remember_vertices_start(editor.selected_entity);
                 add_scale(editor.selected_entity, scaling);
-                undo_add_scaling(editor.selected_entity, scaling);
+//                 undo_add_scaling(editor.selected_entity, scaling);
                 holding_time = 0;
             }
         } else {
@@ -7090,9 +7069,9 @@ void update_editor() {
     }
     
     //undo logic
-    if (something_in_undo) {
-        add_undo_action(undo_action);
-    }
+    // if (something_in_undo) {
+        // add_undo_action(undo_action);
+    // }
     
     local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
     
@@ -7103,80 +7082,6 @@ void update_editor() {
     b32 undo_queued = is_action_queued(&undo_repeat_data, undo_pressed, undo_holded);
     
     if (undo_queued && current_level_context->undo_actions.count > 0) {
-        Undo_Action *action = current_level_context->undo_actions.pop();
-        
-        focus_input_field.in_focus = false;
-        
-        // So we removing changed entities from multiselection
-        if (action->added_to_multiselection) {
-            for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get_value(i);
-                i32 index_in_multiselected = multiselection->entities.find(id);
-                if (index_in_multiselected >= 0) {
-                    multiselection->entities.remove(index_in_multiselected);
-                }
-            }
-        }
-        
-        // So we adding it again
-        if (action->removed_from_multiselection) {
-            for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get_value(i);
-                if (!multiselection->entities.contains(id)) {
-                    multiselection->entities.append(id);
-                }
-            }
-        }        
-        
-        if (action->entity_was_deleted) {
-            restore_deleted_entities(action);            
-        } else if (action->entity_was_spawned) {
-            if (action->entity_id > 0) {
-                editor_delete_entity(action->entity_id, false);
-            }
-            
-            if (action->changed_entities.count > 0) {
-                multiselection->entities.clear();
-                for (i32 i = 0; i < action->changed_entities.count; i++) {
-                    multiselection->entities.append(action->changed_entities.get_value(i));
-                }
-                editor_delete_multiselected_entities(false, action);
-            }
-        } else {
-            for (i32 i = 0; i < action->changed_entities.count; i++) {
-                Entity *changed_entity = get_entity(action->changed_entities.get_value(i));
-                // It should be there anyway i think, because even if we delete them - we should restore them firstly.
-                assert(changed_entity);
-                
-                changed_entity->position -= action->position_change;
-                if (action->moved_entity_points) {
-                    editor_move_entity_points(changed_entity, action->position_change * -1.0f);
-                }
-            }
-            
-            if (action->entity_id > 0) {
-                // assert(current_level_context->entities.has_key(action->entity_id));
-                Entity *undo_entity = get_entity(action->entity_id);
-    
-                undo_entity->position   -= action->position_change;
-                if (action->moved_entity_points) {
-                    editor_move_entity_points(undo_entity, action->position_change * -1.0f);
-                }
-                
-                
-                undo_entity->scale      -= action->scale_change;
-                undo_entity->rotation   -= action->rotation_change;
-                undo_entity->draw_order -= action->draw_order_change;
-                
-                for (i32 i = 0; i < action->vertices_change.count; i++) {
-                    *undo_entity->vertices.get(i)          -= action->vertices_change.get_value(i);
-                    *undo_entity->unscaled_vertices.get(i) -= action->unscaled_vertices_change.get_value(i);
-                }
-                rotate(undo_entity, 0);
-                
-                calculate_bounds(undo_entity);
-            }
-        }
     }
     
     local_persist Repeat_Action redo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
@@ -7190,82 +7095,6 @@ void update_editor() {
     // redo logic
     b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && redo_queued;
     if (need_make_redo) {
-        // @TODO: That's unstable. Will change that with undo system rework. Probably should use some different data structure
-        // for that. Or not.
-        Undo_Action *action = current_level_context->undo_actions.increase_count_and_get_last();
-        
-        // So we adding it again.
-        if (action->added_to_multiselection) {
-            for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get_value(i);
-                if (!multiselection->entities.contains(id)) {
-                    multiselection->entities.append(id);
-                }
-            }
-        }
-        
-        // So we removing it again
-        if (action->removed_from_multiselection) {
-            for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 id = action->changed_entities.get_value(i);
-                i32 index_in_multiselected = multiselection->entities.find(id);
-                if (index_in_multiselected >= 0) {
-                    multiselection->entities.remove(index_in_multiselected);
-                }
-            }
-        }        
-        
-        if (action->entity_was_deleted) { //so we need delete this again
-            for (i32 i = 0; i < action->changed_entities.count; i++) {
-                i32 entity_id_to_delete = action->changed_entities.get_value(i);
-                assert(get_entity(entity_id_to_delete));
-                editor_delete_entity(get_entity(entity_id_to_delete), false);
-            }
-        } else if (action->entity_was_spawned) { //so we need spawn this again
-            if (action->entity_id > 0) {
-                Entity *restored_entity = copy_and_add_entity(action->spawned_entity, current_level_context, action->spawned_entity->id);
-                // restored_entity->id = action->spawned_entity.id;
-                action->entity_id = restored_entity->id;
-            }
-            
-            if (action->deleted_entities.count > 0) {
-                restore_deleted_entities(action);
-            }
-        } else {
-            for (i32 i = 0; i < action->changed_entities.count; i++) {
-                Entity *changed_entity = get_entity(action->changed_entities.get_value(i));
-                // It should be there anyway i think, because even if we delete them - we should restore them firstly.
-                assert(changed_entity);
-                
-                changed_entity->position += action->position_change;
-                if (action->moved_entity_points) {
-                    editor_move_entity_points(changed_entity, action->position_change);
-                }
-            }
-            
-            if (action->entity_id > 0) {
-                // assert(current_level_context->entities.has_key(action->entity_id));
-                Entity *undo_entity = get_entity(action->entity_id);
-                
-                undo_entity->position   += action->position_change;
-                if (action->moved_entity_points) {
-                    editor_move_entity_points(undo_entity, action->position_change);
-                }
-                
-                
-                undo_entity->scale      += action->scale_change;
-                undo_entity->rotation   += action->rotation_change;
-                undo_entity->draw_order += action->draw_order_change;
-                
-                for (i32 i = 0; i < action->vertices_change.count; i++) {
-                    *undo_entity->vertices.get(i)          += action->vertices_change.get_value(i);
-                    *undo_entity->unscaled_vertices.get(i) += action->unscaled_vertices_change.get_value(i);
-                }
-                rotate(undo_entity, 0);
-                
-                calculate_bounds(undo_entity);
-            }
-        }
     }
     
     // Tile sheets logic.

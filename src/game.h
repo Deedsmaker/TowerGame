@@ -27,7 +27,7 @@ void assign_selected_entity(Entity *new_selected);
 
 void close_create_box();
 
-void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
+// void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
 void calculate_bounds(Entity *entity);
 Bounds get_bounds(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});

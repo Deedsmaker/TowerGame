@@ -1020,36 +1020,60 @@ enum Death_Instinct_Reason{
 
 #define MAX_UNDOS 2048
 
-struct Undo_Action {
-    //Entity *entity;
-    int entity_id = -1;
+// struct Undo_Action {
+//     //Entity *entity;
+//     int entity_id = -1;
 
-    b32 added_to_multiselection = false;
-    b32 removed_from_multiselection = false;
+//     b32 added_to_multiselection = false;
+//     b32 removed_from_multiselection = false;
 
-    // Entity deleted_entity;
-    Array <Entity *> deleted_entities = {0};
-    b32    entity_was_deleted = false;
+//     // Entity deleted_entity;
+//     Array <Entity *> deleted_entities = {0};
+//     b32    entity_was_deleted = false;
     
-    Entity *spawned_entity = {0};
-    b32    entity_was_spawned = false;
+//     Entity *spawned_entity = {0};
+//     b32    entity_was_spawned = false;
     
-    Array <i32> changed_entities = {0};
+//     Array <i32> changed_entities = {0};
     
-    b32 moved_entity_points = false;
+//     b32 moved_entity_points = false;
     
-    Vector2 position_change = {0, 0};  
-    Vector2 scale_change = {0, 0};
-    Static_Array <Vector2, MAX_VERTICES> vertices_change = {0};
-    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_change = {0};
-    f32 rotation_change = 0;
-    i32 draw_order_change = 0;
+//     Vector2 position_change = {0, 0};  
+//     Vector2 scale_change = {0, 0};
+//     Static_Array <Vector2, MAX_VERTICES> vertices_change = {0};
+//     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_change = {0};
+//     f32 rotation_change = 0;
+//     i32 draw_order_change = 0;
+// };
+
+enum Undo_Change_Type {
+    NO_CHANGE       = 0,       
+    VECTOR2_CHANGE = 1,
+    FLOAT_CHANGE   = 2,
+    INTEGER_CHANGE = 3,
+};
+
+struct Entity_Undo_Change {
+    i32 entity_id = 0;
+    Undo_Change_Type change_type = NO_CHANGE;
+    
+    union {  
+        Vector2 vector_change;
+        f32 float_change;
+        i32 integer_change;
+    };
+    
+    union {
+        Vector2 *changed_vector;
+        f32 *changed_float;
+        i32 *changed_integer;
+    };
 };
 
 struct Level_Context {
     Allocator memory_arena = {0};
 
-    Array <Undo_Action> undo_actions = {0};
+    Array <Entity_Undo_Change> undo_actions = {0};
     Cam cam = {};
 
     b32 inited = false;
