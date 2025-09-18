@@ -4860,16 +4860,23 @@ void undo_remember_vertices_start(Entity *entity) {
     editor.unscaled_vertices_start.count = entity->unscaled_vertices.count; 
 }
 
-//new selected could be NULL
+// New selected could be NULL, which means that we're not selecting anyone anymore.
 void assign_selected_entity(Entity *new_selected) {
     if (editor.selected_entity) {
         editor.selected_entity->color_changer.changing = 0;
         editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
+        
+        assert(editor.selected_entity_unchanged_copy);
+        free_entity(editor.selected_entity_unchanged_copy);
     }
+    
+    editor.selected_entity_unchanged_copy = NULL;
     
     if (new_selected) {
         new_selected->color_changer.changing = 1;
         editor.selected_entity_id = new_selected->id;
+        
+        editor.selected_entity_unchanged_copy = copy_and_add_entity(new_selected, &undo_level_context);
     }
     
     editor.selected_entity = new_selected;
@@ -7070,6 +7077,16 @@ void update_editor() {
                 selected->move_sequence->points.clear();
             }
         }
+    }
+    
+    if (editor.selected_entity && editor.selected_entity->runtime_only_flags & EDITOR_CHANGED) {
+        editor.selected_entity->runtime_only_flags ^= EDITOR_CHANGED;
+        
+        Entity_Undo_Change undo_change = get_entities_difference(editor.selected_entity_unchanged_copy, editor.selected_entity);
+        free_entity(editor.selected_entity_unchanged_copy);
+        editor.selected_entity_unchanged_copy = copy_and_add_entity(editor.selected_entity, &undo_level_context);
+        
+        // editor.undo_actions.append(undo_change);
     }
     
     //undo logic

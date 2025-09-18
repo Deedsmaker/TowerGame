@@ -1031,7 +1031,6 @@ struct Undo_Action {
     Array <Entity *> deleted_entities = {0};
     b32    entity_was_deleted = false;
     
-    
     Entity *spawned_entity = {0};
     b32    entity_was_spawned = false;
     
@@ -1360,6 +1359,8 @@ struct Editor {
     
     b32 is_scaling_entity = false;
     b32 is_rotating_entity = false;
+
+    Entity *selected_entity_unchanged_copy = NULL;    
 
     Entity  *selected_entity = NULL;
     int selected_entity_id;
