@@ -178,6 +178,10 @@ inline void mark_entity_destroyed(Entity *entity) {
     entity->will_be_destroyed = true;
 }
 
+inline void mark_entity_editor_changed(Entity *entity) {
+    entity->runtime_only_flags |= EDITOR_CHANGED;
+}
+
 void free_entity(Entity *e) {
     // free trigger
     if (e->flags & TRIGGER) {
@@ -4778,7 +4782,8 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
         add_undo_action(undo_action);
     }
     mark_entity_destroyed(entity);
-    editor.selected_entity = NULL;
+    // editor.selected_entity = NULL;
+    assign_selected_entity(NULL);
     editor.dragging_entity = NULL;
     editor.cursor_entity   = NULL;
 }
@@ -5879,7 +5884,8 @@ void restore_deleted_entities(Undo_Action *action) {
         if (action->changed_entities.count > 1) {
             editor.multiselection.entities.append(deleted_entity_id);
         } else {
-            editor.selected_entity = restored_entity;
+            // editor.selected_entity = restored_entity;
+            assign_selected_entity(restored_entity);
         }
     }
 }
@@ -7079,7 +7085,7 @@ void update_editor() {
     
     b32 undo_queued = is_action_queued(&undo_repeat_data, undo_pressed, undo_holded);
     
-    if (current_level_context->undo_actions.count > 0 && undo_queued) {
+    if (undo_queued && current_level_context->undo_actions.count > 0) {
         Undo_Action *action = current_level_context->undo_actions.pop();
         
         focus_input_field.in_focus = false;

@@ -1,4 +1,4 @@
-#define FLAGS u64
+typedef u64 FLAGS;
 //#define EPSILON 0.0000000000000001f
 
 #define FIXED_FPS 240
@@ -230,7 +230,7 @@ struct Sound_Handler {
     f32 pitch_variation = 0.3f;
 };
 
-enum Flags : u64 {
+enum Flags : FLAGS {
     GROUND              = 1 << 0,
     
     PLAYER              = 1 << 2,
@@ -800,6 +800,10 @@ struct Centipede_Segment : Enemy {
     Entity *head = NULL;      
 };
 
+enum Runtime_Flags : FLAGS {
+    EDITOR_CHANGED = 0x1,  
+};
+
 struct Entity {
     i32 id = 0;
     b32 need_to_save = true;
@@ -828,6 +832,7 @@ struct Entity {
     Vector2 right = {1, 0};
     
     FLAGS flags = 0;
+    FLAGS runtime_only_flags = 0;
     FLAGS collision_flags = 0;
     
     //lower - closer to camera
