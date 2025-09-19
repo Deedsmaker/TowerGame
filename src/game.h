@@ -193,6 +193,8 @@ inline i32 add_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter
 inline i32 add_and_enable_entity_particle_emitter(Entity *entity, Particle_Emitter *emitter, Vector2 position, b32 need_to_follow);
 Particle_Emitter *get_particle_emitter(i32 index);
 
+void free_entity(Entity *e);
+
 inline void free_particle_emitter(i32 index);
 inline void free_particle_emitters(i32 *start_ptr, i32 count);
 inline void free_entity_particle_emitters(Entity *entity);

@@ -831,6 +831,10 @@ struct Entity {
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
     
+    // That's for detecting how many systems now changing this entity and that's required for undo to correctly detect multiple
+    // continuous changes.
+    i8 editor_changing_count = 0;
+    
     FLAGS flags = 0;
     FLAGS runtime_only_flags = 0;
     FLAGS collision_flags = 0;
@@ -850,7 +854,6 @@ struct Entity {
     
     b32 spawn_enemy_when_no_ammo = false;
     i32 spawned_enemy_id = -1;
-    
     
     // union {
         
@@ -1073,7 +1076,7 @@ struct Entity_Undo_Change {
 struct Level_Context {
     Allocator memory_arena = {0};
 
-    Array <Entity_Undo_Change> undo_actions = {0};
+    Array <Array<Entity_Undo_Change>> undo_actions = {0};
     Cam cam = {};
 
     b32 inited = false;

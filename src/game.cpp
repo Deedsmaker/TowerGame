@@ -133,6 +133,10 @@ Player death_player_data = {};
 
 Cam global_cam_data = {};
 
+inline b32 is_editor_active() {
+    return game_state == EDITOR || state_context.in_pause_editor;
+}
+
 void log_short(const char *str) {
     Log_Message *new_log = debug.log_messages_short.append({});
     str_copy(new_log->data, str);
@@ -176,10 +180,6 @@ inline void mark_entity_destroyed(Entity *entity) {
     // mark_entity_destroyed(entity);
     // entity->destroyed = true;
     entity->will_be_destroyed = true;
-}
-
-inline void mark_entity_editor_changed(Entity *entity) {
-    entity->runtime_only_flags |= EDITOR_CHANGED;
 }
 
 void free_entity(Entity *e) {
@@ -7058,31 +7058,23 @@ void update_editor() {
         }
     }
     
-    if (editor.selected_entity && editor.selected_entity->runtime_only_flags & EDITOR_CHANGED) {
-        editor.selected_entity->runtime_only_flags ^= EDITOR_CHANGED;
-        
-        Entity_Undo_Change undo_change = get_entities_difference(editor.selected_entity_unchanged_copy, editor.selected_entity);
-        free_entity(editor.selected_entity_unchanged_copy);
-        editor.selected_entity_unchanged_copy = copy_and_add_entity(editor.selected_entity, &undo_level_context);
-        
-        // editor.undo_actions.append(undo_change);
-    }
     
+    update_undo_logic();
     //undo logic
     // if (something_in_undo) {
         // add_undo_action(undo_action);
     // }
     
-    local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
+    // local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
     
-    b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
-    b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
-    b32 undo_holded  = undo_required_helper_keys_down && IsKeyDown(KEY_Z);
+    // b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
+    // b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
+    // b32 undo_holded  = undo_required_helper_keys_down && IsKeyDown(KEY_Z);
     
-    b32 undo_queued = is_action_queued(&undo_repeat_data, undo_pressed, undo_holded);
+    // b32 undo_queued = is_action_queued(&undo_repeat_data, undo_pressed, undo_holded);
     
-    if (undo_queued && current_level_context->undo_actions.count > 0) {
-    }
+    // if (undo_queued && current_level_context->undo_actions.count > 0) {
+    // }
     
     local_persist Repeat_Action redo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
     
