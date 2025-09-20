@@ -23,6 +23,9 @@ void bird_clear_formation(Bird_Enemy *bird);
 
 void reload_level_files();
 
+inline void verify_trigger_connected(Entity *entity);
+inline void verify_kill_switch_connected(Entity *entity);
+
 void assign_selected_entity(Entity *new_selected);
 
 void close_create_box();

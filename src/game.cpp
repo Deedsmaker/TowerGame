@@ -4766,6 +4766,12 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
     //     add_undo_action(undo_action);
     // }
     mark_entity_destroyed(entity);
+    
+    if (is_editor_active()) {
+        entity->runtime_only_flags |= EDITOR_CHANGED;
+        editor.deleted_entity_this_frame = true; // That thing beign used only for undo for now.
+    }
+    
     // editor.selected_entity = NULL;
     assign_selected_entity(NULL);
     editor.dragging_entity = NULL;
@@ -9636,14 +9642,19 @@ void update_sticky_texture(Entity *entity, f32 dt) {
 }
 
 inline void verify_trigger_connected(Entity *entity) {
-    assert(entity->flags & TRIGGER);
-    
+    if (!(entity->flags & TRIGGER)) {
+        return;   
+    }
+      
+    b32 removed_something = false;
+      
     Trigger *trigger = entity->trigger;
     for_array(i, &trigger->connected) {
         Entity *connected = get_entity(trigger->connected.get_value(i));
         if (connected->will_be_destroyed) {
             trigger->connected.remove(i);
             i--;
+            removed_something = true;
         }
     }
     for_array(i, &trigger->tracking) {
@@ -9651,11 +9662,20 @@ inline void verify_trigger_connected(Entity *entity) {
         if (tracking->will_be_destroyed) {
             trigger->tracking.remove(i);
             i--;
+            removed_something = true;
         }
+    }
+    
+    if (removed_something && is_editor_active()) {
+        entity->runtime_only_flags |= EDITOR_CHANGED;
     }
 }
 inline void verify_kill_switch_connected(Entity *entity) {
-    assert(entity->flags & KILL_SWITCH);
+    if (!(entity->flags & KILL_SWITCH)) {
+        return;
+    }
+
+    b32 removed_something = false;
     
     Kill_Switch *kill_switch = entity->kill_switch;
     for_array(i, &kill_switch->connected) {
@@ -9663,7 +9683,12 @@ inline void verify_kill_switch_connected(Entity *entity) {
         if (connected->will_be_destroyed) {
             kill_switch->connected.remove(i);
             i--;
+            removed_something = true;
         }
+    }
+    
+    if (removed_something && is_editor_active()) {
+        entity->runtime_only_flags |= EDITOR_CHANGED;
     }
 }
 
@@ -12254,6 +12279,8 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         id_to_set += 1;
     }
     *e = *to_copy;
+    e->will_be_destroyed = false; // That could've shot when we're copying entity that will be destoryed for undo.
+    e->destroyed = false;
     e->color = to_copy->color_changer.start_color;
     e->id = id_to_set;
     

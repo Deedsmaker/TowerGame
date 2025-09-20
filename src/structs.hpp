@@ -1054,6 +1054,7 @@ enum Undo_Change_Type {
     VECTOR2_CHANGE = 1,
     FLOAT_CHANGE   = 2,
     INTEGER_CHANGE = 3,
+    ENTITY_DESTROYED = 4
 };
 
 struct Entity_Undo_Change {
@@ -1070,6 +1071,7 @@ struct Entity_Undo_Change {
         Vector2 *changed_vector;
         f32 *changed_float;
         i32 *changed_integer;
+        Entity *destroyed_entity_copy;
     };
 };
 
@@ -1358,6 +1360,9 @@ struct Editor {
     Array <Entity *> place_cursor_entities = {0};
     
     // Static_Array <Undo_Action, MAX_UNDOS> undo_actions = {0};
+    
+    b32 deleted_entity_this_frame = false;
+    
     int max_undos_added;
 
     b32 update_cam_view_position = true;
