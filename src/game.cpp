@@ -125,8 +125,6 @@ Sound_Handler *missing_sound = NULL;
 #include "lightmaps.cpp"
 
 // #include "entity_ids.cpp"
-#include "dynamic_lights.cpp"
-#include "undo.cpp"
 
 Player last_player_data = {};
 Player death_player_data = {};
@@ -149,6 +147,9 @@ inline void log_short(f32 value) {
 inline void log_short(Vector2 value) {
     log_short(tprintf("{%f, %f}", value.x, value.y));
 }
+
+#include "dynamic_lights.cpp"
+#include "undo.cpp"
 
 void setup_context_cam(Level_Context *level_context) {
     level_context->cam.width = global_cam_data.width;
@@ -6126,15 +6127,9 @@ void update_editor() {
                 if (e->scale != editor.moving_edge_start_entity_scale) {
                     Vector2 position_change = e->position - editor.moving_edge_start_entity_position;
                     Vector2 scale_change    = e->scale - editor.moving_edge_start_entity_scale;
-                    // Undo_Action undo_action = {};
-                    // undo_action.position_change = position_change;
-                    // undo_action.moved_entity_points = false;
-                    // undo_action.scale_change = scale_change;
-                    
-                    // We remembered vertices when just clicked on edge in try_move_entity_edges.
-                    // undo_apply_vertices_change(e, &undo_action);
                     
                     // add_undo_action(undo_action);
+                    e->runtime_only_flags |= EDITOR_CHANGED;
                 }
                 editor.moving_entity_edge_type = NONE;
                 editor.moving_entity_edge_id = -1;

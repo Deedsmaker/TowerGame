@@ -160,6 +160,7 @@ inline void update_undo_logic() {
         editor.selected->runtime_only_flags ^= EDITOR_CHANGED;
         
         Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected, editor.selected_unchanged_copy);
+        log_short(changes.count);
         
         add_changes_to_undo(&changes);
         
@@ -225,6 +226,15 @@ inline void update_undo_logic() {
             // i == 0 check is because we want to select main affected entity and next ones could be just another entities 
             // that detected changes in this entity and recorded undo.
             if (!changed_entity->will_be_destroyed && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
+            
+            // We're updating unchanged copy so that we for sure would have latest unchanged copy. 
+            // In other case it will cause issues if, for example, we would undo something (scaling for example)
+            // and then decided to move entity - in this case unchanged copy would be of entity that we've scaled last time,
+            // because we're updated this only on adding undo action.
+            if (editor.selected) {
+                free_entity(editor.selected_unchanged_copy);   
+                editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
+            }
         }
         
         current_level_context->undo_actions.just_decrease_count();
@@ -281,6 +291,12 @@ inline void update_undo_logic() {
             Entity *changed_entity = get_entity(change->entity_id);
             // i == 0 explained above in undo.
             if (!changed_entity->will_be_destroyed && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
+            
+            // Explained above in undo.
+            if (editor.selected) {
+                free_entity(editor.selected_unchanged_copy);   
+                editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
+            }
         }
     }
 }
