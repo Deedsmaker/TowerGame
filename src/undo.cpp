@@ -221,9 +221,10 @@ inline void update_undo_logic() {
                 } break;
             }
             
+            Entity *changed_entity = get_entity(change->entity_id);
             // i == 0 check is because we want to select main affected entity and next ones could be just another entities 
             // that detected changes in this entity and recorded undo.
-            if (change->change_type != ENTITY_DESTROYED && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
+            if (!changed_entity->will_be_destroyed && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
         }
         
         current_level_context->undo_actions.just_decrease_count();
@@ -277,8 +278,9 @@ inline void update_undo_logic() {
                 } break;
             }
             
+            Entity *changed_entity = get_entity(change->entity_id);
             // i == 0 explained above in undo.
-            if (change->change_type != ENTITY_SPAWNED && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
+            if (!changed_entity->will_be_destroyed && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
         }
     }
 }

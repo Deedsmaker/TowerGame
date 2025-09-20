@@ -5536,12 +5536,7 @@ void update_editor_ui() {
                 entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
                 
-                // Undo_Action undo_action;
-                // // @LEAK: Check that we free that.
-                // undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
-                // undo_action.entity_id = entity->id;
-                // undo_action.entity_was_spawned = true;
-                // add_undo_action(undo_action);
+                editor.just_spawned_entity_id = entity->id;
             }
             
             if (obj.entity.flags & TEXTURE) {
@@ -5987,6 +5982,10 @@ b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold) {
 
 // This can be called not only when game_state is EDITOR, but even when we're in pause for example.
 void update_editor() {
+    if (editor.selected && editor.selected->will_be_destroyed) {
+        assign_selected_entity(NULL);
+    }
+
     if (IsKeyPressed(KEY_ESCAPE)) {
         EnableCursor();
         ShowCursor();
