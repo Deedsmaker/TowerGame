@@ -80,6 +80,18 @@ struct Array {
         assert(count >= 0);
     }
     
+    b32 values_equal(Array <T> *another_array) {
+        if (count != another_array->count) return false;
+        
+        for_array(i, this) { 
+            if (*get(i) != *another_array->get(i)) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
     // This function will not grow an array, because it's for situations where we want to reuse previously assigned values.
     T *increase_count_and_get_last() {
         count += 1;

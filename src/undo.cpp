@@ -1,8 +1,14 @@
 #pragma once
 
-Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *original) {
+void add_changes_to_undo(Array <Entity_Undo_Change> *changes) {
+    assert(changes->count > 0);
+    current_level_context->undo_actions.append(*changes);
+    current_level_context->max_undos_added = current_level_context->undo_actions.count;
+}
+
+Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *original, Allocator *allocator = HEAP_ALLOCATOR) {
     // @LEAK Probably. Could think about using undo level context memory arena in undo_actions. Could work if we'll reuse things.
-    Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
+    Array <Entity_Undo_Change> changes = {.allocator = allocator};
 
     if (changed->will_be_destroyed) {
         changes.append({
@@ -21,6 +27,38 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
         });
     }
     
+    if (changed->flags & TRIGGER) {
+        if (changed->trigger->connected.count > original->trigger->connected.count) {
+            changes.append({
+                .entity_id = changed->id,
+                .change_type = ARRAY_APPENDED,
+                .number_appended = changed->trigger->connected.last_value(),
+                .changed_array = &changed->trigger->connected
+            });
+        } else if (changed->trigger->connected.count < original->trigger->connected.count) {
+            i32 removed_number = 0;            
+            for_array(i, &original->trigger->connected) {
+                if (i >= changed->trigger->connected.count) {
+                    removed_number = original->trigger->connected.get_value(i);
+                    break;
+                }
+                if (changed->trigger->connected.get_value(i) != original->trigger->connected.get_value(i)) {
+                    removed_number = original->trigger->connected.get_value(i);
+                    break;
+                }
+            }
+            
+            assert(removed_number > 0); // That's because in case of triggers we're talking about entities ids.
+            
+            changes.append({
+                .entity_id = changed->id,
+                .change_type = ARRAY_REMOVED,
+                .number_removed = removed_number,
+                .changed_array = &changed->trigger->connected
+            });
+        }
+    }
+    
     return changes;
 }
 
@@ -32,24 +70,7 @@ void add_spawned_entity_to_undo(Entity *spawned) {
         .spawned_entity_copy = copy_and_add_entity(spawned, &undo_level_context)
     });
     
-    current_level_context->undo_actions.append(changes);
-    editor.max_undos_added = current_level_context->undo_actions.count;
-}
-
-b32 add_undo_changes_if_entity_changed(Entity *entity, Entity *unchanged_entity) {
-    if (entity->runtime_only_flags & EDITOR_CHANGED) {
-        entity->runtime_only_flags ^= EDITOR_CHANGED;
-        
-        Array <Entity_Undo_Change> changes = get_entities_difference(entity, unchanged_entity);
-        current_level_context->undo_actions.append(changes);
-        
-        // @LEAK: Here we probably need to go through all of undos above and free some shit there. Maybe not if we'll reuse it fully.
-        editor.max_undos_added = current_level_context->undo_actions.count;
-        
-        return true;
-    }
-    
-    return false;
+    add_changes_to_undo(&changes);
 }
 
 inline void update_undo_logic() {
@@ -61,29 +82,45 @@ inline void update_undo_logic() {
         // reffer to deleted one and mark them changed aswell, so for example trigger will detect that 
         // one of his connected is will be destroyed -> mark itself as changed and all of it's changed 
         // actions will be in one undo.
+        b32 found_one_that_will_be_destroyed = false;
+        
+        Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
         
         for_chunk_array(i, &current_level_context->entities) {
             Entity *entity = current_level_context->entities.get(i);
+            if (entity->will_be_destroyed) found_one_that_will_be_destroyed = true;
             Entity *unchanged_entity = copy_and_add_entity(entity, &undo_level_context);
             
             // On verifying trigger and kill switch will detect if someone will be destroyed -> will remive
             // it from an array and mark itself as EDITOR_CHANGED.
-            verify_trigger_connected(entity);
-            verify_kill_switch_connected(entity);
+            b32 removed_from_trigger = verify_trigger_connected(entity);
+            b32 removed_from_kill_switch = verify_kill_switch_connected(entity);
             
-            add_undo_changes_if_entity_changed(entity, unchanged_entity);
+            if (entity->runtime_only_flags & EDITOR_CHANGED) {
+                entity->runtime_only_flags ^= EDITOR_CHANGED;
+
+                auto entity_change = get_entities_difference(entity, unchanged_entity, &temp_allocator);
+                changes.append_another_array(&entity_change);
+            }
             
             free_entity(unchanged_entity);
         }
+        
+        assert(changes.count > 0);
+        add_changes_to_undo(&changes);
+        
+        assert(found_one_that_will_be_destroyed);
     } else if (editor.just_spawned_entity_id > 0) {
         Entity *spawned = get_entity(editor.just_spawned_entity_id);    
         editor.just_spawned_entity_id = 0;
               
         add_spawned_entity_to_undo(spawned);
     } else if (editor.selected_entity && editor.selected_entity->runtime_only_flags & EDITOR_CHANGED) {
-        b32 added_undo = add_undo_changes_if_entity_changed(editor.selected_entity, editor.selected_entity_unchanged_copy);
+        editor.selected_entity->runtime_only_flags ^= EDITOR_CHANGED;
         
-        assert(added_undo);
+        Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected_entity, editor.selected_entity_unchanged_copy);
+        
+        add_changes_to_undo(&changes);
         
         // Here we're updating unchanged copy of selected entity because we've stored all the information that we wanted.
         free_entity(editor.selected_entity_unchanged_copy);
@@ -98,7 +135,6 @@ inline void update_undo_logic() {
         for_array(i, changes) {
             Entity_Undo_Change *change = changes->get(i);
             // Entity *changed_entity = get_entity(change->entity_id);
-            // assert(get_entity(change->entity_id)); // Probably will break on destroying entites etc.
             
             switch (change->change_type) {
                 case VECTOR2_CHANGE: {
@@ -111,25 +147,44 @@ inline void update_undo_logic() {
                     Entity *to_destroy = get_entity(change->entity_id);
                     mark_entity_destroyed(to_destroy);
                 } break;
+                case ARRAY_APPENDED: {
+                    Entity *entity = get_entity(change->entity_id);    
+                    i32 appended_index = change->changed_array->find(change->number_appended);
+                    assert(appended_index >= 0);
+                    change->changed_array->remove(appended_index);
+                } break;
+                case ARRAY_REMOVED: {
+                    // In case of arrays we currently don't care about placement of values. That means that even if 
+                    // value was removed from the middle of a array - we'll insert it at the end.
+                    Entity *entity = get_entity(change->entity_id);  
+                    i32 removed_value = change->number_removed;
+                    change->changed_array->append(removed_value);
+                } break;
                 case NO_CHANGE: { 
                     assert(false);
                 } break;
+                default: {
+                    printf("Forgot some change type in undo!\n");
+                } break;
             }
+            
+            // i == 0 check is because we want to select main affected entity and next ones could be just another entities 
+            // that detected changes in this entity and recorded undo.
+            if (change->change_type != ENTITY_DESTROYED && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
         }
         
-        current_level_context->undo_actions.count -= 1;
+        current_level_context->undo_actions.just_decrease_count();
     }
     
     // Redo logic.
     b32 redo_required_helper_keys_down = IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
     b32 redo_pressed = redo_required_helper_keys_down && IsKeyPressed(KEY_Z);
-    b32 can_make_redo = editor.max_undos_added > current_level_context->undo_actions.count;
+    b32 can_make_redo = current_level_context->max_undos_added > current_level_context->undo_actions.count;
     if (redo_pressed && can_make_redo) {
         Array <Entity_Undo_Change> *changes = current_level_context->undo_actions.increase_count_and_get_last();
         for_array(i, changes) {
             Entity_Undo_Change *change = changes->get(i);
             
-            // assert(get_entity(change->entity_id)); 
             switch(change->change_type) {
                 case VECTOR2_CHANGE: {
                     *change->changed_vector += change->vector_change;
@@ -141,7 +196,24 @@ inline void update_undo_logic() {
                 case ENTITY_SPAWNED: {
                     Entity *restored_entity = copy_and_add_entity(change->spawned_entity_copy, current_level_context, change->entity_id);
                 } break;
+                case ARRAY_APPENDED: {
+                    Entity *entity = get_entity(change->entity_id);  
+                    i32 value_to_append = change->number_appended;
+                    change->changed_array->append(value_to_append);
+                } break;
+                case ARRAY_REMOVED: {
+                    Entity *entity = get_entity(change->entity_id);    
+                    i32 index_to_remove = change->changed_array->find(change->number_removed);
+                    assert(index_to_remove >= 0);
+                    change->changed_array->remove(index_to_remove);
+                } break;
+                default: {
+                    printf("Forgot some change type in redo!\n");
+                } break;
             }
+            
+            // i == 0 explained above in undo.
+            if (change->change_type != ENTITY_SPAWNED && i == 0) assign_selected_entity(get_entity(change->entity_id)); 
         }
     }
 }

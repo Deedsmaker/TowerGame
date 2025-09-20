@@ -6919,12 +6919,15 @@ void update_editor() {
                     
                     if (wanna_assign && !wanna_remove && !selected->trigger->connected.contains(col.other_entity->id)) {
                         selected->trigger->connected.append(col.other_entity->id);
+                        selected->runtime_only_flags |= EDITOR_CHANGED;
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (selected->trigger->connected.contains(col.other_entity->id)) {
                             selected->trigger->connected.remove_first_encountered(col.other_entity->id);
+                            selected->runtime_only_flags |= EDITOR_CHANGED;
                         } else if (selected->trigger->tracking.contains(col.other_entity->id)) {
                             selected->trigger->tracking.remove_first_encountered(col.other_entity->id);
+                            selected->runtime_only_flags |= EDITOR_CHANGED;
                         }
                         break;
                     }
@@ -6942,6 +6945,7 @@ void update_editor() {
                     
                     if (!selected->trigger->tracking.contains(col.other_entity->id)) {
                         selected->trigger->tracking.append(col.other_entity->id);
+                        selected->runtime_only_flags |= EDITOR_CHANGED;
                     }
                 }
             }
@@ -7088,11 +7092,6 @@ void update_editor() {
     b32 redo_holded  = redo_required_helper_keys_down && IsKeyDown(KEY_Z);
     
     b32 redo_queued = is_action_queued(&redo_repeat_data, redo_pressed, redo_holded);
-    
-    // redo logic
-    b32 need_make_redo = editor.max_undos_added > current_level_context->undo_actions.count && redo_queued;
-    if (need_make_redo) {
-    }
     
     // Tile sheets logic.
     if (editor.selected_entity && editor.selected_entity->flags & TEXTURE) {
@@ -9636,9 +9635,9 @@ void update_sticky_texture(Entity *entity, f32 dt) {
     st->need_to_follow = need_to_follow;
 }
 
-inline void verify_trigger_connected(Entity *entity) {
+inline b32 verify_trigger_connected(Entity *entity) {
     if (!(entity->flags & TRIGGER)) {
-        return;   
+        return false;   
     }
       
     b32 removed_something = false;
@@ -9664,10 +9663,13 @@ inline void verify_trigger_connected(Entity *entity) {
     if (removed_something && is_editor_active()) {
         entity->runtime_only_flags |= EDITOR_CHANGED;
     }
+    
+    return removed_something;
 }
-inline void verify_kill_switch_connected(Entity *entity) {
+
+inline b32 verify_kill_switch_connected(Entity *entity) {
     if (!(entity->flags & KILL_SWITCH)) {
-        return;
+        return false;
     }
 
     b32 removed_something = false;
@@ -9685,6 +9687,8 @@ inline void verify_kill_switch_connected(Entity *entity) {
     if (removed_something && is_editor_active()) {
         entity->runtime_only_flags |= EDITOR_CHANGED;
     }
+    
+    return removed_something;
 }
 
 void update_editor_entity(Entity *e) {

@@ -1056,6 +1056,8 @@ enum Undo_Change_Type {
     INTEGER_CHANGE = 3,
     ENTITY_DESTROYED = 4,
     ENTITY_SPAWNED = 5,
+    ARRAY_APPENDED = 6,
+    ARRAY_REMOVED = 7,
 };
 
 struct Entity_Undo_Change {
@@ -1066,6 +1068,8 @@ struct Entity_Undo_Change {
         Vector2 vector_change;
         f32 float_change;
         i32 integer_change;
+        i32 number_removed;
+        i32 number_appended;
     };
     
     union {
@@ -1074,6 +1078,7 @@ struct Entity_Undo_Change {
         i32 *changed_integer;
         Entity *destroyed_entity_copy;
         Entity *spawned_entity_copy;
+        Array <i32> *changed_array;
     };
 };
 
@@ -1081,6 +1086,7 @@ struct Level_Context {
     Allocator memory_arena = {0};
 
     Array <Array<Entity_Undo_Change>> undo_actions = {0};
+    i32 max_undos_added = 0;
     Cam cam = {};
 
     b32 inited = false;
@@ -1366,8 +1372,6 @@ struct Editor {
     b32 just_deleted_entity = false;
     i32 just_spawned_entity_id = 0;
     
-    int max_undos_added;
-
     b32 update_cam_view_position = true;
 
     b32 lightmap_settings_active = false;
@@ -1466,7 +1470,7 @@ struct Log_Message {
 struct Debug {
     f32 last_zoom = 0.35f;
 
-    b32 full_light = false;
+    b32 full_light = true;
 
     b32 draw_player_collisions = false;  
     b32 draw_player_speed = false;
