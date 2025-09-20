@@ -4730,41 +4730,7 @@ void move_vertex(Entity *entity, Vector2 target_position, i32 vertex_index) {
 //     add_undo_action(undo_action);
 // }
 
-// // void undo_add_scaling(Entity *entity, Vector2 scale_change) {
-//     Undo_Action undo_action;
-//     undo_action.entity_id = entity->id;
-//     undo_action.scale_change = scale_change;
-    
-//     //SHOULD REMEMBER THEM BEFORE
-//     undo_apply_vertices_change(editor.selected_entity, &undo_action);
-    
-//     add_undo_action(undo_action);
-// }
-
-// // void undo_add_rotation(Entity *entity, f32 rotation_change) {
-//     Undo_Action undo_action;
-//     undo_action.entity_id = entity->id;
-//     undo_action.rotation_change = rotation_change;
-    
-//     //SHOULD REMEMBER THEM BEFORE
-//     undo_apply_vertices_change(entity, &undo_action);
-    
-//     add_undo_action(undo_action);
-// }
-
 void editor_delete_entity(Entity *entity, b32 add_undo) {
-    // if (add_undo) {
-    //     Undo_Action undo_action = {};
-    //     undo_action.entity_was_deleted = true;
-    //     Level_Context *original_level_context = current_level_context;
-    //     switch_current_level_context(&undo_level_context);
-    //     undo_action.deleted_entities.append(copy_and_add_entity(editor.selected_entity, &undo_level_context));
-    //     undo_action.changed_entities.append(editor.selected_entity->id);
-    //     switch_current_level_context(original_level_context);
-    //     // copy_entity(&undo_action.deleted_entity, editor.selected_entity);
-    //     // undo_action.entity_id = undo_action.deleted_entity.id;
-    //     add_undo_action(undo_action);
-    // }
     mark_entity_destroyed(entity);
     
     if (is_editor_active()) {
@@ -4772,7 +4738,6 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
         editor.just_deleted_entity = true; // That thing beign used only for undo for now.
     }
     
-    // editor.selected_entity = NULL;
     assign_selected_entity(NULL);
     editor.dragging_entity = NULL;
     editor.cursor_entity   = NULL;
@@ -5065,7 +5030,8 @@ void update_editor_ui() {
             } else {
                 assert(false);
             }
-//             undo_add_position(selected, selected->position - old_position);
+            
+            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
         }
         // v_pos += height_add;
 
@@ -5083,7 +5049,7 @@ void update_editor_ui() {
             ) {
             Vector2 old_scale = editor.selected_entity->scale;
             Vector2 new_scale = old_scale;
-//             undo_remember_vertices_start(editor.selected_entity);
+            // undo_remember_vertices_start(editor.selected_entity);
             
             if (str_equal(focus_input_field.tag, "inspector_scale_x")) {
                 new_scale.x = to_f32(focus_input_field.content);
@@ -5098,7 +5064,8 @@ void update_editor_ui() {
                 add_scale(editor.selected_entity, scale_add);
             }
             
-//             undo_add_scaling(editor.selected_entity, scale_add);
+            
+            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
         }
         v_pos += height_add;
         
@@ -5121,7 +5088,7 @@ void update_editor_ui() {
                 rotate(editor.selected_entity, rotation_add);
             }
             
-//             undo_add_rotation(editor.selected_entity, rotation_add);
+            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
         }
         v_pos += height_add;
         
@@ -5149,7 +5116,7 @@ void update_editor_ui() {
                     editor.selected_entity->draw_order += draw_order_add;
                 }
                 
-//                 undo_add_draw_order(editor.selected_entity, draw_order_add);
+                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
             }
         }
         v_pos += height_add;
@@ -5785,7 +5752,7 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     Vector2 new_position = closest_vertex_global - *entity_vertex;
     Vector2 position_change = new_position - entity->position;
     entity->position = new_position;     
-//     undo_add_position(entity, position_change);
+    entity->runtime_only_flags |= EDITOR_CHANGED;
     
     // // Because when we start moving vertex we remembering these vertices already. 
     // // So if we do that here aswell - on undo vertices will go on place where we pressed button.
@@ -6093,11 +6060,10 @@ void rotate_multiselected(f32 to_rotate) {
         // a thousand times.
 //         undo_remember_vertices_start(entity);
         rotate(entity, to_rotate);
-//         undo_add_rotation(entity, (to_rotate));
         
         Vector2 before_position = entity->position;
         rotate_around_point(&entity->position, editor.multiselection.center, to_rotate);
-//         undo_add_position(entity, entity->position - before_position);
+        entity->runtime_only_flags |= EDITOR_CHANGED;
     }
 }
 
@@ -6466,6 +6432,9 @@ void update_editor() {
         }
         if (was_moving_multiselected && !should_move_multiselected) {
 //             undo_add_multiselect_position_change(multiselection->total_displacement_for_undo);
+            for_array(i, &multiselection->entities) {
+                get_entity(multiselection->entities.get_value(i))->runtime_only_flags |= EDITOR_CHANGED;
+            }
         }
         
         was_moving_multiselected = should_move_multiselected;
@@ -6569,8 +6538,6 @@ void update_editor() {
             if (editor.selected_entity) {
                 editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
             }
-
-//             undo_add_position(editor.dragging_entity, editor.dragging_entity->position - editor.dragging_start);
         }
         
         editor.dragging_entity = NULL;
@@ -6774,7 +6741,7 @@ void update_editor() {
         }
         
         if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))) {
-//             undo_add_rotation(editor.selected_entity, editor.selected_entity->rotation - editor.rotating_start);
+            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
             editor.is_rotating_entity = false;
         } 
     } else if ((editor.selected_entity || multiselection->entities.count > 1) && can_control_with_single_button) {
@@ -6789,16 +6756,14 @@ void update_editor() {
         }
         
         if (to_rotate != 0) {
-            
             if (multiselection->entities.count > 1) {
                 rotate_multiselected(to_rotate);
             } else {
-            f32 next_rotation = round_to_factor(editor.selected_entity->rotation + to_rotate, 15);
-            to_rotate = next_rotation - editor.selected_entity->rotation;
-//             undo_remember_vertices_start(editor.selected_entity);
-            rotate(editor.selected_entity, to_rotate);
-//             undo_add_rotation(editor.selected_entity, (to_rotate));
-        }
+                f32 next_rotation = round_to_factor(editor.selected_entity->rotation + to_rotate, 15);
+                to_rotate = next_rotation - editor.selected_entity->rotation;
+                rotate(editor.selected_entity, to_rotate);
+                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            }
         }
         
         if (IsKeyReleased(KEY_E) || IsKeyReleased(KEY_Q)) {
@@ -6812,9 +6777,8 @@ void update_editor() {
                 if (multiselection->entities.count > 1) {
                     rotate_multiselected(direction);                    
                 } else {
-//                 undo_remember_vertices_start(editor.selected_entity);
-                rotate(editor.selected_entity, direction);
-//                 undo_add_rotation(editor.selected_entity, (direction));
+                    rotate(editor.selected_entity, direction);
+                    editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
                 }
                 holding_time = 0;
             }
@@ -6843,7 +6807,7 @@ void update_editor() {
         if (editor.is_scaling_entity && (IsKeyUp(KEY_W) && IsKeyUp(KEY_S) && IsKeyUp(KEY_A) && IsKeyUp(KEY_D))) {
             Vector2 scale_change = editor.selected_entity->scale - editor.scaling_start;
             
-//             undo_add_scaling(editor.selected_entity, scale_change);
+            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
             editor.is_scaling_entity = false;
         } 
     } else if (editor.selected_entity && can_control_with_single_button && editor.moving_entity_edge_type == NONE) {
@@ -6862,9 +6826,8 @@ void update_editor() {
             next_scale = {round_to_factor(next_scale.x, scale_amount), round_to_factor(next_scale.y, scale_amount)};
             scaling = next_scale - editor.selected_entity->scale;
         
-//             undo_remember_vertices_start(editor.selected_entity);
             add_scale(editor.selected_entity, scaling);
-//             undo_add_scaling(editor.selected_entity, scaling);
+            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
         }
         
         if (IsKeyReleased(KEY_W) || IsKeyReleased(KEY_S) || IsKeyReleased(KEY_A) || IsKeyReleased(KEY_D)) {
@@ -6890,7 +6853,7 @@ void update_editor() {
                 
 //                 undo_remember_vertices_start(editor.selected_entity);
                 add_scale(editor.selected_entity, scaling);
-//                 undo_add_scaling(editor.selected_entity, scaling);
+                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
                 holding_time = 0;
             }
         } else {

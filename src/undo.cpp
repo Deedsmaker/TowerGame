@@ -26,6 +26,28 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
             .changed_vector = &changed->position
         });
     }
+    if (original->scale != changed->scale) {
+        changes.append({
+            .entity_id = changed->id,
+            .change_type = SCALE_CHANGE,
+            .vector_change = changed->scale - original->scale,
+        });
+    }
+    if (original->rotation != changed->rotation) {
+        changes.append({
+            .entity_id = changed->id,
+            .change_type = ROTATION_CHANGE,
+            .float_change = changed->rotation - original->rotation,
+        });
+    }
+    if (original->draw_order != changed->draw_order) {
+        changes.append({
+            .entity_id = changed->id,
+            .change_type = INTEGER_CHANGE,
+            .integer_change = changed->draw_order - original->draw_order,
+            .changed_integer = &changed->draw_order
+        });
+    }
     
     if (changed->flags & TRIGGER) {
         if (changed->trigger->connected.count > original->trigger->connected.count) {
@@ -140,6 +162,18 @@ inline void update_undo_logic() {
                 case VECTOR2_CHANGE: {
                     *change->changed_vector -= change->vector_change;
                 } break;
+                case FLOAT_CHANGE: {
+                    *change->changed_float -= change->float_change;
+                } break;
+                case INTEGER_CHANGE: {
+                    *change->changed_integer -= change->integer_change;
+                } break;
+                case SCALE_CHANGE: {
+                    add_scale(get_entity(change->entity_id), change->vector_change * -1);
+                } break;
+                case ROTATION_CHANGE: {
+                    rotate(get_entity(change->entity_id), change->float_change * -1);
+                } break;
                 case ENTITY_DESTROYED: {
                     Entity *restored_entity = copy_and_add_entity(change->destroyed_entity_copy, current_level_context, change->entity_id);
                 } break;
@@ -188,6 +222,18 @@ inline void update_undo_logic() {
             switch(change->change_type) {
                 case VECTOR2_CHANGE: {
                     *change->changed_vector += change->vector_change;
+                } break;
+                case FLOAT_CHANGE: {
+                    *change->changed_float += change->float_change;
+                } break;
+                case INTEGER_CHANGE: {
+                    *change->changed_integer += change->integer_change;
+                } break;
+                case SCALE_CHANGE: {
+                    add_scale(get_entity(change->entity_id), change->vector_change);
+                } break;
+                case ROTATION_CHANGE: {
+                    rotate(get_entity(change->entity_id), change->float_change);
                 } break;
                 case ENTITY_DESTROYED: {
                     Entity *to_destroy = get_entity(change->entity_id);

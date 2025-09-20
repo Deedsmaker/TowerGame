@@ -1050,14 +1050,16 @@ enum Death_Instinct_Reason{
 // };
 
 enum Undo_Change_Type {
-    NO_CHANGE       = 0,       
-    VECTOR2_CHANGE = 1,
-    FLOAT_CHANGE   = 2,
-    INTEGER_CHANGE = 3,
+    NO_CHANGE        = 0,       
+    VECTOR2_CHANGE   = 1,
+    FLOAT_CHANGE     = 2,
+    INTEGER_CHANGE   = 3,
     ENTITY_DESTROYED = 4,
-    ENTITY_SPAWNED = 5,
-    ARRAY_APPENDED = 6,
-    ARRAY_REMOVED = 7,
+    ENTITY_SPAWNED   = 5,
+    ARRAY_APPENDED   = 6,
+    ARRAY_REMOVED    = 7,
+    ROTATION_CHANGE  = 8,
+    SCALE_CHANGE     = 9,
 };
 
 struct Entity_Undo_Change {
