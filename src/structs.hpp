@@ -1401,10 +1401,9 @@ struct Editor {
     b32 is_scaling_entity = false;
     b32 is_rotating_entity = false;
 
-    Entity *selected_entity_unchanged_copy = NULL;    
+    Entity *selected_unchanged_copy = NULL;    
 
-    Entity  *selected_entity = NULL;
-    int selected_entity_id;
+    Entity  *selected = NULL;
     Entity  *dragging_entity = NULL;
     int dragging_entity_id;
     Entity  *moving_vertex_entity = NULL;

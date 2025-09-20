@@ -137,16 +137,16 @@ inline void update_undo_logic() {
         editor.just_spawned_entity_id = 0;
               
         add_spawned_entity_to_undo(spawned);
-    } else if (editor.selected_entity && editor.selected_entity->runtime_only_flags & EDITOR_CHANGED) {
-        editor.selected_entity->runtime_only_flags ^= EDITOR_CHANGED;
+    } else if (editor.selected && editor.selected->runtime_only_flags & EDITOR_CHANGED) {
+        editor.selected->runtime_only_flags ^= EDITOR_CHANGED;
         
-        Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected_entity, editor.selected_entity_unchanged_copy);
+        Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected, editor.selected_unchanged_copy);
         
         add_changes_to_undo(&changes);
         
         // Here we're updating unchanged copy of selected entity because we've stored all the information that we wanted.
-        free_entity(editor.selected_entity_unchanged_copy);
-        editor.selected_entity_unchanged_copy = copy_and_add_entity(editor.selected_entity, &undo_level_context);
+        free_entity(editor.selected_unchanged_copy);
+        editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
     }
 
     // Undo logic.

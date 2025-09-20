@@ -4789,24 +4789,23 @@ void editor_delete_entity(i32 entity_id) {
 
 // New selected could be NULL, which means that we're not selecting anyone anymore.
 void assign_selected_entity(Entity *new_selected) {
-    if (editor.selected_entity) {
-        editor.selected_entity->color_changer.changing = 0;
-        editor.selected_entity->color = editor.selected_entity->color_changer.start_color;
+    if (editor.selected) {
+        editor.selected->color_changer.changing = 0;
+        editor.selected->color = editor.selected->color_changer.start_color;
         
-        assert(editor.selected_entity_unchanged_copy);
-        free_entity(editor.selected_entity_unchanged_copy);
+        assert(editor.selected_unchanged_copy);
+        free_entity(editor.selected_unchanged_copy);
     }
     
-    editor.selected_entity_unchanged_copy = NULL;
+    editor.selected_unchanged_copy = NULL;
     
     if (new_selected) {
         new_selected->color_changer.changing = 1;
-        editor.selected_entity_id = new_selected->id;
         
-        editor.selected_entity_unchanged_copy = copy_and_add_entity(new_selected, &undo_level_context);
+        editor.selected_unchanged_copy = copy_and_add_entity(new_selected, &undo_level_context);
     }
     
-    editor.selected_entity = new_selected;
+    editor.selected = new_selected;
     
     focus_input_field.in_focus = false;
 }
@@ -4974,14 +4973,14 @@ void update_editor_ui() {
     //inspector logic
     
     // move entity points hint
-    if (editor.selected_entity || editor.multiselection.entities.count > 0) {
+    if (editor.selected || editor.multiselection.entities.count > 0) {
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_F3)) {
             editor.move_entity_points = !editor.move_entity_points;
         }
         make_ui_text(tprintf("Ctrl+F3:\nMove entity points: %s", editor.move_entity_points ? "YES" : "NO"), {10, screen_height * 0.5f}, 30, Fade(GREEN, 0.6f), "move_entity_points_hint");
     }
     
-    Entity *selected = editor.selected_entity;
+    Entity *selected = editor.selected;
     if (selected) {
         Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.6f};
         Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
@@ -5008,7 +5007,7 @@ void update_editor_ui() {
                 assert(false);
             }
             
-            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
         }
         // v_pos += height_add;
 
@@ -5021,12 +5020,12 @@ void update_editor_ui() {
         v_pos += height_add * 2;
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
-        if (make_input_field(tprintf("%.3f", editor.selected_entity->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
-            || make_input_field(tprintf("%.3f", editor.selected_entity->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
+        if (make_input_field(tprintf("%.3f", editor.selected->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
+            || make_input_field(tprintf("%.3f", editor.selected->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
             ) {
-            Vector2 old_scale = editor.selected_entity->scale;
+            Vector2 old_scale = editor.selected->scale;
             Vector2 new_scale = old_scale;
-            // undo_remember_vertices_start(editor.selected_entity);
+            // undo_remember_vertices_start(editor.selected);
             
             if (str_equal(focus_input_field.tag, "inspector_scale_x")) {
                 new_scale.x = to_f32(focus_input_field.content);
@@ -5038,21 +5037,21 @@ void update_editor_ui() {
             
             Vector2 scale_add = new_scale - old_scale;
             if (scale_add != Vector2_zero) {
-                add_scale(editor.selected_entity, scale_add);
+                add_scale(editor.selected, scale_add);
             }
             
             
-            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
         }
         v_pos += height_add;
         
         make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
-        if (make_input_field(tprintf("%.2f", editor.selected_entity->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
+        if (make_input_field(tprintf("%.2f", editor.selected->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
             ) {
-            f32 old_rotation = editor.selected_entity->rotation;
+            f32 old_rotation = editor.selected->rotation;
             f32 new_rotation = old_rotation;
             
-//             undo_remember_vertices_start(editor.selected_entity);
+//             undo_remember_vertices_start(editor.selected);
             
             if (str_equal(focus_input_field.tag, "inspector_rotation")) {
                 new_rotation = to_f32(focus_input_field.content);
@@ -5062,15 +5061,15 @@ void update_editor_ui() {
             
             f32 rotation_add = new_rotation - old_rotation;
             if (rotation_add != 0) {
-                rotate(editor.selected_entity, rotation_add);
+                rotate(editor.selected, rotation_add);
             }
             
-            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
         }
         v_pos += height_add;
         
         make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
-        if (make_input_field(tprintf("%d", editor.selected_entity->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
+        if (make_input_field(tprintf("%d", editor.selected->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
             ) {
             
             if (editor.multiselection.entities.count > 1) {
@@ -5079,7 +5078,7 @@ void update_editor_ui() {
                     entity->draw_order = to_i32(focus_input_field.content);
                 }
             } else {
-                i32 old_draw_order = editor.selected_entity->draw_order;
+                i32 old_draw_order = editor.selected->draw_order;
                 i32 new_draw_order = old_draw_order;
                 
                 if (str_equal(focus_input_field.tag, "inspector_draw_order")) {
@@ -5090,10 +5089,10 @@ void update_editor_ui() {
                 
                 i32 draw_order_add = new_draw_order - old_draw_order;
                 if (draw_order_add != 0) {
-                    editor.selected_entity->draw_order += draw_order_add;
+                    editor.selected->draw_order += draw_order_add;
                 }
                 
-                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
             }
         }
         v_pos += height_add;
@@ -5544,7 +5543,7 @@ void update_editor_ui() {
     if (can_control_create_box && IsKeyPressed(KEY_ESCAPE)) {
         if (editor.create_box_active) {
             need_close_create_box = true;
-        } else if (editor.selected_entity) {
+        } else if (editor.selected) {
             assign_selected_entity(NULL);
         }
     }
@@ -5647,7 +5646,7 @@ void update_editor_ui() {
 Entity *get_cursor_entity() {
     Entity *cursor_entity_candidate = NULL;
     
-    b32 mouse_on_selected_entity = editor.selected_entity && check_entities_collision(&mouse_entity, editor.selected_entity).collided;
+    b32 mouse_on_selected_entity = editor.selected && check_entities_collision(&mouse_entity, editor.selected).collided;
     
     fill_collisions(&mouse_entity, &collisions_buffer, 0);
     
@@ -5657,10 +5656,10 @@ Entity *get_cursor_entity() {
             //If we long enough on one entity we assume that we want to pick it up and not to cycle
             f32 time_since_last_click = core.time.app_time - editor.last_click_time;
             if (time_since_last_click >= 0.5f && mouse_on_selected_entity) {
-                if (e->id == editor.selected_entity->id) {
+                if (e->id == editor.selected->id) {
                     cursor_entity_candidate = e;
                 }
-            } else if (!cursor_entity_candidate && editor.selected_entity && e->id != editor.selected_entity->id) {
+            } else if (!cursor_entity_candidate && editor.selected && e->id != editor.selected->id) {
                 cursor_entity_candidate = e;
             } else if (!editor.place_cursor_entities.contains(e)) {
                 cursor_entity_candidate = e;
@@ -5668,7 +5667,7 @@ Entity *get_cursor_entity() {
         } else { //Mouse moved from last click
             //If mouse moved we always want cursor entity to be a selected entity
             if (mouse_on_selected_entity) {
-                if (e->id == editor.selected_entity->id) {
+                if (e->id == editor.selected->id) {
                     cursor_entity_candidate = e;
                 }
             } else {
@@ -5696,7 +5695,7 @@ Entity *editor_spawn_entity(const char *name, Vector2 position) {
 }
 
 b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_index) { 
-    if (!editor.selected_entity) {
+    if (!editor.selected) {
         return false;
     }
 
@@ -5716,8 +5715,8 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
             
             Vector2 vertex_global = global(e, *vertex);
                 
-            if (e->id != editor.selected_entity->id) {
-                f32 sqr_distance = sqr_magnitude(global(editor.selected_entity, *entity_vertex) - vertex_global);
+            if (e->id != editor.selected->id) {
+                f32 sqr_distance = sqr_magnitude(global(editor.selected, *entity_vertex) - vertex_global);
                 if (sqr_distance < distance_to_closest_vertex) {
                     distance_to_closest_vertex = sqr_distance;
                     closest_vertex_global = vertex_global;
@@ -5735,11 +5734,11 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     // // So if we do that here aswell - on undo vertices will go on place where we pressed button.
     // // Really need to change undo system though.
     // if (!editor.moving_vertex_entity) {
-//     //     undo_remember_vertices_start(editor.selected_entity);
+//     //     undo_remember_vertices_start(editor.selected);
     // }
-    // move_vertex(editor.selected_entity, closest_vertex_global, vertex_index);
+    // move_vertex(editor.selected, closest_vertex_global, vertex_index);
 
-//     // undo_add_vertices_change(editor.selected_entity);
+//     // undo_add_vertices_change(editor.selected);
     
     return true;
 }
@@ -5815,7 +5814,7 @@ void editor_mouse_move_entity(Entity *entity) {
 //         if (action->changed_entities.count > 1) {
 //             editor.multiselection.entities.append(deleted_entity_id);
 //         } else {
-//             // editor.selected_entity = restored_entity;
+//             // editor.selected = restored_entity;
 //             assign_selected_entity(restored_entity);
 //         }
 //     }
@@ -6212,7 +6211,7 @@ void update_editor() {
             
         //     Vector2 vertex_global = global(e, *vertex);
             
-        //     if (need_move_vertices && (!moving_vertex_entity_candidate || (editor.selected_entity && e->id == editor.selected_entity->id))) {
+        //     if (need_move_vertices && (!moving_vertex_entity_candidate || (editor.selected && e->id == editor.selected->id))) {
         //         if (is_vertex_on_mouse(vertex_global)) {
         //             moving_vertex_entity_candidate = e;
         //             moving_vertex_candidate = v;
@@ -6221,7 +6220,7 @@ void update_editor() {
         // }
         
         b32 maybe_want_to_move_edges = IsKeyDown(KEY_LEFT_ALT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT);
-        if (maybe_want_to_move_edges && !editor.is_scaling_entity && editor.selected_entity && editor.selected_entity->id == e->id) {
+        if (maybe_want_to_move_edges && !editor.is_scaling_entity && editor.selected && editor.selected->id == e->id) {
             try_move_entity_edges(e);
         } else if (!IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) { 
             // Check for mouse button not released this frame is for that we keep dragging edge state for one frame
@@ -6248,7 +6247,7 @@ void update_editor() {
         
         //editor move sequence points        
         // We don't want to move points if selected entity already is move sequence or if selected is trigger with cam rails.
-        b32 cannot_move_points = editor.selected_entity && ((editor.selected_entity->flags & MOVE_SEQUENCE || (editor.selected_entity->flags & TRIGGER && editor.selected_entity->trigger->cam_rails_points.count > 0)) && editor.selected_entity->id != e->id);
+        b32 cannot_move_points = editor.selected && ((editor.selected->flags & MOVE_SEQUENCE || (editor.selected->flags & TRIGGER && editor.selected->trigger->cam_rails_points.count > 0)) && editor.selected->id != e->id);
         for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence->points.count && !cannot_move_points; p++) {
             Vector2 *point = e->move_sequence->points.get(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
@@ -6278,16 +6277,16 @@ void update_editor() {
     //     editor.moving_vertex_entity = NULL;
     // }
     
-    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT)) {
+    if (editor.selected && IsKeyDown(KEY_LEFT_ALT)) {
         i32 vertex_snap_index = -1;
         if (IsKeyPressed(KEY_T))   vertex_snap_index = 0;
         if (IsKeyPressed(KEY_Y))   vertex_snap_index = 1;
         if (IsKeyPressed(KEY_F)) vertex_snap_index = 2;
         if (IsKeyPressed(KEY_G))  vertex_snap_index = 3;
         
-        if (vertex_snap_index != -1 && vertex_snap_index < editor.selected_entity->vertices.count) {
-            Vector2 *vertex = editor.selected_entity->vertices.get(vertex_snap_index);
-            snap_vertex_to_closest(editor.selected_entity, vertex, vertex_snap_index);
+        if (vertex_snap_index != -1 && vertex_snap_index < editor.selected->vertices.count) {
+            Vector2 *vertex = editor.selected->vertices.get(vertex_snap_index);
+            snap_vertex_to_closest(editor.selected, vertex, vertex_snap_index);
         }
     }
     
@@ -6307,7 +6306,7 @@ void update_editor() {
     // mouse select editor
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && can_select) {
         if (editor.cursor_entity) { //select entity
-            b32 is_same_selected_entity = editor.selected_entity != NULL && editor.selected_entity->id == editor.cursor_entity->id;
+            b32 is_same_selected_entity = editor.selected != NULL && editor.selected->id == editor.cursor_entity->id;
             need_start_dragging = is_same_selected_entity;
             if (!is_same_selected_entity) {
                 // multiselect exclude multiselect remove
@@ -6326,7 +6325,7 @@ void update_editor() {
                         clear_multiselected_entities(true);
                     }
                     assign_selected_entity(editor.cursor_entity);
-                    editor.place_cursor_entities.append(editor.selected_entity);
+                    editor.place_cursor_entities.append(editor.selected);
                     
                     editor.selected_this_click = true;
                 }
@@ -6492,18 +6491,18 @@ void update_editor() {
         }
     }
     
-    if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_LEFT_CONTROL) && editor.selected_entity != NULL && need_start_dragging && can_select) { // assign dragging entity
+    if (editor.dragging_entity == NULL && !editor.selected_this_click && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_LEFT_CONTROL) && editor.selected != NULL && need_start_dragging && can_select) { // assign dragging entity
         if (editor.cursor_entity != NULL) {
-            if (editor.moving_vertex == NULL && editor.selected_entity->id == editor.cursor_entity->id && editor.moving_entity_edge_type == NONE) {
-                editor.dragging_entity = editor.selected_entity;
-                editor.dragging_entity_id = editor.selected_entity->id;
+            if (editor.moving_vertex == NULL && editor.selected->id == editor.cursor_entity->id && editor.moving_entity_edge_type == NONE) {
+                editor.dragging_entity = editor.selected;
+                editor.dragging_entity_id = editor.selected->id;
                 editor.dragging_start = editor.dragging_entity->position;
                 editor.dragging_start_mouse_offset = input.mouse_position - editor.dragging_start;
             }
         }
     } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && can_select) { // stop dragging entity
-        if (editor.selected_entity && !editor.selected_this_click && editor.cursor_entity) {
-            if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id && editor.moving_entity_edge_type == NONE) {
+        if (editor.selected && !editor.selected_this_click && editor.cursor_entity) {
+            if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected->id && editor.moving_entity_edge_type == NONE) {
                 assign_selected_entity(NULL);
             }
         }
@@ -6512,8 +6511,8 @@ void update_editor() {
         editor.selected_this_click = false;
         
         if (editor.dragging_entity) {
-            if (editor.selected_entity) {
-                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            if (editor.selected) {
+                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
             }
         }
         
@@ -6530,14 +6529,14 @@ void update_editor() {
     }
     
     //entity tap moving
-    if (editor.selected_entity) {
+    if (editor.selected) {
         Vector2 tap_move = {input.tap_direction.x * CELL_SIZE, input.tap_direction.y * CELL_SIZE};
         if (tap_move.x != 0 || tap_move.y != 0) {
-            Vector2 next_position = round_to_factor(editor.selected_entity->position + tap_move, CELL_SIZE);
-            Vector2 move_amount = next_position - editor.selected_entity->position;
-            editor.selected_entity->position += move_amount;
+            Vector2 next_position = round_to_factor(editor.selected->position + tap_move, CELL_SIZE);
+            Vector2 move_amount = next_position - editor.selected->position;
+            editor.selected->position += move_amount;
             // undo_action.position_change = move_amount;
-            // undo_action.entity_id = editor.selected_entity->id;
+            // undo_action.entity_id = editor.selected->id;
             // something_in_undo = true;
         }
     }
@@ -6547,7 +6546,7 @@ void update_editor() {
     }
     
     //editor copy
-    if ((editor.selected_entity || multiselection->entities.count > 0) && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)) {
+    if ((editor.selected || multiselection->entities.count > 0) && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)) {
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&copied_entities_level_context);
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
@@ -6563,9 +6562,9 @@ void update_editor() {
             }
             editor.copied_entities_center = multiselection->center;
         } else {
-            Entity *entity_to_copy = get_entity(editor.selected_entity->id, original_level_context);   
+            Entity *entity_to_copy = get_entity(editor.selected->id, original_level_context);   
             editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context));
-            // copy_entity(&editor.copied_entity, editor.selected_entity);
+            // copy_entity(&editor.copied_entity, editor.selected);
             editor.copied_entities_center = entity_to_copy->position;
         }
         
@@ -6678,8 +6677,8 @@ void update_editor() {
     }
     
     //editor Delete entity
-    if (can_control_with_single_button && IsKeyPressed(KEY_X) && editor.selected_entity) {
-        editor_delete_entity(editor.selected_entity);
+    if (can_control_with_single_button && IsKeyPressed(KEY_X) && editor.selected) {
+        editor_delete_entity(editor.selected);
     }
     
     if (editor.dragging_entity != NULL) {
@@ -6693,17 +6692,17 @@ void update_editor() {
     //editor Entity to mouse or go to entity
     if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.dragging_entity) {
         editor.dragging_entity->position = input.mouse_position;
-    } else if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.selected_entity) {
-        current_level_context->cam.position = editor.selected_entity->position;
+    } else if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.selected) {
+        current_level_context->cam.position = editor.selected->position;
     }
     
     //editor free entity rotation
-    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT)) {
+    if (editor.selected && IsKeyDown(KEY_LEFT_ALT)) {
         f32 rotation = 0;
         f32 speed = 50;
         if (!editor.is_rotating_entity && (IsKeyPressed(KEY_E) || IsKeyPressed(KEY_Q))) {
-            editor.rotating_start = editor.selected_entity->rotation;
-//             undo_remember_vertices_start(editor.selected_entity);
+            editor.rotating_start = editor.selected->rotation;
+//             undo_remember_vertices_start(editor.selected);
             editor.is_rotating_entity = true;
         } 
         
@@ -6714,14 +6713,14 @@ void update_editor() {
         }
         
         if (rotation != 0 && editor.is_rotating_entity) {
-            rotate(editor.selected_entity, rotation);
+            rotate(editor.selected, rotation);
         }
         
         if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))) {
-            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
             editor.is_rotating_entity = false;
         } 
-    } else if ((editor.selected_entity || multiselection->entities.count > 1) && can_control_with_single_button) {
+    } else if ((editor.selected || multiselection->entities.count > 1) && can_control_with_single_button) {
         // editor snap entity rotation.
         local_persist f32 holding_time = 0;
         f32 to_rotate = 0;
@@ -6736,10 +6735,10 @@ void update_editor() {
             if (multiselection->entities.count > 1) {
                 rotate_multiselected(to_rotate);
             } else {
-                f32 next_rotation = round_to_factor(editor.selected_entity->rotation + to_rotate, 15);
-                to_rotate = next_rotation - editor.selected_entity->rotation;
-                rotate(editor.selected_entity, to_rotate);
-                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+                f32 next_rotation = round_to_factor(editor.selected->rotation + to_rotate, 15);
+                to_rotate = next_rotation - editor.selected->rotation;
+                rotate(editor.selected, to_rotate);
+                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
             }
         }
         
@@ -6754,8 +6753,8 @@ void update_editor() {
                 if (multiselection->entities.count > 1) {
                     rotate_multiselected(direction);                    
                 } else {
-                    rotate(editor.selected_entity, direction);
-                    editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+                    rotate(editor.selected, direction);
+                    editor.selected->runtime_only_flags |= EDITOR_CHANGED;
                 }
                 holding_time = 0;
             }
@@ -6763,13 +6762,13 @@ void update_editor() {
     }
     
     //editor free entity scaling
-    if (editor.selected_entity && IsKeyDown(KEY_LEFT_ALT) && editor.moving_entity_edge_type == NONE) {
+    if (editor.selected && IsKeyDown(KEY_LEFT_ALT) && editor.moving_entity_edge_type == NONE) {
         Vector2 scaling = {};
         f32 speed = 80;
         
         if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))) {
-            editor.scaling_start = editor.selected_entity->scale;
-//             undo_remember_vertices_start(editor.selected_entity);
+            editor.scaling_start = editor.selected->scale;
+//             undo_remember_vertices_start(editor.selected);
             editor.is_scaling_entity = true;
         }
         if      (IsKeyDown(KEY_W)) scaling.y += speed * dt;
@@ -6778,16 +6777,16 @@ void update_editor() {
         else if (IsKeyDown(KEY_A)) scaling.x -= speed * dt;
 
         if (scaling != Vector2_zero && editor.is_scaling_entity) {
-            add_scale(editor.selected_entity, scaling);
+            add_scale(editor.selected, scaling);
         }
         
         if (editor.is_scaling_entity && (IsKeyUp(KEY_W) && IsKeyUp(KEY_S) && IsKeyUp(KEY_A) && IsKeyUp(KEY_D))) {
-            Vector2 scale_change = editor.selected_entity->scale - editor.scaling_start;
+            Vector2 scale_change = editor.selected->scale - editor.scaling_start;
             
-            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
             editor.is_scaling_entity = false;
         } 
-    } else if (editor.selected_entity && can_control_with_single_button && editor.moving_entity_edge_type == NONE) {
+    } else if (editor.selected && can_control_with_single_button && editor.moving_entity_edge_type == NONE) {
         local_persist f32 holding_time = 0;
         Vector2 scaling = Vector2_zero;
         f32 scale_amount = 5;
@@ -6799,12 +6798,12 @@ void update_editor() {
 
 
         if (scaling != Vector2_zero) {
-            Vector2 next_scale = editor.selected_entity->scale + scaling;
+            Vector2 next_scale = editor.selected->scale + scaling;
             next_scale = {round_to_factor(next_scale.x, scale_amount), round_to_factor(next_scale.y, scale_amount)};
-            scaling = next_scale - editor.selected_entity->scale;
+            scaling = next_scale - editor.selected->scale;
         
-            add_scale(editor.selected_entity, scaling);
-            editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            add_scale(editor.selected, scaling);
+            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
         }
         
         if (IsKeyReleased(KEY_W) || IsKeyReleased(KEY_S) || IsKeyReleased(KEY_A) || IsKeyReleased(KEY_D)) {
@@ -6828,9 +6827,9 @@ void update_editor() {
                 if      (IsKeyDown(KEY_D)) scaling.x += scale_amount;
                 else if (IsKeyDown(KEY_A)) scaling.x -= scale_amount;
                 
-//                 undo_remember_vertices_start(editor.selected_entity);
-                add_scale(editor.selected_entity, scaling);
-                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+//                 undo_remember_vertices_start(editor.selected);
+                add_scale(editor.selected, scaling);
+                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
                 holding_time = 0;
             }
         } else {
@@ -6839,8 +6838,8 @@ void update_editor() {
     }
     
     //editor components management
-    if (editor.selected_entity) {
-        Entity *selected = editor.selected_entity;
+    if (editor.selected) {
+        Entity *selected = editor.selected;
         if (selected->flags & TRIGGER) {
             b32 wanna_assign = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_A);
             b32 wanna_assign_tracking_enemy = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_Q);
@@ -7034,7 +7033,7 @@ void update_editor() {
     b32 redo_queued = is_action_queued(&redo_repeat_data, redo_pressed, redo_holded);
     
     // Tile sheets logic.
-    if (editor.selected_entity && editor.selected_entity->flags & TEXTURE) {
+    if (editor.selected && editor.selected->flags & TEXTURE) {
         if (IsKeyPressed(KEY_PERIOD) || IsKeyPressed(KEY_COMMA)) {
             // We don't really want to save tile sheet name on every entity, so we just take a little performance hit of 
             // going through every texture of every tile sheet to look up the current tile texture.
@@ -7042,16 +7041,16 @@ void update_editor() {
                 Tile_Sheet *sheet = tile_sheets.get(i);
                 for (i32 j = 0; j < sheet->textures.count; j++) {
                     const char *sheet_texture_name = sheet->textures.get(j)->name;
-                    if (str_equal(sheet_texture_name, editor.selected_entity->texture_name)) {
+                    if (str_equal(sheet_texture_name, editor.selected->texture_name)) {
                         i32 increment_direction = IsKeyPressed(KEY_PERIOD) ? 1 : -1;
                         i32 next_index = (j + increment_direction);
                         if (next_index >= sheet->textures.count) next_index = 0;
                         if (next_index < 0) next_index = sheet->textures.count - 1;
                         
                         Texture_Data *next_data = sheet->textures.get(next_index);
-                        editor.selected_entity->texture = next_data->texture;
-                        str_copy(editor.selected_entity->texture_name, next_data->name);
-                        init_entity(editor.selected_entity);
+                        editor.selected->texture = next_data->texture;
+                        str_copy(editor.selected->texture_name, next_data->name);
+                        init_entity(editor.selected);
                         break;
                     }
                 }
@@ -10887,7 +10886,7 @@ void fill_entities_draw_queue() {
                 make_line(entity->position + entity->up * entity->scale.y * entity->pivot.y, target_position, line_width, line_color);
             }
             
-            if (should_draw_editor_hints() && editor.selected_entity && entity->id == editor.selected_entity->id && turret->homing) {
+            if (should_draw_editor_hints() && editor.selected && entity->id == editor.selected->id && turret->homing) {
                 // draw_game_circle(entity->position, turret->shoot_radius, Fade(RED, 0.2f));
                 draw_game_rect(entity->position, {turret->shoot_width, turret->shoot_height}, {0.5f, 0.5f}, 0, Fade(RED, 0.2f));
             }
@@ -10895,7 +10894,7 @@ void fill_entities_draw_queue() {
         
         // always draw move sequence
         if (entity->flags & MOVE_SEQUENCE && should_draw_editor_hints()) {
-            if (entity->move_sequence->speed_related_player_distance && editor.selected_entity && editor.selected_entity->id == entity->id) {
+            if (entity->move_sequence->speed_related_player_distance && editor.selected && editor.selected->id == entity->id) {
                 draw_game_circle(entity->position, entity->move_sequence->max_distance, Fade(RED, 0.05f));
                 draw_game_circle(entity->position, entity->move_sequence->min_distance, Fade(BLUE, 0.2f));
             }
@@ -10903,7 +10902,7 @@ void fill_entities_draw_queue() {
             for (i32 ii = 0; ii < entity->move_sequence->points.count; ii++) {
                 Vector2 point = entity->move_sequence->points.get_value(ii);
                 
-                Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.2f);
+                Color color = editor.selected && editor.selected->id == entity->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.2f);
                 
                 if (IsKeyDown(KEY_LEFT_ALT)) {
                     draw_game_circle(point, 1  * (0.4f / current_level_context->cam.cam2D.zoom), SKYBLUE);
@@ -10949,7 +10948,7 @@ void fill_entities_draw_queue() {
                     draw_game_circle(trigger->locked_camera_position, 2, PINK);
                     
                     Color cam_border_color = Fade(PINK, 0.15f);
-                    if (editor.selected_entity && editor.selected_entity->id == entity->id) {
+                    if (editor.selected && editor.selected->id == entity->id) {
                         cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.45f);
                     }
                     position = trigger->locked_camera_position;
@@ -10964,7 +10963,7 @@ void fill_entities_draw_queue() {
                     for (i32 ii = 0; ii < trigger->cam_rails_points.count; ii++) {
                         Vector2 point = trigger->cam_rails_points.get_value(ii);
                         
-                        Color color = editor.selected_entity && editor.selected_entity->id == entity->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
+                        Color color = editor.selected && editor.selected->id == entity->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
                         
                         if (IsKeyDown(KEY_LEFT_ALT)) {
                             draw_game_circle(point, 1  * (0.4f / current_level_context->cam.cam2D.zoom), SKYBLUE);
@@ -10977,7 +10976,7 @@ void fill_entities_draw_queue() {
                 }
             }
             
-            b32 is_trigger_selected = editor.selected_entity && editor.selected_entity->id == entity->id || (IsKeyDown(KEY_LEFT_ALT) && should_draw_editor_hints());
+            b32 is_trigger_selected = editor.selected && editor.selected->id == entity->id || (IsKeyDown(KEY_LEFT_ALT) && should_draw_editor_hints());
             f32 since_triggered = core.time.game_time - trigger->triggered_time;
             for (i32 ii = 0; ii < trigger->connected.count; ii++) {
                 Entity *connected = get_entity(trigger->connected.get_value(ii));
@@ -11208,7 +11207,7 @@ void draw_entity(Entity *e) {
         if (game_state == EDITOR || state_context.in_pause_editor) {
             make_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
             // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
-            if (editor.selected_entity && editor.selected_entity->id == e->id || (IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_ALT)) || focus_input_field.in_focus && str_contains(focus_input_field.tag, tprintf("%d", e->id))) {
+            if (editor.selected && editor.selected->id == e->id || (IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_ALT)) || focus_input_field.in_focus && str_contains(focus_input_field.tag, tprintf("%d", e->id))) {
                 Vector2 note_size = {screen_width * 0.2f, screen_height * 0.2f};
                 i32 content_count = str_len(note->content);
                 f32 chars_scaling_treshold = 200 * UI_SCALING;
@@ -11238,7 +11237,7 @@ void draw_entity(Entity *e) {
     }
     
     if (e->flags & DOOR) {
-        if (editor.selected_entity && editor.selected_entity->id == e->id) {
+        if (editor.selected && editor.selected->id == e->id) {
             Vector2 previous_position = e->position;
             Vector2 target_position = e->door.is_open ? e->door.closed_position : e->door.open_position;
             // make_line(e->position, target_position, GREEN);
@@ -11526,12 +11525,12 @@ void draw_entity(Entity *e) {
         }
     }
     
-    if ((game_state == EDITOR || debug.draw_up_right) && editor.selected_entity && editor.selected_entity->id == e->id) {
+    if ((game_state == EDITOR || debug.draw_up_right) && editor.selected && editor.selected->id == e->id) {
         make_line(e->position, e->position + e->right * 3, RED);
         make_line(e->position, e->position + e->up    * 3, GREEN);
     }
     
-    if (debug.draw_bounds || editor.selected_entity && (game_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected_entity->id) {
+    if (debug.draw_bounds || editor.selected && (game_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected->id) {
         make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / current_level_context->cam.cam2D.zoom, GREEN);
     }
 }
@@ -11591,7 +11590,7 @@ void draw_game_space_editor() {
         if (draw_circles_on_vertices) {
             for (i32 v = 0; v < e->vertices.count; v++) {
                 Vector2 global_vertex_position = global(e, e->vertices.get_value(v));
-                if (editor.selected_entity && editor.selected_entity->id == e->id) {
+                if (editor.selected && editor.selected->id == e->id) {
                     const char *text = v == 0 ? "T" : (v == 1 ? "Y" : (v == 2 ? "F" : "G"));
                     draw_game_text(global_vertex_position, text, 22.0f / current_level_context->cam.cam2D.zoom, YELLOW);
                 }
@@ -11925,8 +11924,8 @@ void draw_screen_space_editor() {
     }
     
     bool draw_horizontal_vertical_lines = true;
-    if (draw_horizontal_vertical_lines && editor.selected_entity) {
-        Vector2 screen_position = world_to_screen_with_zoom(editor.selected_entity->position);
+    if (draw_horizontal_vertical_lines && editor.selected) {
+        Vector2 screen_position = world_to_screen_with_zoom(editor.selected->position);
         draw_line({(f32)0, screen_position.y}, {(f32)screen_width, screen_position.y}, Fade(RED, 0.5f));
         draw_line({screen_position.x, (f32)0}, {screen_position.x, (f32)screen_height}, Fade(GREEN, 0.5f));
     }
