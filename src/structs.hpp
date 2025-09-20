@@ -1054,7 +1054,8 @@ enum Undo_Change_Type {
     VECTOR2_CHANGE = 1,
     FLOAT_CHANGE   = 2,
     INTEGER_CHANGE = 3,
-    ENTITY_DESTROYED = 4
+    ENTITY_DESTROYED = 4,
+    ENTITY_SPAWNED = 5,
 };
 
 struct Entity_Undo_Change {
@@ -1072,6 +1073,7 @@ struct Entity_Undo_Change {
         f32 *changed_float;
         i32 *changed_integer;
         Entity *destroyed_entity_copy;
+        Entity *spawned_entity_copy;
     };
 };
 
@@ -1361,7 +1363,8 @@ struct Editor {
     
     // Static_Array <Undo_Action, MAX_UNDOS> undo_actions = {0};
     
-    b32 deleted_entity_this_frame = false;
+    b32 just_deleted_entity = false;
+    i32 just_spawned_entity_id = 0;
     
     int max_undos_added;
 

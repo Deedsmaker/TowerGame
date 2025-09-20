@@ -24,6 +24,18 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
     return changes;
 }
 
+void add_spawned_entity_to_undo(Entity *spawned) {
+    Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
+    changes.append({
+        .entity_id = spawned->id,
+        .change_type = ENTITY_SPAWNED,
+        .spawned_entity_copy = copy_and_add_entity(spawned, &undo_level_context)
+    });
+    
+    current_level_context->undo_actions.append(changes);
+    editor.max_undos_added = current_level_context->undo_actions.count;
+}
+
 b32 add_undo_changes_if_entity_changed(Entity *entity, Entity *unchanged_entity) {
     if (entity->runtime_only_flags & EDITOR_CHANGED) {
         entity->runtime_only_flags ^= EDITOR_CHANGED;
@@ -43,8 +55,8 @@ b32 add_undo_changes_if_entity_changed(Entity *entity, Entity *unchanged_entity)
 inline void update_undo_logic() {
     // First of all detecting changed entities to add them to undo actions.
     
-    if (editor.deleted_entity_this_frame) {
-        editor.deleted_entity_this_frame = false;
+    if (editor.just_deleted_entity) {
+        editor.just_deleted_entity = false;
         // In case of deleting entity we want to go through all of entities and look at entities that might 
         // reffer to deleted one and mark them changed aswell, so for example trigger will detect that 
         // one of his connected is will be destroyed -> mark itself as changed and all of it's changed 
@@ -53,7 +65,6 @@ inline void update_undo_logic() {
         for_chunk_array(i, &current_level_context->entities) {
             Entity *entity = current_level_context->entities.get(i);
             Entity *unchanged_entity = copy_and_add_entity(entity, &undo_level_context);
-            
             
             // On verifying trigger and kill switch will detect if someone will be destroyed -> will remive
             // it from an array and mark itself as EDITOR_CHANGED.
@@ -64,6 +75,11 @@ inline void update_undo_logic() {
             
             free_entity(unchanged_entity);
         }
+    } else if (editor.just_spawned_entity_id > 0) {
+        Entity *spawned = get_entity(editor.just_spawned_entity_id);    
+        editor.just_spawned_entity_id = 0;
+              
+        add_spawned_entity_to_undo(spawned);
     } else if (editor.selected_entity && editor.selected_entity->runtime_only_flags & EDITOR_CHANGED) {
         b32 added_undo = add_undo_changes_if_entity_changed(editor.selected_entity, editor.selected_entity_unchanged_copy);
         
@@ -91,6 +107,10 @@ inline void update_undo_logic() {
                 case ENTITY_DESTROYED: {
                     Entity *restored_entity = copy_and_add_entity(change->destroyed_entity_copy, current_level_context, change->entity_id);
                 } break;
+                case ENTITY_SPAWNED: {
+                    Entity *to_destroy = get_entity(change->entity_id);
+                    mark_entity_destroyed(to_destroy);
+                } break;
                 case NO_CHANGE: { 
                     assert(false);
                 } break;
@@ -109,14 +129,17 @@ inline void update_undo_logic() {
         for_array(i, changes) {
             Entity_Undo_Change *change = changes->get(i);
             
-            assert(get_entity(change->entity_id)); 
+            // assert(get_entity(change->entity_id)); 
             switch(change->change_type) {
                 case VECTOR2_CHANGE: {
                     *change->changed_vector += change->vector_change;
                 } break;
                 case ENTITY_DESTROYED: {
-                    Entity *to_destroy_again = get_entity(change->entity_id);
-                    mark_entity_destroyed(to_destroy_again);
+                    Entity *to_destroy = get_entity(change->entity_id);
+                    mark_entity_destroyed(to_destroy);
+                } break;
+                case ENTITY_SPAWNED: {
+                    Entity *restored_entity = copy_and_add_entity(change->spawned_entity_copy, current_level_context, change->entity_id);
                 } break;
             }
         }

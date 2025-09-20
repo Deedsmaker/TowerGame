@@ -2134,8 +2134,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     assert(entity->level_context);
     assert(entity->id > 0 && get_entity(entity->id, entity->level_context)->id > 0);
 
-    // entity->level_context = current_level_context;
-    
     entity->color = entity->color_changer.start_color;
 
     if (entity->flags & AMMO_PACK){
@@ -4771,7 +4769,7 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
     
     if (is_editor_active()) {
         entity->runtime_only_flags |= EDITOR_CHANGED;
-        editor.deleted_entity_this_frame = true; // That thing beign used only for undo for now.
+        editor.just_deleted_entity = true; // That thing beign used only for undo for now.
     }
     
     // editor.selected_entity = NULL;
@@ -5747,12 +5745,7 @@ Entity *editor_spawn_entity(const char *name, Vector2 position) {
     Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5));
     
     if (entity) {
-        // Undo_Action undo_action;
-        // // @LEAK: Check that we're freeing this.
-        // undo_action.spawned_entity = copy_and_add_entity(entity, &undo_level_context);
-        // undo_action.entity_id = entity->id;
-        // undo_action.entity_was_spawned = true;
-        // add_undo_action(undo_action);
+        editor.just_spawned_entity_id = entity->id;
     }
     
     return entity;
@@ -10685,7 +10678,6 @@ void update_entities(f32 dt) {
         
         if (e->destroyed) {
             free_entity(e);
-            // entities->remove(e->id - 1);    
             continue;
         }
         
