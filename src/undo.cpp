@@ -84,17 +84,6 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
     return changes;
 }
 
-void add_spawned_entity_to_undo(Entity *spawned) {
-    Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
-    changes.append({
-        .entity_id = spawned->id,
-        .change_type = ENTITY_SPAWNED,
-        .spawned_entity_copy = copy_and_add_entity(spawned, &undo_level_context)
-    });
-    
-    add_changes_to_undo(&changes);
-}
-
 inline void update_undo_logic() {
     // First of all detecting changed entities to add them to undo actions.
     
@@ -132,11 +121,20 @@ inline void update_undo_logic() {
         add_changes_to_undo(&changes);
         
         assert(found_one_that_will_be_destroyed);
-    } else if (editor.just_spawned_entity_id > 0) {
-        Entity *spawned = get_entity(editor.just_spawned_entity_id);    
-        editor.just_spawned_entity_id = 0;
-              
-        add_spawned_entity_to_undo(spawned);
+    } else if (editor.just_spawned_entities_ids.count > 0) {
+        Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
+        for_array(i, &editor.just_spawned_entities_ids) {
+            Entity *spawned = get_entity(editor.just_spawned_entities_ids.get_value(i));    
+            
+            changes.append({
+                .entity_id = spawned->id,
+                .change_type = ENTITY_SPAWNED,
+                .spawned_entity_copy = copy_and_add_entity(spawned, &undo_level_context)
+            });
+        }
+        
+        add_changes_to_undo(&changes);
+        editor.just_spawned_entities_ids.clear();
     } else if (editor.multiselection.entities.count > 0) {
         assert(editor.multiselection.entities.count == editor.multiselection.unchanged_copies.count);
         if (get_entity(editor.multiselection.entities.get_value(0))->runtime_only_flags & EDITOR_CHANGED) {
@@ -160,7 +158,6 @@ inline void update_undo_logic() {
         editor.selected->runtime_only_flags ^= EDITOR_CHANGED;
         
         Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected, editor.selected_unchanged_copy);
-        log_short(changes.count);
         
         add_changes_to_undo(&changes);
         

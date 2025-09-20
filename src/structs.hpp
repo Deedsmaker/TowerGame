@@ -1373,7 +1373,7 @@ struct Editor {
     // Static_Array <Undo_Action, MAX_UNDOS> undo_actions = {0};
     
     b32 just_deleted_entity = false;
-    i32 just_spawned_entity_id = 0;
+    Array <i32> just_spawned_entities_ids = {0};
     
     b32 update_cam_view_position = true;
 

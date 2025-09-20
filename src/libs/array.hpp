@@ -7,6 +7,7 @@
 #include "my_defines.hpp"
 
 #define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
+#define for_array_backwards(index, array) for (i32 index = (array)->count - 1; index >= 0; index--)
 
 inline void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_count, i32 appended_count) {
     i32 new_count = current_count + appended_count;

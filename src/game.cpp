@@ -5537,7 +5537,7 @@ void update_editor_ui() {
                 entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
                 
-                editor.just_spawned_entity_id = entity->id;
+                editor.just_spawned_entities_ids.append(entity->id);
             }
             
             if (obj.entity.flags & TEXTURE) {
@@ -5617,7 +5617,7 @@ Entity *editor_spawn_entity(const char *name, Vector2 position) {
     Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5));
     
     if (entity) {
-        editor.just_spawned_entity_id = entity->id;
+        editor.just_spawned_entities_ids.append(entity->id);
     }
     
     return entity;
@@ -5774,7 +5774,7 @@ void add_to_multiselection(Array<i32> *ids) {
 //     return -1;
 // }
 
-void remove_from_multiselection(i32 id) {
+void remove_id_from_multiselection(i32 id) {
     i32 index = editor.multiselection.entities.find(id);
     if (index >= 0) {
         editor.multiselection.entities.remove(index);
@@ -5785,16 +5785,16 @@ void remove_from_multiselection(i32 id) {
     }
 }
 
-void remove_from_multiselection(Array<i32> *ids) {
+void remove_ids_from_multiselection(Array<i32> *ids) {
     // Backwards because if we'll got multiselection.entities array itself - things will broke if go beginning to end.
     for (i32 i = ids->count - 1; i >= 0; i--) {
         i32 id = ids->get_value(i);
-        remove_from_multiselection(id);
+        remove_id_from_multiselection(id);
     }
 }
 
 inline void clear_multiselected_entities() {
-    remove_from_multiselection(&editor.multiselection.entities);
+    remove_ids_from_multiselection(&editor.multiselection.entities);
 }
 
 b32 clicked_on_entity_edge(f32 rotation, Vector2 edge_center, b32 is_horizontal, f32 orthogonal_size, f32 radius_multiplier) {
@@ -6125,10 +6125,6 @@ void update_editor() {
             // This else is for clearing moving edge state after we finished and also for remembering undo.
             if (editor.moving_entity_edge_type != NONE && e->id == editor.moving_entity_edge_id) {
                 if (e->scale != editor.moving_edge_start_entity_scale) {
-                    Vector2 position_change = e->position - editor.moving_edge_start_entity_position;
-                    Vector2 scale_change    = e->scale - editor.moving_edge_start_entity_scale;
-                    
-                    // add_undo_action(undo_action);
                     e->runtime_only_flags |= EDITOR_CHANGED;
                 }
                 editor.moving_entity_edge_type = NONE;
@@ -6204,7 +6200,7 @@ void update_editor() {
                 b32 removed = false;
                 if (IsKeyDown(KEY_LEFT_CONTROL)) {
                     if (multiselection->entities.contains(editor.cursor_entity->id)) {
-                        remove_from_multiselection(editor.cursor_entity->id);
+                        remove_id_from_multiselection(editor.cursor_entity->id);
                         removed = true;
                     } else {
                         add_to_multiselection(editor.cursor_entity->id);
@@ -6241,7 +6237,7 @@ void update_editor() {
     if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) && multiselection->excluding) {
         multiselection->excluding = false;
         
-        remove_from_multiselection(&multiselection->selection_entities);
+        remove_ids_from_multiselection(&multiselection->selection_entities);
         
         multiselection->selection_entities.clear();
     }
@@ -6290,6 +6286,13 @@ void update_editor() {
     
     // update multiselected
     if (multiselection->entities.count > 0) {
+        for_array_backwards(i, &multiselection->entities) {
+            i32 id = multiselection->entities.get_value(i);
+            if (get_entity(id)->will_be_destroyed) {
+                remove_id_from_multiselection(multiselection->entities.get_value(i));
+            }
+        }
+    
         local_persist b32 was_moving_multiselected = false;
         b32 should_move_multiselected = IsKeyDown(KEY_LEFT_SHIFT) && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !IsKeyDown(KEY_LEFT_CONTROL);
         
@@ -6483,10 +6486,13 @@ void update_editor() {
                 spawned->position += paste_position - editor.copied_entities_center;
                 editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
                 
+                editor.just_spawned_entities_ids.append(spawned->id);
+                
                 if (editor.copied_entities.count == 1) {
                     assign_selected_entity(spawned);
                 } else {
-                    multiselection->entities.append(spawned->id);
+                    // multiselection->entities.append(spawned->id);
+                    add_to_multiselection(spawned->id);
                 }
                 
                 // undo_action.changed_entities.append(spawned->id);
