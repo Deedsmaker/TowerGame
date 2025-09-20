@@ -313,7 +313,9 @@ void free_entity(Entity *e) {
     e->color_changer.changing = false;
     
     free_entity_particle_emitters(e);
-}
+    
+    e->level_context->entities.remove(e->id - 1);
+} // free entity end
 
 inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     vertices->clear();
@@ -2132,7 +2134,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     assert(entity->level_context);
     assert(entity->id > 0 && get_entity(entity->id, entity->level_context)->id > 0);
 
-    entity->level_context = current_level_context;
+    // entity->level_context = current_level_context;
     
     entity->color = entity->color_changer.start_color;
 
@@ -10683,7 +10685,7 @@ void update_entities(f32 dt) {
         
         if (e->destroyed) {
             free_entity(e);
-            entities->remove(e->id - 1);    
+            // entities->remove(e->id - 1);    
             continue;
         }
         

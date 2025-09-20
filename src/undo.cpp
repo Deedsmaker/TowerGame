@@ -64,9 +64,7 @@ inline void update_undo_logic() {
             
             free_entity(unchanged_entity);
         }
-    }
-
-    if (editor.selected_entity && editor.selected_entity->runtime_only_flags & EDITOR_CHANGED) {
+    } else if (editor.selected_entity && editor.selected_entity->runtime_only_flags & EDITOR_CHANGED) {
         b32 added_undo = add_undo_changes_if_entity_changed(editor.selected_entity, editor.selected_entity_unchanged_copy);
         
         assert(added_undo);
@@ -115,6 +113,10 @@ inline void update_undo_logic() {
             switch(change->change_type) {
                 case VECTOR2_CHANGE: {
                     *change->changed_vector += change->vector_change;
+                } break;
+                case ENTITY_DESTROYED: {
+                    Entity *to_destroy_again = get_entity(change->entity_id);
+                    mark_entity_destroyed(to_destroy_again);
                 } break;
             }
         }

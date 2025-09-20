@@ -154,6 +154,8 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
 
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier = 1, Color tint = WHITE);
 
+inline void mark_entity_destroyed(Entity *entity);
+
 Texture get_texture(const char *name);
 
 inline Vector2 world_to_screen(Vector2 pos);
