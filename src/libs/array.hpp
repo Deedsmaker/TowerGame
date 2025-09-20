@@ -59,19 +59,32 @@ struct Array {
         
         return last();
     }
+    
     // That's for situations where we want to reuse element. (like in redo).
-    T *increase_count_and_get_last() {
-        grow_if_need((void **)(&data), sizeof(T), &capacity, count, 1);
+    // T *increase_count_and_get_last() {
+    //     grow_if_need((void **)(&data), sizeof(T), &capacity, count, 1);
         
-        count += 1;
+    //     count += 1;
         
-        return last();
-    }
+    //     return last();
+    // }
     
     void append_another_array(Array <T> *another_array) {
         for_array(i, another_array) {
             append(another_array->get_value(i));
         }
+    }
+    
+    void just_decrease_count() { 
+        count -= 1;
+        assert(count >= 0);
+    }
+    
+    // This function will not grow an array, because it's for situations where we want to reuse previously assigned values.
+    T *increase_count_and_get_last() {
+        count += 1;
+        assert(count <= capacity);
+        return last();
     }
     
     void copy_values(Array <T> *another_array) {
