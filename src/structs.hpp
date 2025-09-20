@@ -1360,6 +1360,7 @@ struct Multiselection {
     Vector2 start_point;
     Array <i32> selection_entities = {0};
     Array <i32> entities = {0};
+    Array <Entity *> unchanged_copies = {0};
     Vector2 center;
     Vector2 total_displacement_for_undo;
 };

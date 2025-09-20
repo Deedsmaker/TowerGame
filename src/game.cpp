@@ -5820,72 +5820,46 @@ void editor_mouse_move_entity(Entity *entity) {
 //     }
 // }
 
-void add_to_multiselection(i32 id, b32 add_to_undo) {
+inline void add_to_multiselection(i32 id) {
     if (!editor.multiselection.entities.contains(id)) {
         editor.multiselection.entities.append(id);
         
-        if (add_to_undo) {
-            // Undo_Action undo_action = {};
-            // undo_action.added_to_multiselection = true;
-            // undo_action.changed_entities.append(id);
-            // add_undo_action(undo_action);
-        }
+        editor.multiselection.unchanged_copies.append(copy_and_add_entity(get_entity(id), &undo_level_context));
     }
 }
 
-void add_to_multiselection(Array<i32> *ids, b32 add_to_undo) {
-    // Undo_Action undo_action = {};
-    // undo_action.added_to_multiselection = true;
-    
+void add_to_multiselection(Array<i32> *ids) {
     for (i32 i = 0 ; i < ids->count; i++) {
         i32 id = ids->get_value(i);
-        
-        if (!editor.multiselection.entities.contains(id)) {
-            editor.multiselection.entities.append(id);
-            
-            if (add_to_undo) {
-                // undo_action.changed_entities.append(id);
-            }
-        }
+                
+        add_to_multiselection(id);
     }
-    
-    // if (add_to_undo && undo_action.changed_entities.count > 0) {
-        // add_undo_action(undo_action);
-    // }
 }
 
-void remove_from_multiselection(Array<i32> *ids, b32 add_to_undo) {
-    // Undo_Action undo_action = {};
-    // undo_action.removed_from_multiselection = true;
+// inline i32 index_of_entity_with_id(Array <Entity *> *entities, i32 id_to_find) {
+//     for_array(i, entities) {
+//         if (entities->get_value(i)->id == id_to_find) {
+//             return i;
+//         }
+//     }
+//     return -1;
+// }
 
-    for (i32 i = 0; i < ids->count; i++) {
-        i32 id = ids->get_value(i);
-        i32 index_to_remove_from_multiselected = editor.multiselection.entities.find(id);
-        if (index_to_remove_from_multiselected >= 0) {
-            editor.multiselection.entities.remove(index_to_remove_from_multiselected);
-            
-            if (add_to_undo) {
-                // undo_action.changed_entities.append(id);
-            }
-        }
-    }
-    
-    // if (add_to_ulndo && undo_action.changed_entities.count > 0) {
-    //     add_undo_action(undo_action);
-    // }
-}
-
-void remove_from_multiselection(i32 id, b32 add_to_undo) {
+void remove_from_multiselection(i32 id) {
     i32 index = editor.multiselection.entities.find(id);
     if (index >= 0) {
         editor.multiselection.entities.remove(index);
         
-        // if (add_to_undo) {
-        //     Undo_Action undo_action = {};
-        //     undo_action.removed_from_multiselection = true;
-        //     undo_action.changed_entities.append(id);
-        //     add_undo_action(undo_action);
-        // }
+        Entity *unchanged_copy = editor.multiselection.unchanged_copies.get_value(index);
+        free_entity(unchanged_copy);
+        editor.multiselection.unchanged_copies.remove(index);
+    }
+}
+
+void remove_from_multiselection(Array<i32> *ids) {
+    for (i32 i = 0; i < ids->count; i++) {
+        i32 id = ids->get_value(i);
+        remove_from_multiselection(id);
     }
 }
 
@@ -6313,10 +6287,10 @@ void update_editor() {
                 b32 removed = false;
                 if (IsKeyDown(KEY_LEFT_CONTROL)) {
                     if (multiselection->entities.contains(editor.cursor_entity->id)) {
-                        remove_from_multiselection(editor.cursor_entity->id, true);
+                        remove_from_multiselection(editor.cursor_entity->id);
                         removed = true;
                     } else {
-                        add_to_multiselection(editor.cursor_entity->id, true);
+                        add_to_multiselection(editor.cursor_entity->id);
                     }
                 }
                 
@@ -6350,7 +6324,7 @@ void update_editor() {
     if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT) && multiselection->excluding) {
         multiselection->excluding = false;
         
-        remove_from_multiselection(&multiselection->selection_entities, true);
+        remove_from_multiselection(&multiselection->selection_entities);
         
         multiselection->selection_entities.clear();
     }
@@ -6394,7 +6368,7 @@ void update_editor() {
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && multiselection->selecting) {
         multiselection->selecting = false;
         
-        add_to_multiselection(&multiselection->selection_entities, true);
+        add_to_multiselection(&multiselection->selection_entities);
     }
     
     // update multiselected
