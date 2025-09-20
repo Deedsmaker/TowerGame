@@ -6473,9 +6473,6 @@ void update_editor() {
             
             assign_selected_entity(NULL);
             
-            // Undo_Action undo_action = {};
-            // undo_action.entity_was_spawned = true;
-        
             local_persist Array<i32> spawned_entities = {0};
             spawned_entities.clear();
             clear_multiselected_entities();
@@ -6491,15 +6488,11 @@ void update_editor() {
                 if (editor.copied_entities.count == 1) {
                     assign_selected_entity(spawned);
                 } else {
-                    // multiselection->entities.append(spawned->id);
                     add_to_multiselection(spawned->id);
                 }
-                
-                // undo_action.changed_entities.append(spawned->id);
             }
             assert(spawned_entities.count == editor.copied_entities.count);
             
-            // add_undo_action(undo_action);
             
             // Right now we want to verify connected entities only to triggers.
             // Again - that's because when we copy trigger and in multiselected was his connected guys - they will have different
@@ -6905,10 +6898,6 @@ void update_editor() {
     
     
     update_undo_logic();
-    //undo logic
-    // if (something_in_undo) {
-        // add_undo_action(undo_action);
-    // }
     
     // local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
     
