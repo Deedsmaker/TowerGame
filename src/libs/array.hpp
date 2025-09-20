@@ -68,10 +68,15 @@ struct Array {
         return last();
     }
     
-    void append_another_array(Array <T> *array) {
-        for_array(i, array) {
-            append(array->get_value(i));
+    void append_another_array(Array <T> *another_array) {
+        for_array(i, another_array) {
+            append(another_array->get_value(i));
         }
+    }
+    
+    void copy_values(Array <T> *another_array) {
+        clear();
+        append_another_array(another_array);
     }
     
     T *insert(T value, i32 index) {
