@@ -137,6 +137,25 @@ inline void update_undo_logic() {
         editor.just_spawned_entity_id = 0;
               
         add_spawned_entity_to_undo(spawned);
+    } else if (editor.multiselection.entities.count > 0) {
+        assert(editor.multiselection.entities.count == editor.multiselection.unchanged_copies.count);
+        if (get_entity(editor.multiselection.entities.get_value(0))->runtime_only_flags & EDITOR_CHANGED) {
+            Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
+            
+            for_array(i, &editor.multiselection.entities) {
+                Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
+                entity->runtime_only_flags ^= EDITOR_CHANGED;
+                Entity *unchanged  = editor.multiselection.unchanged_copies.get_value(i);
+                auto entity_changes = get_entities_difference(entity, unchanged, &temp_allocator);
+                changes.append_another_array(&entity_changes);
+                free_entity(unchanged);
+                
+                editor.multiselection.unchanged_copies.insert(copy_and_add_entity(entity, &undo_level_context), i);               
+            }
+            
+            assert(changes.count > 0);
+            add_changes_to_undo(&changes);
+        }
     } else if (editor.selected && editor.selected->runtime_only_flags & EDITOR_CHANGED) {
         editor.selected->runtime_only_flags ^= EDITOR_CHANGED;
         

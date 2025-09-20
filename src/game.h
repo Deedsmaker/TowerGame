@@ -58,7 +58,7 @@ void stop_death_instinct();
 b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason);
 inline f32 get_death_instinct_radius(Vector2 velocity = Vector2_zero);
 
-void clear_multiselected_entities(b32 add_to_undo);
+void clear_multiselected_entities();
 
 void update_editor_ui();
 void update_editor();
