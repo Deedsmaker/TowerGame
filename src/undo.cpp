@@ -32,6 +32,22 @@ inline void update_undo_logic() {
     b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
     b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
     if (undo_pressed && current_level_context->undo_actions.count > 0) {
+        Array <Entity_Undo_Change> *undo_changes = current_level_context->undo_actions.last();
+        for_array(i, undo_changes) {
+            Entity_Undo_Change *change = undo_changes->get(i);
+            // Entity *changed_entity = get_entity(change->entity_id);
+            assert(get_entity(change->entity_id));
+            
+            switch (change->change_type) {
+                case VECTOR2_CHANGE: {
+                    *change->changed_vector -= change->vector_change;
+                } break;
+                case NO_CHANGE: { 
+                    assert(false);
+                } break;
+            }
+        }
         
+        current_level_context->undo_actions.count -= 1;
     }
 }

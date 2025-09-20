@@ -6355,7 +6355,7 @@ void update_editor() {
     editor.cursor_entity = get_cursor_entity();
     
     if (editor.cursor_entity) {
-        editor.cursor_entity->color_changer.frame_changing = true;    
+        // editor.cursor_entity->color_changer.frame_changing = true;    
     }
     
     b32 need_start_dragging = false;
@@ -6554,7 +6554,7 @@ void update_editor() {
                 editor.dragging_start_mouse_offset = input.mouse_position - editor.dragging_start;
             }
         }
-    } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && can_select) { //stop dragging entity
+    } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && can_select) { // stop dragging entity
         if (editor.selected_entity && !editor.selected_this_click && editor.cursor_entity) {
             if (editor.dragging_time <= 0.1f && editor.cursor_entity->id == editor.selected_entity->id && editor.moving_entity_edge_type == NONE) {
                 assign_selected_entity(NULL);
@@ -6565,6 +6565,10 @@ void update_editor() {
         editor.selected_this_click = false;
         
         if (editor.dragging_entity) {
+            if (editor.selected_entity) {
+                editor.selected_entity->runtime_only_flags |= EDITOR_CHANGED;
+            }
+
 //             undo_add_position(editor.dragging_entity, editor.dragging_entity->position - editor.dragging_start);
         }
         
