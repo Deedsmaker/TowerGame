@@ -4730,7 +4730,7 @@ void move_vertex(Entity *entity, Vector2 target_position, i32 vertex_index) {
 //     add_undo_action(undo_action);
 // }
 
-void editor_delete_entity(Entity *entity, b32 add_undo) {
+void editor_delete_entity(Entity *entity) {
     mark_entity_destroyed(entity);
     
     if (is_editor_active()) {
@@ -4743,44 +4743,21 @@ void editor_delete_entity(Entity *entity, b32 add_undo) {
     editor.cursor_entity   = NULL;
 }
 
-void editor_delete_multiselected_entities(b32 add_undo_to_list) {    
-    // if (undo_action) {
-    //     undo_action->changed_entities.clear();
-    //     undo_action->deleted_entities.clear();
-    // }
-
-    // if (undo_action && add_undo_to_list) {
-    //     undo_action->entity_was_deleted = true;
-    // }
+void editor_delete_multiselected_entities() {    
     for (i32 i = 0; i < editor.multiselection.entities.count; i++) {
         Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
         if (!entity) {
             continue;    
         }
         
-        Level_Context *original_level_context = current_level_context;
-        switch_current_level_context(&undo_level_context);
-        
-        // if (undo_action) {
-        //     // @LEAK: Check if we're freeing all stuff in deleted_entities.
-        //     undo_action->deleted_entities.append(copy_and_add_entity(entity, &undo_level_context));
-        //     undo_action->changed_entities.append(entity->id);
-        // }
-        switch_current_level_context(original_level_context);
-        editor_delete_entity(entity, false);
+        editor_delete_entity(entity);
     }
     
-    // if (add_undo_to_list) {
-    //     add_undo_action(*undo_action);
-    // }
-        
-    // Do not add multiselection selection type undo here, because on undo/redo we selecting them if we deleted them.
     editor.multiselection.entities.clear();
 }
 
-void editor_delete_entity(i32 entity_id, b32 add_undo) {
-    // assert(current_level_context->entities.has_key(entity_id));
-    editor_delete_entity(get_entity(entity_id), add_undo);
+void editor_delete_entity(i32 entity_id) {
+    editor_delete_entity(get_entity(entity_id));
 }
 
 // void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action) {
@@ -6511,7 +6488,7 @@ void update_editor() {
         multiselection->center = {most_left_entity_position.x + (most_right_entity_position.x - most_left_entity_position.x) * 0.5f, most_bottom_entity_position.y + (most_top_entity_position.y - most_bottom_entity_position.y) * 0.5f};
         
         if (IsKeyPressed(KEY_X)) {
-            // editor_delete_multiselected_entities();
+            editor_delete_multiselected_entities();
         }
     }
     
@@ -6702,7 +6679,7 @@ void update_editor() {
     
     //editor Delete entity
     if (can_control_with_single_button && IsKeyPressed(KEY_X) && editor.selected_entity) {
-        editor_delete_entity(editor.selected_entity, true);
+        editor_delete_entity(editor.selected_entity);
     }
     
     if (editor.dragging_entity != NULL) {
