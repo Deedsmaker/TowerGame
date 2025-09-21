@@ -3192,7 +3192,7 @@ void init_level_context(Level_Context *level_context) {
 
 Shader load_shader(const char *vertex, const char *fragment) {
     Shader loaded = LoadShader(vertex, fragment);
-    if (!IsShaderReady(loaded)) {
+    if (!IsShaderValid(loaded)) {
         print("WARNIGNG: Shader could not load");
     }
     

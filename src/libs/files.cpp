@@ -25,3 +25,14 @@ b32 write_entire_file(String name, String_Builder *builder) {
     return SaveFileText(c_str(name), c_str(builder));
 }
     
+b32 directory_exists(String name) {
+    return DirectoryExists(c_str(name));
+}
+
+b32 create_directory_if_not_exists(String name) { 
+    if (!directory_exists(name)) {
+        return MakeDirectory(c_str(name)) == 0;   
+    }
+    
+    return false;
+}

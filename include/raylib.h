@@ -1035,7 +1035,7 @@ RLAPI void UnloadVrStereoConfig(VrStereoConfig config);           // Unload VR s
 // NOTE: Shader functionality is not available on OpenGL 1.1
 RLAPI Shader LoadShader(const char *vsFileName, const char *fsFileName);   // Load shader from files and bind default locations
 RLAPI Shader LoadShaderFromMemory(const char *vsCode, const char *fsCode); // Load shader from code strings and bind default locations
-RLAPI bool IsShaderReady(Shader shader);                                   // Check if a shader is ready
+RLAPI bool IsShaderValid(Shader shader);                                   // Check if a shader is ready
 RLAPI int GetShaderLocation(Shader shader, const char *uniformName);       // Get shader uniform location
 RLAPI int GetShaderLocationAttrib(Shader shader, const char *attribName);  // Get shader attribute location
 RLAPI void SetShaderValue(Shader shader, int locIndex, const void *value, int uniformType);               // Set shader uniform value
@@ -1117,6 +1117,7 @@ RLAPI const char *GetPrevDirectoryPath(const char *dirPath);      // Get previou
 RLAPI const char *GetWorkingDirectory(void);                      // Get current working directory (uses static string)
 RLAPI const char *GetApplicationDirectory(void);                  // Get the directory of the running application (uses static string)
 RLAPI bool ChangeDirectory(const char *dir);                      // Change working directory, return true on success
+RLAPI int MakeDirectory(const char *dirPath);                       // Create directories (including full path requested), returns 0 on success
 RLAPI bool IsPathFile(const char *path);                          // Check if a given path is a file or a directory
 RLAPI FilePathList LoadDirectoryFiles(const char *dirPath);       // Load directory filepaths
 RLAPI FilePathList LoadDirectoryFilesEx(const char *basePath, const char *filter, bool scanSubdirs); // Load directory filepaths with extension filtering and recursive directory scan
