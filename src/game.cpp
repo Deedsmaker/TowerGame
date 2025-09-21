@@ -1003,7 +1003,6 @@ void old_save_level(const char *level_name) {
 } // old save level end.
 
 void new_save_level(String level_name) {
-    // builder_append(&level_directory_builder, tstring("levels
     String level_directory_name = tstring("levels/%s", c_str(level_name));
 
     String old_directory_name = tstring("%s_old", c_str(level_directory_name));
@@ -1011,12 +1010,7 @@ void new_save_level(String level_name) {
     // If it exists - we'll rename it so that we have copy of a level before saving another one.
     rename_directory(level_directory_name, old_directory_name);
     
-    b32 success = make_directory_if_not_exists(level_directory_name);
-    if (!success) {
-        print("Could not create directory for save level!");
-        rename_directory(old_directory_name, level_directory_name);
-        return;
-    }
+    make_directory_if_not_exists(level_directory_name);
     
     { // First of all making file with level info
         String_Builder level_info_builder = make_string_builder(256, &temp_allocator);
@@ -1035,6 +1029,222 @@ void new_save_level(String level_name) {
         builder_append(&level_info_builder, make_string_from_builder(&lightmaps_builder, &temp_allocator));
         
         write_entire_file(tstring("%s/Level_Info.txt", c_str(level_directory_name)), &level_info_builder);
+    }
+    
+    // Now saving all entities. Each entity in separate file.
+    for_chunk_array(entity_index, (&current_level_context->entities)) {
+        Entity *e = current_level_context->entities.get(entity_index);
+        
+        if (!e->need_to_save) {
+            continue;
+        }
+        
+        String_Builder builder = make_string_builder(256, &temp_allocator);
+        
+        Color color = e->color_changer.start_color;
+        builder_append(&builder, tstring("name:%s: id:%d: pos{:%f:, :%f:} scale{:%f:, :%f:} pivot{:%f:, :%f:} rotation:%f: color{:%d:, :%d:, :%d:, :%d:}, flags:%llu:, draw_order:%d: ", temp_entity_name(e).data, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order));
+        
+        builder_append(&builder, tstring("vertices [ "));
+        for (i32 v = 0; v < e->vertices.count; v++) {
+            builder_append(&builder, tstring("{:%f:, :%f:} ", e->vertices.get_value(v).x, e->vertices.get_value(v).y)); 
+        }
+        builder_append(&builder, tstring("] ")); 
+        
+        builder_append(&builder, tstring("unscaled_vertices [ "));
+        for (i32 v = 0; v < e->unscaled_vertices.count; v++) {
+            builder_append(&builder, tstring("{:%f:, :%f:} ", e->unscaled_vertices.get_value(v).x, e->unscaled_vertices.get_value(v).y)); 
+        }
+        builder_append(&builder, tstring("] ")); 
+        
+        builder_append(&builder, tstring("hidden:%d: ", e->hidden));
+        builder_append(&builder, tstring("spawn_enemy_when_no_ammo:%d: ", e->spawn_enemy_when_no_ammo));
+        
+        if (e->lights.count > 0) {
+            Light *light = current_level_context->lights.get(e->lights.get_value(0));
+            builder_append(&builder, tstring("light_shadows_size_flag:%d: ",     light->shadows_size_flags));
+            builder_append(&builder, tstring("light_backshadows_size_flag:%d: ", light->backshadows_size_flags));
+            builder_append(&builder, tstring("light_make_shadows:%d: ",          light->make_shadows));
+            builder_append(&builder, tstring("light_make_backshadows:%d: ",      light->make_backshadows));
+            builder_append(&builder, tstring("light_bake_shadows:%d: ",          light->bake_shadows));
+            builder_append(&builder, tstring("light_radius:%f: ",                light->radius));
+            builder_append(&builder, tstring("light_opacity:%f: ",               light->opacity));
+            builder_append(&builder, tstring("light_power:%f: ",                 light->power));
+            builder_append(&builder, tstring("light_color{:%d:, :%d:, :%d:, :%d:} ", (i32)light->color.r, (i32)light->color.g, (i32)light->color.b, (i32)light->color.a));
+        }
+        
+        if (e->flags & TRIGGER) {
+            assert(e->trigger);
+            if (e->trigger->connected.count > 0) {
+                builder_append(&builder, tstring("trigger_connected [ "));
+                for (i32 v = 0; v < e->trigger->connected.count; v++) {
+                    builder_append(&builder, tstring(":%d: ", e->trigger->connected.get_value(v))); 
+                }
+                builder_append(&builder, tstring("] ")); 
+            }
+            
+            if (e->trigger->tracking.count > 0) {
+                builder_append(&builder, tstring("trigger_tracking [ "));
+                for (i32 v = 0; v < e->trigger->tracking.count; v++) {
+                    builder_append(&builder, tstring(":%d: ", e->trigger->tracking.get_value(v))); 
+                }
+                builder_append(&builder, tstring("] ")); 
+            }
+            
+            builder_append(&builder, tstring("trigger_kill_player:%d: ",                    e->trigger->kill_player));
+            builder_append(&builder, tstring("trigger_die_after_trigger:%d: ",              e->trigger->die_after_trigger));
+            builder_append(&builder, tstring("trigger_kill_enemies:%d: ",                   e->trigger->kill_enemies));
+            builder_append(&builder, tstring("trigger_open_doors:%d: ",                     e->trigger->open_doors));
+            builder_append(&builder, tstring("trigger_start_physics_simulation:%d: ",       e->trigger->start_physics_simulation));
+            builder_append(&builder, tstring("trigger_track_enemies:%d: ",                  e->trigger->track_enemies));
+            builder_append(&builder, tstring("trigger_draw_lines_to_tracked:%d: ",          e->trigger->draw_lines_to_tracked));
+            builder_append(&builder, tstring("trigger_agro_enemies:%d: ",                   e->trigger->agro_enemies));
+            builder_append(&builder, tstring("trigger_player_touch:%d: ",                   e->trigger->player_touch));
+            builder_append(&builder, tstring("trigger_shows_entities:%d: ",                 e->trigger->shows_entities));
+            builder_append(&builder, tstring("trigger_starts_moving_sequence:%d: ",         e->trigger->starts_moving_sequence));
+            builder_append(&builder, tstring("trigger_lock_camera:%d: ",                    e->trigger->lock_camera));
+            builder_append(&builder, tstring("trigger_unlock_camera:%d: ",                  e->trigger->unlock_camera));
+            builder_append(&builder, tstring("trigger_allow_player_shoot:%d: ",               e->trigger->allow_player_shoot));
+            builder_append(&builder, tstring("trigger_forbid_player_shoot:%d: ",               e->trigger->forbid_player_shoot));
+            builder_append(&builder, tstring("trigger_locked_camera_position{:%f:, :%f:} ", e->trigger->locked_camera_position.x, e->trigger->locked_camera_position.y));
+            
+            builder_append(&builder, tstring("trigger_load_level:%d: ", e->trigger->load_level));
+            if (e->trigger->load_level) {
+                builder_append(&builder, tstring("trigger_level_name:%s: ", e->trigger->level_name));
+            }
+            
+            builder_append(&builder, tstring("trigger_play_replay:%d: ", e->trigger->play_replay));
+            if (e->trigger->play_replay) {
+                builder_append(&builder, tstring("trigger_replay_name:%s: ", e->trigger->replay_name));
+            }
+            
+            builder_append(&builder, tstring("trigger_change_zoom:%d: ", e->trigger->change_zoom));
+            if (e->trigger->change_zoom) {
+                builder_append(&builder, tstring("trigger_zoom_value:%f: ", e->trigger->zoom_value));
+            }
+            
+            builder_append(&builder, tstring("trigger_play_sound:%d: ", e->trigger->play_sound));
+            if (e->trigger->play_sound) {
+                builder_append(&builder, tstring("trigger_sound_name:%s: ", e->trigger->sound_name));
+            }
+            
+            builder_append(&builder, tstring("trigger_start_cam_rails_horizontal:%d: ", e->trigger->start_cam_rails_horizontal));
+            builder_append(&builder, tstring("trigger_start_cam_rails_vertical:%d: ", e->trigger->start_cam_rails_vertical));
+            builder_append(&builder, tstring("trigger_stop_cam_rails:%d: ", e->trigger->stop_cam_rails));
+            if (e->trigger->cam_rails_points.count > 0) {
+                builder_append(&builder, tstring("trigger_cam_rails_points [ "));
+                for (i32 v = 0; v < e->trigger->cam_rails_points.count; v++) {
+                    builder_append(&builder, tstring("{:%f:, :%f:} ", e->trigger->cam_rails_points.get_value(v).x, e->trigger->cam_rails_points.get_value(v).y)); 
+                }
+                builder_append(&builder, tstring("] ")); 
+            }
+        }
+        
+        if (e->flags & KILL_SWITCH) {
+            if (e->kill_switch->connected.count > 0) {
+                builder_append(&builder, tstring("kill_switch_connected [ "));
+                for (i32 v = 0; v < e->kill_switch->connected.count; v++) {
+                    builder_append(&builder, tstring(":%d: ", e->kill_switch->connected.get_value(v))); 
+                }
+                builder_append(&builder, tstring("] ")); 
+            }
+        }
+        
+        if (e->flags & MOVE_SEQUENCE) {
+            if (e->move_sequence->points.count > 0) {
+                builder_append(&builder, tstring("move_sequence_points [ "));
+                for (i32 v = 0; v < e->move_sequence->points.count; v++) {
+                    builder_append(&builder, tstring("{:%f:, :%f:} ", e->move_sequence->points.get_value(v).x, e->move_sequence->points.get_value(v).y)); 
+                }
+                builder_append(&builder, tstring("] ")); 
+            }
+            
+            builder_append(&builder, tstring("move_sequence_moving:%d: ",                        e->move_sequence->moving));
+            builder_append(&builder, tstring("move_sequence_speed:%f: ",                         e->move_sequence->speed));
+            builder_append(&builder, tstring("move_sequence_loop:%d: ",                          e->move_sequence->loop));
+            builder_append(&builder, tstring("move_sequence_rotate:%d: ",                        e->move_sequence->rotate));
+            builder_append(&builder, tstring("move_sequence_speed_related_player_distance:%d: ", e->move_sequence->speed_related_player_distance));
+            builder_append(&builder, tstring("move_sequence_min_distance:%f: ",                  e->move_sequence->min_distance));
+            builder_append(&builder, tstring("move_sequence_max_distance:%f: ",                  e->move_sequence->max_distance));
+            builder_append(&builder, tstring("move_sequence_max_distance_speed:%f: ",            e->move_sequence->max_distance_speed));
+        }
+        
+        if (e->flags & CENTIPEDE) {
+            builder_append(&builder, tstring("spikes_on_right:%d: ", e->centipede->spikes_on_right));
+            builder_append(&builder, tstring("spikes_on_left:%d: ", e->centipede->spikes_on_left));
+            builder_append(&builder, tstring("segments_count:%d: ", e->centipede->segments_count));
+        }
+        
+        if (e->flags & JUMP_SHOOTER) {
+            builder_append(&builder, tstring("jump_shooter_shots_count:%d: ", e->jump_shooter->shots_count));
+            builder_append(&builder, tstring("jump_shooter_spread:%f: ", e->jump_shooter->spread));
+            builder_append(&builder, tstring("jump_shooter_explosive_count:%d: ", e->jump_shooter->explosive_count));
+            builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers:%d: ", e->jump_shooter->shoot_sword_blockers));
+            // builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers_clockwise:%d: ", e->jump_shooter->shoot_sword_blockers_clockwise));
+            // builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers_random_direction:%d: ", e->jump_shooter->shoot_sword_blockers_random_direction));
+            builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers_immortal:%d: ", e->jump_shooter->shoot_sword_blockers_immortal));
+            builder_append(&builder, tstring("jump_shooter_shoot_bullet_blockers:%d: ", e->jump_shooter->shoot_bullet_blockers));
+        }
+        
+        if (e->flags & TURRET) {
+            Turret *turret = e->turret;
+            builder_append(&builder, tstring("turret_projectile_flags:%llu: ", turret->projectile_settings.enemy_flags));
+            builder_append(&builder, tstring("turret_shoot_sword_blocker_clockwise:%d: ", turret->projectile_settings.blocker_clockwise));
+            builder_append(&builder, tstring("turret_activated:%d: ", turret->activated));
+            builder_append(&builder, tstring("turret_homing_projectiles:%d: ", turret->homing));
+            builder_append(&builder, tstring("turret_shoot_every_tick:%d: ", turret->shoot_every_tick));
+            builder_append(&builder, tstring("turret_start_tick_delay:%d: ", turret->start_tick_delay));
+            builder_append(&builder, tstring("turret_projectile_speed:%f: ", turret->projectile_settings.launch_speed));
+            builder_append(&builder, tstring("turret_projectile_max_lifetime:%f: ", turret->projectile_settings.max_lifetime));
+            builder_append(&builder, tstring("turret_shoot_width:%f: ", turret->shoot_width));
+            builder_append(&builder, tstring("turret_shoot_height:%f: ", turret->shoot_height));
+        }
+        
+        if (e->flags & DOOR) {
+            builder_append(&builder, tstring("door_open:%d: ", e->door.is_open));
+        }
+        
+        if (e->flags & BLOCKER) {
+            builder_append(&builder, tstring("blocker_clockwise:%d: ", e->union_enemy->blocker_clockwise));
+            builder_append(&builder, tstring("blocker_immortal:%d: ", e->union_enemy->blocker_immortal));
+        }
+        
+        if (e->flags & SWORD_SIZE_REQUIRED) {
+            builder_append(&builder, tstring("enemy_big_or_small_killable:%d: ", e->union_enemy->big_sword_killable));
+        }
+        
+        if (e->flags & ENEMY && e->union_enemy->sword_kill_speed_modifier != 1) {
+            builder_append(&builder, tstring("sword_kill_speed_modifier:%.1f: ", e->union_enemy->sword_kill_speed_modifier));
+        }
+        
+        if (e->flags & ENEMY) {
+            builder_append(&builder, tstring("enemy_gives_ammo:%d: ", e->union_enemy->gives_ammo));
+        }
+        
+        if (e->flags & EXPLOSIVE) {
+            builder_append(&builder, tstring("explosive_radius_multiplier:%fs: ", e->union_enemy->explosive_radius_multiplier));
+        }
+        
+        if (e->flags & PROPELLER) {
+            builder_append(&builder, tstring("propeller_power:%f: ", e->propeller->power));
+            builder_append(&builder, tstring("propeller_spin_sensitive:%d: ", e->propeller->spin_sensitive));
+        }
+        
+        if (e->flags & SHOOT_BLOCKER) {
+            builder_append(&builder, tstring("shoot_blocker_direction{:%f:, :%f:} ", e->union_enemy->shoot_blocker_direction.x, e->union_enemy->shoot_blocker_direction.y));
+            builder_append(&builder, tstring("shoot_blocker_immortal:%d: ", e->union_enemy->shoot_blocker_immortal));
+        }
+        
+        if (e->flags & TEXTURE) {
+            builder_append(&builder, tstring("texture_name:%s: ", e->texture_name));
+        }
+        
+        if (e->flags & NOTE) {
+            assert(e->note_index != -1);
+            builder_append(&builder, tstring("note_content:\" %s \": ", current_level_context->notes.get(e->note_index)->content));
+            builder_append(&builder, tstring("note_draw_in_game:%d: ", current_level_context->notes.get(e->note_index)->draw_in_game));
+        }
+        
+        write_entire_file(tstring("%s/%s_%d.txt", c_str(level_directory_name), c_str(*e->name), e->id), &builder);
     }
     
     delete_directory(old_directory_name);
