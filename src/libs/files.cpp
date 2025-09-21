@@ -30,7 +30,7 @@ b32 directory_exists(String name) {
     return DirectoryExists(c_str(name));
 }
 
-b32 create_directory_if_not_exists(String name) { 
+b32 make_directory_if_not_exists(String name) { 
     if (!directory_exists(name)) {
         return MakeDirectory(c_str(name)) == 0;   
     }
@@ -53,6 +53,11 @@ b32 rename_file(String name, String new_name) {
     if (!file_exists(name)) return false;
     
     return FileRename(c_str(name), c_str(new_name));
+}
+b32 rename_directory(String name, String new_name) {
+    if (!directory_exists(name)) return false;   
+    
+    return rename_file(name, new_name);
 }
 
 Array <String> get_files_in_directory(String directory_name, Allocator *allocator = HEAP_ALLOCATOR) {

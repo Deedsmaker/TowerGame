@@ -542,11 +542,8 @@ void init_string_builder(String_Builder *builder, i32 capacity) {
     builder->count = 0;
 }
 
-String_Builder make_string_builder(i32 capacity, Allocator *allocator) {
-    String_Builder builder = {.allocator = allocator};
-    init_string_builder(&builder, capacity);
-    return builder;
-}
+
+
 
 // @TODO: I would like to get rid of null ternimation on strings, but while we working with Raylib that could be hard.
 static inline void builder_grow_if_need(String_Builder *builder, String appended_string) {
@@ -584,6 +581,18 @@ void builder_free(String_Builder *builder) {
 inline String make_string_from_builder(String_Builder *builder, Allocator *allocator) {
     // @TODO: This works while we're using null termination.
     return make_string(allocator, builder->data);
+}
+
+String_Builder make_string_builder(i32 capacity, Allocator *allocator) {
+    String_Builder builder = {.allocator = allocator};
+    init_string_builder(&builder, capacity);
+    return builder;
+}
+String_Builder make_string_builder(String string, Allocator *allocator) {
+    String_Builder builder = {.allocator = allocator};
+    init_string_builder(&builder, string.count);
+    builder_append(&builder, string);
+    return builder;
 }
 
 #include "array.hpp"

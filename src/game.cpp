@@ -1003,7 +1003,41 @@ void old_save_level(const char *level_name) {
 } // old save level end.
 
 void new_save_level(String level_name) {
+    // builder_append(&level_directory_builder, tstring("levels
+    String level_directory_name = tstring("levels/%s", c_str(level_name));
+
+    String old_directory_name = tstring("%s_old", c_str(level_directory_name));
     
+    // If it exists - we'll rename it so that we have copy of a level before saving another one.
+    rename_directory(level_directory_name, old_directory_name);
+    
+    b32 success = make_directory_if_not_exists(level_directory_name);
+    if (!success) {
+        print("Could not create directory for save level!");
+        rename_directory(old_directory_name, level_directory_name);
+        return;
+    }
+    
+    { // First of all making file with level info
+        String_Builder level_info_builder = make_string_builder(256, &temp_allocator);
+        
+        String spawn_point = tstring("player_spawn_point {%f, %f}\n", current_level_context->player_spawn_point.x, current_level_context->player_spawn_point.y);
+        builder_append(&level_info_builder, spawn_point);
+        
+        String_Builder lightmaps_builder = make_string_builder(128, &temp_allocator);
+        builder_append(&lightmaps_builder, tstring("lightmaps [ "));
+        for (i32 i = 0; i < current_level_context->lightmaps.count; i++) {
+            Lightmap_Data* l = current_level_context->lightmaps.get(i);
+            builder_append(&lightmaps_builder, tstring("{pos {%f, %f}, size {%f, %f}} ", l->position.x, l->position.y, l->game_size.x, l->game_size.y));
+        }
+        builder_append(&lightmaps_builder, tstring("];\n")); 
+        
+        builder_append(&level_info_builder, make_string_from_builder(&lightmaps_builder, &temp_allocator));
+        
+        write_entire_file(tstring("%s/Level_Info.txt", c_str(level_directory_name)), &level_info_builder);
+    }
+    
+    delete_directory(old_directory_name);
 }
 
 void save_level(String name) {
