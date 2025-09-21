@@ -449,7 +449,7 @@ struct String {
 };
 
 const char *c_str(String string) {
-    // Currently we null-terminate strings by default, so returning that.
+    // Currently we null-terminate strings by default, so returning just data.
     return string.data;
 }
 
@@ -528,6 +528,11 @@ struct String_Builder {
     i32 count = 0;
     i32 capacity = 0;
 };
+
+char *c_str(String_Builder *builder) {
+    // Currently we null-terminate strings and builders by default, so returning just data.
+    return builder->data;
+}
 
 void init_string_builder(String_Builder *builder, i32 capacity) {
     assert(!builder->data);
