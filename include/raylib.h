@@ -1106,6 +1106,12 @@ RLAPI bool SaveFileText(const char *fileName, char *text);        // Save text d
 
 // File system functions
 RLAPI bool FileExists(const char *fileName);                      // Check if file exists
+RLAPI int FileRename(const char *fileName, const char *fileRename); // Rename file (if exists)
+RLAPI int FileRemove(const char *fileName);                         // Remove file (if exists)
+RLAPI int FileCopy(const char *srcPath, const char *dstPath);       // Copy file from one path to another, dstPath created if it doesn't exist
+RLAPI int FileMove(const char *srcPath, const char *dstPath);       // Move file from one directory to another, dstPath created if it doesn't exist
+RLAPI int FileTextReplace(const char *fileName, const char *search, const char *replacement); // Replace text in an existing file
+RLAPI int FileTextFindIndex(const char *fileName, const char *search); // Find text in existing file
 RLAPI bool DirectoryExists(const char *dirPath);                  // Check if a directory path exists
 RLAPI bool IsFileExtension(const char *fileName, const char *ext); // Check file extension (including point: .png, .wav)
 RLAPI int GetFileLength(const char *fileName);                    // Get file length in bytes (NOTE: GetFileSize() conflicts with windows.h)
