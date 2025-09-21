@@ -1064,7 +1064,7 @@ b32 load_level(const char *level_name) {
     str_copy(name, get_substring_before_symbol(level_name, '.'));
     
     const char *level_path = tprintf("levels/%s.level", name);
-    File file = load_file(level_path, "r", HEAP_ALLOCATOR);
+    Old_File file = old_load_file(level_path, "r", HEAP_ALLOCATOR);
     
     if (!file.loaded) {
         builder_append(&console.content_builder, tstring("Could not load level: %s\n", name));
@@ -1552,7 +1552,7 @@ b32 load_level(const char *level_name) {
     
     //free_string_array(&splitted_line);
     splitted_line.free_data();
-    unload_file(&file);
+    old_unload_file(&file);
         
     ForEntities(loaded_entity, 0) {
         init_loaded_entity(loaded_entity);

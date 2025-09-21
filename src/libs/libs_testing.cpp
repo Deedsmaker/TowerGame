@@ -9,7 +9,7 @@
 
 #include "my_math.cpp"
 #include "string.hpp"
-#include "files.hpp"
+#include "old_files.hpp"
 
 void test_str1(){
     String str = init_string_from_str("Cht oto\nab{ob}a\nw|ow!!!\n");

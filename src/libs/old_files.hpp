@@ -3,7 +3,7 @@
 #include "array.hpp"
 #include "string.hpp"
 
-struct File{
+struct Old_File {
     //When we will need to keep file open this will be changed
     //FILE *fptr;
     b32 loaded = false;
@@ -12,8 +12,8 @@ struct File{
     Allocator *allocator;
 };
 
-File load_file(const char *name, const char *mode, Allocator *allocator){
-    File loaded_file = {0};
+Old_File old_load_file(const char *name, const char *mode, Allocator *allocator){
+    Old_File loaded_file = {0};
     init_array(&loaded_file.lines, 128, allocator);
     //loaded_file.name = (char*)malloc(str_len(name) * sizeof(char));
     // str_copy(loaded_files.name, name);
@@ -49,7 +49,7 @@ File load_file(const char *name, const char *mode, Allocator *allocator){
     return loaded_file;
 }
 
-void unload_file(File *file){
+void old_unload_file(Old_File *file){
     for_array(i, (&file->lines)) {
         file->lines.get(i)->free_data();
     }
