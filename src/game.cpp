@@ -732,10 +732,10 @@ void clear_level_context(Level_Context *level_context) {
     switch_current_level_context(original_level_context);
 }
 
-i32 save_level(const char *level_name) {
+void old_save_level(const char *level_name) {
     if (game_state == GAME) {
         print_to_console("Will not save in game mode under any circumstances!");
-        return -1;
+        return;
     }
 
     char name[1024];
@@ -747,7 +747,7 @@ i32 save_level(const char *level_name) {
     fptr = fopen(tprintf(level_path, name), "w");
     
     if (fptr == NULL) {
-        return 0;
+        return;
     }
     
     fprintf(fptr, "Setup Data:\n");
@@ -1000,12 +1000,19 @@ i32 save_level(const char *level_name) {
     if (is_autosave) {
         printf("Temp level saved: %s\n", level_path);
     }
+} // old save level end.
+
+void new_save_level(String level_name) {
     
-    return 1;
+}
+
+void save_level(String name) {
+    old_save_level(c_str(name));
+    new_save_level(name);
 }
 
 inline void save_level_by_name(const char *name) {
-    save_level(name);
+    save_level(tstring(name));
 }
 
 void fill_string(char *dest, Array<String> *line_arr, i32 *index_ptr) {
@@ -2521,7 +2528,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
 } // end init entity
 
 inline void save_current_level() {
-    save_level(current_level_context->level_name);
+    save_level(tstring(current_level_context->level_name));
 }
 
 inline void autosave_level() {
@@ -2551,7 +2558,7 @@ inline void autosave_level() {
     
     assert(autosave_index != -1);
     
-    save_level(tprintf("autosaves/AUTOSAVE_%d_%s", autosave_index, current_level_context->level_name));
+    save_level(tstring("autosaves/AUTOSAVE_%d_%s", autosave_index, current_level_context->level_name));
 }
 
 void load_level_by_name(const char *name) {
@@ -2625,7 +2632,7 @@ void create_level(const char *level_name) {
         // clear_level_context(&loaded_level_context);
         clear_level_context(editor_level_context);
         
-        save_level(level_name);
+        save_level(tstring(level_name));
         enter_editor_state();
         print_to_console("Level successfuly created");
     }

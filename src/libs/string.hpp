@@ -448,6 +448,11 @@ struct String {
     }
 };
 
+const char *c_str(String string) {
+    // Currently we null-terminate strings by default, so returning that.
+    return string.data;
+}
+
 String make_string(Allocator *allocator, const char *text, ...){
     String result_string = {.allocator = allocator};
     
