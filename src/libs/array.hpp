@@ -155,7 +155,7 @@ struct Array {
         count = half_count;
     }
     
-    b32 contains(T *to_found) {
+    inline b32 contains(T *to_found) {
         for_array(i, this) {
             if (*get(i) == *to_found) {
                 return true;
@@ -169,7 +169,7 @@ struct Array {
         return contains(&to_found);
     }
     
-    i32 find(T *to_find) {    
+    inline i32 find(T *to_find) {    
         for_array(i, this) {
             if (*get(i) == *to_find) {
                 return i;
@@ -180,6 +180,19 @@ struct Array {
     }
     inline i32 find(T to_find) {
         return find(&to_find);
+    }
+    
+    inline i32 find_from(T *to_find, i32 from) {
+        for (u32 i = from ; i < count; i++) {
+            if (*get(i) == *to_find) {
+                return i;
+            }
+        }
+        
+        return -1;
+    }
+    inline i32 find_from(T to_find, i32 from) {
+        return find_from(&to_find, from);
     }
     
     T pop_value(){
