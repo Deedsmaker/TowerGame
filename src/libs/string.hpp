@@ -468,6 +468,17 @@ String make_string(Allocator *allocator, const char *text, ...){
     return result_string;
 }
 
+String copy_string(String other, Allocator *allocator) {
+    String s = {.allocator = allocator};
+    
+    s.data = alloc(s.allocator, other.count + 1);
+    mem_copy(s.data, other.data, other.count);
+    s.count = other.count;
+    s.data[s.count] = 0;
+    
+    return s;
+}
+
 String make_substring(String original_string, int start_index, int end_index, Allocator *allocator) {
     String new_string = {.allocator = allocator};
     

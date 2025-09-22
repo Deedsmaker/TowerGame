@@ -622,7 +622,8 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     Game_State original_game_state = game_state;
     game_state = EDITOR;
     
-    str_copy(dest->level_name, src->level_name);
+    str_copy(dest->old_level_name, src->old_level_name);
+    dest->level_name = copy_string(src->level_name, src->level_name.allocator);
     dest->player_spawn_point = src->player_spawn_point;
     dest->cam = src->cam;
     
@@ -984,10 +985,10 @@ void old_save_level(const char *level_name) {
     b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave) {
         // Why do we set previous level on saving??
-        if (!str_equal(current_level_context->level_name, name)) {
-            str_copy(session_context.previous_level_name, current_level_context->level_name);
+        if (!str_equal(current_level_context->old_level_name, name)) {
+            str_copy(session_context.old_previous_level_name, current_level_context->old_level_name);
         }
-        str_copy(current_level_context->level_name, name);
+        str_copy(current_level_context->old_level_name, name);
         reload_level_files();
         builder_append(&console.content_builder, tstring("\t>Level saved: \"%s\"; App time: %.2f\n", name, core.time.app_time));
         printf("level saved: \"%s\"; \n", level_path);
@@ -1323,12 +1324,12 @@ b32 old_load_level(const char *level_name) {
     b32 is_temp_level = str_start_with_const(name, "temp/TEMP_");
     b32 is_autosave   = str_start_with_const(name, "autosaves/AUTOSAVE_");
     if (!is_temp_level && !is_autosave) {
-        if (!str_equal(current_level_context->level_name, name)) {
-            str_copy(session_context.previous_level_name, current_level_context->level_name);
+        if (!str_equal(current_level_context->old_level_name, name)) {
+            str_copy(session_context.old_previous_level_name, current_level_context->old_level_name);
         }
         // We need to have information about current level name before loading, because we looking up to files to find 
         // lightmaps during loading for example.
-        str_copy(current_level_context->level_name, name);
+        str_copy(current_level_context->old_level_name, name);
         print_to_console(tprintf("Loaded level: %s", name));
         editor.last_autosave_time = core.time.app_time;
     }
@@ -1840,6 +1841,27 @@ b32 old_load_level(const char *level_name) {
     
     return true;
 } // end old load level end
+
+b32 new_load_level(String name) {
+    clear_allocator(&temp_allocator);
+    
+    Game_State original_game_state = game_state;
+    game_state = EDITOR; // @TODO: Do we really need this?
+    
+    session_context.playing_replay = false;
+    String level_path = tstring("levels/%s", c_str(name));
+    
+    if (!directory_exists(level_path)) {
+        builder_append(&console.content_builder, tstring("Level does not exists!: %s\n", name));
+        return false;
+    }
+    
+    clean_up_scene();
+    switch_current_level_context(&loaded_level_context, true);
+    clear_level_context(&loaded_level_context);
+    
+    
+}
 
 b32 load_level(String name) {
     return old_load_level(c_str(name));
@@ -2784,14 +2806,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
 } // end init entity
 
 inline void save_current_level() {
-    save_level(tstring(current_level_context->level_name));
+    save_level(tstring(current_level_context->old_level_name));
 }
 
 inline void autosave_level() {
     i32 max_autosaves = 5;
     i32 autosave_index = -1;    
     for (i32 i = 0; i < max_autosaves; i++) {
-        const char *path = tprintf("levels/autosaves/AUTOSAVE_%d_%s.level", i, current_level_context->level_name);        
+        const char *path = tprintf("levels/autosaves/AUTOSAVE_%d_%s.level", i, current_level_context->old_level_name);        
         if (!FileExists(path)) {
             autosave_index = i;
             break;
@@ -2803,7 +2825,7 @@ inline void autosave_level() {
         i64 oldest_time = -1;
         
         for (i32 i = 0; i < max_autosaves; i++) {
-            const char *path = tprintf("levels/autosaves/AUTOSAVE_%d_%s.level", i, current_level_context->level_name);        
+            const char *path = tprintf("levels/autosaves/AUTOSAVE_%d_%s.level", i, current_level_context->old_level_name);        
             u64 modification_time = GetFileModTime(path);
             if (oldest_time == -1 || modification_time < oldest_time) {
                 oldest_time = modification_time;
@@ -2814,7 +2836,7 @@ inline void autosave_level() {
     
     assert(autosave_index != -1);
     
-    save_level(tstring("autosaves/AUTOSAVE_%d_%s", autosave_index, current_level_context->level_name));
+    save_level(tstring("autosaves/AUTOSAVE_%d_%s", autosave_index, current_level_context->old_level_name));
 }
 
 void load_level_by_name(const char *name) {
@@ -2845,8 +2867,8 @@ void try_load_next_level() {
 }
 
 void try_load_previous_level() {
-    if (session_context.previous_level_name[0]) {
-        if (load_level(tstring(session_context.previous_level_name))) {
+    if (session_context.old_previous_level_name[0]) {
+        if (load_level(tstring(session_context.old_previous_level_name))) {
             print_to_console("Previous level loaded successfuly");
             // enter_editor_state();
         } else {
@@ -2858,7 +2880,7 @@ void try_load_previous_level() {
 }
 
 void reload_level() {
-    load_level(tstring(current_level_context->level_name));       
+    load_level(tstring(current_level_context->old_level_name));       
 }
 
 Console_Command make_console_command(const char *name, void (func)() = NULL, void (func_arg)(const char*) = NULL) {
@@ -2870,7 +2892,7 @@ Console_Command make_console_command(const char *name, void (func)() = NULL, voi
 }
 
 inline void print_current_level() {
-    print_to_console(current_level_context->level_name);
+    print_to_console(current_level_context->old_level_name);
 }
 
 void create_level(const char *level_name) {
@@ -3056,7 +3078,7 @@ void save_replay(const char *replay_name) {
 }
 
 void save_temp_replay() {
-    save_replay(tprintf("TEMP_%s", get_substring_before_symbol(current_level_context->level_name, '.')));
+    save_replay(tprintf("TEMP_%s", get_substring_before_symbol(current_level_context->old_level_name, '.')));
 }
 
 void play_loaded_replay() {
@@ -3090,7 +3112,7 @@ void load_replay(const char *replay_name) {
 }
 
 void load_temp_replay() {
-    load_replay(tprintf("TEMP_%s", get_substring_before_symbol(current_level_context->level_name, '.')));
+    load_replay(tprintf("TEMP_%s", get_substring_before_symbol(current_level_context->old_level_name, '.')));
 }
 
 
@@ -4446,7 +4468,7 @@ void update_game() {
             session_context.speedrun_timer.time += core.time.dt;
         }
         
-        const char *title_and_time = tprintf("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? current_level_context->level_name : "Game speedrun", session_context.speedrun_timer.time);
+        const char *title_and_time = tprintf("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? current_level_context->old_level_name : "Game speedrun", session_context.speedrun_timer.time);
         make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
     }
     
@@ -6270,14 +6292,14 @@ void update_editor() {
             
             Level_Context *next_context = &loaded_levels_contexts[current_editor_level_context_index];
             i32 cycled = 0;
-            while (cycled <= MAX_LOADED_LEVELS && !(*next_context->level_name)) {
+            while (cycled <= MAX_LOADED_LEVELS && !(*next_context->old_level_name)) {
                 cycled += 1;
                 current_editor_level_context_index += 1;    
                 current_editor_level_context_index %= MAX_LOADED_LEVELS;    
                 next_context = &loaded_levels_contexts[current_editor_level_context_index];
             }
             
-            if (*next_context->level_name) {
+            if (*next_context->old_level_name) {
                 editor_level_context = next_context;
                 switch_current_level_context(editor_level_context, true);
             }

@@ -1095,7 +1095,8 @@ struct Level_Context {
     char name[64] = "\0";
     
     Vector2 player_spawn_point = Vector2_zero;
-    char level_name[256] = "\0";
+    char old_level_name[256] = "\0";
+    String level_name = {0};
 
     i32 original_win_blocks_count = 0;
     i32 current_win_blocks_count = 0;
@@ -1223,7 +1224,8 @@ struct Session_Context{
     // Death instinct timers is in app time. (Because it's manipulating time!!).
     
     // char current_level_name[256] = "\0";
-    char previous_level_name[256] = "\0";
+    char old_previous_level_name[256] = "\0";
+    String previous_level_name = {0};
     
     Collision_Grid collision_grid = {0};
     
