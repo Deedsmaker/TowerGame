@@ -24,7 +24,7 @@ void new_save_level(String level_name) {
         builder_append(&lightmaps_builder, tstring("lightmaps [ "));
         for (i32 i = 0; i < current_level_context->lightmaps.count; i++) {
             Lightmap_Data* l = current_level_context->lightmaps.get(i);
-            builder_append(&lightmaps_builder, tstring("{pos {%f, %f}, size {%f, %f}} ", l->position.x, l->position.y, l->game_size.x, l->game_size.y));
+            builder_append(&lightmaps_builder, tstring("{ lightmap_position {%f, %f}, lightmap_size {%f, %f}}; ", l->position.x, l->position.y, l->game_size.x, l->game_size.y));
         }
         builder_append(&lightmaps_builder, tstring("];\n")); 
         
@@ -262,6 +262,35 @@ Vector2 parse_vector2(Array <String> *splitted, i32 start_index) {
     return v;
 }
 
+void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted, i32 start_index) {
+    i32 end_index = splitted->find_from(tstring("\n"), start_index);
+    if (end_index <= start_index) {
+        printf("End index was somehow less than a start index. That could mean that there was no breakline character at the end.\n");
+        return;
+    }
+    
+    for (i32 i = start_index; i < end_index; i++) {
+        Lightmap_Data lightmap = {0};
+    
+        i32 position_index = splitted->find_from(tstring("lightmap_position"), i);    
+        lightmap.position = parse_vector2(splitted, position_index + 1);
+        i = position_index + 2;
+        
+        i32 size_index = splitted->find_from(tstring("lightmap_size"), i);
+        lightmap.game_size = parse_vector2(splitted, size_index + 1);
+        i = size_index + 2;
+        
+        if (file_exists(lightmap_name(lightmaps->count))) {
+            lightmap.lightmap_texture = LoadTexture(c_str(lightmap_name(current_level_context->lightmaps.count)));
+            lightmap.has_loaded_texture = true;
+        }
+        
+        lightmaps->append(lightmap);
+        
+        i--; // So we won't skip next lightmap_position.
+    }
+}
+
 b32 new_load_level(String name) {
     clear_allocator(&temp_allocator);
     
@@ -313,6 +342,12 @@ b32 new_load_level(String name) {
             split_string(&splitted, level_info, separators);
             
             i32 spawn_point_index = splitted.find(tstring("player_spawn_point"));
+            if (spawn_point_index >= 0) current_level_context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
+            
+            i32 lightmaps_index = splitted.find(tstring("lightmaps"));
+            if (lightmaps_index > 0) {
+                parse_lightmaps(&current_level_context->lightmaps, &splitted, lightmaps_index + 1);
+            }
             
         } else {
             // There goes entity parsing.

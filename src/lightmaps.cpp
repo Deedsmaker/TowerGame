@@ -6,6 +6,9 @@ f32 pixel_per_unit = 2;
 const char* get_lightmap_name(i32 index){
     return tprintf("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
 }
+String lightmap_name(i32 index){
+    return tstring("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
+}
 
 Vector2 get_lightmap_pixel_size(Lightmap_Data* l){
     return {l->game_size.x * pixel_per_unit, l->game_size.y * pixel_per_unit};    
