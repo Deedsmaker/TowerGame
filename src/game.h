@@ -15,6 +15,8 @@ global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
 inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot);
 
+void switch_current_level_context(Level_Context *target, b32 clear_stuff = false);
+void clear_level_context(Level_Context *level_context);
 void clean_up_scene();
 void enter_game_state(Level_Context *level_context, b32 should_init_entities);
 void enter_editor_state();

@@ -606,7 +606,7 @@ String_Builder make_string_builder(String string, Allocator *allocator) {
     return builder;
 }
 
-#include "array.hpp"
+#include "array.cpp"
 
 void split_string(Array<String> *result_array, String to_split, String separators) {
     if (separators.count <= 0) {    

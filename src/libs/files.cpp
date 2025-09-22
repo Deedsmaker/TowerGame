@@ -1,8 +1,8 @@
 #pragma once 
 
-#include "string.hpp"
+#include "string.cpp"
 #include "Allocator.cpp"
-#include "array.hpp"
+#include "array.cpp"
 
 String read_entire_file(String name, b32 *success, Allocator *allocator = HEAP_ALLOCATOR) {
     

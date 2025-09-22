@@ -1,7 +1,7 @@
 #pragma once
 
-#include "array.hpp"
-#include "string.hpp"
+#include "array.cpp"
+#include "string.cpp"
 
 struct Old_File {
     //When we will need to keep file open this will be changed

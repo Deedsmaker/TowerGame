@@ -10,8 +10,8 @@
 #include "Allocator.cpp"
 
 #include "my_math.cpp"
-#include "string.hpp"
-#include "array.hpp"
+#include "string.cpp"
+#include "array.cpp"
 #include "old_files.hpp"
 
 #include "raylib.h"
