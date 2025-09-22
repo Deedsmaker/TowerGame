@@ -1024,7 +1024,7 @@ void fill_string(char *dest, Array<String> *line_arr, i32 *index_ptr) {
     }
 }
 
-void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<String> *splitted_line) {
+void old_parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<String> *splitted_line) {
     assert(str_equal(splitted_line->get(0)->data, "lightmaps"));
     assert(str_equal(splitted_line->get(1)->data, "["));
     
@@ -1146,7 +1146,7 @@ b32 old_load_level(const char *level_name) {
                     continue;
                 }
                 if (str_contains(splitted_line.get_value(i).data, "lightmaps")) {
-                    parse_lightmaps(&current_level_context->lightmaps, &splitted_line);
+                    old_parse_lightmaps(&current_level_context->lightmaps, &splitted_line);
                 }
             }
         

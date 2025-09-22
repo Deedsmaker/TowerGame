@@ -608,11 +608,12 @@ String_Builder make_string_builder(String string, Allocator *allocator) {
 
 #include "array.cpp"
 
-void split_string(Array<String> *result_array, String to_split, String separators) {
+void split_string(Array<String> *splitted, String to_split, String separators) {
     if (separators.count <= 0) {    
         return;
     }
     
+    splitted->clear();
     int ground_index = 0;
     
     for (int i = 0; i < to_split.count; i++) {
@@ -620,7 +621,7 @@ void split_string(Array<String> *result_array, String to_split, String separator
             if (to_split.data[i] == separators.data[s]) {
                 // That check exists for continuous separators.
                 if (ground_index < i) {                
-                    result_array->append(make_substring(to_split, ground_index, i - 1, result_array->allocator)); // i - 1 because make_substring include end index and we don't want to add separator to string.
+                    splitted->append(make_substring(to_split, ground_index, i - 1, splitted->allocator)); // i - 1 because make_substring include end index and we don't want to add separator to string.
                 }
                     
                 ground_index = i + 1;
@@ -631,7 +632,7 @@ void split_string(Array<String> *result_array, String to_split, String separator
     // At that point ground index should be equal to (last separator + 1) and we need to add last substring to array.
     // So if last separator was last symbol - ground_index would be equal to to_split.count.
     if (ground_index <= to_split.count - 1) {
-        result_array->append(make_substring(to_split, ground_index, to_split.count - 1, result_array->allocator));
+        splitted->append(make_substring(to_split, ground_index, to_split.count - 1, splitted->allocator));
     }
 }
 
@@ -640,3 +641,66 @@ Array<String> split_string(String to_split, String separators, Allocator *alloca
     split_string(&result, to_split, separators);    
     return result;
 }
+
+i32 to_i32(String string){
+    i32 value = 0;
+    i32 sign = 1;
+    
+    i32 index = 0;
+    if (string.data[0] == '-') sign = -1;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+    
+    for (i32 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
+        value = value * 10 + (i32)(string.data[i] - '0');
+    }
+    
+    return value * sign;
+}
+
+u64 to_u64(String string){
+    u64 value = 0;
+    u64 sign = 1;
+    
+    i32 index = 0;
+    
+    if (string.data[0] == '-') sign = -1;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+    
+    for (u64 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
+        value = value * 10 + (u64)(string.data[i] - '0');
+    }
+    
+    return value * sign;
+}
+
+f32 to_f32(String string){
+    f32 value = 0.0f;
+    f32 sign = 1.0f;
+    
+    i32 index = 0;
+    
+    if (string.data[0] == '-') sign = -1.0f;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+    
+    i32 i = index;
+    for (; (string.data[i] >= '0' && string.data[i] <= '9') && i < string.count; i++){
+        value = value * 10.0f + (f32)(string.data[i] - '0');
+    }
+    
+    if (i < string.count && string.data[i++] == '.'){
+        f32 divisor = 10.0f;
+        for (; string.data[i] >= '0' && string.data[i] <= '9' && i < string.count; i++){
+            value += ((f32)(string.data[i] - '0')) / divisor;
+            divisor *= 10;
+        }
+    }
+    
+    return value * sign;
+}
+

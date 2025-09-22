@@ -252,6 +252,16 @@ void new_save_level(String level_name) {
     delete_directory(old_directory_name);
 } // save level end.
 
+Vector2 parse_vector2(Array <String> *splitted, i32 start_index) {
+    if (start_index + 2 >= splitted->count) return {0};
+    
+    Vector2 v = {0};
+    v.x = to_f32(splitted->get_value(start_index));
+    v.y = to_f32(splitted->get_value(start_index + 1));
+    
+    return v;
+}
+
 b32 new_load_level(String name) {
     clear_allocator(&temp_allocator);
     
@@ -278,9 +288,36 @@ b32 new_load_level(String name) {
     
     setup_particles();
     
-    Array <String> splitted_line = {.allocator = &temp_allocator};
+    Array <String> splitted = {.allocator = &temp_allocator};
     Array <Entity> loaded_entities = {.allocator = &temp_allocator};
     
+    Array <String> level_files = get_files_in_directory(level_path, &temp_allocator);
+    if (level_files.count == 0) {
+        printf("Level directory was empty!\n");
+        return false;
+    }
+    
+    String separators = tstring(":{}[], ;");
+    
+    for_array(i, &level_files) {
+        String file_name = level_files.get_value(i);    
+        
+        if (file_name == tstring("Level_Info.txt")) {
+            b32 success = false;
+            String level_info = read_entire_file(file_name, &success, &temp_allocator);
+            if (!success) {
+                printf("Failed to read level info file!\n");
+                return false;
+            }
+            
+            split_string(&splitted, level_info, separators);
+            
+            i32 spawn_point_index = splitted.find(tstring("player_spawn_point"));
+            
+        } else {
+            // There goes entity parsing.
+        }
+    }
     
     return true;
 } // load level end.
