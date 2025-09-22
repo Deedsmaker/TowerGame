@@ -1296,7 +1296,7 @@ void parse_lightmaps(Array<Lightmap_Data>* lightmaps, Array<String> *splitted_li
     }
 }
 
-b32 load_level(const char *level_name) {
+b32 old_load_level(const char *level_name) {
     clear_allocator(&temp_allocator);
 
     Game_State original_game_state = game_state;
@@ -1839,7 +1839,11 @@ b32 load_level(const char *level_name) {
     clear_allocator(&temp_allocator);
     
     return true;
-} // end load level end
+} // end old load level end
+
+b32 load_level(String name) {
+    return old_load_level(c_str(name));
+}
 
 inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **other) {
     if (current_index >= collisions_buffer.count) {
@@ -2815,7 +2819,7 @@ inline void autosave_level() {
 
 void load_level_by_name(const char *name) {
     editor.last_autosave_time = core.time.app_time;
-    load_level(name);
+    load_level(tstring(name));
     
     // enter_editor_state();
 }
@@ -2825,7 +2829,7 @@ void try_load_next_level() {
     ForEntities(entity, TRIGGER) {
         if (entity->trigger->load_level) {
             found = true;
-            if (load_level(entity->trigger->level_name)) {            
+            if (load_level(tstring(entity->trigger->level_name))) {            
                 print_to_console("Next level loaded successfuly");
                 enter_editor_state();
             } else {
@@ -2842,7 +2846,7 @@ void try_load_next_level() {
 
 void try_load_previous_level() {
     if (session_context.previous_level_name[0]) {
-        if (load_level(session_context.previous_level_name)) {
+        if (load_level(tstring(session_context.previous_level_name))) {
             print_to_console("Previous level loaded successfuly");
             // enter_editor_state();
         } else {
@@ -2854,7 +2858,7 @@ void try_load_previous_level() {
 }
 
 void reload_level() {
-    load_level(current_level_context->level_name);       
+    load_level(tstring(current_level_context->level_name));       
 }
 
 Console_Command make_console_command(const char *name, void (func)() = NULL, void (func_arg)(const char*) = NULL) {
@@ -3102,7 +3106,7 @@ void debug_toggle_play_replay() {
 }
 
 void restart_game() {
-    load_level(first_level_name);
+    load_level(tstring(first_level_name));
     // enter_editor_state();
     
     // We could already enter game state if we was in it while loading.
@@ -3545,7 +3549,7 @@ void init_game() {
         str_copy(level_name_to_load, "test_level");
     }
     
-    load_level(level_name_to_load);
+    load_level(tstring(level_name_to_load));
     
     initing_game = false;
 } // end init game end
@@ -9924,7 +9928,7 @@ i32 update_trigger(Entity *e) {
             } else {
                 enter_game_state_on_new_level = true;
                 last_player_data = *player_data;
-                load_level(e->trigger->level_name);
+                load_level(tstring(e->trigger->level_name));
                 return TRIGGER_LEVEL_LOAD;
             }
         }
