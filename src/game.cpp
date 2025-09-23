@@ -1592,7 +1592,8 @@ b32 old_load_level(const char *level_name) {
 } // end old load level end
 
 b32 load_level(String name) {
-    return old_load_level(c_str(name));
+    // return old_load_level(c_str(name));
+    return new_load_level(name);
 }
 
 inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **other) {
@@ -3209,7 +3210,7 @@ void init_game() {
     initing_game = true;
     
     // init arenas.
-    init_allocator(&temp_allocator, Megabytes(4));
+    init_allocator(&temp_allocator, Megabytes(16));
     
     str_copy(loaded_level_context.name, "loaded_level_context");
     // str_copy(editor_level_context.name, "editor_level_context");

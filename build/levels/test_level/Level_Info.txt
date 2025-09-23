@@ -1,2 +1,3 @@
 player_spawn_point {-276.585022, 152.426208}
-lightmaps [ { lightmap_position {0.000000, 550.000000}, lightmap_size {700.000000, 500.000000}} ];
+ lightmaps [ { lightmap_position {0.000000, 550.000000}, lightmap_size {700.000000, 500.000000}}; ];
+ 
