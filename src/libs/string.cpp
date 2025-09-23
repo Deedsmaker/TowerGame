@@ -479,6 +479,7 @@ String copy_string(String other, Allocator *allocator) {
     return s;
 }
 
+// end_index included.
 String make_substring(String original_string, int start_index, int end_index, Allocator *allocator) {
     String new_string = {.allocator = allocator};
     
@@ -493,6 +494,30 @@ String make_substring(String original_string, int start_index, int end_index, Al
     mem_copy(new_string.data, original_string.data + start_index, new_string.count * sizeof(char));
     new_string.data[new_string.count] = '\0';
     return new_string;
+}
+
+inline i32 string_find_from(String string, String to_find, i32 start_index) {
+    if (string.count <= start_index || to_find.count == 0 || to_find.count > string.count) {
+        return -1;
+    }
+
+    // We'll fill data and count of this for_compare string for ourselves now, but that's actually could easily be done with 
+    // copy_string if we would remove null-termination.
+    String for_compare = {0};
+    for_compare.count = to_find.count;
+    
+    for (i32 i = start_index; i < string.count - to_find.count + 1; i++) {
+        for_compare.data = string.data + i;
+        
+        if (to_find == for_compare) {
+            return i;
+        }
+    }
+    
+    return -1;
+}
+inline i32 string_find(String string, String to_find) {
+    return string_find_from(string, to_find, 0);
 }
 
 String tstring(const char *text, ...) {

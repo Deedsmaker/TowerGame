@@ -242,7 +242,7 @@ void new_save_level(String level_name) {
         
         if (e->flags & NOTE) {
             assert(e->note_index != -1);
-            builder_append(&builder, tstring("note_content:\" %s \": \n", current_level_context->notes.get(e->note_index)->content));
+            builder_append(&builder, tstring("note_content \" %s \" \n", current_level_context->notes.get(e->note_index)->content));
             builder_append(&builder, tstring("note_draw_in_game %d \n", current_level_context->notes.get(e->note_index)->draw_in_game));
         }
         
@@ -289,6 +289,49 @@ void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted,
         
         i--; // So we won't skip next lightmap_position.
     }
+}
+
+void parse_i32_array(Array <i32> *array, Array <String> *splitted, i32 start_index) {
+    i32 end_index = splitted->find_from(tstring("\n"), start_index); 
+    if (end_index <= start_index) {
+        printf("Could not find breakline in parse i32 array!\n");
+        return;
+    }
+    
+    for (i32 i = start_index; i < end_index; i++) {
+        i32 number = to_i32(splitted->get_value(i));        
+        array->append(number);        
+    }
+}
+
+void parse_vector2_array(Array <Vector2> *array, Array <String> *splitted, i32 start_index) {
+    i32 end_index = splitted->find_from(tstring("\n"), start_index); 
+    if (end_index <= start_index) {
+        printf("Could not find breakline in parse vector2 array!\n");
+        return;
+    }
+    
+    for (i32 i = start_index; i < end_index; i++) {
+        Vector2 v = parse_vector2(splitted, i);
+        i += 1;
+        array->append(v);        
+    }
+}
+
+// String should have qute symbols marking start and end (note_content "some content").
+// identifier_index in meaning that it's not index of string beginning, but rather note_content index from example above. 
+// Then we'll find start and end of content string by yourself.
+String parse_string(String whole_data, i32 identifier_index, Allocator *allocator) {
+    i32 start_index = string_find_from(whole_data, tstring("\""), identifier_index);
+    start_index += 1; // So now it's pointing at actual beginning of a content.
+    
+    i32 end_index = string_find_from(whole_data, tstring("\""), start_index);
+    end_index -= 1; // Now it's pointing to last character and our substring function includes last symbol so that's what we need.
+    
+    if (start_index < 0 || end_index < 0 || end_index < start_index) return {0};
+    
+    String s = make_substring(whole_data, start_index, end_index, allocator);
+    return s;
 }
 
 b32 new_load_level(String name) {
