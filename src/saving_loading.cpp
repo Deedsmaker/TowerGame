@@ -458,6 +458,9 @@ b32 new_load_level(String name) {
             
             IF_FIND("color") entity->color = parse_color(&splitted, i+1);
             
+            IF_FIND("hidden") entity->hidden = to_i32(splitted.get_value(i+1));
+            IF_FIND("spawn_enemy_when_no_ammo") entity->spawn_enemy_when_no_ammo = to_i32(splitted.get_value(i+1));
+            
             IF_FIND("vertices") parse_vertices_array(&entity->vertices, &splitted, i+1);
             IF_FIND("unscaled_vertices") parse_vertices_array(&entity->unscaled_vertices, &splitted, i+1);
             
@@ -467,28 +470,154 @@ b32 new_load_level(String name) {
             
             if (entity->flags & TRIGGER) {
                 assert(entity->trigger);
-                IF_FIND("trigger_connected") parse_i32_array(&entity->trigger->connected, &splitted, i+1);
-                IF_FIND("trigger_tracking") parse_i32_array(&entity->trigger->tracking, &splitted, i+1);
+                Trigger *trigger = entity->trigger;
+                // @TODO: All this thousand bools of trigger should be just flags...
+                IF_FIND("trigger_connected")                  parse_i32_array(&trigger->connected, &splitted, i+1);
+                IF_FIND("trigger_tracking")                   parse_i32_array(&trigger->tracking, &splitted, i+1);
+                IF_FIND("trigger_die_after_trigger")          trigger->die_after_trigger = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_kill_player")                trigger->kill_player = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_kill_enemies")               trigger->kill_enemies = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_open_doors")                 trigger->open_doors = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_start_physics_simulation")   trigger->start_physics_simulation = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_track_enemies")              trigger->track_enemies = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_draw_lines_to_tracked")      trigger->draw_lines_to_tracked = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_agro_enemies")               trigger->agro_enemies = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_player_touch")               trigger->player_touch = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_start_cam_rails_horizontal") trigger->start_cam_rails_horizontal = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_start_cam_rails_vertical")   trigger->start_cam_rails_vertical = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_stop_cam_rails")             trigger->stop_cam_rails = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_cam_rails_points")           parse_vector2_array(&trigger->cam_rails_points, &splitted, i+1);
+                IF_FIND("trigger_lock_camera")                trigger->lock_camera = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_unlock_camera")              trigger->unlock_camera = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_allow_player_shoot")         trigger->allow_player_shoot = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_forbid_player_shoot")        trigger->forbid_player_shoot = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_locked_camera_position")     trigger->locked_camera_position = parse_vector2(&splitted, i+1);
+                IF_FIND("trigger_load_level")                 trigger->load_level = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_play_replay")                trigger->play_replay = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_level_name")                 str_copy(trigger->level_name, c_str(splitted.get_value(i+1)));
+                IF_FIND("trigger_replay_name")                str_copy(trigger->replay_name, c_str(splitted.get_value(i+1)));
+                IF_FIND("trigger_play_sound")                 trigger->play_sound = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_change_zoom")                trigger->change_zoom = to_f32(splitted.get_value(i+1));
+                IF_FIND("trigger_zoom_value")                 trigger->zoom_value = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_sound_name")                 str_copy(trigger->sound_name, c_str(splitted.get_value(i+1)));
+                IF_FIND("trigger_shows_entities")             trigger->shows_entities = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_starts_moving_sequence")     trigger->starts_moving_sequence = to_i32(splitted.get_value(i+1));
             }
+            
             if (entity->flags & KILL_SWITCH) {
                 assert(entity->kill_switch);
                 IF_FIND("kill_switch_connected") parse_i32_array(&entity->kill_switch->connected, &splitted, i+1);
+            }
+            
+            if (entity->flags & JUMP_SHOOTER) {
+                assert(entity->jump_shooter);
+                Jump_Shooter *shooter = entity->jump_shooter;
+                
+                IF_FIND("jump_shooter_explosive_count")               shooter->explosive_count = to_i32(splitted.get_value(i+1));
+                IF_FIND("jump_shooter_shoot_sword_blockers")          shooter->shoot_sword_blockers = to_i32(splitted.get_value(i+1));
+                IF_FIND("jump_shooter_shoot_sword_blockers_immortal") shooter->shoot_sword_blockers_immortal = to_i32(splitted.get_value(i+1));
+                IF_FIND("jump_shooter_shoot_bullet_blockers")         shooter->shoot_bullet_blockers = to_i32(splitted.get_value(i+1));
+                IF_FIND("jump_shooter_shots_count")                   shooter->shots_count = to_i32(splitted.get_value(i+1));
+                IF_FIND("jump_shooter_spread")                        shooter->spread = to_f32(splitted.get_value(i+1));
+            }
+            
+            if (entity->flags & TURRET) {
+                assert(entity->turret);
+                Turret *turret = entity->turret;
+                
+                IF_FIND("turret_projectile_flags")              turret->projectile_settings.enemy_flags = to_u64(splitted.get_value(i+1));
+                IF_FIND("turret_shoot_sword_blocker_clockwise") turret->projectile_settings.blocker_clockwise = to_i32(splitted.get_value(i+1));
+                IF_FIND("turret_homing_projectiles")            turret->homing= to_i32(splitted.get_value(i+1));
+                IF_FIND("turret_shoot_every_tick")              turret->shoot_every_tick = to_i32(splitted.get_value(i+1));
+                IF_FIND("turret_start_tick_delay")              turret->start_tick_delay = to_i32(splitted.get_value(i+1));
+                IF_FIND("turret_projectile_speed")              turret->projectile_settings.launch_speed = to_f32(splitted.get_value(i+1));
+                IF_FIND("turret_projectile_max_lifetime")       turret->projectile_settings.max_lifetime = to_f32(splitted.get_value(i+1));
+                IF_FIND("turret_shoot_width")                   turret->shoot_width = to_f32(splitted.get_value(i+1));
+                IF_FIND("turret_shoot_height")                  turret->shoot_height = to_f32(splitted.get_value(i+1));
+                IF_FIND("turret_activated")                     turret->activated = to_i32(splitted.get_value(i+1));
+            }
+            
+            if (entity->flags & MOVE_SEQUENCE) {
+                assert(entity->move_sequence);
+                Move_Sequence *sequence = entity->move_sequence;
+                
+                IF_FIND("move_sequence_moving")                        sequence->moving = to_i32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_loop")                          sequence->loop = to_i32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_rotate")                        sequence->rotate = to_i32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_speed_related_player_distance") sequence->speed_related_player_distance = to_i32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_min_distance")                  sequence->min_distance = to_f32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_max_distance")                  sequence->max_distance = to_f32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_max_distance_speed")            sequence->max_distance_speed = to_f32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_speed")                         sequence->speed = to_f32(splitted.get_value(i+1));
+                IF_FIND("move_sequence_points")                        parse_vector2_array(&sequence->points, &splitted, i+1);
+            }
+            
+            if (entity->flags & DOOR) {
+                IF_FIND("door_open") entity->door.is_open = to_i32(splitted.get_value(i+1));
+            }
+            
+            if (entity->flags & CENTIPEDE) {
+                assert(entity->centipede);
+                Centipede *centipede = entity->centipede;
+                
+                IF_FIND("spikes_on_right") centipede->spikes_on_right = to_i32(splitted.get_value(i+1));
+                IF_FIND("spikes_on_left")  centipede->spikes_on_left = to_i32(splitted.get_value(i+1));
+                IF_FIND("segments_count")  centipede->segments_count = to_i32(splitted.get_value(i+1));
             }
             
             if (entity->flags & ENEMY) {
                 assert(entity->union_enemy);
                 Enemy *enemy = entity->union_enemy;
                 IF_FIND("enemy_big_or_small_killable") enemy->big_sword_killable = to_i32(splitted.get_value(i+1));
-                IF_FIND("blocker_clockwise") enemy->blocker_clockwise = to_i32(splitted.get_value(i+1));
-                IF_FIND("blocker_immortal") enemy->blocker_immortal = to_i32(splitted.get_value(i+1));
+                IF_FIND("blocker_clockwise")           enemy->blocker_clockwise = to_i32(splitted.get_value(i+1));
+                IF_FIND("blocker_immortal")            enemy->blocker_immortal = to_i32(splitted.get_value(i+1));
+                IF_FIND("sword_kill_speed_modifier")   enemy->sword_kill_speed_modifier = to_i32(splitted.get_value(i+1));
+                IF_FIND("shoot_blocker_direction") enemy->shoot_blocker_direction = parse_vector2(&splitted, i+1);
+                IF_FIND("shoot_blocker_immortal") enemy->shoot_blocker_immortal = to_i32(splitted.get_value(i+1));
+                IF_FIND("enemy_gives_ammo") enemy->gives_ammo = to_i32(splitted.get_value(i+1));
+                IF_FIND("explosive_radius_multiplier") enemy->explosive_radius_multiplier = to_i32(splitted.get_value(i+1));
             }
             
             if (entity->flags & PROPELLER) {
                 assert(entity->propeller);
                 
                 IF_FIND("propeller_power") entity->propeller->power = to_f32(splitted.get_value(i+1));
-                IF_FIND("propeller_spin_sensitive") entity->propeller->spin_sensitive = to_b32(splitted.get_value(i+1));
+                IF_FIND("propeller_spin_sensitive") entity->propeller->spin_sensitive = to_i32(splitted.get_value(i+1));
             }
+            
+            if (entity->flags & LIGHT) {
+                assert(entity->lights.count > 0);
+                Light *light = current_level_context->lights.get(entity->lights.get_value(0));
+                
+                IF_FIND("light_shadows_size_flag")     light->shadows_size_flags = to_i32(splitted.get_value(i+1));
+                IF_FIND("light_backshadows_size_flag") light->backshadows_size_flags = to_i32(splitted.get_value(i+1));
+                IF_FIND("light_make_shadows")          light->make_shadows = to_i32(splitted.get_value(i+1));
+                IF_FIND("light_make_backshadows")      light->make_backshadows = to_i32(splitted.get_value(i+1));
+                IF_FIND("light_bake_shadows")          light->bake_shadows = to_i32(splitted.get_value(i+1));
+                IF_FIND("light_radius")                light->radius = to_f32(splitted.get_value(i+1));
+                IF_FIND("light_opacity")               light->opacity = to_f32(splitted.get_value(i+1));
+                IF_FIND("light_power")                 light->power = to_f32(splitted.get_value(i+1));
+                IF_FIND("light_color")                 light->color = parse_color(&splitted, i+1);
+            }
+            
+            if (entity->flags & NOTE) {
+                assert(entity->note_index >= 0);
+                
+                i32 note_content_index = string_find(entity_info, tstring("note_content"));
+                String note_string = parse_string(entity_info, note_content_index, &temp_allocator);
+                
+                Note *note = current_level_context->notes.get(entity->note_index);
+                str_copy(note->content, c_str(note_string));
+                
+                IF_FIND("note_draw_in_game") note->draw_in_game = to_i32(splitted.get_value(i+1));
+            }
+            
+            // Of course we want to init entity again even if we've done it with flags at the beginning, because some initing can 
+            // depend on exact data that we filled on loading.
+            init_entity(entity);
+            
+            Entity *loaded = loaded_entities.append(*entity);
+            loaded->id = old_id;
         }
     }
     
