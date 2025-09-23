@@ -17,6 +17,7 @@ inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vec
 
 void switch_current_level_context(Level_Context *target, b32 clear_stuff = false);
 void clear_level_context(Level_Context *level_context);
+void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init_entities);
 void clean_up_scene();
 void enter_game_state(Level_Context *level_context, b32 should_init_entities);
 void enter_editor_state();
@@ -39,6 +40,8 @@ Bounds get_bounds(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = 
 Bounds get_cam_bounds(Cam cam, f32 zoom);
 Cam get_cam_for_resolution(i32 width, i32 height);
 inline f32 get_light_zoom(f32 radius);
+
+void setup_context_cam(Level_Context *level_context);
 
 inline Light *get_light(i32 index, Level_Context *level_context = NULL);
 inline Entity *get_entity(i32 id, Level_Context *level_context = NULL);

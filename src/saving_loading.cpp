@@ -618,8 +618,46 @@ b32 new_load_level(String name) {
             
             Entity *loaded = loaded_entities.append(*entity);
             loaded->id = old_id;
+        } // End of a entity file scope.
+    } // End of a files for loop.
+    
+    game_state = original_game_state;
+    
+    setup_context_cam(current_level_context);
+    current_level_context->cam.cam2D.zoom = 0.35f;
+    
+    // We do that so editor has latest level in it.
+    // switch_current_level_context(editor_level-cont)e
+    clear_level_context(&game_level_context);
+    
+    // This shit so that we don't overwrite level that we currently on.
+    do {
+        last_loaded_editor_level_context_index += 1;    
+        last_loaded_editor_level_context_index %= MAX_LOADED_LEVELS;    
+    } while (last_loaded_editor_level_context_index == current_editor_level_context_index);
+    editor_level_context = &loaded_levels_contexts[last_loaded_editor_level_context_index];
+    current_editor_level_context_index = last_loaded_editor_level_context_index;
+    clear_level_context(editor_level_context);
+    copy_level_context(editor_level_context, &loaded_level_context, true);
+    
+    if (enter_game_state_on_new_level || game_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
+        enter_game_state(&loaded_level_context, true);
+        
+        if (enter_game_state_on_new_level) {
+            player_data->blood_amount = last_player_data.blood_amount;
+            player_data->blood_progress = last_player_data.blood_progress;
+            player_data->ammo_count = last_player_data.ammo_count;
         }
+        
+        enter_game_state_on_new_level = false;
+    } else {
+        enter_editor_state();
     }
+    
+    current_level_context->cam.position = current_level_context->player_spawn_point;
+    current_level_context->cam.target = current_level_context->player_spawn_point;
+    
+    clear_allocator(&temp_allocator);
     
     return true;
 } // load level end.

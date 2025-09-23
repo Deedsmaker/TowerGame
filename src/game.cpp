@@ -1552,10 +1552,6 @@ b32 old_load_level(const char *level_name) {
     splitted_line.free_data();
     old_unload_file(&file);
         
-    ForEntities(loaded_entity, 0) {
-        init_loaded_entity(loaded_entity);
-    }
-    
     setup_context_cam(current_level_context);
     current_level_context->cam.cam2D.zoom = 0.35f;
     
@@ -2080,13 +2076,6 @@ void load_all_textures() {
 void print_to_console(const char *text) {
     builder_append(&console.content_builder, tstring("\t>%s\n", text));
 }
-
-inline void init_loaded_entity(Entity *entity) {
-    // if (entity->flags & BIRD_ENEMY) {
-    //     init_bird_entity(entity);
-    // }
-}
-
 
 inline i32 next_entity_avaliable(Level_Context *level_context, i32 start_index, Entity **entity, FLAGS flags) {
     // for (i32 i = start_index; i < level_context->entities.capacity; i++) {
