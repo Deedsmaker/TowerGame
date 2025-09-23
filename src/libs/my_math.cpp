@@ -51,10 +51,10 @@ struct Vector2{
 };
 
 struct Color {
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-    unsigned char a;
+    u8 r;
+    u8 g;
+    u8 b;
+    u8 a;
     
     Color operator*(f32 value){
         return {(unsigned char)(r * value), (unsigned char)(g * value), (unsigned char)(b * value), (unsigned char)(a * value)};

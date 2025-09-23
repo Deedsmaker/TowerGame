@@ -262,6 +262,18 @@ Vector2 parse_vector2(Array <String> *splitted, i32 start_index) {
     return v;
 }
 
+Color parse_color(Array <String> *splitted, i32 start_index) {
+    if (start_index + 4 >= splitted->count) return {0};
+    
+    Color c = {0};
+    c.r = to_u64(splitted->get_value(start_index));
+    c.g = to_u64(splitted->get_value(start_index + 1));
+    c.b = to_u64(splitted->get_value(start_index + 2));
+    c.a = to_u64(splitted->get_value(start_index + 3));
+    
+    return c;
+}
+
 void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted, i32 start_index) {
     i32 end_index = splitted->find_from(tstring("\n"), start_index);
     if (end_index <= start_index) {
@@ -317,12 +329,25 @@ void parse_vector2_array(Array <Vector2> *array, Array <String> *splitted, i32 s
         array->append(v);        
     }
 }
+void parse_vertices_array(Static_Array <Vector2, MAX_VERTICES> *array, Array <String> *splitted, i32 start_index) {
+    i32 end_index = splitted->find_from(tstring("\n"), start_index); 
+    if (end_index <= start_index) {
+        printf("Could not find breakline in parse vector2 array!\n");
+        return;
+    }
+    
+    for (i32 i = start_index; i < end_index && array->count < MAX_VERTICES; i++) {
+        Vector2 v = parse_vector2(splitted, i);
+        i += 1;
+        array->append(v);        
+    }
+}
 
 // String should have qute symbols marking start and end (note_content "some content").
-// identifier_index in meaning that it's not index of string beginning, but rather note_content index from example above. 
+// index in meaning that it's not index of string beginning, but rather note_content index from example above. 
 // Then we'll find start and end of content string by yourself.
-String parse_string(String whole_data, i32 identifier_index, Allocator *allocator) {
-    i32 start_index = string_find_from(whole_data, tstring("\""), identifier_index);
+String parse_string(String whole_data, i32 index, Allocator *allocator) {
+    i32 start_index = string_find_from(whole_data, tstring("\""), index);
     start_index += 1; // So now it's pointing at actual beginning of a content.
     
     i32 end_index = string_find_from(whole_data, tstring("\""), start_index);
@@ -333,6 +358,8 @@ String parse_string(String whole_data, i32 identifier_index, Allocator *allocato
     String s = make_substring(whole_data, start_index, end_index, allocator);
     return s;
 }
+
+#define IF_FIND(str) if ((i = splitted.find(tstring(str))) >= 0)
 
 b32 new_load_level(String name) {
     clear_allocator(&temp_allocator);
@@ -394,6 +421,74 @@ b32 new_load_level(String name) {
             
         } else {
             // There goes entity parsing.
+            
+            b32 success = false;
+            String entity_info = read_entire_file(file_name, &success, &temp_allocator);
+            if (!success) {
+                printf("Failed to read entity file data!\n");
+                continue;
+            }
+            
+            split_string(&splitted, entity_info, separators);
+            Entity *entity = NULL;
+            
+            Entity dummy_entity = {0}; // It's here just for setting data for initing.
+            i32 i = -1;
+            
+            IF_FIND("flags") dummy_entity.flags = to_u64(splitted.get_value(i+1));
+            
+            entity = copy_and_add_entity(&dummy_entity, &loaded_level_context);
+            
+            if (entity->flags & LIGHT) {        
+                // We're adding empty ligh just because on loading we're gonna fill this empty light.
+                Light dummy_light = {0};
+                copy_and_add_light_to_entity(entity, &dummy_light, true);
+            }
+            
+            i32 old_id = 0;
+            Note note_to_fill = {};
+            
+            IF_FIND("id") old_id = to_i32(splitted.get_value(i+1));
+            
+            IF_FIND("position") entity->position = parse_vector2(&splitted, i+1);
+            IF_FIND("scale") entity->scale = parse_vector2(&splitted, i+1);
+            IF_FIND("pivot") entity->pivot = parse_vector2(&splitted, i+1);
+            
+            IF_FIND("rotation") entity->rotation = to_f32(splitted.get_value(i+1));
+            
+            IF_FIND("color") entity->color = parse_color(&splitted, i+1);
+            
+            IF_FIND("vertices") parse_vertices_array(&entity->vertices, &splitted, i+1);
+            IF_FIND("unscaled_vertices") parse_vertices_array(&entity->unscaled_vertices, &splitted, i+1);
+            
+            IF_FIND("texture_name") str_copy(entity->texture_name, c_str(splitted.get_value(i+1)));
+            
+            IF_FIND("draw_order") entity->draw_order = to_i32(splitted.get_value(i+1));
+            
+            if (entity->flags & TRIGGER) {
+                assert(entity->trigger);
+                IF_FIND("trigger_connected") parse_i32_array(&entity->trigger->connected, &splitted, i+1);
+                IF_FIND("trigger_tracking") parse_i32_array(&entity->trigger->tracking, &splitted, i+1);
+            }
+            if (entity->flags & KILL_SWITCH) {
+                assert(entity->kill_switch);
+                IF_FIND("kill_switch_connected") parse_i32_array(&entity->kill_switch->connected, &splitted, i+1);
+            }
+            
+            if (entity->flags & ENEMY) {
+                assert(entity->union_enemy);
+                Enemy *enemy = entity->union_enemy;
+                IF_FIND("enemy_big_or_small_killable") enemy->big_sword_killable = to_i32(splitted.get_value(i+1));
+                IF_FIND("blocker_clockwise") enemy->blocker_clockwise = to_i32(splitted.get_value(i+1));
+                IF_FIND("blocker_immortal") enemy->blocker_immortal = to_i32(splitted.get_value(i+1));
+            }
+            
+            if (entity->flags & PROPELLER) {
+                assert(entity->propeller);
+                
+                IF_FIND("propeller_power") entity->propeller->power = to_f32(splitted.get_value(i+1));
+                IF_FIND("propeller_spin_sensitive") entity->propeller->spin_sensitive = to_b32(splitted.get_value(i+1));
+            }
         }
     }
     

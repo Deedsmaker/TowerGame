@@ -123,7 +123,6 @@ Sound_Handler *missing_sound = NULL;
 #include "text_input.hpp"
 #include "ui.hpp"
 #include "lightmaps.cpp"
-#include "saving_loading.cpp"
 
 // #include "entity_ids.cpp"
 
@@ -151,6 +150,7 @@ inline void log_short(Vector2 value) {
 
 #include "dynamic_lights.cpp"
 #include "undo.cpp"
+#include "saving_loading.cpp"
 
 void setup_context_cam(Level_Context *level_context) {
     level_context->cam.width = global_cam_data.width;
