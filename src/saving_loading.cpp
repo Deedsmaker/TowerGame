@@ -285,10 +285,14 @@ void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted,
         Lightmap_Data lightmap = {0};
     
         i32 position_index = splitted->find_from(tstring("lightmap_position"), i);    
+        if (position_index < 0) break;
+        
         lightmap.position = parse_vector2(splitted, position_index + 1);
         i = position_index + 2;
         
         i32 size_index = splitted->find_from(tstring("lightmap_size"), i);
+        if (size_index < 0) break;
+        
         lightmap.game_size = parse_vector2(splitted, size_index + 1);
         i = size_index + 2;
         
@@ -398,27 +402,36 @@ b32 new_load_level(String name) {
     
     String separators = tstring(":{}[], ;");
     
+    String level_info_file_name = tstring("Level_Info.txt");
+    
+    i32 level_info_file_index =  find_file_name_in_paths(&level_files, level_info_file_name);
+    if (level_info_file_index < 0) {
+        printf("Failed to find level info file!\n");
+    } else {
+        b32 success = false;
+        String level_info = read_entire_file(level_files.get_value(level_info_file_index), &success, &temp_allocator);
+        if (!success) {
+            printf("Failed to read level info file!\n");
+            return false;
+        }
+        
+        split_string(&splitted, level_info, separators);
+        
+        i32 spawn_point_index = splitted.find(tstring("player_spawn_point"));
+        if (spawn_point_index >= 0) current_level_context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
+        
+        i32 lightmaps_index = splitted.find(tstring("lightmaps"));
+        if (lightmaps_index > 0) {
+            parse_lightmaps(&current_level_context->lightmaps, &splitted, lightmaps_index + 1);
+        }
+    }
+    
     for_array(i, &level_files) {
         String file_name = level_files.get_value(i);    
         
-        if (file_name == tstring("Level_Info.txt")) {
-            b32 success = false;
-            String level_info = read_entire_file(file_name, &success, &temp_allocator);
-            if (!success) {
-                printf("Failed to read level info file!\n");
-                return false;
-            }
-            
-            split_string(&splitted, level_info, separators);
-            
-            i32 spawn_point_index = splitted.find(tstring("player_spawn_point"));
-            if (spawn_point_index >= 0) current_level_context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
-            
-            i32 lightmaps_index = splitted.find(tstring("lightmaps"));
-            if (lightmaps_index > 0) {
-                parse_lightmaps(&current_level_context->lightmaps, &splitted, lightmaps_index + 1);
-            }
-            
+        if (file_name == level_info_file_name) {
+            // We've parsed that before.
+            continue;
         } else {
             // There goes entity parsing.
             

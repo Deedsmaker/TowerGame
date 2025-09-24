@@ -76,6 +76,44 @@ Array <String> get_files_in_directory(String directory_name, Allocator *allocato
     return result_paths;
 }
 
+// Will replace string level/file.txt to just file.txt (detects / or \\).
+String strip_path_to_just_name(String path, Allocator *allocator) {
+    i32 slash_index = string_find_from_back(path, tstring("/"));
+    i32 backslash_index = string_find_from_back(path, tstring("\\"));
+    
+    i32 index_from = (slash_index > backslash_index ? slash_index : backslash_index) + 1; // +1 so that we'll start form real name.
+    
+    return make_substring(path, index_from, path.count - 1, allocator);
+}
+
+inline i32 find_file_name_in_paths(Array <String> *paths, String name_to_find) {
+    for_array(i, paths) {
+        String name = strip_path_to_just_name(paths->get_value(i), &temp_allocator);
+        if (name == name_to_find) return i;
+    }
+    
+    return -1;
+}
+
+Array <String> get_file_names_in_directory(String directory_name, Allocator *allocator = HEAP_ALLOCATOR) {
+    if (!directory_exists(directory_name)) return {0};
+    
+    FilePathList files_paths = LoadDirectoryFiles(c_str(directory_name));
+    
+    Array <String> result_paths = {.allocator = allocator};
+    
+    for (u32 i = 0; i < files_paths.count; i++) {
+        String full_path = make_string(&temp_allocator, files_paths.paths[i]);
+        String name = strip_path_to_just_name(full_path, allocator);
+    
+        result_paths.append(name);
+    }
+    
+    UnloadDirectoryFiles(files_paths);
+    
+    return result_paths;
+}
+
 #ifdef _WIN32
     #include <direct.h>
 #endif

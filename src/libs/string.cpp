@@ -520,6 +520,22 @@ inline i32 string_find(String string, String to_find) {
     return string_find_from(string, to_find, 0);
 }
 
+inline i32 string_find_from_back(String string, String to_find) {       
+    if (string.count < to_find.count || to_find.count == 0) return -1;
+    
+    String for_compare = {0};
+    for_compare.count = to_find.count;
+    
+    for (i32 i = string.count - to_find.count; i >= 0; i--) {
+        for_compare.data = string.data + i;
+        if (to_find == for_compare) {
+            return i;
+        }
+    }
+    
+    return -1;
+}
+
 String tstring(const char *text, ...) {
     String result_string = {.allocator = &temp_allocator};
     
