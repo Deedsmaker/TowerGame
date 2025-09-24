@@ -266,10 +266,10 @@ Color parse_color(Array <String> *splitted, i32 start_index) {
     if (start_index + 4 >= splitted->count) return {0};
     
     Color c = {0};
-    c.r = to_f32(splitted->get_value(start_index));
-    c.g = to_f32(splitted->get_value(start_index + 1));
-    c.b = to_f32(splitted->get_value(start_index + 2));
-    c.a = to_f32(splitted->get_value(start_index + 3));
+    c.r = to_u8(splitted->get_value(start_index));
+    c.g = to_u8(splitted->get_value(start_index + 1));
+    c.b = to_u8(splitted->get_value(start_index + 2));
+    c.a = to_u8(splitted->get_value(start_index + 3));
     
     return c;
 }
@@ -469,7 +469,7 @@ b32 new_load_level(String name) {
             
             IF_FIND("rotation") entity->rotation = to_f32(splitted.get_value(i+1));
             
-            IF_FIND("color") entity->color = parse_color(&splitted, i+1);
+            IF_FIND("color") change_color(entity, parse_color(&splitted, i+1));
             
             IF_FIND("hidden") entity->hidden = to_i32(splitted.get_value(i+1));
             IF_FIND("spawn_enemy_when_no_ammo") entity->spawn_enemy_when_no_ammo = to_i32(splitted.get_value(i+1));
