@@ -336,7 +336,7 @@ void parse_vector2_array(Array <Vector2> *array, Array <String> *splitted, i32 s
 void parse_vertices_array(Static_Array <Vector2, MAX_VERTICES> *array, Array <String> *splitted, i32 start_index) {
     i32 end_index = splitted->find_from(tstring("\n"), start_index); 
     if (end_index <= start_index) {
-        printf("Could not find breakline in parse vector2 array!\n");
+        printf("Could not find breakline in parse vector2 static array!\n");
         return;
     }
     

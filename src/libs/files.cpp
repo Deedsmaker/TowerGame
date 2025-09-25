@@ -86,6 +86,10 @@ String strip_path_to_just_name(String path, Allocator *allocator) {
     return make_substring(path, index_from, path.count - 1, allocator);
 }
 
+u64 get_file_modification_time(String path) {
+    return GetFileModTime(c_str(path));
+}
+
 inline i32 find_file_name_in_paths(Array <String> *paths, String name_to_find) {
     for_array(i, paths) {
         String name = strip_path_to_just_name(paths->get_value(i), &temp_allocator);

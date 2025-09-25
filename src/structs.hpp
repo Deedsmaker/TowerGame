@@ -1095,7 +1095,6 @@ struct Level_Context {
     char name[64] = "\0";
     
     Vector2 player_spawn_point = Vector2_zero;
-    char old_level_name[256] = "\0";
     String level_name = {0};
 
     i32 original_win_blocks_count = 0;
