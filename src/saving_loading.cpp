@@ -634,6 +634,59 @@ b32 new_load_level(String name) {
         } // End of a entity file scope.
     } // End of a files for loop.
     
+    // This code needs for loading because entity ids in level save file will not be the same 
+    // as entity ids after loading.
+    // That's because we're storing our entities in chunk array and entity id is actually just (index + 1)
+    // of that chunk array. In chunk array removing object and growing is not moving pointers, 
+    // so after work on level we could have a large gaps of empty slots (for example we have chunk size
+    // of 128 and we're just adding entities and last entity id is 555. Then we're deleting all 
+    // entities from 100 to 554 id and we have a huge huge gap, but last entity still saves with id 
+    // of 555 and some entities is referring to that entity).
+    //
+    // Then on loading we don't want to generate that huge gap again - we actually just want to store 
+    // them linearly (even though in chunks). That means we're going to change id of entities.
+    // 
+    // We're going through loaded_entities, which is just flat copies of actual before-created entities, but with original 
+    // entity ids.
+    // Note that because we're just before added all loaded entities to level context there's no gaps and indexes of 
+    // loaded_entities and actual chunk array of entities will be the same.
+    for_array(i, &loaded_entities) {
+        Entity *loaded = loaded_entities.get(i);
+        Entity *new_entity = get_entity(i + 1);
+        
+        if (new_entity->flags & TRIGGER) {
+            for_array(j, &loaded_entities) {
+                // i == j would mean that we're looking at the same entity.
+                if (i == j) continue;
+                              
+                Entity *another_loaded = loaded_entities.get(j);
+                // Going through all loaded entities and looking if this entity old id is contained in connected.
+                // If it is - we're replacing id in connected with this entity new id (and this entity new id is current index (j) + 1).
+                i32 connected_index = new_entity->trigger->connected.find(another_loaded->id);
+                if (connected_index >= 0) {
+                    new_entity->trigger->connected.insert(j + 1, connected_index);
+                }
+                i32 tracking_index = new_entity->trigger->tracking.find(another_loaded->id);
+                if (tracking_index >= 0) {
+                    new_entity->trigger->tracking.insert(j + 1, tracking_index);
+                }
+            }
+        }
+        if (new_entity->flags & KILL_SWITCH) {
+            for_array(j, &loaded_entities) {
+                if (i == j) continue;
+                
+                Entity *another_loaded = loaded_entities.get(j);
+                
+                // Explainded earlier.
+                i32 connected_index = new_entity->kill_switch->connected.find(another_loaded->id);
+                if (connected_index >= 0) {
+                    new_entity->kill_switch->connected.insert(j + 1, connected_index);
+                }
+            }
+        }
+    }
+    
     game_state = original_game_state;
     
     setup_context_cam(current_level_context);
