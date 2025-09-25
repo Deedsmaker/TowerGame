@@ -3854,7 +3854,7 @@ void editor_destroy_entity(Entity *entity) {
     mark_entity_destroyed(entity);
     
     if (is_editor_active()) {
-        entity->runtime_only_flags |= EDITOR_CHANGED;
+        undo_mark_entity_changed(entity);
         editor.just_deleted_entity = true; // That thing beign used only for undo for now.
     }
     
@@ -4100,7 +4100,7 @@ void update_editor_ui() {
                 assert(false);
             }
             
-            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+            undo_mark_entity_changed(editor.selected);
         }
         // v_pos += height_add;
 
@@ -4134,7 +4134,7 @@ void update_editor_ui() {
             }
             
             
-            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+            undo_mark_entity_changed(editor.selected);
         }
         v_pos += height_add;
         
@@ -4157,7 +4157,7 @@ void update_editor_ui() {
                 rotate(editor.selected, rotation_add);
             }
             
-            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+            undo_mark_entity_changed(editor.selected);
         }
         v_pos += height_add;
         
@@ -4185,7 +4185,7 @@ void update_editor_ui() {
                     editor.selected->draw_order += draw_order_add;
                 }
                 
-                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+                undo_mark_entity_changed(editor.selected);
             }
         }
         v_pos += height_add;
@@ -4816,7 +4816,7 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     Vector2 new_position = closest_vertex_global - *entity_vertex;
     Vector2 position_change = new_position - entity->position;
     entity->position = new_position;     
-    entity->runtime_only_flags |= EDITOR_CHANGED;
+    undo_mark_entity_changed(entity);
     
     // // Because when we start moving vertex we remembering these vertices already. 
     // // So if we do that here aswell - on undo vertices will go on place where we pressed button.
@@ -5091,7 +5091,7 @@ void rotate_multiselected(f32 to_rotate) {
         
         Vector2 before_position = entity->position;
         rotate_around_point(&entity->position, editor.multiselection.center, to_rotate);
-        entity->runtime_only_flags |= EDITOR_CHANGED;
+        undo_mark_entity_changed(entity);
     }
 }
 
@@ -5284,7 +5284,7 @@ void update_editor() {
             // This else is for clearing moving edge state after we finished and also for remembering undo.
             if (editor.moving_entity_edge_type != NONE && e->id == editor.moving_entity_edge_id) {
                 if (e->scale != editor.moving_edge_start_entity_scale) {
-                    e->runtime_only_flags |= EDITOR_CHANGED;
+                    undo_mark_entity_changed(e);
                 }
                 editor.moving_entity_edge_type = NONE;
                 editor.moving_entity_edge_id = -1;
@@ -5462,7 +5462,7 @@ void update_editor() {
         if (was_moving_multiselected && !should_move_multiselected) {
 //             undo_add_multiselect_position_change(multiselection->total_displacement_for_undo);
             for_array(i, &multiselection->entities) {
-                get_entity(multiselection->entities.get_value(i))->runtime_only_flags |= EDITOR_CHANGED;
+                undo_mark_entity_changed(get_entity(multiselection->entities.get_value(i)));
             }
         }
         
@@ -5565,7 +5565,7 @@ void update_editor() {
         
         if (editor.dragging_entity) {
             if (editor.selected) {
-                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+                undo_mark_entity_changed(editor.selected);
             }
         }
         
@@ -5766,7 +5766,7 @@ void update_editor() {
         }
         
         if (editor.is_rotating_entity && (IsKeyUp(KEY_E) && IsKeyUp(KEY_Q))) {
-            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+            undo_mark_entity_changed(editor.selected);
             editor.is_rotating_entity = false;
         } 
     } else if ((editor.selected || multiselection->entities.count > 1) && can_control_with_single_button) {
@@ -5787,7 +5787,7 @@ void update_editor() {
                 f32 next_rotation = round_to_factor(editor.selected->rotation + to_rotate, 15);
                 to_rotate = next_rotation - editor.selected->rotation;
                 rotate(editor.selected, to_rotate);
-                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+                undo_mark_entity_changed(editor.selected);
             }
         }
         
@@ -5803,7 +5803,7 @@ void update_editor() {
                     rotate_multiselected(direction);                    
                 } else {
                     rotate(editor.selected, direction);
-                    editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+                    undo_mark_entity_changed(editor.selected);
                 }
                 holding_time = 0;
             }
@@ -5832,7 +5832,7 @@ void update_editor() {
         if (editor.is_scaling_entity && (IsKeyUp(KEY_W) && IsKeyUp(KEY_S) && IsKeyUp(KEY_A) && IsKeyUp(KEY_D))) {
             Vector2 scale_change = editor.selected->scale - editor.scaling_start;
             
-            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+            undo_mark_entity_changed(editor.selected);
             editor.is_scaling_entity = false;
         } 
     } else if (editor.selected && can_control_with_single_button && editor.moving_entity_edge_type == NONE) {
@@ -5852,7 +5852,7 @@ void update_editor() {
             scaling = next_scale - editor.selected->scale;
         
             add_scale(editor.selected, scaling);
-            editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+            undo_mark_entity_changed(editor.selected);
         }
         
         if (IsKeyReleased(KEY_W) || IsKeyReleased(KEY_S) || IsKeyReleased(KEY_A) || IsKeyReleased(KEY_D)) {
@@ -5878,7 +5878,7 @@ void update_editor() {
                 
 //                 undo_remember_vertices_start(editor.selected);
                 add_scale(editor.selected, scaling);
-                editor.selected->runtime_only_flags |= EDITOR_CHANGED;
+                undo_mark_entity_changed(editor.selected);
                 holding_time = 0;
             }
         } else {
@@ -5907,15 +5907,15 @@ void update_editor() {
                     
                     if (wanna_assign && !wanna_remove && !selected->trigger->connected.contains(col.other_entity->id)) {
                         selected->trigger->connected.append(col.other_entity->id);
-                        selected->runtime_only_flags |= EDITOR_CHANGED;
+                        undo_mark_entity_changed(selected);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (selected->trigger->connected.contains(col.other_entity->id)) {
                             selected->trigger->connected.remove_first_encountered(col.other_entity->id);
-                            selected->runtime_only_flags |= EDITOR_CHANGED;
+                            undo_mark_entity_changed(selected);
                         } else if (selected->trigger->tracking.contains(col.other_entity->id)) {
                             selected->trigger->tracking.remove_first_encountered(col.other_entity->id);
-                            selected->runtime_only_flags |= EDITOR_CHANGED;
+                            undo_mark_entity_changed(selected);
                         }
                         break;
                     }
@@ -5933,7 +5933,7 @@ void update_editor() {
                     
                     if (!selected->trigger->tracking.contains(col.other_entity->id)) {
                         selected->trigger->tracking.append(col.other_entity->id);
-                        selected->runtime_only_flags |= EDITOR_CHANGED;
+                        undo_mark_entity_changed(selected);
                     }
                 }
             }
@@ -8645,7 +8645,7 @@ inline b32 verify_trigger_connected(Entity *entity) {
     }
     
     if (removed_something && is_editor_active()) {
-        entity->runtime_only_flags |= EDITOR_CHANGED;
+        undo_mark_entity_changed(entity);
     }
     
     return removed_something;
@@ -8669,7 +8669,7 @@ inline b32 verify_kill_switch_connected(Entity *entity) {
     }
     
     if (removed_something && is_editor_active()) {
-        entity->runtime_only_flags |= EDITOR_CHANGED;
+        undo_mark_entity_changed(entity);
     }
     
     return removed_something;

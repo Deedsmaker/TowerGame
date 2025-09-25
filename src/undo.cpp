@@ -1,7 +1,12 @@
 #pragma once
 
+inline void undo_mark_entity_changed(Entity *entity) {
+    entity->runtime_only_flags |= EDITOR_CHANGED;
+}
+
 void add_changes_to_undo(Array <Entity_Undo_Change> *changes) {
-    assert(changes->count > 0);
+    if (changes->count == 0) return;
+
     current_level_context->undo_actions.append(*changes);
     current_level_context->max_undos_added = current_level_context->undo_actions.count;
 }
@@ -81,6 +86,15 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
         }
     }
     
+    // We're not performing any check if there was no actual changes because that's just allowes us make less checks in actual
+    // editor code and later if there was no changes we just don't add that to the undo array.
+    // (Example of less checks could be dragging entity - we want to mark entity as changed after dragging stopped, but 
+    // if we would not allow zero changes we should've check for start dragging position and current. And it's get more 
+    // complicated (read more work) to check for things like moving multiselected etc.).
+    // 
+    // Check for zero changes would be useful to detect if we marked something as changed and it actually changed but we just 
+    // forgot to add code here to detect it, but we could later add other code for detecting situations like that.
+    
     return changes;
 }
 
@@ -157,7 +171,7 @@ inline void update_undo_logic() {
     } else if (editor.selected && editor.selected->runtime_only_flags & EDITOR_CHANGED) {
         editor.selected->runtime_only_flags ^= EDITOR_CHANGED;
         
-        Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected, editor.selected_unchanged_copy);
+        Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected, editor.selected_unchanged_copy, HEAP_ALLOCATOR);
         
         add_changes_to_undo(&changes);
         
