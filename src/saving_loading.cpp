@@ -246,11 +246,11 @@ void new_save_level(String level_name) {
             builder_append(&builder, tstring("note_draw_in_game %d \n ", current_level_context->notes.get(e->note_index)->draw_in_game));
         }
         
-        write_entire_file(tstring("%s/%s_%d.txt", c_str(level_directory_name), c_str(*e->name), e->id), &builder);
+        write_entire_file(tstring("%s/Entity_%s_%d.txt", c_str(level_directory_name), c_str(*e->name), e->id), &builder);
     }
     
     delete_directory(old_directory_name);
-} // save level end.
+} // Save level end.
 
 Vector2 parse_vector2(Array <String> *splitted, i32 start_index) {
     if (start_index + 2 >= splitted->count) return {0};
@@ -427,16 +427,17 @@ b32 new_load_level(String name) {
     }
     
     for_array(i, &level_files) {
-        String file_name = level_files.get_value(i);    
+        String file_path = level_files.get_value(i);    
+        String file_name = strip_path_to_just_name(file_path, &temp_allocator);
         
         if (file_name == level_info_file_name) {
             // We've parsed that before.
             continue;
-        } else {
+        } else if (string_find(file_name, tstring("Entity")) == 0) {
             // There goes entity parsing.
             
             b32 success = false;
-            String entity_info = read_entire_file(file_name, &success, &temp_allocator);
+            String entity_info = read_entire_file(file_path, &success, &temp_allocator);
             if (!success) {
                 printf("Failed to read entity file data!\n");
                 continue;
@@ -449,6 +450,10 @@ b32 new_load_level(String name) {
             i32 i = -1;
             
             IF_FIND("flags") dummy_entity.flags = to_u64(splitted.get_value(i+1));
+            
+            if (dummy_entity.flags == 0) {
+                printf("sdf\n");
+            }
             
             entity = copy_and_add_entity(&dummy_entity, &loaded_level_context);
             

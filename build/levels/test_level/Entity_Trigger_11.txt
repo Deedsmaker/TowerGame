@@ -1,0 +1,37 @@
+name Trigger 
+ id 11 
+ position { -362.299500,  169.300934} 
+ scale { 20.000000,  20.000000} 
+ pivot { 0.500000,  0.500000} 
+ rotation 0.000000 
+ color { 0,  228,  48,  153} 
+ flags 262144 
+ draw_order 100 
+ vertices [ { 10.707107,  10.707107} { -10.707107,  10.707107} { 10.707107,  -10.707107} { -10.707107,  -10.707107} ] 
+ unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ trigger_kill_player 0 
+ trigger_die_after_trigger 0 
+ trigger_kill_enemies 0 
+ trigger_open_doors 1 
+ trigger_start_physics_simulation 1 
+ trigger_track_enemies 0 
+ trigger_draw_lines_to_tracked 0 
+ trigger_agro_enemies 1 
+ trigger_player_touch 1 
+ trigger_shows_entities 1 
+ trigger_starts_moving_sequence 1 
+ trigger_lock_camera 0 
+ trigger_unlock_camera 0 
+ trigger_allow_player_shoot 0 
+ trigger_forbid_player_shoot 0 
+ trigger_locked_camera_position { 0.000000,  0.000000} 
+ trigger_load_level 0 
+ trigger_play_replay 0 
+ trigger_change_zoom 0 
+ trigger_play_sound 0 
+ trigger_start_cam_rails_horizontal 0 
+ trigger_start_cam_rails_vertical 0 
+ trigger_stop_cam_rails 0 
+ 
