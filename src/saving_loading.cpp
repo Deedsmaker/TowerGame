@@ -77,9 +77,9 @@ void new_save_level(String level_name) {
         if (e->flags & TRIGGER) {
             assert(e->trigger);
             if (e->trigger->connected.count > 0) {
-                builder_append(&builder, tstring("trigger_connected [  "));
+                builder_append(&builder, tstring("trigger_connected [ "));
                 for (i32 v = 0; v < e->trigger->connected.count; v++) {
-                    builder_append(&builder, tstring(" %d ", e->trigger->connected.get_value(v))); 
+                    builder_append(&builder, tstring("%d ", e->trigger->connected.get_value(v))); 
                 }
                 builder_append(&builder, tstring("] \n ")); 
             }
@@ -462,6 +462,8 @@ b32 new_load_level(String name) {
             i32 old_id = 0;
             Note note_to_fill = {};
             
+            // Entity loading.
+            
             IF_FIND("id") old_id = to_i32(splitted.get_value(i+1));
             
             IF_FIND("position") entity->position = parse_vector2(&splitted, i+1);
@@ -482,6 +484,7 @@ b32 new_load_level(String name) {
             
             IF_FIND("draw_order") entity->draw_order = to_i32(splitted.get_value(i+1));
             
+            // Trigger loading.
             if (entity->flags & TRIGGER) {
                 assert(entity->trigger);
                 Trigger *trigger = entity->trigger;
@@ -518,11 +521,13 @@ b32 new_load_level(String name) {
                 IF_FIND("trigger_replay_name")                str_copy(trigger->replay_name, c_str(splitted.get_value(i+1)));
             }
             
+            // Kill switch loading.
             if (entity->flags & KILL_SWITCH) {
                 assert(entity->kill_switch);
                 IF_FIND("kill_switch_connected") parse_i32_array(&entity->kill_switch->connected, &splitted, i+1);
             }
             
+            // Jump shooter loading.
             if (entity->flags & JUMP_SHOOTER) {
                 assert(entity->jump_shooter);
                 Jump_Shooter *shooter = entity->jump_shooter;
@@ -535,6 +540,7 @@ b32 new_load_level(String name) {
                 IF_FIND("jump_shooter_spread")                        shooter->spread = to_f32(splitted.get_value(i+1));
             }
             
+            // Turret loading.
             if (entity->flags & TURRET) {
                 assert(entity->turret);
                 Turret *turret = entity->turret;
@@ -551,6 +557,7 @@ b32 new_load_level(String name) {
                 IF_FIND("turret_activated")                     turret->activated = to_i32(splitted.get_value(i+1));
             }
             
+            // Move sequence loading.
             if (entity->flags & MOVE_SEQUENCE) {
                 assert(entity->move_sequence);
                 Move_Sequence *sequence = entity->move_sequence;
@@ -566,10 +573,12 @@ b32 new_load_level(String name) {
                 IF_FIND("move_sequence_points")                        parse_vector2_array(&sequence->points, &splitted, i+1);
             }
             
+            // Door loading.
             if (entity->flags & DOOR) {
                 IF_FIND("door_open") entity->door.is_open = to_i32(splitted.get_value(i+1));
             }
             
+            // Centipede loading.
             if (entity->flags & CENTIPEDE) {
                 assert(entity->centipede);
                 Centipede *centipede = entity->centipede;
@@ -579,6 +588,7 @@ b32 new_load_level(String name) {
                 IF_FIND("segments_count")  centipede->segments_count = to_i32(splitted.get_value(i+1));
             }
             
+            // Enemy loading.
             if (entity->flags & ENEMY) {
                 assert(entity->union_enemy);
                 Enemy *enemy = entity->union_enemy;
@@ -592,6 +602,7 @@ b32 new_load_level(String name) {
                 IF_FIND("explosive_radius_multiplier") enemy->explosive_radius_multiplier = to_i32(splitted.get_value(i+1));
             }
             
+            // Propeller loading.
             if (entity->flags & PROPELLER) {
                 assert(entity->propeller);
                 
@@ -599,6 +610,7 @@ b32 new_load_level(String name) {
                 IF_FIND("propeller_spin_sensitive") entity->propeller->spin_sensitive = to_i32(splitted.get_value(i+1));
             }
             
+            // Light loading.
             if (entity->flags & LIGHT) {
                 assert(entity->lights.count > 0);
                 Light *light = current_level_context->lights.get(entity->lights.get_value(0));
@@ -614,6 +626,7 @@ b32 new_load_level(String name) {
                 IF_FIND("light_color")                 light->color = parse_color(&splitted, i+1);
             }
             
+            // Note loading.
             if (entity->flags & NOTE) {
                 assert(entity->note_index >= 0);
                 

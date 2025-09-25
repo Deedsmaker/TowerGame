@@ -855,6 +855,11 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
         return make_string(allocator, "Turret");  
     } else if (entity->flags & HIT_BOOSTER) {
         return make_string(allocator, "Hit_Booster");  
+    } else if (entity->flags & DUMMY) {
+        if (entity->flags & LIGHT) {
+            return make_string(allocator, "Light");  
+        }
+        return make_string(allocator, "Dummy");  
     } 
         
     return make_string(allocator, "No_name");
