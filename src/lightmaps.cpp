@@ -3,9 +3,6 @@
 // 2 is light version. 4 is high quality version.
 f32 pixel_per_unit = 2;
 
-const char* get_lightmap_name(i32 index){
-    return tprintf("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
-}
 String lightmap_name(i32 index){
     return tstring("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
 }
@@ -16,7 +13,7 @@ Vector2 get_lightmap_pixel_size(Lightmap_Data* l){
 
 void save_lightmap_to_file(i32 index){
     Image lightmap_image = LoadImageFromTexture(current_level_context->lightmaps.get_value(index).global_illumination_rt.texture);
-    ExportImage(lightmap_image, get_lightmap_name(index));
+    ExportImage(lightmap_image, c_str(lightmap_name(index)));
     UnloadImage(lightmap_image);
 }
 
@@ -364,7 +361,7 @@ void bake_lightmaps_if_need(){
         
         // We unloaded this when started.
         assert(current_level_context->lightmaps.get(currently_baking_index)->has_loaded_texture == false);
-        current_level_context->lightmaps.get(currently_baking_index)->lightmap_texture = LoadTexture(get_lightmap_name(currently_baking_index));
+        current_level_context->lightmaps.get(currently_baking_index)->lightmap_texture = LoadTexture(c_str(lightmap_name(currently_baking_index)));
         current_level_context->lightmaps.get(currently_baking_index)->has_loaded_texture = true;
         
         currently_baking_index += 1;

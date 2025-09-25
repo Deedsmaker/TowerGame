@@ -11,6 +11,44 @@ void add_changes_to_undo(Array <Entity_Undo_Change> *changes) {
     current_level_context->max_undos_added = current_level_context->undo_actions.count;
 }
 
+Entity_Undo_Change get_i32_array_difference(i32 entity_id, Array <i32> *changed, Array <i32> *original) { 
+    if (changed->count > original->count) {
+        Entity_Undo_Change change =  {
+            .entity_id = entity_id,
+            .change_type = ARRAY_APPENDED,
+            .number_appended = changed->last_value(),
+            .changed_array = changed
+        };
+        
+        return change;
+    } else if (changed->count < original->count) {
+        i32 removed_number = 0;            
+        for_array(i, original) {
+            if (i >= changed->count) {
+                removed_number = original->get_value(i);
+                break;
+            }
+            if (changed->get_value(i) != original->get_value(i)) {
+                removed_number = original->get_value(i);
+                break;
+            }
+        }
+        
+        assert(removed_number > 0); // That's because we're talking about numbers.
+        
+        Entity_Undo_Change change =  {
+            .entity_id = entity_id,
+            .change_type = ARRAY_REMOVED,
+            .number_removed = removed_number,
+            .changed_array = changed
+        };
+        
+        return change;
+    }
+    
+    return {0};
+}
+
 Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *original, Allocator *allocator = HEAP_ALLOCATOR) {
     // @LEAK Probably. Could think about using undo level context memory arena in undo_actions. Could work if we'll reuse things.
     Array <Entity_Undo_Change> changes = {.allocator = allocator};
@@ -55,35 +93,16 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
     }
     
     if (changed->flags & TRIGGER) {
-        if (changed->trigger->connected.count > original->trigger->connected.count) {
-            changes.append({
-                .entity_id = changed->id,
-                .change_type = ARRAY_APPENDED,
-                .number_appended = changed->trigger->connected.last_value(),
-                .changed_array = &changed->trigger->connected
-            });
-        } else if (changed->trigger->connected.count < original->trigger->connected.count) {
-            i32 removed_number = 0;            
-            for_array(i, &original->trigger->connected) {
-                if (i >= changed->trigger->connected.count) {
-                    removed_number = original->trigger->connected.get_value(i);
-                    break;
-                }
-                if (changed->trigger->connected.get_value(i) != original->trigger->connected.get_value(i)) {
-                    removed_number = original->trigger->connected.get_value(i);
-                    break;
-                }
-            }
-            
-            assert(removed_number > 0); // That's because in case of triggers we're talking about entities ids.
-            
-            changes.append({
-                .entity_id = changed->id,
-                .change_type = ARRAY_REMOVED,
-                .number_removed = removed_number,
-                .changed_array = &changed->trigger->connected
-            });
-        }
+        Entity_Undo_Change connected_change = get_i32_array_difference(changed->id, &changed->trigger->connected, &original->trigger->connected);
+        if (connected_change.change_type != NO_CHANGE) changes.append(connected_change);
+        
+        Entity_Undo_Change tracking_change = get_i32_array_difference(changed->id, &changed->trigger->tracking, &original->trigger->tracking);
+        if (tracking_change.change_type != NO_CHANGE) changes.append(tracking_change);
+    }
+    
+    if (changed->flags & KILL_SWITCH) {
+        auto connected_change = get_i32_array_difference(changed->id, &changed->kill_switch->connected, &original->kill_switch->connected);    
+        if (connected_change.change_type != NO_CHANGE) changes.append(connected_change);
     }
     
     // We're not performing any check if there was no actual changes because that's just allowes us make less checks in actual
