@@ -537,7 +537,7 @@ inline i32 string_find_from_back(String string, String to_find) {
 }
 
 String tstring(const char *text, ...) {
-    String result_string = {.allocator = &temp_allocator};
+    String result_string = {.allocator = temp};
     
     va_list args;
     va_start(args, text);

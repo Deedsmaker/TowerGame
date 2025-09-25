@@ -15,12 +15,12 @@ void new_save_level(String level_name) {
     make_directory_if_not_exists(level_directory_name);
     
     { // First of all making file with level info
-        String_Builder level_info_builder = make_string_builder(256, &temp_allocator);
+        String_Builder level_info_builder = make_string_builder(256, temp);
         
         String spawn_point = tstring("player_spawn_point {%f, %f}\n ", current_level_context->player_spawn_point.x, current_level_context->player_spawn_point.y);
         builder_append(&level_info_builder, spawn_point);
         
-        String_Builder lightmaps_builder = make_string_builder(128, &temp_allocator);
+        String_Builder lightmaps_builder = make_string_builder(128, temp);
         builder_append(&lightmaps_builder, tstring("lightmaps [ "));
         for (i32 i = 0; i < current_level_context->lightmaps.count; i++) {
             Lightmap_Data* l = current_level_context->lightmaps.get(i);
@@ -28,7 +28,7 @@ void new_save_level(String level_name) {
         }
         builder_append(&lightmaps_builder, tstring("];\n ")); 
         
-        builder_append(&level_info_builder, make_string_from_builder(&lightmaps_builder, &temp_allocator));
+        builder_append(&level_info_builder, make_string_from_builder(&lightmaps_builder, temp));
         
         write_entire_file(tstring("%s/Level_Info.txt", c_str(level_directory_name)), &level_info_builder);
     }
@@ -41,7 +41,7 @@ void new_save_level(String level_name) {
             continue;
         }
         
-        String_Builder builder = make_string_builder(256, &temp_allocator);
+        String_Builder builder = make_string_builder(256, temp);
         
         Color color = e->color_changer.start_color;
         builder_append(&builder, tstring("name %s \n id %d \n position { %f,  %f} \n scale { %f,  %f} \n pivot { %f,  %f} \n rotation %f \n color { %d,  %d,  %d,  %d} \n flags %llu \n draw_order %d \n ", temp_entity_name(e).data, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order));
@@ -366,7 +366,7 @@ String parse_string(String whole_data, i32 index, Allocator *allocator) {
 #define IF_FIND(str) if ((i = splitted.find(tstring(str))) >= 0)
 
 b32 new_load_level(String name) {
-    clear_allocator(&temp_allocator);
+    clear_allocator(temp);
     
     Game_State original_game_state = game_state;
     game_state = EDITOR; // @TODO: Do we really need this?
@@ -391,10 +391,10 @@ b32 new_load_level(String name) {
     
     setup_particles();
     
-    Array <String> splitted = {.allocator = &temp_allocator};
-    Array <Entity> loaded_entities = {.allocator = &temp_allocator};
+    Array <String> splitted = {.allocator = temp};
+    Array <Entity> loaded_entities = {.allocator = temp};
     
-    Array <String> level_files = get_files_in_directory(level_path, &temp_allocator);
+    Array <String> level_files = get_files_in_directory(level_path, temp);
     if (level_files.count == 0) {
         printf("Level directory was empty!\n");
         return false;
@@ -409,7 +409,7 @@ b32 new_load_level(String name) {
         printf("Failed to find level info file!\n");
     } else {
         b32 success = false;
-        String level_info = read_entire_file(level_files.get_value(level_info_file_index), &success, &temp_allocator);
+        String level_info = read_entire_file(level_files.get_value(level_info_file_index), &success, temp);
         if (!success) {
             printf("Failed to read level info file!\n");
             return false;
@@ -428,7 +428,7 @@ b32 new_load_level(String name) {
     
     for_array(i, &level_files) {
         String file_path = level_files.get_value(i);    
-        String file_name = strip_path_to_just_name(file_path, &temp_allocator);
+        String file_name = strip_path_to_just_name(file_path, temp);
         
         if (file_name == level_info_file_name) {
             // We've parsed that before.
@@ -437,7 +437,7 @@ b32 new_load_level(String name) {
             // There goes entity parsing.
             
             b32 success = false;
-            String entity_info = read_entire_file(file_path, &success, &temp_allocator);
+            String entity_info = read_entire_file(file_path, &success, temp);
             if (!success) {
                 printf("Failed to read entity file data!\n");
                 continue;
@@ -450,10 +450,6 @@ b32 new_load_level(String name) {
             i32 i = -1;
             
             IF_FIND("flags") dummy_entity.flags = to_u64(splitted.get_value(i+1));
-            
-            if (dummy_entity.flags == 0) {
-                printf("sdf\n");
-            }
             
             entity = copy_and_add_entity(&dummy_entity, &loaded_level_context);
             
@@ -492,34 +488,34 @@ b32 new_load_level(String name) {
                 // @TODO: All this thousand bools of trigger should be just flags...
                 IF_FIND("trigger_connected")                  parse_i32_array(&trigger->connected, &splitted, i+1);
                 IF_FIND("trigger_tracking")                   parse_i32_array(&trigger->tracking, &splitted, i+1);
-                IF_FIND("trigger_die_after_trigger")          trigger->die_after_trigger = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_kill_player")                trigger->kill_player = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_kill_enemies")               trigger->kill_enemies = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_open_doors")                 trigger->open_doors = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_start_physics_simulation")   trigger->start_physics_simulation = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_track_enemies")              trigger->track_enemies = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_draw_lines_to_tracked")      trigger->draw_lines_to_tracked = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_agro_enemies")               trigger->agro_enemies = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_player_touch")               trigger->player_touch = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_start_cam_rails_horizontal") trigger->start_cam_rails_horizontal = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_start_cam_rails_vertical")   trigger->start_cam_rails_vertical = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_stop_cam_rails")             trigger->stop_cam_rails = to_i32(splitted.get_value(i+1));
                 IF_FIND("trigger_cam_rails_points")           parse_vector2_array(&trigger->cam_rails_points, &splitted, i+1);
-                IF_FIND("trigger_lock_camera")                trigger->lock_camera = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_unlock_camera")              trigger->unlock_camera = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_allow_player_shoot")         trigger->allow_player_shoot = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_forbid_player_shoot")        trigger->forbid_player_shoot = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_locked_camera_position")     trigger->locked_camera_position = parse_vector2(&splitted, i+1);
-                IF_FIND("trigger_load_level")                 trigger->load_level = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_play_replay")                trigger->play_replay = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_locked_camera_position")     trigger->locked_camera_position     = parse_vector2(&splitted, i+1);
+                IF_FIND("trigger_die_after_trigger")          trigger->die_after_trigger          = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_kill_player")                trigger->kill_player                = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_kill_enemies")               trigger->kill_enemies               = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_open_doors")                 trigger->open_doors                 = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_start_physics_simulation")   trigger->start_physics_simulation   = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_track_enemies")              trigger->track_enemies              = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_draw_lines_to_tracked")      trigger->draw_lines_to_tracked      = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_agro_enemies")               trigger->agro_enemies               = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_player_touch")               trigger->player_touch               = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_start_cam_rails_horizontal") trigger->start_cam_rails_horizontal = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_start_cam_rails_vertical")   trigger->start_cam_rails_vertical   = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_stop_cam_rails")             trigger->stop_cam_rails             = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_lock_camera")                trigger->lock_camera                = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_unlock_camera")              trigger->unlock_camera              = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_allow_player_shoot")         trigger->allow_player_shoot         = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_forbid_player_shoot")        trigger->forbid_player_shoot        = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_load_level")                 trigger->load_level                 = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_play_replay")                trigger->play_replay                = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_play_sound")                 trigger->play_sound                 = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_change_zoom")                trigger->change_zoom                = to_f32(splitted.get_value(i+1));
+                IF_FIND("trigger_zoom_value")                 trigger->zoom_value                 = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_shows_entities")             trigger->shows_entities             = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_starts_moving_sequence")     trigger->starts_moving_sequence     = to_i32(splitted.get_value(i+1));
                 IF_FIND("trigger_level_name")                 str_copy(trigger->level_name, c_str(splitted.get_value(i+1)));
-                IF_FIND("trigger_replay_name")                str_copy(trigger->replay_name, c_str(splitted.get_value(i+1)));
-                IF_FIND("trigger_play_sound")                 trigger->play_sound = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_change_zoom")                trigger->change_zoom = to_f32(splitted.get_value(i+1));
-                IF_FIND("trigger_zoom_value")                 trigger->zoom_value = to_i32(splitted.get_value(i+1));
                 IF_FIND("trigger_sound_name")                 str_copy(trigger->sound_name, c_str(splitted.get_value(i+1)));
-                IF_FIND("trigger_shows_entities")             trigger->shows_entities = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_starts_moving_sequence")     trigger->starts_moving_sequence = to_i32(splitted.get_value(i+1));
+                IF_FIND("trigger_replay_name")                str_copy(trigger->replay_name, c_str(splitted.get_value(i+1)));
             }
             
             if (entity->flags & KILL_SWITCH) {
@@ -622,7 +618,7 @@ b32 new_load_level(String name) {
                 assert(entity->note_index >= 0);
                 
                 i32 note_content_index = string_find(entity_info, tstring("note_content"));
-                String note_string = parse_string(entity_info, note_content_index, &temp_allocator);
+                String note_string = parse_string(entity_info, note_content_index, temp);
                 
                 Note *note = current_level_context->notes.get(entity->note_index);
                 str_copy(note->content, c_str(note_string));
@@ -728,7 +724,7 @@ b32 new_load_level(String name) {
     current_level_context->cam.position = current_level_context->player_spawn_point;
     current_level_context->cam.target = current_level_context->player_spawn_point;
     
-    clear_allocator(&temp_allocator);
+    clear_allocator(temp);
     
     return true;
 } // load level end.

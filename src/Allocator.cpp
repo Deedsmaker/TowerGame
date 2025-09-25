@@ -15,8 +15,9 @@ struct Allocator {
 #define HEAP_ALLOCATOR NULL
 
 // NULL on default allocator means it will be just malloc.
-Allocator temp_allocator    = {};
-Allocator state_allocator   = {};
+Allocator temp_allocator    = {0};
+Allocator *temp = &temp_allocator;
+Allocator state_allocator   = {0};
 
 void init_allocator(Allocator *allocator, size_t size) {
     assert(allocator->reserved <= 0 && allocator->watermark == 0 && "On initing allocator should be free from all chains");

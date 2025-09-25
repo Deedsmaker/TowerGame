@@ -860,7 +860,7 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
     return make_string(allocator, "No_name");
 }
 inline String temp_entity_name(Entity *entity) {
-    return get_entity_name(entity, &temp_allocator);
+    return get_entity_name(entity, temp);
 }
 
 void init_spawn_objects() {
@@ -1173,13 +1173,13 @@ Texture get_texture(const char *name) {
 }
 
 void load_textures(const char* path, b32 in_root_textures_directory) {
-    String_Builder path_builder = make_string_builder(256, &temp_allocator);
+    String_Builder path_builder = make_string_builder(256, temp);
     builder_append(&path_builder, tstring(path));
     if (!str_end_with(path_builder.data, "\\")) {
         builder_append(&path_builder, tstring("\\"));
     }
 
-    String path_string = make_string_from_builder(&path_builder, &temp_allocator);
+    String path_string = make_string_from_builder(&path_builder, temp);
 
     FilePathList textures = LoadDirectoryFiles(path);
     for (i32 i = 0; i < textures.count; i++) {
@@ -2362,7 +2362,7 @@ void init_game() {
     initing_game = true;
     
     // init arenas.
-    init_allocator(&temp_allocator, Megabytes(16));
+    init_allocator(temp, Megabytes(16));
     
     str_copy(loaded_level_context.name, "loaded_level_context");
     // str_copy(editor_level_context.name, "editor_level_context");
@@ -3026,7 +3026,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 
 void update_game() {
     // printf("%zu\n", sizeof(Entity));
-    clear_allocator(&temp_allocator);
+    clear_allocator(temp);
 
     frame_rnd = rnd01();
     frame_on_circle_rnd = rnd_on_circle();
@@ -3705,7 +3705,7 @@ void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> verti
         Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
         
         // Here we just combine static and dynamic entities.
-        Array <i32> entities_in_cell = {.allocator = &temp_allocator};
+        Array <i32> entities_in_cell = {.allocator = temp};
         entities_in_cell.append_another_array(&cell->dynamic_entities);
         entities_in_cell.append_another_array(&cell->static_entities);
         

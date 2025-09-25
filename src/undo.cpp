@@ -110,7 +110,7 @@ inline void update_undo_logic() {
             if (entity->runtime_only_flags & EDITOR_CHANGED) {
                 entity->runtime_only_flags ^= EDITOR_CHANGED;
 
-                auto entity_change = get_entities_difference(entity, unchanged_entity, &temp_allocator);
+                auto entity_change = get_entities_difference(entity, unchanged_entity, temp);
                 changes.append_another_array(&entity_change);
             }
             
@@ -144,7 +144,7 @@ inline void update_undo_logic() {
                 Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
                 entity->runtime_only_flags ^= EDITOR_CHANGED;
                 Entity *unchanged  = editor.multiselection.unchanged_copies.get_value(i);
-                auto entity_changes = get_entities_difference(entity, unchanged, &temp_allocator);
+                auto entity_changes = get_entities_difference(entity, unchanged, temp);
                 changes.append_another_array(&entity_changes);
                 free_entity(unchanged);
                 

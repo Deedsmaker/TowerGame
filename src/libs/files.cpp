@@ -92,7 +92,7 @@ u64 get_file_modification_time(String path) {
 
 inline i32 find_file_name_in_paths(Array <String> *paths, String name_to_find) {
     for_array(i, paths) {
-        String name = strip_path_to_just_name(paths->get_value(i), &temp_allocator);
+        String name = strip_path_to_just_name(paths->get_value(i), temp);
         if (name == name_to_find) return i;
     }
     
@@ -107,7 +107,7 @@ Array <String> get_file_names_in_directory(String directory_name, Allocator *all
     Array <String> result_paths = {.allocator = allocator};
     
     for (u32 i = 0; i < files_paths.count; i++) {
-        String full_path = make_string(&temp_allocator, files_paths.paths[i]);
+        String full_path = make_string(temp, files_paths.paths[i]);
         String name = strip_path_to_just_name(full_path, allocator);
     
         result_paths.append(name);
@@ -124,7 +124,7 @@ Array <String> get_file_names_in_directory(String directory_name, Allocator *all
 b32 delete_directory(String path) {
     if (!directory_exists(path)) return false;
       
-    auto files = get_files_in_directory(path, &temp_allocator);
+    auto files = get_files_in_directory(path, temp);
     
     for_array(i, &files) {
         delete_file(files.get_value(i));
