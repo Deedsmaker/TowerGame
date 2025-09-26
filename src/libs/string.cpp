@@ -647,9 +647,36 @@ String_Builder make_string_builder(String string, Allocator *allocator) {
     return builder;
 }
 
+i32 string_compare(String s1, String s2, b32 ascending = true) {
+    i32 s1_lower = ascending ? -1 : 1;
+    i32 s2_lower = ascending ? 1 : -1;
+
+    i32 lesser_count = s1.count < s2.count ? s1.count : s2.count;
+    for (i32 i = 0; i < lesser_count; i++){
+        if (s1.data[i] < s2.data[i]) return s1_lower;
+        if (s2.data[i] < s1.data[i]) return s2_lower;
+    }
+    
+    // If we're here - strings are equal to the point of lesser_count. So we'll return value based of one with lesser count.
+    if (s1.count == s2.count) return 0;
+    if (s1.count < s2.count) return s1_lower;
+    else return s2_lower;
+}
+inline i32 string_compare_ascending(const void *s1, const void *s2) {
+    return string_compare(*(String *)s1, *(String *)s2, true);
+}
+inline i32 string_compare_descending(const void *s1, const void *s2) {
+    return string_compare(*(String *)s1, *(String *)s2, false);
+}
+
 #include "array.cpp"
 
-void split_string(Array<String> *splitted, String to_split, String separators) {
+void sort_string_array(Array <String> *array, b32 ascending = true) {
+    if (ascending) qsort(array->data, array->count, sizeof(String), string_compare_ascending);
+    else           qsort(array->data, array->count, sizeof(String), string_compare_descending);
+}
+
+void split_string(Array <String> *splitted, String to_split, String separators) {
     if (separators.count <= 0) {    
         return;
     }
@@ -677,8 +704,8 @@ void split_string(Array<String> *splitted, String to_split, String separators) {
     }
 }
 
-Array<String> split_string(String to_split, String separators, Allocator *allocator) {
-    Array<String> result = {.allocator = allocator};     
+Array <String> split_string(String to_split, String separators, Allocator *allocator) {
+    Array <String> result = {.allocator = allocator};     
     split_string(&result, to_split, separators);    
     return result;
 }

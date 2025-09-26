@@ -462,7 +462,7 @@ enum Trigger_Action_Type {
     TRIGGER_LEVEL_LOAD  = 1 << 1
 };
 
-enum Trigger_Flags : FLAGS {
+enum Trigger_Settings : FLAGS {
     PLAYER_TOUCH               = 0x1,
     KILL_PLAYER                = 0x2,
     KILL_ENEMIES               = 0x4,
