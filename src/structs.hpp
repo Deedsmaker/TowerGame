@@ -462,52 +462,53 @@ enum Trigger_Action_Type {
     TRIGGER_LEVEL_LOAD  = 1 << 1
 };
 
+enum Trigger_Flags : FLAGS {
+    PLAYER_TOUCH               = 0x1,
+    KILL_PLAYER                = 0x2,
+    KILL_ENEMIES               = 0x4,
+    OPEN_DOORS                 = 0x8,
+    START_PHYSICS_SIMULATION   = 0x10,
+    TRACK_ENEMIES              = 0x20,
+    DRAW_LINES_TO_TRACKED      = 0x40,
+    AGRO_ENEMIES               = 0x80,
+    ALLOW_PLAYER_SHOOT         = 0x100,
+    FORBID_PLAYER_SHOOT        = 0x200,
+    SHOWS_ENTITIES             = 0x400,
+    STARTS_MOVING_SEQUENCE     = 0x800,
+    START_CAM_RAILS_HORIZONTAL = 0x1000,
+    START_CAM_RAILS_VERTICAL   = 0x2000,
+    STOP_CAM_RAILS             = 0x4000,
+    DIE_AFTER_TRIGGER          = 0x8000,
+    CHANGE_ZOOM                = 0x10000,
+    PLAY_SOUND                 = 0x20000,
+    LOAD_LEVEL                 = 0x40000,
+    PLAY_REPLAY                = 0x80000, 
+    LOCK_CAMERA                = 0x100000, 
+    UNLOCK_CAMERA              = 0x200000,   
+};
+
 struct Trigger {
     i32 index = -1;
+
+    FLAGS settings = SHOWS_ENTITIES | PLAYER_TOUCH | OPEN_DOORS | AGRO_ENEMIES | STARTS_MOVING_SEQUENCE;
 
     Array <i32> connected = {0};
     Array <i32> tracking = {0};
     
-    b32 die_after_trigger = false;
-    
-    b32 player_touch             = true;
-    b32 kill_player              = false;
-    b32 kill_enemies             = false;
-    b32 open_doors               = true;
-    b32 start_physics_simulation = true;
-    b32 track_enemies            = false;
-    b32 draw_lines_to_tracked    = false;
-    b32 agro_enemies             = true;
-    
-    b32 allow_player_shoot = false;
-    b32 forbid_player_shoot = false;
-    
-    b32 shows_entities = true;
-    b32 starts_moving_sequence = true;
-    
-    b32 start_cam_rails_horizontal = false;
-    b32 start_cam_rails_vertical = false;
-    b32 stop_cam_rails = false;
     Array <Vector2> cam_rails_points = {0};
     
-    b32 change_zoom = false;
     f32 zoom_value = 0.35f;
     
-    b32 play_sound = false;
     char sound_name[128] = "\0";
     
-    b32 load_level = false;
     char level_name[128] = "\0";
     
-    b32 play_replay = false;
     char replay_name[128] = "\0";
     
     b32 debug_should_trigger_now = false;
     b32 triggered = false;
     f32 triggered_time = -12;
     
-    b32 lock_camera = false;
-    b32 unlock_camera = false;
     Vector2 locked_camera_position = Vector2_zero;
 };
 
@@ -667,7 +668,7 @@ struct Player {
     
     b32 dead_man = false;
     
-    f32 max_ground_angle = 60;
+    f32 max_ground_angle = 45;
     
     b32 is_sword_accelerating = false;
     

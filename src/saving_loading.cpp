@@ -92,46 +92,26 @@ void new_save_level(String level_name) {
                 builder_append(&builder, tstring("] \n ")); 
             }
             
-            builder_append(&builder, tstring("trigger_kill_player %d \n ",                    e->trigger->kill_player));
-            builder_append(&builder, tstring("trigger_die_after_trigger %d \n ",              e->trigger->die_after_trigger));
-            builder_append(&builder, tstring("trigger_kill_enemies %d \n ",                   e->trigger->kill_enemies));
-            builder_append(&builder, tstring("trigger_open_doors %d \n ",                     e->trigger->open_doors));
-            builder_append(&builder, tstring("trigger_start_physics_simulation %d \n ",       e->trigger->start_physics_simulation));
-            builder_append(&builder, tstring("trigger_track_enemies %d \n ",                  e->trigger->track_enemies));
-            builder_append(&builder, tstring("trigger_draw_lines_to_tracked %d \n ",          e->trigger->draw_lines_to_tracked));
-            builder_append(&builder, tstring("trigger_agro_enemies %d \n ",                   e->trigger->agro_enemies));
-            builder_append(&builder, tstring("trigger_player_touch %d \n ",                   e->trigger->player_touch));
-            builder_append(&builder, tstring("trigger_shows_entities %d \n ",                 e->trigger->shows_entities));
-            builder_append(&builder, tstring("trigger_starts_moving_sequence %d \n ",         e->trigger->starts_moving_sequence));
-            builder_append(&builder, tstring("trigger_lock_camera %d \n ",                    e->trigger->lock_camera));
-            builder_append(&builder, tstring("trigger_unlock_camera %d \n ",                  e->trigger->unlock_camera));
-            builder_append(&builder, tstring("trigger_allow_player_shoot %d \n ",               e->trigger->allow_player_shoot));
-            builder_append(&builder, tstring("trigger_forbid_player_shoot %d \n ",               e->trigger->forbid_player_shoot));
+            builder_append(&builder, tstring("trigger_settings %llu \n ", e->trigger->settings));
+            
             builder_append(&builder, tstring("trigger_locked_camera_position { %f,  %f} \n ", e->trigger->locked_camera_position.x, e->trigger->locked_camera_position.y));
             
-            builder_append(&builder, tstring("trigger_load_level %d \n ", e->trigger->load_level));
-            if (e->trigger->load_level) {
+            if (e->trigger->settings & LOAD_LEVEL) {
                 builder_append(&builder, tstring("trigger_level_name %s \n ", e->trigger->level_name));
             }
             
-            builder_append(&builder, tstring("trigger_play_replay %d \n ", e->trigger->play_replay));
-            if (e->trigger->play_replay) {
+            if (e->trigger->settings & PLAY_REPLAY) {
                 builder_append(&builder, tstring("trigger_replay_name %s \n ", e->trigger->replay_name));
             }
             
-            builder_append(&builder, tstring("trigger_change_zoom %d \n ", e->trigger->change_zoom));
-            if (e->trigger->change_zoom) {
+            if (e->trigger->settings & CHANGE_ZOOM) {
                 builder_append(&builder, tstring("trigger_zoom_value %f \n ", e->trigger->zoom_value));
             }
             
-            builder_append(&builder, tstring("trigger_play_sound %d \n ", e->trigger->play_sound));
-            if (e->trigger->play_sound) {
+            if (e->trigger->settings & PLAY_SOUND) {
                 builder_append(&builder, tstring("trigger_sound_name %s \n ", e->trigger->sound_name));
             }
             
-            builder_append(&builder, tstring("trigger_start_cam_rails_horizontal %d \n ", e->trigger->start_cam_rails_horizontal));
-            builder_append(&builder, tstring("trigger_start_cam_rails_vertical %d \n ", e->trigger->start_cam_rails_vertical));
-            builder_append(&builder, tstring("trigger_stop_cam_rails %d \n ", e->trigger->stop_cam_rails));
             if (e->trigger->cam_rails_points.count > 0) {
                 builder_append(&builder, tstring("trigger_cam_rails_points [  "));
                 for (i32 v = 0; v < e->trigger->cam_rails_points.count; v++) {
@@ -493,29 +473,10 @@ b32 new_load_level(String name) {
                 IF_FIND("trigger_tracking")                   parse_i32_array(&trigger->tracking, &splitted, i+1);
                 IF_FIND("trigger_cam_rails_points")           parse_vector2_array(&trigger->cam_rails_points, &splitted, i+1);
                 IF_FIND("trigger_locked_camera_position")     trigger->locked_camera_position     = parse_vector2(&splitted, i+1);
-                IF_FIND("trigger_die_after_trigger")          trigger->die_after_trigger          = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_kill_player")                trigger->kill_player                = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_kill_enemies")               trigger->kill_enemies               = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_open_doors")                 trigger->open_doors                 = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_start_physics_simulation")   trigger->start_physics_simulation   = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_track_enemies")              trigger->track_enemies              = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_draw_lines_to_tracked")      trigger->draw_lines_to_tracked      = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_agro_enemies")               trigger->agro_enemies               = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_player_touch")               trigger->player_touch               = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_start_cam_rails_horizontal") trigger->start_cam_rails_horizontal = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_start_cam_rails_vertical")   trigger->start_cam_rails_vertical   = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_stop_cam_rails")             trigger->stop_cam_rails             = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_lock_camera")                trigger->lock_camera                = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_unlock_camera")              trigger->unlock_camera              = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_allow_player_shoot")         trigger->allow_player_shoot         = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_forbid_player_shoot")        trigger->forbid_player_shoot        = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_load_level")                 trigger->load_level                 = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_play_replay")                trigger->play_replay                = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_play_sound")                 trigger->play_sound                 = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_change_zoom")                trigger->change_zoom                = to_f32(splitted.get_value(i+1));
-                IF_FIND("trigger_zoom_value")                 trigger->zoom_value                 = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_shows_entities")             trigger->shows_entities             = to_i32(splitted.get_value(i+1));
-                IF_FIND("trigger_starts_moving_sequence")     trigger->starts_moving_sequence     = to_i32(splitted.get_value(i+1));
+                
+                IF_FIND("trigger_settings") trigger->settings = to_u64(splitted.get_value(i+1));
+                
+                IF_FIND("trigger_zoom_value")                 trigger->zoom_value                 = to_f32(splitted.get_value(i+1));
                 IF_FIND("trigger_level_name")                 str_copy(trigger->level_name, c_str(splitted.get_value(i+1)));
                 IF_FIND("trigger_sound_name")                 str_copy(trigger->sound_name, c_str(splitted.get_value(i+1)));
                 IF_FIND("trigger_replay_name")                str_copy(trigger->replay_name, c_str(splitted.get_value(i+1)));

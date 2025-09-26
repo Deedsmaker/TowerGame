@@ -131,6 +131,10 @@ Player death_player_data = {};
 
 Cam global_cam_data = {};
 
+inline void remove_flag(FLAGS *flags, FLAGS flag) {
+    if ((*flags) & flag) (*flags) ^= flag;
+}
+
 inline b32 is_editor_active() {
     return game_state == EDITOR || state_context.in_pause_editor;
 }
@@ -1504,7 +1508,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
     if (entity->flags & DOOR) {
         entity->flags |= TRIGGER;
-        entity->trigger->player_touch = false;
+        remove_flag(&entity->trigger->settings, PLAYER_TOUCH);
     }
     
     // init trigger 
@@ -1515,20 +1519,16 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->trigger->index = index;
         }
     
-        if (entity->trigger->cam_rails_points.capacity > 0 && !entity->trigger->start_cam_rails_horizontal && !entity->trigger->start_cam_rails_vertical) {
-            // entity->trigger->cam_rails_points.free_data();            
-        }
-        
         if (entity->flags & KILL_TRIGGER) {
-            entity->trigger->kill_player = true;
+            entity->trigger->settings |= KILL_PLAYER;
         }
         
         if (entity->flags & DOOR) {
-            entity->trigger->player_touch = false;
+            remove_flag(&entity->trigger->settings, PLAYER_TOUCH);
         }
         
         if (entity->flags & ENEMY) {
-            entity->trigger->player_touch = false;
+            remove_flag(&entity->trigger->settings, PLAYER_TOUCH);
         }
     }
     
@@ -1728,7 +1728,7 @@ void load_level_by_name(const char *name) {
 void try_load_next_level() {
     b32 found = false;
     ForEntities(entity, TRIGGER) {
-        if (entity->trigger->load_level) {
+        if (entity->trigger->settings & LOAD_LEVEL) {
             found = true;
             if (load_level(tstring(entity->trigger->level_name))) {            
                 print_to_console("Next level loaded successfuly");
@@ -4325,41 +4325,41 @@ void update_editor_ui() {
                 }
                 v_pos += height_add;
             
-                INSPECTOR_UI_TOGGLE("Activate on player: ", "trigger_player_touch", selected->trigger->player_touch, );
-                INSPECTOR_UI_TOGGLE("Die after trigger: ", "trigger_die_after_trigger", selected->trigger->die_after_trigger, );
-                INSPECTOR_UI_TOGGLE("Kill player: ", "trigger_kill_player", selected->trigger->kill_player, );
-                INSPECTOR_UI_TOGGLE("Kill enemies: ", "trigger_kill_enemies", selected->trigger->kill_enemies, );
-                INSPECTOR_UI_TOGGLE("Doors Open(1) Close(0): ", "trigger_open_doors", selected->trigger->open_doors, );
-                INSPECTOR_UI_TOGGLE("Start physics: ", "trigger_start_physics_simulation", selected->trigger->start_physics_simulation, );
-                INSPECTOR_UI_TOGGLE("Lines to tracked: ", "trigger_draw_lines_to_tracked", selected->trigger->draw_lines_to_tracked, );
-                INSPECTOR_UI_TOGGLE("Agro enemies: ", "trigger_agro_enemies", selected->trigger->agro_enemies, );
-                INSPECTOR_UI_TOGGLE("Show(1) Hide(0) entities: ", "trigger_shows_entities", selected->trigger->shows_entities, );
-                INSPECTOR_UI_TOGGLE("Starts moving sequence: ", "trigger_starts_moving_sequence", selected->trigger->starts_moving_sequence, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Activate on player: ", "trigger_player_touch",               selected->trigger->settings, PLAYER_TOUCH, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Die after trigger: ", "trigger_die_after_trigger",           selected->trigger->settings, DIE_AFTER_TRIGGER, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Kill player: ", "trigger_kill_player",                       selected->trigger->settings, KILL_PLAYER, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Kill enemies: ", "trigger_kill_enemies",                     selected->trigger->settings, KILL_ENEMIES, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Doors Open(1) Close(0): ", "trigger_open_doors",             selected->trigger->settings, OPEN_DOORS, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Start physics: ", "trigger_start_physics_simulation",        selected->trigger->settings, START_PHYSICS_SIMULATION, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Lines to tracked: ", "trigger_draw_lines_to_tracked",        selected->trigger->settings, DRAW_LINES_TO_TRACKED, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Agro enemies: ", "trigger_agro_enemies",                     selected->trigger->settings, AGRO_ENEMIES, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Show(1) Hide(0) entities: ", "trigger_shows_entities",       selected->trigger->settings, SHOWS_ENTITIES, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Starts moving sequence: ", "trigger_starts_moving_sequence", selected->trigger->settings, STARTS_MOVING_SEQUENCE, );
                 
                 Color cam_section_color = ColorBrightness(PINK, 0.4f);
-                INSPECTOR_UI_TOGGLE_COLOR("Change zoom: ", "trigger_change_zoom", selected->trigger->change_zoom, cam_section_color, );
-                if (selected->trigger->change_zoom) {
+                INSPECTOR_UI_TOGGLE_FLAGS("Change zoom: ", "trigger_change_zoom", selected->trigger->settings, CHANGE_ZOOM, );
+                if (selected->trigger->settings & CHANGE_ZOOM) {
                     f32 h_pos = 10;
                     INSPECTOR_UI_INPUT_FIELD_COLOR("Zoom value: ", "trigger_zoom_value", "%.2f", selected->trigger->zoom_value, to_f32, ColorBrightness(cam_section_color, -0.1f), );
                 }
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Cam rails horizontal: ", "trigger_start_cam_rails_horizontal", selected->trigger->start_cam_rails_horizontal, cam_section_color, init_entity(selected));
-                INSPECTOR_UI_TOGGLE_COLOR("Cam rails vertical: ", "trigger_start_cam_rails_vertical", selected->trigger->start_cam_rails_vertical, cam_section_color, init_entity(selected));
-                INSPECTOR_UI_TOGGLE_COLOR("Stop cam rails: ", "trigger_stop_cam_rails", selected->trigger->stop_cam_rails, cam_section_color, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_FLAGS("Cam rails horizontal: ", "trigger_start_cam_rails_horizontal", selected->trigger->settings, START_CAM_RAILS_HORIZONTAL, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_FLAGS("Cam rails vertical: ", "trigger_start_cam_rails_vertical",     selected->trigger->settings, START_CAM_RAILS_VERTICAL, init_entity(selected));
+                INSPECTOR_UI_TOGGLE_FLAGS("Stop cam rails: ", "trigger_stop_cam_rails",                   selected->trigger->settings, STOP_CAM_RAILS, init_entity(selected));
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Lock camera: ", "trigger_lock_camera", selected->trigger->lock_camera, cam_section_color, 
-                    if (selected->trigger->lock_camera && selected->trigger->locked_camera_position == Vector2_zero) {
+                INSPECTOR_UI_TOGGLE_FLAGS("Lock camera: ", "trigger_lock_camera", selected->trigger->settings, LOCK_CAMERA,
+                    if ((selected->trigger->settings & LOCK_CAMERA) && selected->trigger->locked_camera_position == Vector2_zero) {
                         selected->trigger->locked_camera_position = selected->position;
                     }
                 );
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Unlock camera: ", "trigger_unlock_camera", selected->trigger->unlock_camera, cam_section_color, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Unlock camera: ", "trigger_unlock_camera",             selected->trigger->settings, UNLOCK_CAMERA, );
                 
-                INSPECTOR_UI_TOGGLE("Allow player shoot: ", "trigger_allow_player_shoot", selected->trigger->allow_player_shoot, );
-                INSPECTOR_UI_TOGGLE("Forbid player shoot: ", "trigger_forbid_player_shoot", selected->trigger->forbid_player_shoot, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Allow player shoot: ", "trigger_allow_player_shoot",   selected->trigger->settings, ALLOW_PLAYER_SHOOT, );
+                INSPECTOR_UI_TOGGLE_FLAGS("Forbid player shoot: ", "trigger_forbid_player_shoot", selected->trigger->settings, FORBID_PLAYER_SHOOT, );
                 
-                INSPECTOR_UI_TOGGLE_COLOR("Play sound: ", "trigger_play_sound", selected->trigger->play_sound, cam_section_color, );
-                if (selected->trigger->play_sound) {
+                INSPECTOR_UI_TOGGLE_FLAGS("Play sound: ", "trigger_play_sound",                   selected->trigger->settings, PLAY_SOUND, );
+                if (selected->trigger->settings & PLAY_SOUND) {
                     make_ui_text("Sound name: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound_name_text");
                     if (make_input_field(selected->trigger->sound_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_sound_name") ) {
                         str_copy(selected->trigger->sound_name, focus_input_field.content);
@@ -4367,16 +4367,16 @@ void update_editor_ui() {
                     v_pos += height_add;
                 }
                 
-                INSPECTOR_UI_TOGGLE("Load level: ", "trigger_load_level", selected->trigger->load_level, );
-                if (selected->trigger->load_level) {
+                INSPECTOR_UI_TOGGLE_FLAGS("Load level: ", "trigger_load_level", selected->trigger->settings, LOAD_LEVEL, );
+                if (selected->trigger->settings & LOAD_LEVEL) {
                     make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
                     if (make_input_field(selected->trigger->level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_load_level_name") ) {
                         str_copy(selected->trigger->level_name, focus_input_field.content);
                     }
                     v_pos += height_add;
                 }
-                INSPECTOR_UI_TOGGLE("Play replay: ", "trigger_play_replay", selected->trigger->play_replay, );
-                if (selected->trigger->play_replay) {
+                INSPECTOR_UI_TOGGLE_FLAGS("Play replay: ", "trigger_play_replay", selected->trigger->settings, PLAY_REPLAY, );
+                if (selected->trigger->settings & PLAY_REPLAY) {
                     make_ui_text("Replay name: ", {inspector_position.x + 5, v_pos}, "trigger_replay_name");
                     if (make_input_field(selected->trigger->replay_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_replay_name") ) {
                         str_copy(selected->trigger->replay_name, focus_input_field.content);
@@ -4385,7 +4385,7 @@ void update_editor_ui() {
                 }
             }
         
-            if (selected->trigger->start_cam_rails_horizontal || selected->trigger->start_cam_rails_vertical) {
+            if (selected->trigger->settings & (START_CAM_RAILS_HORIZONTAL | START_CAM_RAILS_VERTICAL)) {
                 make_ui_text("Ctrl+L rails clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_clear");
                 type_info_v_pos += type_font_size;
                 make_ui_text("Ctrl+M Rails Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_remove");
@@ -4396,7 +4396,7 @@ void update_editor_ui() {
             type_info_v_pos += type_font_size;
 
             }
-            if (selected->trigger->change_zoom) {
+            if (selected->trigger->settings & CHANGE_ZOOM) {
                 make_ui_text("Ctrl+R: Camera position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
                 type_info_v_pos += type_font_size;
             }
@@ -5307,7 +5307,7 @@ void update_editor() {
         }
         
         //editor move cam rails points        
-        for (i32 p = 0; e->flags & TRIGGER && (e->trigger->start_cam_rails_horizontal || e->trigger->start_cam_rails_vertical) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger->cam_rails_points.count && !cannot_move_points; p++) {
+        for (i32 p = 0; e->flags & TRIGGER && (e->trigger->settings & (START_CAM_RAILS_HORIZONTAL | START_CAM_RAILS_VERTICAL)) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger->cam_rails_points.count && !cannot_move_points; p++) {
             Vector2 *point = e->trigger->cam_rails_points.get(p);
             if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
                 *point = input.mouse_position;
@@ -7286,6 +7286,11 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                     play_sound("HeavyLanding", col.point, 1.5f);
                 }
             }
+        } else { // If ground angle is too high.
+            // We move player in this case separately because could happen that even though we've stepped on too steap of a ground,
+            // but our wall detectors did not noticed that. But we could think of a better way than that.
+            // I think that eventually we'll rewwrite movement compeltely to be a lot less physics-based.
+            player_data->velocity.y -= 400 * dt;
         }
     } // player ground checker end
     
@@ -8719,9 +8724,9 @@ void activate_turret(Entity *entity) {
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected) {
-    connected->hidden = !trigger_entity->trigger->shows_entities;
+    connected->hidden = !(trigger_entity->trigger->settings & SHOWS_ENTITIES);
     
-    b32 should_agro = trigger_entity->trigger->agro_enemies && debug.enemy_ai;
+    b32 should_agro = (trigger_entity->trigger->settings & AGRO_ENEMIES) && debug.enemy_ai;
     if (should_agro) {
         if (connected->flags & ENEMY) {
             agro_enemy(connected);
@@ -8742,12 +8747,15 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
         }
     }
     
-    if (connected->flags & DOOR && connected->door.is_open != trigger_entity->trigger->open_doors) {
-        activate_door(connected, trigger_entity->trigger->open_doors);
+    if (connected->flags & DOOR) {
+        b32 trigger_opens_doors =  trigger_entity->trigger->settings & OPEN_DOORS;
+        if (connected->door.is_open != trigger_opens_doors) {
+            activate_door(connected, trigger_opens_doors);
+        }
     }
     
     if (connected->flags & MOVE_SEQUENCE) {
-        connected->move_sequence->moving = trigger_entity->trigger->starts_moving_sequence;
+        connected->move_sequence->moving = trigger_entity->trigger->settings & STARTS_MOVING_SEQUENCE;
     }
     
     if (connected->flags & TURRET) {
@@ -8773,7 +8781,7 @@ i32 update_trigger(Entity *e) {
         trigger_now = true;
     }
     
-    if (e->trigger->kill_enemies) {
+    if (e->trigger->settings & KILL_ENEMIES) {
         fill_collisions(e, &collisions_buffer, ENEMY);
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
@@ -8799,11 +8807,11 @@ i32 update_trigger(Entity *e) {
         }
     }
     
-    if (trigger_now || e->trigger->player_touch && check_entities_collision(e, player_entity).collided) {
-        if (e->trigger->forbid_player_shoot) {
+    if (trigger_now || (e->trigger->settings & PLAYER_TOUCH) && check_entities_collision(e, player_entity).collided) {
+        if (e->trigger->settings & FORBID_PLAYER_SHOOT) {
             player_data->can_shoot = false;
         }
-        if (e->trigger->allow_player_shoot) {
+        if (e->trigger->settings & ALLOW_PLAYER_SHOOT) {
             player_data->can_shoot = true;
         }
     
@@ -8822,7 +8830,7 @@ i32 update_trigger(Entity *e) {
             state_context.playing_relax = true;
         }
     
-        if (e->trigger->load_level) {
+        if (e->trigger->settings & LOAD_LEVEL) {
             b32 we_on_last_level = str_equal(e->trigger->level_name, "LAST_LEVEL_MARK");
             if (we_on_last_level || session_context.speedrun_timer.level_timer_active) {
                 win_level();
@@ -8834,35 +8842,35 @@ i32 update_trigger(Entity *e) {
             }
         }
         
-        if (e->trigger->play_replay) {
+        if (e->trigger->settings & PLAY_REPLAY) {
             if (!session_context.playing_replay) {
                 load_replay(e->trigger->replay_name);
             }
         }
         
-        if (e->trigger->start_cam_rails_horizontal) {
+        if (e->trigger->settings & START_CAM_RAILS_HORIZONTAL) {
             state_context.cam_state.on_rails_horizontal = true;
             state_context.cam_state.on_rails_vertical = false;
             state_context.cam_state.locked = false;
             state_context.cam_state.rails_trigger_id = e->id;
         }
-        if (e->trigger->start_cam_rails_vertical) {
+        if (e->trigger->settings & START_CAM_RAILS_VERTICAL) {
             state_context.cam_state.on_rails_vertical = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.locked = false;
             state_context.cam_state.rails_trigger_id = e->id;
         }
-        if (e->trigger->stop_cam_rails) {
+        if (e->trigger->settings & STOP_CAM_RAILS) {
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical   = false;
             state_context.cam_state.rails_trigger_id = -1;
         }
         
-        if (e->trigger->play_sound && !e->trigger->triggered) {
+        if (e->trigger->settings & PLAY_SOUND && !e->trigger->triggered) {
             play_sound(e->trigger->sound_name);
         }
         
-        if (e->trigger->change_zoom) {
+        if (e->trigger->settings & CHANGE_ZOOM) {
             // With wide monitors happening cut in vertical space so we need to calculate zoom with aspect ratio.
             // 16:9 it's 1.777777 aspect_ratio
             // 21:9 it's 2.333333 aspect_ratio
@@ -8871,11 +8879,11 @@ i32 update_trigger(Entity *e) {
             current_level_context->cam.target_zoom = target_zoom;
         }
         
-        if (e->trigger->unlock_camera) {
+        if (e->trigger->settings & UNLOCK_CAMERA) {
             state_context.cam_state.locked = false;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
-        } else if (e->trigger->lock_camera) {
+        } else if (e->trigger->settings & LOCK_CAMERA) {
             state_context.cam_state.locked = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
@@ -8886,7 +8894,7 @@ i32 update_trigger(Entity *e) {
             trigger_entity(e, e);
         }
     
-        if (e->trigger->kill_player) {
+        if (e->trigger->settings & KILL_PLAYER) {
             kill_player();
         }
         
@@ -8901,7 +8909,7 @@ i32 update_trigger(Entity *e) {
         e->trigger->triggered = true;
         e->trigger->triggered_time = core.time.game_time;
         
-        if (e->trigger->die_after_trigger) {
+        if (e->trigger->settings & DIE_AFTER_TRIGGER) {
             e->enabled = false;
         }
     }
@@ -9990,11 +9998,9 @@ void fill_entities_draw_queue() {
             Trigger *trigger = entity->trigger;
             if (should_draw_editor_hints()) {
                 // draw cam zoom trigger draw trigger zoom draw trigger cam
-                if (trigger->change_zoom) {
+                if (trigger->settings & CHANGE_ZOOM) {
                     Bounds cam_bounds = get_cam_bounds(current_level_context->cam, trigger->zoom_value);
                     Vector2 position = entity->position;
-                    if (trigger->lock_camera) {
-                    }
                     draw_game_circle(trigger->locked_camera_position, 2, PINK);
                     
                     Color cam_border_color = Fade(PINK, 0.15f);
@@ -10006,10 +10012,7 @@ void fill_entities_draw_queue() {
                     draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, tprintf("%.2f", trigger->zoom_value), 18.0f / current_level_context->cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
                 }
                 
-                if (trigger->lock_camera) {
-                }
-                
-                if (trigger->start_cam_rails_horizontal || trigger->start_cam_rails_vertical) {
+                if (trigger->settings & (START_CAM_RAILS_HORIZONTAL | START_CAM_RAILS_VERTICAL)) {
                     for (i32 ii = 0; ii < trigger->cam_rails_points.count; ii++) {
                         Vector2 point = trigger->cam_rails_points.get_value(ii);
                         
@@ -10036,8 +10039,8 @@ void fill_entities_draw_queue() {
                 }
                 
                 if (connected->flags & DOOR && ((entity->flags ^ TRIGGER) > 0 || game_state != GAME)) {
-                    Color color = connected->door.is_open == trigger->open_doors ? SKYBLUE : ORANGE;
-                    f32 width = connected->door.is_open == trigger->open_doors ? 1.0f : 0.2f;
+                    Color color = connected->door.is_open == (trigger->settings & OPEN_DOORS) ? SKYBLUE : ORANGE;
+                    f32 width = connected->door.is_open == (trigger->settings & OPEN_DOORS) ? 1.0f : 0.2f;
                     make_line(entity->position, connected->position, width, Fade(ColorBrightness(color, 0.2f), 0.3f));
                 } else if (is_trigger_selected && should_draw_editor_hints()) {
                     make_line(entity->position, connected->position, RED);
@@ -10073,7 +10076,7 @@ void fill_entities_draw_queue() {
                                 
                 if (is_trigger_selected && should_draw_editor_hints()) {
                     make_line(entity->position, tracked_entity->position, GREEN);
-                } else if (trigger->draw_lines_to_tracked && game_state != EDITOR) {
+                } else if ((trigger->settings & DRAW_LINES_TO_TRACKED) && game_state != EDITOR) {
                     if ((tracked_entity->flags & ENEMY | CENTIPEDE) && !tracked_entity->union_enemy->dead_man) {
                         make_line(entity->position, tracked_entity->position, 1.0f, Fade(PINK, 0.3f));
                     }
