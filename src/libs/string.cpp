@@ -66,7 +66,7 @@ inline char to_lower(char ch){
 }
 
 inline b32 is_digit(char ch){
-    return ch >= 48 && ch <= 57;
+    return ch >= '0' && ch <= '9';
 }
 
 b32 str_start_with_const(const char *str, const char *start_with){
@@ -448,6 +448,85 @@ struct String {
     }
 };
 
+i32 to_i32(String string){
+    i32 value = 0;
+    i32 sign = 1;
+    
+    i32 index = 0;
+    if (string.data[0] == '-') sign = -1;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+    
+    for (i32 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
+        value = value * 10 + (i32)(string.data[i] - '0');
+    }
+    
+    return value * sign;
+}
+
+u64 to_u64(String string){
+    u64 value = 0;
+    u64 sign = 1;
+    
+    i32 index = 0;
+    
+    if (string.data[0] == '-') sign = -1;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+    
+    for (u64 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
+        value = value * 10 + (u64)(string.data[i] - '0');
+    }
+    
+    return value * sign;
+}
+u8 to_u8(String string){
+    u8 value = 0;
+    u8 sign = 1;
+    
+    i32 index = 0;
+    
+    if (string.data[0] == '-') sign = -1;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+    
+    for (u8 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
+        value = value * 10 + (u8)(string.data[i] - '0');
+    }
+    
+    return value * sign;
+}
+
+f32 to_f32(String string){
+    f32 value = 0.0f;
+    f32 sign = 1.0f;
+    
+    i32 index = 0;
+    
+    if (string.data[0] == '-') sign = -1.0f;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+    
+    i32 i = index;
+    for (; (string.data[i] >= '0' && string.data[i] <= '9') && i < string.count; i++){
+        value = value * 10.0f + (f32)(string.data[i] - '0');
+    }
+    
+    if (i < string.count && string.data[i++] == '.'){
+        f32 divisor = 10.0f;
+        for (; string.data[i] >= '0' && string.data[i] <= '9' && i < string.count; i++){
+            value += ((f32)(string.data[i] - '0')) / divisor;
+            divisor *= 10;
+        }
+    }
+    
+    return value * sign;
+}
+
 const char *c_str(String string) {
     // Currently we null-terminate strings by default, so returning just data.
     return string.data;
@@ -647,34 +726,15 @@ String_Builder make_string_builder(String string, Allocator *allocator) {
     return builder;
 }
 
-i32 string_compare(String s1, String s2, b32 ascending = true) {
-    i32 s1_lower = ascending ? -1 : 1;
-    i32 s2_lower = ascending ? 1 : -1;
-
-    i32 lesser_count = s1.count < s2.count ? s1.count : s2.count;
-    for (i32 i = 0; i < lesser_count; i++){
-        if (s1.data[i] < s2.data[i]) return s1_lower;
-        if (s2.data[i] < s1.data[i]) return s2_lower;
+i32 string_find_digit(String s) {
+    for (i32 i = 0; i < s.count; i++) {
+        if (is_digit(s.data[i])) return i;
     }
     
-    // If we're here - strings are equal to the point of lesser_count. So we'll return value based of one with lesser count.
-    if (s1.count == s2.count) return 0;
-    if (s1.count < s2.count) return s1_lower;
-    else return s2_lower;
-}
-inline i32 string_compare_ascending(const void *s1, const void *s2) {
-    return string_compare(*(String *)s1, *(String *)s2, true);
-}
-inline i32 string_compare_descending(const void *s1, const void *s2) {
-    return string_compare(*(String *)s1, *(String *)s2, false);
+    return -1;
 }
 
 #include "array.cpp"
-
-void sort_string_array(Array <String> *array, b32 ascending = true) {
-    if (ascending) qsort(array->data, array->count, sizeof(String), string_compare_ascending);
-    else           qsort(array->data, array->count, sizeof(String), string_compare_descending);
-}
 
 void split_string(Array <String> *splitted, String to_split, String separators) {
     if (separators.count <= 0) {    
@@ -708,84 +768,5 @@ Array <String> split_string(String to_split, String separators, Allocator *alloc
     Array <String> result = {.allocator = allocator};     
     split_string(&result, to_split, separators);    
     return result;
-}
-
-i32 to_i32(String string){
-    i32 value = 0;
-    i32 sign = 1;
-    
-    i32 index = 0;
-    if (string.data[0] == '-') sign = -1;
-    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
-        index += 1;
-    }
-    
-    for (i32 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
-        value = value * 10 + (i32)(string.data[i] - '0');
-    }
-    
-    return value * sign;
-}
-
-u64 to_u64(String string){
-    u64 value = 0;
-    u64 sign = 1;
-    
-    i32 index = 0;
-    
-    if (string.data[0] == '-') sign = -1;
-    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
-        index += 1;
-    }
-    
-    for (u64 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
-        value = value * 10 + (u64)(string.data[i] - '0');
-    }
-    
-    return value * sign;
-}
-u8 to_u8(String string){
-    u8 value = 0;
-    u8 sign = 1;
-    
-    i32 index = 0;
-    
-    if (string.data[0] == '-') sign = -1;
-    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
-        index += 1;
-    }
-    
-    for (u8 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
-        value = value * 10 + (u8)(string.data[i] - '0');
-    }
-    
-    return value * sign;
-}
-
-f32 to_f32(String string){
-    f32 value = 0.0f;
-    f32 sign = 1.0f;
-    
-    i32 index = 0;
-    
-    if (string.data[0] == '-') sign = -1.0f;
-    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
-        index += 1;
-    }
-    
-    i32 i = index;
-    for (; (string.data[i] >= '0' && string.data[i] <= '9') && i < string.count; i++){
-        value = value * 10.0f + (f32)(string.data[i] - '0');
-    }
-    
-    if (i < string.count && string.data[i++] == '.'){
-        f32 divisor = 10.0f;
-        for (; string.data[i] >= '0' && string.data[i] <= '9' && i < string.count; i++){
-            value += ((f32)(string.data[i] - '0')) / divisor;
-            divisor *= 10;
-        }
-    }
-    
-    return value * sign;
 }
 

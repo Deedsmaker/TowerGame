@@ -407,7 +407,7 @@ b32 new_load_level(String name) {
     }
     
     // Sorting level files so entities will come in correct id order.
-    sort_string_array(&level_files);
+    sort_file_paths(&level_files);
     
     for_array(i, &level_files) {
         String file_path = level_files.get_value(i);    

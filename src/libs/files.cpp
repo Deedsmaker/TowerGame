@@ -121,6 +121,7 @@ Array <String> get_file_names_in_directory(String directory_name, Allocator *all
 #ifdef _WIN32
     #include <direct.h>
 #endif
+
 b32 delete_directory(String path) {
     if (!directory_exists(path)) return false;
       
@@ -132,3 +133,46 @@ b32 delete_directory(String path) {
     
     return _rmdir(c_str(path)) == 0;
 }
+
+// This compare functions differs form just lexegraphical compare because we'll detect number in string and will consider is 
+// as a main compare point. We're need this because we want to load entities in right id order (that will not 
+// be required eventually, but we need it right now).
+i32 file_paths_compare(String s1, String s2) {
+    String name1 = strip_path_to_just_name(s1, temp);
+    String name2 = strip_path_to_just_name(s2, temp);
+    
+    i32 digit_index1 = string_find_digit(name1);
+    i32 digit_index2 = string_find_digit(name2);
+    
+    // If only one of them have digit in it - we count one without digit to be earlier after sorting.
+    // That's just an arbitrary decision.
+    if (digit_index1 < 0 && digit_index2 >= 0) return -1;
+    if (digit_index2 < 0 && digit_index1 >= 0) return 1;
+    
+    // If digit was found - we're sorting considering it. If not - sorting just lexagraphically.
+    if (digit_index1 >= 0 && digit_index2 >= 0) {
+        i32 first_number  = to_i32(make_substring(name1, digit_index1, name1.count - 1, temp));
+        i32 second_number = to_i32(make_substring(name2, digit_index2, name2.count - 1, temp));
+        
+        if (first_number < second_number) return -1;
+        if (second_number - first_number) return 1;
+    }
+    
+    // Simple strcmp style comparing.
+    
+    i32 index = 0;
+    while (name1.count > index && name2.count > index && name1.data[index] == name2.data[index]) {
+        index += 1;
+    }
+    
+    return name2.count - name1.count;
+}
+
+inline i32 file_paths_compare(const void *s1, const void *s2) {
+    return file_paths_compare(*(String *)s1, *(String *)s2/*, true*/);
+}
+
+void sort_file_paths(Array <String> *array) {
+    qsort(array->data, array->count, sizeof(String), file_paths_compare);
+}
+
