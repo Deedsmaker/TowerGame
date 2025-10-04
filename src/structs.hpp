@@ -739,7 +739,7 @@ struct Player {
     b32 sword_hit_ground = false;
     
     //Rifle
-    i32 ammo_count = 0;
+    i32 ammo_count = 6;
     
     f32 weak_recoil_stun_start_time = -12;
     
@@ -1518,7 +1518,7 @@ struct Console {
     Array <Console_Command> commands = {0};
     Array <String> args = {0};
     
-    Array <Medium_Str> level_files = {0};
+    Array <String> level_names = {0};
     
     Array <Medium_Str> history = {0};
     int history_max = 0;

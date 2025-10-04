@@ -48,7 +48,19 @@ b32 window_minimized = false;
 
 #include "game.cpp"
 
+// void make_thing() {
+//     Image image = GenImageColor(256, 256, RED);
+    
+//     ImageDrawText(&image, "Y", 64, 32, 224, WHITE);
+
+//     // RLAPI void ImageDrawText(Image *dst, const char *text, int posX, int posY, int fontSize, Color color);   // Draw text (using default font) within an image (destination)
+//     ExportImage(image, "test.png");
+    
+// }
+
 int main(){
+    // make_thing();
+
     SetTraceLogLevel(LOG_WARNING);
 
     InitWindow(screen_width, screen_height, "Pure Action");

@@ -60,6 +60,7 @@ b32 rename_directory(String name, String new_name) {
     return rename_file(name, new_name);
 }
 
+// Files or directories.
 Array <String> get_files_in_directory(String directory_name, Allocator *allocator = HEAP_ALLOCATOR) {
     if (!directory_exists(directory_name)) return {0};
     

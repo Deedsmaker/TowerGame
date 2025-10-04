@@ -413,8 +413,8 @@ f32 to_f32(const char *text){
 }
 
 struct String {
-    Allocator *allocator = NULL;
     char *data;
+    Allocator *allocator = NULL;
     i32 count = 0;
     
     b32 operator==(String another_string){
@@ -613,6 +613,10 @@ inline i32 string_find_from_back(String string, String to_find) {
     }
     
     return -1;
+}
+
+inline b32 string_contains(String s, String to_find) {
+    return string_find(s, to_find) >= 0;
 }
 
 String tstring(const char *text, ...) {

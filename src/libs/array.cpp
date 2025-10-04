@@ -34,9 +34,9 @@ inline void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 cu
 
 template<typename T>
 struct Array {
+    T *data;  
     Allocator *allocator;
     
-    T *data;  
     i32 count;
     i32 capacity;
     

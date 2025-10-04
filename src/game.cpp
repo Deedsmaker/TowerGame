@@ -994,6 +994,15 @@ void init_spawn_objects() {
     str_copy(trigger_object.name, "trigger");
     spawn_objects.append(trigger_object);
     
+    Entity bomb_entity = make_entity({0, 0}, {13, 13}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
+    bomb_entity.color = ColorBrightness(RED, 0.2f);
+    setup_color_changer(&bomb_entity);
+    
+    Spawn_Object bomb_object;
+    bomb_object.entity = bomb_entity;
+    str_copy(bomb_object.name, "bomb");
+    spawn_objects.append(bomb_object);
+    
     Entity kill_trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER | KILL_TRIGGER);
     kill_trigger_entity.color = Fade(RED, 0.6f);
     setup_color_changer(&kill_trigger_entity);
@@ -1803,23 +1812,25 @@ void print_create_level_hint() {
     print_to_console("Provide level name");
 }
 
-void reload_level_files() {
-    console.level_files.clear();
-    FilePathList levels = LoadDirectoryFiles("levels");
-    for (i32 i = 0; i < levels.count; i++) {
-        char *name = levels.paths[i];
-        
-        if (!str_end_with(name, ".level") || str_contains(name, "TEMP_") || str_contains(name, "AUTOSAVE_")) {
+void reload_level_names() {
+    for_array(i, &console.level_names) {
+        console.level_names.get(i)->free_data();
+    }
+    console.level_names.clear();
+    
+    Array <String> levels = get_files_in_directory(tstring("levels"), temp);
+    
+    for_array(i, &levels) {
+        String path = levels.get_value(i);
+        if (!directory_exists(path)) continue;
+        String name = strip_path_to_just_name(path, HEAP_ALLOCATOR);
+        if (name == tstring("autosaves") || name == tstring("temp")) {
+            name.free_data();
             continue;
         }
         
-        Medium_Str level_name;
-        str_copy(level_name.data, name);
-        substring_after_line(level_name.data, "levels\\");
-        substring_before_symbol(level_name.data, '.');
-        console.level_files.append(level_name);
+        console.level_names.append(name);
     }
-    UnloadDirectoryFiles(levels);
 }
 
 void print_hotkeys_to_console() {
@@ -2086,7 +2097,7 @@ void init_console() {
     init_array(&console.args, 8, HEAP_ALLOCATOR);
     init_array(&console.commands, 128, HEAP_ALLOCATOR);
 
-    reload_level_files();    
+    reload_level_names();    
 
     console.commands.append(make_console_command("hotkeys", print_hotkeys_to_console));
     console.commands.append(make_console_command("hotkey",  print_hotkeys_to_console));
@@ -2947,9 +2958,9 @@ void update_console() {
         }
         
         if (console.args.count == 2 && (console.args.get_value(0) == "level" || console.args.get_value(0) == "load")) {
-            for (i32 i = 0; i < console.level_files.count; i++) {
-                if (str_contains(console.level_files.get_value(i).data, console.args.get_value(1).data)) {
-                    const char *new_console_content = tprintf("%s %s", console.args.get_value(0).data, console.level_files.get_value(i).data);
+            for (i32 i = 0; i < console.level_names.count; i++) {
+                if (str_contains(console.level_names.get_value(i).data, console.args.get_value(1).data)) {
+                    const char *new_console_content = tprintf("%s %s", console.args.get_value(0).data, console.level_names.get_value(i).data);
                     
                     make_ui_text(new_console_content, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
                     
@@ -4618,7 +4629,7 @@ void update_editor_ui() {
         make_ui_image({inspector_position.x - 160, (f32)screen_height - type_info_v_pos}, {(f32)screen_width * 0.5f, type_info_v_pos}, {0, 0}, SKYBLUE * 0.7f, "inspector_type_info_background");
     }
     
-    //create box
+    // Create box.
     b32 writing_other_input_field = focus_input_field.in_focus && !editor.create_box_active;
     b32 can_control_create_box = !console.is_open && !writing_other_input_field;
     b32 need_close_create_box = false;
@@ -7290,7 +7301,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             // We move player in this case separately because could happen that even though we've stepped on too steap of a ground,
             // but our wall detectors did not noticed that. But we could think of a better way than that.
             // I think that eventually we'll rewwrite movement compeltely to be a lot less physics-based.
-            player_data->velocity.y -= 400 * dt;
+            player_data->velocity.y -= 800 * dt;
         }
     } // player ground checker end
     
@@ -11215,7 +11226,7 @@ void draw_game() {
 
     
     if (console.is_open) {
-        //draw console
+        // Draw console.
         Color text_color = lerp(GREEN * 0, GREEN, console.open_progress * console.open_progress);
         f32 y_position = lerp(-screen_height * 0.6f, 0.0f, EaseOutQuint(console.open_progress));
         
