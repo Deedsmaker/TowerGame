@@ -1342,7 +1342,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->kill_switch->index = index;
         }
     
-        entity->kill_switch->max_hits_taken = 5;
+        entity->kill_switch->max_hits_taken = 1;
     } else if (entity->flags & TURRET) {  // init turret
         if (!entity->turret || ignore_existing_types) {
             i32 index = -1;
@@ -4074,7 +4074,7 @@ void update_editor_ui() {
         
         make_ui_text(tprintf("ID: %d", selected->id), {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
         
-        make_ui_text(temp_entity_name(selected).data, {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_id"); 
+        make_ui_text(c_str(*selected->name), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_name"); 
         make_ui_text("POSITION", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
         make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
         make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
@@ -5594,10 +5594,13 @@ void update_editor() {
     if ((editor.selected || multiselection->entities.count > 0) && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)) {
         Level_Context *original_level_context = current_level_context;
         switch_current_level_context(&copied_entities_level_context);
+        
+        // Do not forgetting to free every entity that was previously copied and added to copied entities level context.
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
             free_entity(editor.copied_entities.get_value(i));
         }
         editor.copied_entities.clear();
+        
         if (multiselection->entities.count > 0) {
             for (i32 i = 0; i < multiselection->entities.count; i++) {
                 Entity *entity_to_copy = get_entity(multiselection->entities.get_value(i), original_level_context);   
@@ -6512,6 +6515,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         }
         
         if (enemy_entity->flags & HIT_BOOSTER) {
+            player_entity->position = enemy_entity->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
             player_data->velocity = enemy_entity->up * enemy->hit_booster.boost;
             player_data->timers.hit_booster_time = core.time.game_time;
         }
@@ -7026,7 +7030,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     f32 since_hit_booster = core.time.game_time - player_data->timers.hit_booster_time;
     
     //player movement
-    if (since_hit_booster <= 0.4f) {
+    if (since_hit_booster <= HIT_BOOSTER_BOOST_TIME) {
         
     } else if (player_data->grounded && !is_player_in_stun() && !player_data->on_propeller) {
         player_ground_move(player_entity, dt);
@@ -8312,6 +8316,7 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
 void calculate_projectile_collisions(Entity *entity) {
     Projectile *projectile = entity->projectile;
     
+    // Player projectile collisions.
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
         fill_collisions(entity, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
         // Player *player = player_data;
@@ -8376,6 +8381,11 @@ void calculate_projectile_collisions(Entity *entity) {
                 
                 if (other->flags & WIN_BLOCK) {
                     can_damage = false;
+                }
+                
+                if (other->flags & HIT_BOOSTER) {
+                    entity->position = other->position;
+                    projectile->velocity = normalized(other->up) * magnitude(projectile->velocity);
                 }
                 
                 if (can_damage) {
@@ -10157,6 +10167,14 @@ void fill_entities_draw_queue() {
                     }
                 }
             }
+        }
+        
+        // Always draw hit booster
+        if (entity->flags & HIT_BOOSTER) {
+            Vector2 v1 = entity->position + entity->up * entity->scale.y * entity->pivot.y;
+            Vector2 v2 = v1 + entity->up * 100;
+            
+            draw_game_line(v1, v2, 0.1f, color_fade(YELLOW, 0.28f));
         }
         
         // This checks for occlusion.

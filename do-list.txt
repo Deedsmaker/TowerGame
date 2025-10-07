@@ -1,6 +1,6 @@
 
-[ ] Multiselect pasting on another level with trigger and kill switches. they should point at guys that was copied and pasted with them and not at the entities iwth same ids in new level (ids of pasted entities that they connected to will be changd!).
-[ ] Holding multiple levels and switching.
+[X] Multiselect pasting on another level with trigger and kill switches. they should point at guys that was copied and pasted with them and not at the entities iwth same ids in new level (ids of pasted entities that they connected to will be changd!).
+[X] Holding multiple levels and switching.
 
 
 

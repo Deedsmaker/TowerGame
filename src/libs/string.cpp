@@ -529,6 +529,7 @@ f32 to_f32(String string){
 
 const char *c_str(String string) {
     // Currently we null-terminate strings by default, so returning just data.
+    if (string.count == 0) return "";
     return string.data;
 }
 

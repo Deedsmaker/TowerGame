@@ -1,6 +1,6 @@
 name Kill_Switch 
- id 13 
- position { -100.000000,  327.500000} 
+ id 10 
+ position { -205.000000,  290.000000} 
  scale { 20.000000,  10.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 
@@ -11,6 +11,6 @@ name Kill_Switch
  unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
  hidden 0 
  spawn_enemy_when_no_ammo 0 
- kill_switch_connected [   11 ] 
+ kill_switch_connected [   8 ] 
  enemy_gives_ammo 0 
  

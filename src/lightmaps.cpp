@@ -3,12 +3,14 @@
 // 2 is light version. 4 is high quality version.
 f32 pixel_per_unit = 2;
 
-String lightmap_name(i32 index){
-    return tstring("resources/lightmaps/%s_%d_lightmap.png", current_level_context->level_name, index);
+inline String lightmap_name(i32 index){
+    String s = tstring("resources/lightmaps/%s_%d_lightmap.png", c_str(current_level_context->level_name), index);
+    return s;
 }
 
-Vector2 get_lightmap_pixel_size(Lightmap_Data* l){
-    return {l->game_size.x * pixel_per_unit, l->game_size.y * pixel_per_unit};    
+inline Vector2 get_lightmap_pixel_size(Lightmap_Data* l){
+    Vector2 size = {l->game_size.x * pixel_per_unit, l->game_size.y * pixel_per_unit};
+    return size;    
 }
 
 void save_lightmap_to_file(i32 index){

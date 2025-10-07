@@ -230,6 +230,8 @@ struct Sound_Handler {
     f32 pitch_variation = 0.3f;
 };
 
+constexpr f32 HIT_BOOSTER_BOOST_TIME = 0.2f;
+
 enum Flags : FLAGS {
     GROUND              = 1 << 0,
     
@@ -272,7 +274,8 @@ enum Flags : FLAGS {
     KILL_SWITCH            = (static_cast<u64>(1) << 39),
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
-    HOMING_TURRET           = (static_cast<u64>(1) << 42),
+    HOMING_TURRET          = (static_cast<u64>(1) << 42),
+    // BULLET_REDIRECT        = (static_cast<u64>(1) << 43),
 };
 
 struct Move_Point {
