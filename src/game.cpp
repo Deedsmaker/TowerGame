@@ -1347,24 +1347,28 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         if (!entity->turret || ignore_existing_types) {
             i32 index = -1;
             entity->turret = entity->level_context->turrets.append({0}, &index);
-            entity->turret->index = index;
+            Turret *turret = entity->turret;
+            
+            // We don't want to set things that could be changed in editor (like shoot_every_tick) every time we init enity,
+            // because what would cancel any changes made in editor. 
+            // So we put that in here, under ignore_existing_types, because that's mean that we want to just put every 
+            // default value and that's full initialization.
+            turret->index = index;
+            if (entity->flags & HOMING_TURRET) {
+                turret->homing = true;
+                turret->projectile_settings.launch_speed = 150;
+                turret->projectile_settings.max_lifetime = 15;
+                turret->shoot_every_tick = 8;
+            } else {
+                turret->homing = false;
+                turret->projectile_settings.launch_speed = 75;
+                turret->projectile_settings.max_lifetime = 7;
+                turret->shoot_every_tick = 3;
+            }
         }
     
         entity->turret->player_cannot_kill = true;
         
-        if (entity->flags & HOMING_TURRET) {
-            Turret *turret = entity->turret;
-            turret->homing = true;
-            turret->projectile_settings.launch_speed = 150;
-            turret->projectile_settings.max_lifetime = 15;
-            turret->shoot_every_tick = 8;
-        } else {
-            Turret *turret = entity->turret;
-            turret->homing = false;
-            turret->projectile_settings.launch_speed = 75;
-            turret->projectile_settings.max_lifetime = 7;
-            turret->shoot_every_tick = 3;
-        }
     } else if (entity->flags & CENTIPEDE) { // init centipede
         if (!entity->centipede || ignore_existing_types) {        
             i32 index = -1;
