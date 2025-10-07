@@ -5085,20 +5085,6 @@ void rotate_multiselected(f32 to_rotate) {
     }
 }
 
-// This is for holding key and repeating action. Don't think that we should use OS ticks for that, but we probably eventually will 
-// use OS ticks for text input.
-struct Repeat_Action {
-    f32 hold_time_to_action = 0.2f;
-    f32 start_repeat_action_delay = 0.08f;
-    
-    b32 should_sped_up = true;
-    f32 sped_up_repeat_action_delay = 0.01f;
-
-    f32 action_time = -12;
-    f32 hold_time;
-    b32 repeating;
-};
-
 b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold) {
     b32 result = false;
     
@@ -6075,25 +6061,6 @@ void update_editor() {
     
     
     update_undo_logic();
-    
-    // local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
-    
-    // b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
-    // b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
-    // b32 undo_holded  = undo_required_helper_keys_down && IsKeyDown(KEY_Z);
-    
-    // b32 undo_queued = is_action_queued(&undo_repeat_data, undo_pressed, undo_holded);
-    
-    // if (undo_queued && current_level_context->undo_actions.count > 0) {
-    // }
-    
-    local_persist Repeat_Action redo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
-    
-    b32 redo_required_helper_keys_down = IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
-    b32 redo_pressed = redo_required_helper_keys_down && IsKeyPressed(KEY_Z);
-    b32 redo_holded  = redo_required_helper_keys_down && IsKeyDown(KEY_Z);
-    
-    b32 redo_queued = is_action_queued(&redo_repeat_data, redo_pressed, redo_holded);
     
     // Tile sheets logic.
     if (editor.selected && editor.selected->flags & TEXTURE) {

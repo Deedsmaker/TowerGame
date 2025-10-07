@@ -126,9 +126,9 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
     // forgot to add code here to detect it, but we could later add other code for detecting situations like that.
     
     // So that's our code lmao.
-    if (CHECK_CHANGES_COUNT) {
+    if (CHECK_CHANGES_COUNT && changes.count == 0) {
         // assert(changes.count > 0);
-        print("Something was marked as udno changed but we've not detected any changes!");
+        log_short("Something was marked as udno changed but we've not detected any changes!");
     }
     
     return changes;
@@ -219,10 +219,18 @@ inline void update_undo_logic() {
         editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
     }
 
-    // Undo logic.
+    local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
+    
     b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
     b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
-    if (undo_pressed && current_level_context->undo_actions.count > 0) {
+    b32 undo_holded  = undo_required_helper_keys_down && IsKeyDown(KEY_Z);
+    
+    b32 undo_queued = is_action_queued(&undo_repeat_data, undo_pressed, undo_holded);
+
+    // Undo logic.
+    // b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
+    // b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
+    if (undo_queued && current_level_context->undo_actions.count > 0) {
         Array <Entity_Undo_Change> *changes = current_level_context->undo_actions.last();
         for_array(i, changes) {
             Entity_Undo_Change *change = changes->get(i);
@@ -291,10 +299,20 @@ inline void update_undo_logic() {
     }
     
     // Redo logic.
+    
+    local_persist Repeat_Action redo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
+    
     b32 redo_required_helper_keys_down = IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
     b32 redo_pressed = redo_required_helper_keys_down && IsKeyPressed(KEY_Z);
+    b32 redo_holded  = redo_required_helper_keys_down && IsKeyDown(KEY_Z);
+    
+    b32 redo_queued = is_action_queued(&redo_repeat_data, redo_pressed, redo_holded);
+    
+    
+    // b32 redo_required_helper_keys_down = IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
+    // b32 redo_pressed = redo_required_helper_keys_down && IsKeyPressed(KEY_Z);
     b32 can_make_redo = current_level_context->max_undos_added > current_level_context->undo_actions.count;
-    if (redo_pressed && can_make_redo) {
+    if (redo_queued && can_make_redo) {
         Array <Entity_Undo_Change> *changes = current_level_context->undo_actions.increase_count_and_get_last();
         for_array(i, changes) {
             Entity_Undo_Change *change = changes->get(i);

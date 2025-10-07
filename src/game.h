@@ -55,6 +55,8 @@ inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_fla
 
 void kill_player();
 
+b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold);
+
 b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards);
 inline b32 is_death_instinct_threat_active();
 inline b32 is_in_death_instinct();

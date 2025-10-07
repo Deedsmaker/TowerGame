@@ -1055,6 +1055,20 @@ enum Death_Instinct_Reason{
 //     i32 draw_order_change = 0;
 // };
 
+// This is for holding key and repeating action. Don't think that we should use OS ticks for that, but we probably eventually will 
+// use OS ticks for text input.
+struct Repeat_Action {
+    f32 hold_time_to_action = 0.2f;
+    f32 start_repeat_action_delay = 0.08f;
+    
+    b32 should_sped_up = true;
+    f32 sped_up_repeat_action_delay = 0.01f;
+
+    f32 action_time = -12;
+    f32 hold_time;
+    b32 repeating;
+};
+
 enum Undo_Change_Type {
     NO_CHANGE        = 0,       
     VECTOR2_CHANGE   = 1,
