@@ -1,5 +1,7 @@
 #pragma once
 
+#define CHECK_CHANGES_COUNT true
+
 inline void undo_mark_entity_changed(Entity *entity) {
     entity->runtime_only_flags |= EDITOR_CHANGED;
 }
@@ -22,6 +24,15 @@ Entity_Undo_Change get_i32_array_difference(i32 entity_id, Array <i32> *changed,
         
         return change;
     } else if (changed->count < original->count) {
+        // @TODO: Clearing.
+        // if (changed->count == 0) {
+        //     Entity_Undo_Change change = {
+        //         .entity_id = entity_id;  
+        //         .change_type = ARRAY_CLEARED,
+        //         .changed_array = chagned,
+        //     };
+        // }
+    
         i32 removed_number = 0;            
         for_array(i, original) {
             if (i >= changed->count) {
@@ -114,6 +125,12 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
     // Check for zero changes would be useful to detect if we marked something as changed and it actually changed but we just 
     // forgot to add code here to detect it, but we could later add other code for detecting situations like that.
     
+    // So that's our code lmao.
+    if (CHECK_CHANGES_COUNT) {
+        // assert(changes.count > 0);
+        print("Something was marked as udno changed but we've not detected any changes!");
+    }
+    
     return changes;
 }
 
@@ -184,7 +201,10 @@ inline void update_undo_logic() {
                 editor.multiselection.unchanged_copies.insert(copy_and_add_entity(entity, &undo_level_context), i);               
             }
             
-            assert(changes.count > 0);
+            // assert(changes.count > 0);
+            if (CHECK_CHANGES_COUNT && changes.count == 0) {
+                log_short("On multiselected undo assigning was detected zero changes!");
+            }
             add_changes_to_undo(&changes);
         }
     } else if (editor.selected && editor.selected->runtime_only_flags & EDITOR_CHANGED) {

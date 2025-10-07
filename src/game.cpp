@@ -4806,7 +4806,7 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     Vector2 new_position = closest_vertex_global - *entity_vertex;
     Vector2 position_change = new_position - entity->position;
     entity->position = new_position;     
-    undo_mark_entity_changed(entity);
+    if (position_change != Vector2_zero) undo_mark_entity_changed(entity);
     
     // // Because when we start moving vertex we remembering these vertices already. 
     // // So if we do that here aswell - on undo vertices will go on place where we pressed button.
@@ -5449,7 +5449,8 @@ void update_editor() {
             multiselection->total_displacement_for_undo = Vector2_zero;   
             editor.dragging_start = input.mouse_position;
         }
-        if (was_moving_multiselected && !should_move_multiselected) {
+        if (was_moving_multiselected && !should_move_multiselected && multiselection->total_displacement_for_undo != Vector2_zero) {
+            
 //             undo_add_multiselect_position_change(multiselection->total_displacement_for_undo);
             for_array(i, &multiselection->entities) {
                 undo_mark_entity_changed(get_entity(multiselection->entities.get_value(i)));
@@ -5541,6 +5542,7 @@ void update_editor() {
                 editor.dragging_entity_id = editor.selected->id;
                 editor.dragging_start = editor.dragging_entity->position;
                 editor.dragging_start_mouse_offset = input.mouse_position - editor.dragging_start;
+                editor.dragging_start_entity_position = editor.selected->position;
             }
         }
     } else if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && can_select) { // stop dragging entity
@@ -5554,7 +5556,7 @@ void update_editor() {
         editor.selected_this_click = false;
         
         if (editor.dragging_entity) {
-            if (editor.selected) {
+            if (editor.selected && editor.selected->position != editor.dragging_start_entity_position) {
                 undo_mark_entity_changed(editor.selected);
             }
         }
@@ -5948,6 +5950,7 @@ void update_editor() {
             //trigger clear
             if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L)) {
                 selected->trigger->connected.clear();
+                undo_mark_entity_changed(selected);
             }
             
             if (wanna_remove_cam_rails_point) {
@@ -5962,9 +5965,11 @@ void update_editor() {
             }
             if (wanna_add_cam_rails_point) {
                 selected->trigger->cam_rails_points.append(input.mouse_position);
+                undo_mark_entity_changed(selected);
             }
             if (wanna_clear_cam_rails_points) {
                 selected->trigger->cam_rails_points.clear();
+                undo_mark_entity_changed(selected);
             }
         }
         
@@ -5981,10 +5986,12 @@ void update_editor() {
                     
                     if (wanna_assign && !wanna_remove && !kill_switch->connected.contains(col.other_entity->id)) {
                         kill_switch->connected.append(col.other_entity->id);
+                        undo_mark_entity_changed(selected);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
                         if (kill_switch->connected.contains(col.other_entity->id)) {
                             kill_switch->connected.remove_first_encountered(col.other_entity->id);
+                            undo_mark_entity_changed(selected);
                         }
                         break;
                     }
@@ -5994,6 +6001,7 @@ void update_editor() {
             //kill switch clear
             if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L)) {
                 kill_switch->connected.clear();
+                undo_mark_entity_changed(selected);
             }
         }
         

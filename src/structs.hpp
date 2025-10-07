@@ -1073,6 +1073,7 @@ struct Entity_Undo_Change {
         i32 integer_change;
         i32 number_removed;
         i32 number_appended;
+        // Array <i32> numbers_cleared;
     };
     
     union {
@@ -1396,6 +1397,7 @@ struct Editor {
     
     Vector2 dragging_start = Vector2_zero;
     Vector2 dragging_start_mouse_offset = Vector2_zero;
+    Vector2 dragging_start_entity_position = Vector2_zero;
     Vector2 scaling_start;
     f32     rotating_start;
     Static_Array <Vector2, MAX_VERTICES> vertices_start = {0};
@@ -1426,8 +1428,6 @@ struct Editor {
     Array <i32> selection_multiselected_entities = {0};
     // And this one is actual multiselected.
     Array <i32> multiselected_entities = {0};
-    Vector2 multiselected_entities_center = Vector2_zero;
-    Vector2 multiselect_total_displacement_for_undo = Vector2_zero;
     
     Vector2 copied_entities_center = Vector2_zero;
     Array <Entity *> copied_entities = {0};
