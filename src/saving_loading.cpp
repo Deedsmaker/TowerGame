@@ -4,7 +4,7 @@
 #include "array.cpp"
 #include "Allocator.cpp"
 
-void new_save_level(String level_name) {
+void save_level(String level_name) {
     String level_directory_name = tstring("levels/%s", c_str(level_name));
 
     String old_directory_name = tstring("%s_old", c_str(level_directory_name));
@@ -345,8 +345,27 @@ String parse_string(String whole_data, i32 index, Allocator *allocator) {
 
 #define IF_FIND(str) if ((i = splitted.find(tstring(str))) >= 0)
 
-b32 new_load_level(String name) {
+void create_level(String name) {
+    String path = tstring("levels/%s", c_str(name));
+    
+    if (directory_exists(path)) {
+        return;
+    }
+    
+    clean_up_scene();
+    // switch_current_level_context(&loaded_level_context);
+    // clear_level_context(&loaded_level_context);
+    clear_level_context(editor_level_context);
+    editor_level_context->level_name = copy_string(name, &editor_level_context->memory_arena);
+    
+    save_level(name);
+    enter_editor_state();
+    print_to_console("Level successfuly created");
+}
+
+b32 load_level(String name) {
     clear_allocator(temp);
+    name = copy_string(name, temp); // Beacuse we're just cleared temp allocator and if "name" was temp allocated - it could go wrong.
     
     Game_State original_game_state = game_state;
     game_state = EDITOR; // @TODO: Do we really need this?
@@ -355,8 +374,9 @@ b32 new_load_level(String name) {
     String level_path = tstring("levels/%s", c_str(name));
     
     if (!directory_exists(level_path)) {
-        builder_append(&console.content_builder, tstring("Level does not exists!: %s\n", name));
-        return false;
+        builder_append(&console.content_builder, tstring("Level does not exists! Will create new"));
+        create_level(name);
+        return true;
     }
     
     clean_up_scene();

@@ -740,16 +740,9 @@ void clear_level_context(Level_Context *level_context) {
     switch_current_level_context(original_level_context);
 }
 
-void save_level(String name) {
-    new_save_level(name);
-}
 
 inline void save_level_by_name(const char *name) {
     save_level(tstring(name));
-}
-
-b32 load_level(String name) {
-    return new_load_level(name);
 }
 
 inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **other) {
@@ -1783,31 +1776,6 @@ inline void print_current_level() {
     print_to_console(c_str(current_level_context->level_name));
 }
 
-void create_level(const char *level_name) {
-    char *name;
-    name = get_substring_before_symbol(level_name, '.');
-    const char *path = tprintf("levels/%s.level", name);
-    
-    FILE *fptr = fopen(path, "r");
-    
-    if (fptr != NULL) {
-        print_to_console("this level already exists");
-    } else {
-        clean_up_scene();
-        // switch_current_level_context(&loaded_level_context);
-        // clear_level_context(&loaded_level_context);
-        clear_level_context(editor_level_context);
-        
-        save_level(tstring(level_name));
-        enter_editor_state();
-        print_to_console("Level successfuly created");
-    }
-    
-    if (fptr) {
-        fclose(fptr);
-    }
-}
-
 void print_create_level_hint() {
     print_to_console("Provide level name");
 }
@@ -1855,7 +1823,7 @@ void print_hotkeys_to_console() {
     print_to_console("save <level> - save current level or specify level where to save");
     print_to_console("level <level> - get current level name or load level if provided");
     print_to_console("load <level> - load level");
-    print_to_console("create / new_level <level> - create empty level");
+    // print_to_console("create / new_level <level> - create empty level");
     print_to_console("next / previous / reload / restart_game / first");
     print_to_console("level_speedrun - Speedrun for levels");
     print_to_console("game_speedrun - Whole game speedrun. Death puts in game begining.");
@@ -2137,8 +2105,8 @@ void init_console() {
     
     console.commands.append(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale));
     
-    console.commands.append(make_console_command("create",    print_create_level_hint, create_level));
-    console.commands.append(make_console_command("new_level", print_create_level_hint, create_level));
+    // console.commands.append(make_console_command("create",    print_create_level_hint, create_level));
+    // console.commands.append(make_console_command("new_level", print_create_level_hint, create_level));
     
     console.commands.append(make_console_command("play_replay", debug_toggle_play_replay, NULL));
     console.commands.append(make_console_command("save_replay", save_temp_replay, save_replay));
