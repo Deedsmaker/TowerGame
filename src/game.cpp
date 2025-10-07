@@ -2095,6 +2095,7 @@ void init_console() {
     console.commands.append(make_console_command("save",     save_current_level, save_level_by_name));
     console.commands.append(make_console_command("load",     NULL, load_level_by_name));
     console.commands.append(make_console_command("level",    print_current_level, load_level_by_name));
+    console.commands.append(make_console_command("l",    print_current_level, load_level_by_name));
     console.commands.append(make_console_command("next",     try_load_next_level, NULL));
     console.commands.append(make_console_command("previous", try_load_previous_level, NULL));
     console.commands.append(make_console_command("reload",   reload_level, NULL));
@@ -2258,7 +2259,7 @@ void init_level_context(Level_Context *level_context) {
     
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
     
-    init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->entities, 2, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->propellers, 16, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->triggers, 32, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
@@ -2930,7 +2931,7 @@ void update_console() {
             }
         }
         
-        if (console.args.count == 2 && (console.args.get_value(0) == "level" || console.args.get_value(0) == "load")) {
+        if (console.args.count == 2 && (console.args.get_value(0) == "level" || console.args.get_value(0) == "l" || console.args.get_value(0) == "load")) {
             for (i32 i = 0; i < console.level_names.count; i++) {
                 if (str_contains(console.level_names.get_value(i).data, console.args.get_value(1).data)) {
                     const char *new_console_content = tprintf("%s %s", console.args.get_value(0).data, console.level_names.get_value(i).data);
@@ -5600,12 +5601,12 @@ void update_editor() {
                 Entity *entity_to_copy = get_entity(multiselection->entities.get_value(i), original_level_context);   
                 // We keep id here so later we could verify different connected entities by ids. 
                 // @LEAK: Check that we're actually freeing copied entities.
-                editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context));
+                editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context, entity_to_copy->id));
             }
             editor.copied_entities_center = multiselection->center;
         } else {
             Entity *entity_to_copy = get_entity(editor.selected->id, original_level_context);   
-            editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context));
+            editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context, entity_to_copy->id));
             // copy_entity(&editor.copied_entity, editor.selected);
             editor.copied_entities_center = entity_to_copy->position;
         }
@@ -5621,13 +5622,13 @@ void update_editor() {
             
             assign_selected_entity(NULL);
             
-            local_persist Array<i32> spawned_entities = {0};
-            spawned_entities.clear();
+            Array<i32> spawned_ids = {.allocator = temp};
+            
             clear_multiselected_entities();
             for (i32 i = 0; i < editor.copied_entities.count; i++) {
                 Entity *to_spawn = editor.copied_entities.get_value(i);
                 Entity *spawned = copy_and_add_entity(to_spawn, current_level_context);
-                spawned_entities.append(spawned->id);
+                spawned_ids.append(spawned->id);
                 spawned->position += paste_position - editor.copied_entities_center;
                 editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
                 
@@ -5639,7 +5640,7 @@ void update_editor() {
                     add_to_multiselection(spawned->id);
                 }
             }
-            assert(spawned_entities.count == editor.copied_entities.count);
+            assert(spawned_ids.count == editor.copied_entities.count);
             
             
             // Right now we want to verify connected entities only to triggers.
@@ -5648,27 +5649,44 @@ void update_editor() {
             // and we will know which ids they have now, because we track spawned entities and they 
             // have the same indexes as copied entities. If that was a bad explanation I've explained it also in do-list 
             // in 'Loading multiple levels' task.
-            for (i32 i = 0; i < spawned_entities.count; i++) {
-                Entity *spawned =  get_entity(spawned_entities.get_value(i));
+            for (i32 i = 0; i < spawned_ids.count; i++) {
+                Entity *spawned =  get_entity(spawned_ids.get_value(i));
                 if (spawned->flags & TRIGGER) {
                     // We have original trigger connected and tracking in copied_entities.
-                    spawned->trigger->connected.clear();                                      
-                    spawned->trigger->tracking.clear();
-                    // @CLEANUP: Will have to change here when we'll remove all of types from entity. Nothing scary.
-                    Entity *copied_trigger_entity = editor.copied_entities.get_value(i);
+                    Trigger *spawned_trigger = spawned->trigger;
+                    
+                    spawned_trigger->connected.clear();                                      
+                    spawned_trigger->tracking.clear();
+                    
+                    Trigger *copied_trigger = editor.copied_entities.get_value(i)->trigger;
+                    assert(copied_trigger); // That should work because spawned_ids indexes should be the same as the copied indexes.
                     // Here we want to go through all copied entities and find entities with ids from copied trigger->
                     // Then we want to add entity from spawned with the same index to connected and tracked of new trigger->
                     // That's confusing because it's just is. Not sure if it's even possible to make simpler.
                     // But on the bright side - that's not so much code.
                     //
                     // UPDATE after ~3 months - completely understandable. Making same thing for KILL_SWITCH now.
-                    for (i32 x = 0; x < spawned_entities.count; x++) {
+                    for (i32 x = 0; x < spawned_ids.count; x++) {
                         Entity *other_copied_entity = editor.copied_entities.get_value(x);
-                        if (copied_trigger_entity->trigger->connected.contains(other_copied_entity->id)) {
-                            spawned->trigger->connected.append(spawned_entities.get_value(x));
+                        if (copied_trigger->connected.contains(other_copied_entity->id)) {
+                            spawned_trigger->connected.append(spawned_ids.get_value(x));
                         }
-                        if (copied_trigger_entity->trigger->tracking.contains(other_copied_entity->id)) {
-                            spawned->trigger->tracking.append(spawned_entities.get_value(x));
+                        if (copied_trigger->tracking.contains(other_copied_entity->id)) {
+                            spawned_trigger->tracking.append(spawned_ids.get_value(x));
+                        }
+                    }
+                }
+                
+                if (spawned->flags & KILL_SWITCH) { 
+                    Kill_Switch *spawned_kill_switch = spawned->kill_switch;
+                    Kill_Switch *copied_kill_switch = editor.copied_entities.get_value(i)->kill_switch;
+                    assert(copied_kill_switch); // That should work because spawned_ids indexes should be the same as the copied indexes.
+                    spawned_kill_switch->connected.clear();
+                    
+                    for (i32 x = 0; x < spawned_ids.count; x++) {
+                        Entity *other_copied = editor.copied_entities.get_value(x);
+                        if (copied_kill_switch->connected.contains(other_copied->id)) {
+                            spawned_kill_switch->connected.append(spawned_ids.get_value(x));
                         }
                     }
                 }
@@ -5681,7 +5699,7 @@ void update_editor() {
                 // We check for spawned entities count because that's actually could be frustrating
                 // when we copy big chunks of level    
                 // without trigger and trigger connecting to new level parts that could be not even relevant to him.
-                if (spawned_entities.count < 10) {
+                if (spawned_ids.count < 10) {
                     i32 originally_copied_id = editor.copied_entities.get_value(i)->id;
                     i32 spawned_id = spawned->id;
                     ForEntities(entity, TRIGGER | KILL_SWITCH) {

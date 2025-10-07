@@ -471,6 +471,16 @@ struct Chunk_Array {
         return !chunk->elements[index - (chunk_index * chunk_size)].occupied;
     }
     
+    void add_chunk() {
+        Chunk *last_chunk = first_chunk;
+        for (i32 i = 0; i < chunks_count - 1; i++) last_chunk = last_chunk->next;
+        assert(last_chunk);
+        
+        last_chunk->next = (Chunk *)alloc(allocator, sizeof(Chunk));
+        last_chunk->next->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
+        chunks_count += 1;
+    }
+    
     i32 find_free_space_and_grow_if_need() {
         if (!first_chunk) {
             init_chunk(&first_chunk);
@@ -497,9 +507,7 @@ struct Chunk_Array {
         // If we're here then we did not found any free space in existing chunks, so we creating new chunk.
         
         // Right now "chunk" variable should be last chunk.
-        chunk->next = (Chunk *)alloc(allocator, sizeof(Chunk));
-        chunk->next->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
-        chunks_count += 1;
+        add_chunk();
         
         // So we returning the first index of newly created chunk. If it was second chunk and chunk_size is 32 - we're returning 32.
         // return chunks_count * (chunk_size - 1);
@@ -532,10 +540,18 @@ struct Chunk_Array {
     }
     
     T *insert(T value, i32 index) {
-        assert(index >= 0 && index < chunks_count * chunk_size);
+        assert(index >= 0);
         
         Chunk *chunk = first_chunk;
         i32 chunk_index = index / chunk_size;
+        
+        if (chunk_index >= chunks_count) {
+            i32 chunks_to_add = chunk_index - chunks_count + 1;
+            for (i32 i = 0; i < chunks_to_add; i++) {
+                add_chunk();
+            }
+        }
+        
         assert(chunk_index < chunks_count);
         for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;
         
@@ -546,6 +562,7 @@ struct Chunk_Array {
         // It's used while copying level context entities array and then re-inserting deep copy of an entity in 
         // the same place. I'll think more about do we really need this assert or we just should change logic in 
         // one place where we're asserting. (started thinking 17.08.2025).
+        //
         // assert(!chunk_element->occupied);
         
         if (chunk_element->occupied) {

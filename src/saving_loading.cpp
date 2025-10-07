@@ -358,7 +358,7 @@ void create_level(String name) {
     clear_level_context(editor_level_context);
     editor_level_context->level_name = copy_string(name, &editor_level_context->memory_arena);
     
-    save_level(name);
+    // save_level(name);
     enter_editor_state();
     print_to_console("Level successfuly created");
 }
