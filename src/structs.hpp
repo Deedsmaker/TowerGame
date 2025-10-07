@@ -769,7 +769,9 @@ struct Projectile {
     
     i32 trail_emitter_index = -1;
     
-    Static_Array <i32, 8> already_hit_ids = {0};
+    // Static_Array <i32, 16> already_hit_ids = {0};
+    i32 last_hit_id = 0;
+    i32 hits_count = 0;
     f32 last_light_spawn_time = -112;
 };
 

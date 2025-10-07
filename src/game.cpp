@@ -8333,7 +8333,7 @@ void calculate_projectile_collisions(Entity *entity) {
                 return;
             }
             
-            if (projectile->already_hit_ids.count >= projectile->already_hit_ids.capacity || projectile->already_hit_ids.contains(other->id)) {
+            if (projectile->last_hit_id == other->id) {
                 continue;
             }
             
@@ -8345,7 +8345,9 @@ void calculate_projectile_collisions(Entity *entity) {
             f32 hitstop_add = 0;
             
             if (other->flags & ENEMY && is_enemy_can_take_damage(other, false) && !projectile->dying) {
-                projectile->already_hit_ids.append(other->id);
+                // projectile->already_hit_ids.append(other->id);
+                projectile->last_hit_id = other->id;
+                projectile->hits_count += 1;
                 b32 killed = false;
                 b32 can_damage = true;
                 
@@ -8413,8 +8415,16 @@ void calculate_projectile_collisions(Entity *entity) {
                     emit_particles(&bullet_hit_emitter_copy, col.point, velocity_dir, sparks_count, sparks_speed);
                 }
                 
-                add_hitstop(0.03f + hitstop_add);
-                shake_camera(0.1f);
+                // Just for avoiding annoyence.
+                if (projectile->hits_count < 8) {
+                    add_hitstop(0.03f + hitstop_add);
+                    shake_camera(0.1f);
+                }
+                
+                if (projectile->hits_count > 30) {
+                    // @TODO: We should explode here. Also could check that hits were made fast, like calculating average delay between hits for last 10.
+                }
+                
                 if (can_damage) {
                     f32 time_since_last_hit = core.time.game_time - state_context.timers.last_projectile_hit_time;
                     if (time_since_last_hit <= 0.05f) {
