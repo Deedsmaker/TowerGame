@@ -1127,6 +1127,8 @@ struct Level_Context {
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
+    Collision_Grid collision_grid = {0};
+    
     Chunk_Array <Light> lights = {0};
     // Chunk_Array <Light> medium_temp_lights = {0};
     // Chunk_Array <Light> big_temp_lights = {0};
@@ -1226,8 +1228,6 @@ struct Session_Context{
     // char current_level_name[256] = "\0";
     char old_previous_level_name[256] = "\0";
     String previous_level_name = {0};
-    
-    Collision_Grid collision_grid = {0};
     
     // Cam cam = {};
     

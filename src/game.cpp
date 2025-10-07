@@ -2321,6 +2321,17 @@ void init_level_context(Level_Context *level_context) {
         level_context->notes.append({0});
     }
     
+    // Init collison grid.
+    i32 cells_columns = (i32)(current_level_context->collision_grid.size.x / current_level_context->collision_grid.cell_size.x);
+    i32 cells_rows    = (i32)(current_level_context->collision_grid.size.y / current_level_context->collision_grid.cell_size.y);
+    size_t cells_count = cells_columns * cells_rows;
+    
+    init_array(&current_level_context->collision_grid.cells, cells_count, HEAP_ALLOCATOR);
+    
+    for (i32 i = 0; i < cells_count; i++) {
+        current_level_context->collision_grid.cells.append({0});
+    }
+    
     level_context->inited = true;
     
     // We're clearing level context right after initialization becase init happens only at the very beginning and next
@@ -2381,16 +2392,6 @@ void init_game() {
     session_context.entity_lights_start_index = session_context.temp_lights_count; 
     
     render = {};
-    
-    i32 cells_columns = (i32)(session_context.collision_grid.size.x / session_context.collision_grid.cell_size.x);
-    i32 cells_rows    = (i32)(session_context.collision_grid.size.y / session_context.collision_grid.cell_size.y);
-    size_t cells_count = cells_columns * cells_rows;
-    
-    init_array(&session_context.collision_grid.cells, cells_count, HEAP_ALLOCATOR);
-    
-    for (i32 i = 0; i < cells_count; i++) {
-        session_context.collision_grid.cells.append({0});
-    }
     
     white_pixel_image = GenImageColor(1, 1, WHITE);
     white_pixel_texture = LoadTextureFromImage(white_pixel_image);
@@ -2552,12 +2553,12 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
     copy_level_context(&game_level_context, level_context, should_init_entities);
     
     Vector2 grid_target_pos = current_level_context->player_spawn_point;
-    session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
+    current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
 
     // state_context.timers.last_collision_cells_clear_time = core.time.app_time;
-    // for (i32 i = 0; i < session_context.collision_grid.cells.count; i++) {        
-    //     session_context.collision_grid.cells[i].dynamic_entities.clear();
-    //     session_context.collision_grid.cells[i].static_entities.clear();
+    // for (i32 i = 0; i < current_level_context->collision_grid.cells.count; i++) {        
+    //     current_level_context->collision_grid.cells[i].dynamic_entities.clear();
+    //     current_level_context->collision_grid.cells[i].static_entities.clear();
     // }
     
     game_state = GAME;
@@ -3604,7 +3605,7 @@ void resolve_collision(Entity *entity, Collision col) {
 }
 
 Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
-    Collision_Grid *grid = &session_context.collision_grid;    
+    Collision_Grid *grid = &current_level_context->collision_grid;    
     
     Vector2 origin_to_pos = position - grid->origin;
     
@@ -3625,7 +3626,7 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
 
 void fill_affected_collision_cells(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision_Grid_Cell*> *out_cells) {
     out_cells->clear();
-    Collision_Grid grid = session_context.collision_grid;
+    Collision_Grid grid = current_level_context->collision_grid;
     Vector2 center = position + bounds.offset;
     center += {(0.5f - pivot.x) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
     
@@ -5153,13 +5154,13 @@ void update_editor() {
             current_editor_level_context_index %= MAX_LOADED_LEVELS;    
             
             Level_Context *next_context = &loaded_levels_contexts[current_editor_level_context_index];
-            i32 cycled = 0;
-            while (cycled <= MAX_LOADED_LEVELS && next_context->level_name.count == 0) {
-                cycled += 1;
-                current_editor_level_context_index += 1;    
-                current_editor_level_context_index %= MAX_LOADED_LEVELS;    
-                next_context = &loaded_levels_contexts[current_editor_level_context_index];
-            }
+            // i32 cycled = 0;
+            // while (cycled <= MAX_LOADED_LEVELS && next_context->level_name.count == 0) {
+            //     cycled += 1;
+            //     current_editor_level_context_index += 1;    
+            //     current_editor_level_context_index %= MAX_LOADED_LEVELS;    
+            //     next_context = &loaded_levels_contexts[current_editor_level_context_index];
+            // }
             
             if (next_context->level_name.count > 0) {
                 editor_level_context = next_context;
@@ -5181,7 +5182,7 @@ void update_editor() {
         // NOTE that we can do this in editor beacuse we're recalculating static entities collision cells every frame, whereas
         // in game mode we're not doing that and grid origin in game mode should stay at where we've put it in beginning.
         Vector2 grid_target_pos = current_level_context->cam.position;
-        session_context.collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)session_context.collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)session_context.collision_grid.cell_size.y))};
+        current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
     }
     // Undo_Action undo_action;
     // b32 something_in_undo = false;
@@ -9021,12 +9022,12 @@ void update_move_sequence(Entity *entity, f32 dt) {
 }
 
 void update_all_collision_cells(b32 update_cells_for_static_entities) {
-    for (i32 i = 0; i < session_context.collision_grid.cells.count; i++) {        
-        session_context.collision_grid.cells.get(i)->dynamic_entities.clear();
+    for (i32 i = 0; i < current_level_context->collision_grid.cells.count; i++) {        
+        current_level_context->collision_grid.cells.get(i)->dynamic_entities.clear();
     }
     if (update_cells_for_static_entities) {
-        for (i32 i = 0; i < session_context.collision_grid.cells.count; i++) {        
-            session_context.collision_grid.cells.get(i)->static_entities.clear();
+        for (i32 i = 0; i < current_level_context->collision_grid.cells.count; i++) {        
+            current_level_context->collision_grid.cells.get(i)->static_entities.clear();
         }
     }
     
@@ -11075,7 +11076,7 @@ void new_render() {
         
         if (debug.draw_collision_grid) {
             // draw collision grid
-            Collision_Grid grid = session_context.collision_grid;
+            Collision_Grid grid = current_level_context->collision_grid;
             Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
             
             // update_entity_collision_cells(&mouse_entity);
