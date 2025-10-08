@@ -48,18 +48,33 @@ b32 window_minimized = false;
 
 #include "game.cpp"
 
-// void make_thing() {
-//     Image image = GenImageColor(256, 256, RED);
-    
-//     ImageDrawText(&image, "Y", 64, 32, 224, WHITE);
+void make_thing() {
+    // 🅁
+    const char *letter = "}";
 
-//     // RLAPI void ImageDrawText(Image *dst, const char *text, int posX, int posY, int fontSize, Color color);   // Draw text (using default font) within an image (destination)
-//     ExportImage(image, "test.png");
+    int size = 0;
+    // int codepoint = GetCodepoint("Ⓚ", &size);
+    // int codepoint = GetCodepoint("Ъ", &size);
+    int *codepoints = LoadCodepoints(letter, &size);
+    printf("%d\n", codepoints[0]);
+    Font font = LoadFontEx("Junicode-SmBold.ttf", 224, codepoints, size);
+    // Font font = LoadFont("NotoSans-Italic-VariableFont_wdth,wght.ttf");
+
+    // Image image = GenImageColor(256, 256, RED);
     
-// }
+    
+    // ImageDrawTextEx(&image, font, "Y", {64, 32}, 224, 0, WHITE);
+    Image image = ImageTextEx(font, letter, 224, 0, WHITE);
+
+    // RLAPI void ImageDrawText(Image *dst, const char *text, int posX, int posY, int fontSize, Color color);   // Draw text (using default font) within an image (destination)
+    ExportImage(image, "test.png");
+    
+}
 
 int main(){
-    // make_thing();
+    make_thing();
+    
+    return 0;
 
     SetTraceLogLevel(LOG_WARNING);
 
