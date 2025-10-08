@@ -15,6 +15,7 @@ inline Vector2 get_lightmap_pixel_size(Lightmap_Data* l){
 
 void save_lightmap_to_file(i32 index){
     Image lightmap_image = LoadImageFromTexture(current_level_context->lightmaps.get_value(index).global_illumination_rt.texture);
+    ImageFlipVertical(&lightmap_image); // Flipping becauase render textures in the raylib appears mirrored for some reason.
     ExportImage(lightmap_image, c_str(lightmap_name(index)));
     UnloadImage(lightmap_image);
 }
