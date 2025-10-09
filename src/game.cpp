@@ -1465,6 +1465,8 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & ENEMY) {
         assert(entity->union_enemy);
         entity->union_enemy->original_scale = entity->scale;
+        
+        entity->union_enemy->entity = entity;
     }
     
     // Load normal maps.
@@ -1536,6 +1538,8 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         if (entity->flags & ENEMY) {
             remove_flag(&entity->trigger->settings, PLAYER_TOUCH);
         }
+        
+        entity->trigger->entity = entity;
     }
     
     // init move sequence
@@ -4686,7 +4690,7 @@ void update_editor_ui() {
                 entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
                 
-                editor.just_spawned_entities_ids.append(entity->id);
+                editor.just_spawned_ids.append(entity->id);
             }
             
             if (obj.entity.flags & TEXTURE) {
@@ -4766,7 +4770,7 @@ Entity *editor_spawn_entity(const char *name, Vector2 position) {
     Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5));
     
     if (entity) {
-        editor.just_spawned_entities_ids.append(entity->id);
+        editor.just_spawned_ids.append(entity->id);
     }
     
     return entity;
@@ -5091,7 +5095,9 @@ b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold) {
     if (pressed) {
         result = true;
         repeat_data->action_time = core.time.app_time;
-    } else if (hold) {
+        repeat_data->hold_time = 0;
+        repeat_data->pressed_in_beginning = true;
+    } else if (hold && repeat_data->pressed_in_beginning) {
         f32 since_press = core.time.app_time - repeat_data->action_time;
         repeat_data->hold_time += core.time.real_dt;
         
@@ -5111,6 +5117,7 @@ b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold) {
     } else {
         repeat_data->hold_time = 0;
         repeat_data->repeating = false;
+        repeat_data->pressed_in_beginning = false;
     }
     
     return result;
@@ -5603,115 +5610,121 @@ void update_editor() {
         }
         
         switch_current_level_context(original_level_context);
+        
+        editor.level_context_on_last_copy = original_level_context;
+        
         editor.is_copied = true;
     }
     
     // editor paste
-    if (editor.is_copied && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V)) {
-        if (editor.copied_entities.count > 0) {
-            Vector2 paste_position = {round_to_factor(input.mouse_position.x, 5), round_to_factor(input.mouse_position.y, 5)};
+    if (editor.is_copied && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_V) && editor.copied_entities.count > 0) {
+        Vector2 paste_position = {round_to_factor(input.mouse_position.x, 5), round_to_factor(input.mouse_position.y, 5)};
+        
+        assign_selected_entity(NULL);
+        
+        Array<i32> spawned_ids = {.allocator = temp};
+        
+        clear_multiselected_entities();
+        for (i32 i = 0; i < editor.copied_entities.count; i++) {
+            Entity *to_spawn = editor.copied_entities.get_value(i);
+            Entity *spawned = copy_and_add_entity(to_spawn, current_level_context);
+            spawned_ids.append(spawned->id);
+            spawned->position += paste_position - editor.copied_entities_center;
+            editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
             
-            assign_selected_entity(NULL);
+            editor.just_spawned_ids.append(spawned->id);
             
-            Array<i32> spawned_ids = {.allocator = temp};
-            
-            clear_multiselected_entities();
-            for (i32 i = 0; i < editor.copied_entities.count; i++) {
-                Entity *to_spawn = editor.copied_entities.get_value(i);
-                Entity *spawned = copy_and_add_entity(to_spawn, current_level_context);
-                spawned_ids.append(spawned->id);
-                spawned->position += paste_position - editor.copied_entities_center;
-                editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
-                
-                editor.just_spawned_entities_ids.append(spawned->id);
-                
-                if (editor.copied_entities.count == 1) {
-                    assign_selected_entity(spawned);
-                } else {
-                    add_to_multiselection(spawned->id);
-                }
+            if (editor.copied_entities.count == 1) {
+                assign_selected_entity(spawned);
+            } else {
+                add_to_multiselection(spawned->id);
             }
-            assert(spawned_ids.count == editor.copied_entities.count);
-            
-            
-            // Right now we want to verify connected entities only to triggers.
-            // Again - that's because when we copy trigger and in multiselected was his connected guys - they will have different
-            // ids. We know original ids (in copied_entiies we keep ids because they in different level context)
-            // and we will know which ids they have now, because we track spawned entities and they 
-            // have the same indexes as copied entities. If that was a bad explanation I've explained it also in do-list 
-            // in 'Loading multiple levels' task.
-            for (i32 i = 0; i < spawned_ids.count; i++) {
-                Entity *spawned =  get_entity(spawned_ids.get_value(i));
-                if (spawned->flags & TRIGGER) {
-                    // We have original trigger connected and tracking in copied_entities.
-                    Trigger *spawned_trigger = spawned->trigger;
-                    
-                    spawned_trigger->connected.clear();                                      
-                    spawned_trigger->tracking.clear();
-                    
-                    Trigger *copied_trigger = editor.copied_entities.get_value(i)->trigger;
-                    assert(copied_trigger); // That should work because spawned_ids indexes should be the same as the copied indexes.
-                    // Here we want to go through all copied entities and find entities with ids from copied trigger->
-                    // Then we want to add entity from spawned with the same index to connected and tracked of new trigger->
-                    // That's confusing because it's just is. Not sure if it's even possible to make simpler.
-                    // But on the bright side - that's not so much code.
-                    //
-                    // UPDATE after ~3 months - completely understandable. Making same thing for KILL_SWITCH now.
-                    for (i32 x = 0; x < spawned_ids.count; x++) {
-                        Entity *other_copied_entity = editor.copied_entities.get_value(x);
-                        if (copied_trigger->connected.contains(other_copied_entity->id)) {
-                            spawned_trigger->connected.append(spawned_ids.get_value(x));
-                        }
-                        if (copied_trigger->tracking.contains(other_copied_entity->id)) {
-                            spawned_trigger->tracking.append(spawned_ids.get_value(x));
-                        }
-                    }
-                }
+        }
+        assert(spawned_ids.count == editor.copied_entities.count);
+        
+        
+        // Right now we want to verify connected entities only to triggers.
+        // Again - that's because when we copy trigger and in multiselected was his connected guys - they will have different
+        // ids. We know original ids (in copied_entiies we keep ids because they in different level context)
+        // and we will know which ids they have now, because we track spawned entities and they 
+        // have the same indexes as copied entities. If that was a bad explanation I've explained it also in do-list 
+        // in 'Loading multiple levels' task.
+        for (i32 i = 0; i < spawned_ids.count; i++) {
+            Entity *spawned =  get_entity(spawned_ids.get_value(i));
+            Entity *copied = editor.copied_entities.get_value(i);
+            if (spawned->flags & TRIGGER) {
+                // We have original trigger connected and tracking in copied_entities.
+                Trigger *spawned_trigger = spawned->trigger;
                 
-                if (spawned->flags & KILL_SWITCH) { 
-                    Kill_Switch *spawned_kill_switch = spawned->kill_switch;
-                    Kill_Switch *copied_kill_switch = editor.copied_entities.get_value(i)->kill_switch;
-                    assert(copied_kill_switch); // That should work because spawned_ids indexes should be the same as the copied indexes.
-                    spawned_kill_switch->connected.clear();
-                    
-                    for (i32 x = 0; x < spawned_ids.count; x++) {
-                        Entity *other_copied = editor.copied_entities.get_value(x);
-                        if (copied_kill_switch->connected.contains(other_copied->id)) {
-                            spawned_kill_switch->connected.append(spawned_ids.get_value(x));
-                        }
-                    }
-                }
+                spawned_trigger->connected.clear();                                      
+                spawned_trigger->tracking.clear();
                 
-                // This thing is trying to catch that moment where we paste entity that was connected to some trigger or kill switch
-                // and we want to assign pasted entity to this trigger or kill switch.
-                // (Actually entity itself don't know it is connected to something, so we're going through all triggers/killswitches
-                // and look for original copied entity id - that means our original was connected and we connecting newly created one).
+                Trigger *copied_trigger = copied->trigger;
+                assert(copied_trigger); // That should work because spawned_ids indexes should be the same as the copied indexes.
+                // Here we want to go through all copied entities and find entities with ids from copied trigger->
+                // Then we want to add entity from spawned with the same index to connected and tracked of new trigger->
+                // That's confusing because it's just is. Not sure if it's even possible to make simpler.
+                // But on the bright side - that's not so much code.
                 //
-                // We check for spawned entities count because that's actually could be frustrating
-                // when we copy big chunks of level    
-                // without trigger and trigger connecting to new level parts that could be not even relevant to him.
-                if (spawned_ids.count < 10) {
-                    i32 originally_copied_id = editor.copied_entities.get_value(i)->id;
-                    i32 spawned_id = spawned->id;
-                    ForEntities(entity, TRIGGER | KILL_SWITCH) {
-                        // If this trigger or kill switch happened to be in copied - we do not assign anything new to him, 
-                        // because he will want to have his own connected.
-                        // That's somewhat hard to understand for some reason, but that's just works and *prevents* situations
-                        // when in pasted [trigger, enemy] enemy connects to old trigger aswell.
-                        if (entity_array_contains_id(editor.copied_entities.data, editor.copied_entities.count, entity->id)) {
-                            continue;
-                        }
-                        if (entity->flags & TRIGGER && entity->trigger->connected.contains(originally_copied_id)) {
-                            entity->trigger->connected.append(spawned_id);
-                        }
-                        
-                        if (entity->flags & KILL_SWITCH && entity->kill_switch->connected.contains(originally_copied_id)) {
-                            entity->kill_switch->connected.append(spawned_id);
-                        }
+                // UPDATE after ~3 months - completely understandable. Making same thing for KILL_SWITCH now.
+                for (i32 x = 0; x < spawned_ids.count; x++) {
+                    Entity *other_copied_entity = editor.copied_entities.get_value(x);
+                    if (copied_trigger->connected.contains(other_copied_entity->id)) {
+                        spawned_trigger->connected.append(spawned_ids.get_value(x));
+                    }
+                    if (copied_trigger->tracking.contains(other_copied_entity->id)) {
+                        spawned_trigger->tracking.append(spawned_ids.get_value(x));
                     }
                 }
             }
-        } else {
+            
+            if (spawned->flags & KILL_SWITCH) { 
+                Kill_Switch *spawned_kill_switch = spawned->kill_switch;
+                Kill_Switch *copied_kill_switch = copied->kill_switch;
+                assert(copied_kill_switch); // That should work because spawned_ids indexes should be the same as the copied indexes.
+                spawned_kill_switch->connected.clear();
+                
+                for (i32 x = 0; x < spawned_ids.count; x++) {
+                    Entity *other_copied = editor.copied_entities.get_value(x);
+                    if (copied_kill_switch->connected.contains(other_copied->id)) {
+                        spawned_kill_switch->connected.append(spawned_ids.get_value(x));
+                    }
+                }
+            }
+            
+            // This thing is trying to catch that moment where we paste entity that was connected to some trigger or kill switch
+            // and we want to assign pasted entity to this trigger or kill switch.
+            // (Actually entity itself don't know it is connected to something, so we're going through all triggers/killswitches
+            // and look for original copied entity id - that means our original was connected and we connecting newly created one).
+            //
+            // We check for spawned entities count because that's actually could be frustrating
+            // when we copy big chunks of level    
+            // without trigger and trigger connecting to new level parts that could be not even relevant to him.
+            // (10 is just arbitrary number).
+            //
+            // And we do all that only for copying pasting in the same level context.
+            if (spawned_ids.count < 10 && str_equal(spawned->level_context->name, editor.level_context_on_last_copy->name)) {
+                for_chunk_array(j, &current_level_context->triggers) {
+                    Trigger *trigger = current_level_context->triggers.get(j);
+                    
+                    if (trigger->connected.contains(copied->id)) {
+                        assert(!trigger->connected.contains(spawned->id));
+                        trigger->connected.append(spawned->id);
+                    }
+                    if (trigger->tracking.contains(copied->id)) {
+                        assert(!trigger->tracking.contains(spawned->id));
+                        trigger->tracking.append(spawned->id);
+                    }
+                }
+                for_chunk_array(j, &current_level_context->kill_switches) {
+                    Kill_Switch *kill_switch = current_level_context->kill_switches.get(j);
+                    
+                    if (kill_switch->connected.contains(copied->id)) {
+                        assert(!kill_switch->connected.contains(spawned->id));
+                        kill_switch->connected.append(spawned->id);
+                    }
+                }
+            }
         }
     }
     

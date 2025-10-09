@@ -155,9 +155,9 @@ struct Array {
         count = half_count;
     }
     
-    inline b32 contains(T *to_found) {
+    inline b32 contains(T *to_find) {
         for_array(i, this) {
-            if (*get(i) == *to_found) {
+            if (*get(i) == *to_find) {
                 return true;
             }
         }
@@ -165,8 +165,18 @@ struct Array {
         return false;
     }
     
-    inline b32 contains(T to_found) {
-        return contains(&to_found);
+    inline b32 contains(T to_find) {
+        return contains(&to_find);
+    }
+    
+    inline b32 contains_at_least_one(Array <T> *another_array) {
+        for_array(i, another_array) {
+            if (contains(another_array->get(i))) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     inline i32 find(T *to_find) {    
@@ -327,9 +337,9 @@ struct Static_Array {
         count = half_count;
     }
     
-    b32 contains(T *to_found) {
+    b32 contains(T *to_find) {
         for_array(i, this) {
-            if (*get(i) == *to_found) {
+            if (*get(i) == *to_find) {
                 return true;
             }
         }
@@ -337,8 +347,8 @@ struct Static_Array {
         return false;
     }
     
-    inline b32 contains(T to_found) {
-        return contains(&to_found);
+    inline b32 contains(T to_find) {
+        return contains(&to_find);
     }
     
     i32 find(T *to_find) {    

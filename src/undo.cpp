@@ -1,6 +1,7 @@
 #pragma once
 
 #define CHECK_CHANGES_COUNT true
+#define LOG_UNDO_DIFFERENCES true
 
 inline void undo_mark_entity_changed(Entity *entity) {
     entity->runtime_only_flags |= EDITOR_CHANGED;
@@ -131,6 +132,10 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
         log_short("Something was marked as udno changed but we've not detected any changes!");
     }
     
+    if (LOG_UNDO_DIFFERENCES) {
+        log_short("Undo diff added");
+    }
+    
     return changes;
 }
 
@@ -171,10 +176,11 @@ inline void update_undo_logic() {
         add_changes_to_undo(&changes);
         
         assert(found_one_that_will_be_destroyed);
-    } else if (editor.just_spawned_entities_ids.count > 0) {
+    } else if (editor.just_spawned_ids.count > 0) {
+        log_short("i here");
         Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
-        for_array(i, &editor.just_spawned_entities_ids) {
-            Entity *spawned = get_entity(editor.just_spawned_entities_ids.get_value(i));    
+        for_array(i, &editor.just_spawned_ids) {
+            Entity *spawned = get_entity(editor.just_spawned_ids.get_value(i));    
             
             changes.append({
                 .entity_id = spawned->id,
@@ -183,8 +189,63 @@ inline void update_undo_logic() {
             });
         }
         
+        // Like in case of registering entity destroy undo - here we want to go through all entities aswell to look for 
+        // entities that started referring to newly created entity right after birth. (One that example is if we copying 
+        // entity that is connected to a trigger - after paste new entity will be automatically connected to same trigger).
+        for_chunk_array(i, &current_level_context->entities) {
+            Entity *entity = current_level_context->entities.get(i);
+            
+            if (editor.just_spawned_ids.contains(entity->id)) continue; // Just in case.
+            
+            // Here we need to manually go through all arrays that may have reference to newly created entity because 
+            // we actually don't have a copy of entity before there was added reference to new entity. It just happens.
+            if (entity->flags & TRIGGER) {
+                Trigger *trigger = entity->trigger;
+                for_array(j, &editor.just_spawned_ids) {
+                    if (trigger->connected.contains(editor.just_spawned_ids.get(j))) {
+                        changes.append({
+                            .entity_id = entity->id,  
+                            .change_type = ARRAY_APPENDED,
+                            .number_appended = editor.just_spawned_ids.get_value(j),
+                            .changed_array = &trigger->connected
+                        });
+                    }
+                    if (trigger->tracking.contains(editor.just_spawned_ids.get(j))) {
+                        changes.append({
+                            .entity_id = entity->id,  
+                            .change_type = ARRAY_APPENDED,
+                            .number_appended = editor.just_spawned_ids.get_value(j),
+                            .changed_array = &trigger->tracking
+                        });
+                    }
+                }
+            }
+            if (entity->flags & KILL_SWITCH) {
+                Kill_Switch *kill_switch = entity->kill_switch;
+                for_array(j, &editor.just_spawned_ids) {
+                    if (kill_switch->connected.contains(editor.just_spawned_ids.get(j))) {
+                        changes.append({
+                            .entity_id = entity->id,  
+                            .change_type = ARRAY_APPENDED,
+                            .number_appended = editor.just_spawned_ids.get_value(j),
+                            .changed_array = &kill_switch->connected
+                        });
+                    }
+                }
+            }
+            
+            // if (entity->runtime_only_flags & EDITOR_CHANGED) {
+            //     entity->runtime_only_flags ^= EDITOR_CHANGED;
+
+            //     auto entity_change = get_entities_difference(entity, unchanged_entity, temp);
+            //     changes.append_another_array(&entity_change);
+            // }
+            
+            // free_entity(unchanged_entity);
+        }
+        
         add_changes_to_undo(&changes);
-        editor.just_spawned_entities_ids.clear();
+        editor.just_spawned_ids.clear();
     } else if (editor.multiselection.entities.count > 0) {
         assert(editor.multiselection.entities.count == editor.multiselection.unchanged_copies.count);
         if (get_entity(editor.multiselection.entities.get_value(0))->runtime_only_flags & EDITOR_CHANGED) {
