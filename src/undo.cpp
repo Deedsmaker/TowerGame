@@ -14,51 +14,39 @@ void add_changes_to_undo(Array <Entity_Undo_Change> *changes) {
     current_level_context->max_undos_added = current_level_context->undo_actions.count;
 }
 
-Entity_Undo_Change get_i32_array_difference(i32 entity_id, Array <i32> *changed, Array <i32> *original) { 
+Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *changed, Array <i32> *original) { 
+    Array <Entity_Undo_Change> changes = {.allocator = temp};
+
     if (changed->count > original->count) {
-        Entity_Undo_Change change =  {
-            .entity_id = entity_id,
-            .change_type = ARRAY_APPENDED,
-            .number_appended = changed->last_value(),
-            .changed_array = changed
-        };
-        
-        return change;
-    } else if (changed->count < original->count) {
-        // @TODO: Clearing.
-        // if (changed->count == 0) {
-        //     Entity_Undo_Change change = {
-        //         .entity_id = entity_id;  
-        //         .change_type = ARRAY_CLEARED,
-        //         .changed_array = chagned,
-        //     };
-        // }
-    
-        i32 removed_number = 0;            
-        for_array(i, original) {
-            if (i >= changed->count) {
-                removed_number = original->get_value(i);
-                break;
-            }
-            if (changed->get_value(i) != original->get_value(i)) {
-                removed_number = original->get_value(i);
-                break;
-            }
+        Array <i32> differences = changed->get_unique_elements_differences(original);
+        assert(differences.count > 0);
+        for_array(i, &differences) {
+            Entity_Undo_Change change =  {
+                .entity_id = entity_id,
+                .change_type = ARRAY_APPENDED,
+                .number_appended = differences.get_value(i),
+                .changed_array = changed
+            };
+            
+            changes.append(change);
         }
-        
-        assert(removed_number > 0); // That's because we're talking about numbers.
-        
-        Entity_Undo_Change change =  {
-            .entity_id = entity_id,
-            .change_type = ARRAY_REMOVED,
-            .number_removed = removed_number,
-            .changed_array = changed
-        };
-        
-        return change;
+    } else if (changed->count < original->count) {
+        Array <i32> differences = changed->get_unique_elements_differences(original);
+        assert(differences.count > 0);
+        for_array(i, &differences) {
+            Entity_Undo_Change change =  {
+                .entity_id = entity_id,
+                .change_type = ARRAY_REMOVED,
+                .number_removed = differences.get_value(i),
+                .changed_array = changed
+            };
+            
+            changes.append(change);
+    
+        }
     }
     
-    return {0};
+    return changes;
 }
 
 Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *original, Allocator *allocator = HEAP_ALLOCATOR) {
@@ -105,16 +93,16 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
     }
     
     if (changed->flags & TRIGGER) {
-        Entity_Undo_Change connected_change = get_i32_array_difference(changed->id, &changed->trigger->connected, &original->trigger->connected);
-        if (connected_change.change_type != NO_CHANGE) changes.append(connected_change);
+        auto connected_changes = get_i32_array_difference(changed->id, &changed->trigger->connected, &original->trigger->connected);
+        changes.append_another_array(&connected_changes);
         
-        Entity_Undo_Change tracking_change = get_i32_array_difference(changed->id, &changed->trigger->tracking, &original->trigger->tracking);
-        if (tracking_change.change_type != NO_CHANGE) changes.append(tracking_change);
+        auto tracking_changes = get_i32_array_difference(changed->id, &changed->trigger->tracking, &original->trigger->tracking);
+        changes.append_another_array(&tracking_changes);
     }
     
     if (changed->flags & KILL_SWITCH) {
-        auto connected_change = get_i32_array_difference(changed->id, &changed->kill_switch->connected, &original->kill_switch->connected);    
-        if (connected_change.change_type != NO_CHANGE) changes.append(connected_change);
+        auto connected_changes = get_i32_array_difference(changed->id, &changed->kill_switch->connected, &original->kill_switch->connected);    
+        changes.append_another_array(&connected_changes);
     }
     
     // We're not performing any check if there was no actual changes because that's just allowes us make less checks in actual

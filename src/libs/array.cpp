@@ -179,6 +179,22 @@ struct Array {
         return false;
     }
     
+    // Returns a array of elements that present in one and not in another.
+    // Does not tries to look at duplicates, checks only for unique elements.
+    inline Array <T> get_unique_elements_differences(Array <T> *another_array) {
+        Array <T> result = {.allocator = temp};
+        
+        Array <T> *biggest = count > another_array->count ? this : another_array;
+        Array <T> *smallest = count > another_array->count ? another_array : this;
+        for_array(i, biggest) {
+            if (!smallest->contains(biggest->get(i))) {
+                result.append(biggest->get_value(i));
+            }
+        }
+        
+        return result;
+    }
+    
     inline i32 find(T *to_find) {    
         for_array(i, this) {
             if (*get(i) == *to_find) {
