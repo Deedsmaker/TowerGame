@@ -11077,7 +11077,7 @@ void new_render() {
                 lightmap_texture = lightmap_data->global_illumination_rt.texture;
             }
     
-            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
         }
     } EndMode2D();
     } EndTextureMode();
@@ -11137,7 +11137,7 @@ void new_render() {
                 lightmap_texture = lightmap_data->global_illumination_rt.texture;
             }
             
-            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
             draw_game_texture(lightmap_data->normal_rt.texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
         }
         EndMode2D();
