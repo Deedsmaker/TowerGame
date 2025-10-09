@@ -111,6 +111,8 @@ int main(){
     
     // return 0;
 
+    // main_font = LoadFont("resources/MonospaceBold.ttf");
+
     SetTraceLogLevel(LOG_WARNING);
 
     InitWindow(screen_width, screen_height, "Pure Action");

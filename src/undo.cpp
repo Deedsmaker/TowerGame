@@ -219,6 +219,8 @@ inline void update_undo_logic() {
         editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
     }
 
+    // A little hack for simple fix of a problem where undo being queued after redo if first button released was shift.
+
     local_persist Repeat_Action undo_repeat_data = {.hold_time_to_action = 0.2f, .start_repeat_action_delay = 0.08f, .should_sped_up = true, .sped_up_repeat_action_delay = 0.01f};
     
     b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
@@ -307,7 +309,6 @@ inline void update_undo_logic() {
     b32 redo_holded  = redo_required_helper_keys_down && IsKeyDown(KEY_Z);
     
     b32 redo_queued = is_action_queued(&redo_repeat_data, redo_pressed, redo_holded);
-    
     
     // b32 redo_required_helper_keys_down = IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
     // b32 redo_pressed = redo_required_helper_keys_down && IsKeyPressed(KEY_Z);

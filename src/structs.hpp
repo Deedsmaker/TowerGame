@@ -301,8 +301,11 @@ struct Projectile_Settings {
     f32 max_lifetime = 7.0f;
 };
 
+struct Entity;
+
 struct Enemy {
     i32 index = -1;
+    Entity *entity = NULL;
 
     b32 dead_man = false;  
     b32 in_agro = false;
@@ -491,6 +494,7 @@ enum Trigger_Settings : FLAGS {
 };
 
 struct Trigger {
+    Entity *entity;
     i32 index = -1;
 
     FLAGS settings = SHOWS_ENTITIES | PLAYER_TOUCH | OPEN_DOORS | AGRO_ENEMIES | STARTS_MOVING_SEQUENCE;
@@ -1060,6 +1064,7 @@ enum Death_Instinct_Reason{
 struct Repeat_Action {
     f32 hold_time_to_action = 0.2f;
     f32 start_repeat_action_delay = 0.08f;
+    b32 pressed_in_beginning = false;
     
     b32 should_sped_up = true;
     f32 sped_up_repeat_action_delay = 0.01f;
@@ -1449,9 +1454,9 @@ struct Editor {
     Array <i32> multiselected_entities = {0};
     
     Vector2 copied_entities_center = Vector2_zero;
+    Level_Context *level_context_on_last_copy = NULL;
     Array <Entity *> copied_entities = {0};
     
-    Entity *copied_entity = {0};
     b32 is_copied;
     
     Vector2 *moving_vertex = NULL;
