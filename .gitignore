@@ -56,4 +56,4 @@
 *.ilk
 
 /build/levels/autosaves/
-
+/build/temp/

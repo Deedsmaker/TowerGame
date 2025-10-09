@@ -48,33 +48,68 @@ b32 window_minimized = false;
 
 #include "game.cpp"
 
-void make_thing() {
-    // 🅁
-    const char *letter = "}";
+// void make_thing() {
+//     const char *letters = "QWERTYUIOPASDFGHJKLZXCVBNM";
 
-    int size = 0;
-    // int codepoint = GetCodepoint("Ⓚ", &size);
-    // int codepoint = GetCodepoint("Ъ", &size);
-    int *codepoints = LoadCodepoints(letter, &size);
-    printf("%d\n", codepoints[0]);
-    Font font = LoadFontEx("Junicode-SmBold.ttf", 224, codepoints, size);
-    // Font font = LoadFont("NotoSans-Italic-VariableFont_wdth,wght.ttf");
-
-    // Image image = GenImageColor(256, 256, RED);
+//     int size = 0;
+//     int *codepoints = LoadCodepoints(letters, &size);
+//     printf("%d\n", codepoints[0]);
+//     f32 font_size = 224;
+//     Font font = LoadFontEx("MonospaceBold.ttf", font_size, codepoints, size);
     
+//     char str[256] = {0};
     
-    // ImageDrawTextEx(&image, font, "Y", {64, 32}, 224, 0, WHITE);
-    Image image = ImageTextEx(font, letter, 224, 0, WHITE);
-
-    // RLAPI void ImageDrawText(Image *dst, const char *text, int posX, int posY, int fontSize, Color color);   // Draw text (using default font) within an image (destination)
-    ExportImage(image, "test.png");
+//     Array <Image> backgrounds = {0};
+//     backgrounds.append(LoadImage("temp/blue.png"));
+//     backgrounds.append(LoadImage("temp/purple.png"));
+//     backgrounds.append(LoadImage("temp/white.png"));
+//     backgrounds.append(LoadImage("temp/pink.png"));
     
-}
+//     for_array(b, &backgrounds) {
+//         Image background = backgrounds.get_value(b);
+    
+//         for (i32 i = 0; i < size; i++) {
+//             sprintf(str, "%c", letters[i]);
+//             printf(str);
+//             // Image image = GenImageColor(256, 256, RED);
+//             Image image = ImageCopy(background);
+            
+//             Rectangle rec = {256 - font_size, 256 - font_size, font_size - (256-font_size), font_size - (256-font_size)};
+            
+//             Color color = b < 2 ? WHITE : BLACK;
+//             // Color color = WHITE;
+            
+//             ImageDrawRectangleLines(&image, rec, 5, color);
+            
+//             Rectangle glyphRec = font.recs[i];
+//             GlyphInfo glyph = font.glyphs[i];
+            
+            
+//             Vector2 center = {128, 128};
+            
+//             Vector2 position = {center.x - (glyphRec.width * 0.5f) - glyph.offsetX, 0};
+            
+//             if (str[0] != 'Q') {
+//                 position.y += 10;
+//             } else {
+//                 position.y -= 5;
+//             }
+            
+//             ImageDrawTextEx(&image, font, str, position, font_size, 0, color);
+            
+//             ExportImage(image, tprintf("temp/result/Achievement_%d_%s.jpg", b, str));
+            
+//             ImageColorGrayscale(&image);
+//             ImageColorBrightness(&image, -70);
+//             ExportImage(image, tprintf("temp/result/Achievement_%d_%s_gray.jpg", b, str));
+//         }
+//     }
+// }
 
 int main(){
-    make_thing();
+    // make_thing();
     
-    return 0;
+    // return 0;
 
     SetTraceLogLevel(LOG_WARNING);
 
