@@ -9073,7 +9073,7 @@ void update_all_collision_cells(b32 update_cells_for_static_entities) {
 }
 
 void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings settings, Projectile_Type type, Color color) {
-    Vector2 scale = {2, 4};
+    Vector2 scale = {3, 8};
     
     if (type == TURRET_HOMING_PROJECTILE) {
         scale *= 2;
@@ -9120,7 +9120,7 @@ inline void update_turret(Entity *entity, f32 dt) {
     
     turret->see_player = false;
     if (turret->homing) {
-        projectile_type = TURRET_HOMING_PROJECTILE;
+        // projectile_type = TURRET_HOMING_PROJECTILE;
         projectile_color = ColorBrightness(ORANGE, -0.2f);
         
         // f32 sqr_distance = sqr_magnitude(vec_to_player);
