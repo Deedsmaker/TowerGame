@@ -10119,25 +10119,6 @@ void fill_entities_draw_queue() {
             }
         }
         
-        // always draw kill switch
-        if (entity->flags & KILL_SWITCH) {
-            Kill_Switch *kill_switch = entity->kill_switch;
-            for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity(kill_switch->connected.get_value(i));                
-                if (!connected) {
-                    continue;
-                }
-                
-                f32 width = 3.0f;
-                Vector2 first = entity->position;
-                Vector2 second = {connected->position.x, entity->position.y};
-                Vector2 third = connected->position;
-                Color color = Fade(YELLOW, 0.7f);
-                draw_game_line(first, second, width, color);
-                draw_game_line(second, third, width, color);
-            }
-        }
-        
         // always draw sticky texture
         if (entity->flags & STICKY_TEXTURE) {
             Sticky_Texture *st = entity->sticky_texture;
@@ -10665,6 +10646,26 @@ void draw_entities() {
         }
         
         draw_entity(e);
+        
+        // Always draw on top.
+        // Always draw kill switch on top.
+        if (e->flags & KILL_SWITCH) {
+            Kill_Switch *kill_switch = e->kill_switch;
+            for (i32 i = 0; i < kill_switch->connected.count; i++) {
+                Entity *connected = get_entity(kill_switch->connected.get_value(i));                
+                if (!connected) {
+                    continue;
+                }
+                
+                f32 width = 3.0f;
+                Vector2 first = e->position;
+                Vector2 second = {connected->position.x, e->position.y};
+                Vector2 third = connected->position;
+                Color color = Fade(YELLOW, 0.7f);
+                draw_game_line(first, second, width, color);
+                draw_game_line(second, third, width, color);
+            }
+        }
     }
 }
 

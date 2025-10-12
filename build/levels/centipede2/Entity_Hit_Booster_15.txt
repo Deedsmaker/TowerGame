@@ -1,6 +1,6 @@
 name Hit_Booster 
- id 12 
- position { -233.272583,  171.832458} 
+ id 15 
+ position { -270.000000,  185.000000} 
  scale { 8.000000,  12.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 

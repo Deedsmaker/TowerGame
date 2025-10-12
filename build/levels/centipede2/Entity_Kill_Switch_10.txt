@@ -1,0 +1,16 @@
+name Kill_Switch 
+ id 10 
+ position { -274.241455,  315.457428} 
+ scale { 20.000000,  10.000000} 
+ pivot { 0.500000,  0.500000} 
+ rotation 0.000000 
+ color { 237,  105,  115,  255} 
+ flags 549755813896 
+ draw_order 99 
+ vertices [ { 10.707107,  5.707107} { -10.707107,  5.707107} { 10.707107,  -5.707107} { -10.707107,  -5.707107} ] 
+ unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ kill_switch_connected [   9 ] 
+ enemy_gives_ammo 0 
+ 
