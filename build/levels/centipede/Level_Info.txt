@@ -1,0 +1,3 @@
+player_spawn_point {-270.210083, 157.676224}
+ lightmaps [ ];
+ 

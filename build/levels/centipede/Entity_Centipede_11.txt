@@ -1,0 +1,27 @@
+name Centipede 
+ id 11 
+ position { -80.000000,  335.000000} 
+ scale { 9.000000,  10.000000} 
+ pivot { 0.500000,  0.500000} 
+ rotation 165.000000 
+ color { 245,  169,  175,  255} 
+ flags 10485768 
+ draw_order 100 
+ vertices [ { -0.039559,  -6.178594} { 3.123554,  -5.331040} { -6.506784,  4.164943} { 3.552571,  6.860340} ] 
+ unscaled_vertices [  { -0.015479,  -0.521786} { 0.274298,  -0.444140} { -0.612372,  0.353553} { 0.353553,  0.612372} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ move_sequence_points [  { -76.147583,  326.332458} { -69.022583,  328.957458} { -62.647583,  332.332458} { -55.522583,  322.207458} { -56.647583,  292.957458} { -52.522583,  248.707458} { -64.147583,  231.082458} { -194.272583,  238.582458} { -242.272598,  240.832458} { -249.397598,  267.082458} { -253.897598,  308.707458} { -231.022598,  339.082458} ] 
+ move_sequence_moving 1 
+ move_sequence_speed 75.000000 
+ move_sequence_loop 1 
+ move_sequence_rotate 1 
+ move_sequence_speed_related_player_distance 0 
+ move_sequence_min_distance 100.000000 
+ move_sequence_max_distance 300.000000 
+ move_sequence_max_distance_speed 20.000000 
+ spikes_on_right 0 
+ spikes_on_left 0 
+ segments_count 32 
+ enemy_gives_ammo 0 
+ 

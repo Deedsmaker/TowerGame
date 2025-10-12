@@ -165,7 +165,6 @@ inline void update_undo_logic() {
         
         assert(found_one_that_will_be_destroyed);
     } else if (editor.just_spawned_ids.count > 0) {
-        log_short("i here");
         Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
         for_array(i, &editor.just_spawned_ids) {
             Entity *spawned = get_entity(editor.just_spawned_ids.get_value(i));    

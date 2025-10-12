@@ -502,6 +502,8 @@ struct Trigger {
     Array <i32> connected = {0};
     Array <i32> tracking = {0};
     
+    i32 start_tracking_count = 0;
+    
     Array <Vector2> cam_rails_points = {0};
     
     f32 zoom_value = 0.35f;

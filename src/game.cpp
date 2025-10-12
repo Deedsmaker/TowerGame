@@ -1514,9 +1514,9 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }        
     
+    // Init door.
     if (entity->flags & DOOR) {
         entity->flags |= TRIGGER;
-        remove_flag(&entity->trigger->settings, PLAYER_TOUCH);
     }
     
     // init trigger 
@@ -1533,11 +1533,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         if (entity->flags & DOOR) {
             remove_flag(&entity->trigger->settings, PLAYER_TOUCH);
+            entity->trigger->settings |= DRAW_LINES_TO_TRACKED;
         }
         
         if (entity->flags & ENEMY) {
             remove_flag(&entity->trigger->settings, PLAYER_TOUCH);
         }
+        
+        entity->trigger->start_tracking_count = entity->trigger->tracking.count;
         
         entity->trigger->entity = entity;
     }
@@ -8790,22 +8793,24 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
 i32 update_trigger(Entity *e) {
     assert(e->flags & TRIGGER);
     
+    Trigger *trigger = e->trigger;
+    
     b32 trigger_now = false;
     
-    if (e->trigger->debug_should_trigger_now) {
-        e->trigger->debug_should_trigger_now = false;
+    if (trigger->debug_should_trigger_now) {
+        trigger->debug_should_trigger_now = false;
         trigger_now = true;
     }
     
     if (e->flags & ENEMY && e->union_enemy->dead_man) {
-        if (e->trigger->triggered) {
+        if (trigger->triggered) {
             return TRIGGER_SOME_ACTION;
         }
     
         trigger_now = true;
     }
     
-    if (e->trigger->settings & KILL_ENEMIES) {
+    if (trigger->settings & KILL_ENEMIES) {
         fill_collisions(e, &collisions_buffer, ENEMY);
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
@@ -8813,10 +8818,12 @@ i32 update_trigger(Entity *e) {
         }
     }
     
-    if (/*e->trigger->track_enemies*/ e->trigger->tracking.count > 0 && !e->trigger->triggered) {
+    // Here we check for enemies that would be assigned as dead_man and will not be automatically removed from tracking 
+    // array. Below we check for original count and if enemy was completely destroyed and count becomes zero - we'll detect that.
+    if (trigger->tracking.count > 0 && !trigger->triggered) {
         b32 found_enemy = false;
-        for (i32 i = 0; i < e->trigger->tracking.count; i++) {
-            i32 id = e->trigger->tracking.get_value(i);
+        for (i32 i = 0; i < trigger->tracking.count; i++) {
+            i32 id = trigger->tracking.get_value(i);
             
             Entity *tracking_entity = get_entity(id);
 
@@ -8831,11 +8838,15 @@ i32 update_trigger(Entity *e) {
         }
     }
     
-    if (trigger_now || (e->trigger->settings & PLAYER_TOUCH) && check_entities_collision(e, player_entity).collided) {
-        if (e->trigger->settings & FORBID_PLAYER_SHOOT) {
+    if (trigger->start_tracking_count > 0 && trigger->tracking.count == 0 && !trigger->triggered) {
+        trigger_now = true;
+    }
+    
+    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && check_entities_collision(e, player_entity).collided) {
+        if (trigger->settings & FORBID_PLAYER_SHOOT) {
             player_data->can_shoot = false;
         }
-        if (e->trigger->settings & ALLOW_PLAYER_SHOOT) {
+        if (trigger->settings & ALLOW_PLAYER_SHOOT) {
             player_data->can_shoot = true;
         }
     
@@ -8854,86 +8865,86 @@ i32 update_trigger(Entity *e) {
             state_context.playing_relax = true;
         }
     
-        if (e->trigger->settings & LOAD_LEVEL) {
-            b32 we_on_last_level = str_equal(e->trigger->level_name, "LAST_LEVEL_MARK");
+        if (trigger->settings & LOAD_LEVEL) {
+            b32 we_on_last_level = str_equal(trigger->level_name, "LAST_LEVEL_MARK");
             if (we_on_last_level || session_context.speedrun_timer.level_timer_active) {
                 win_level();
             } else {
                 enter_game_state_on_new_level = true;
                 last_player_data = *player_data;
-                load_level(tstring(e->trigger->level_name));
+                load_level(tstring(trigger->level_name));
                 return TRIGGER_LEVEL_LOAD;
             }
         }
         
-        if (e->trigger->settings & PLAY_REPLAY) {
+        if (trigger->settings & PLAY_REPLAY) {
             if (!session_context.playing_replay) {
-                load_replay(e->trigger->replay_name);
+                load_replay(trigger->replay_name);
             }
         }
         
-        if (e->trigger->settings & START_CAM_RAILS_HORIZONTAL) {
+        if (trigger->settings & START_CAM_RAILS_HORIZONTAL) {
             state_context.cam_state.on_rails_horizontal = true;
             state_context.cam_state.on_rails_vertical = false;
             state_context.cam_state.locked = false;
             state_context.cam_state.rails_trigger_id = e->id;
         }
-        if (e->trigger->settings & START_CAM_RAILS_VERTICAL) {
+        if (trigger->settings & START_CAM_RAILS_VERTICAL) {
             state_context.cam_state.on_rails_vertical = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.locked = false;
             state_context.cam_state.rails_trigger_id = e->id;
         }
-        if (e->trigger->settings & STOP_CAM_RAILS) {
+        if (trigger->settings & STOP_CAM_RAILS) {
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical   = false;
             state_context.cam_state.rails_trigger_id = -1;
         }
         
-        if (e->trigger->settings & PLAY_SOUND && !e->trigger->triggered) {
-            play_sound(e->trigger->sound_name);
+        if (trigger->settings & PLAY_SOUND && !trigger->triggered) {
+            play_sound(trigger->sound_name);
         }
         
-        if (e->trigger->settings & CHANGE_ZOOM) {
+        if (trigger->settings & CHANGE_ZOOM) {
             // With wide monitors happening cut in vertical space so we need to calculate zoom with aspect ratio.
             // 16:9 it's 1.777777 aspect_ratio
             // 21:9 it's 2.333333 aspect_ratio
-            f32 target_zoom = e->trigger->zoom_value;
+            f32 target_zoom = trigger->zoom_value;
             target_zoom /= (aspect_ratio / 1.77777f);
             current_level_context->cam.target_zoom = target_zoom;
         }
         
-        if (e->trigger->settings & UNLOCK_CAMERA) {
+        if (trigger->settings & UNLOCK_CAMERA) {
             state_context.cam_state.locked = false;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
-        } else if (e->trigger->settings & LOCK_CAMERA) {
+        } else if (trigger->settings & LOCK_CAMERA) {
             state_context.cam_state.locked = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
-            current_level_context->cam.target = e->trigger->locked_camera_position;
+            current_level_context->cam.target = trigger->locked_camera_position;
         }
     
         if (e->flags & DOOR) {
             trigger_entity(e, e);
         }
     
-        if (e->trigger->settings & KILL_PLAYER) {
+        if (trigger->settings & KILL_PLAYER) {
             kill_player();
         }
         
-        for (i32 i = 0; i < e->trigger->connected.count; i++) {
-            i32 id = e->trigger->connected.get_value(i);
+        for (i32 i = 0; i < trigger->connected.count; i++) {
+            i32 id = trigger->connected.get_value(i);
             
             Entity *connected_entity = get_entity(id);
                         
             trigger_entity(e, connected_entity);
         }
         
-        e->trigger->triggered = true;
-        e->trigger->triggered_time = core.time.game_time;
+        trigger->triggered = true;
+        trigger->triggered_time = core.time.game_time;
         
-        if (e->trigger->settings & DIE_AFTER_TRIGGER) {
+        if (trigger->settings & DIE_AFTER_TRIGGER) {
             e->enabled = false;
         }
     }
