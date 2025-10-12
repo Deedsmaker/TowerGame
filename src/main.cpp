@@ -48,63 +48,79 @@ b32 window_minimized = false;
 
 #include "game.cpp"
 
-// void make_thing() {
-//     const char *letters = "QWERTYUIOPASDFGHJKLZXCVBNM";
+void make_thing() {
+    const char *letters = "QWERTYUIOPASDFGHJKLZXCVBNM";
 
-//     int size = 0;
-//     int *codepoints = LoadCodepoints(letters, &size);
-//     printf("%d\n", codepoints[0]);
-//     f32 font_size = 224;
-//     Font font = LoadFontEx("MonospaceBold.ttf", font_size, codepoints, size);
+    int size = 0;
+    int *codepoints = LoadCodepoints(letters, &size);
+    printf("%d\n", codepoints[0]);
+    f32 font_size = 224;
+    Font font = LoadFontEx("resources/MonospaceBold.ttf", font_size, codepoints, size);
     
-//     char str[256] = {0};
+    char str[256] = {0};
     
-//     Array <Image> backgrounds = {0};
-//     backgrounds.append(LoadImage("temp/blue.png"));
-//     backgrounds.append(LoadImage("temp/purple.png"));
-//     backgrounds.append(LoadImage("temp/white.png"));
-//     backgrounds.append(LoadImage("temp/pink.png"));
+    Array <Image> backgrounds = {0};
+    backgrounds.append(LoadImage("temp/blue.png"));
+    backgrounds.append(LoadImage("temp/purple.png"));
+    backgrounds.append(LoadImage("temp/white.png"));
+    backgrounds.append(LoadImage("temp/pink.png"));
     
-//     for_array(b, &backgrounds) {
-//         Image background = backgrounds.get_value(b);
+    for_array(b, &backgrounds) {
+        Image background = backgrounds.get_value(b);
+        b32 dark_background = b < 2;
+        Color color = dark_background ? WHITE : BLACK;
+        Color alt_color = dark_background ? BLACK : PURPLE;
     
-//         for (i32 i = 0; i < size; i++) {
-//             sprintf(str, "%c", letters[i]);
-//             printf(str);
-//             // Image image = GenImageColor(256, 256, RED);
-//             Image image = ImageCopy(background);
-            
-//             Rectangle rec = {256 - font_size, 256 - font_size, font_size - (256-font_size), font_size - (256-font_size)};
-            
-//             Color color = b < 2 ? WHITE : BLACK;
-//             // Color color = WHITE;
-            
-//             ImageDrawRectangleLines(&image, rec, 5, color);
-            
-//             Rectangle glyphRec = font.recs[i];
-//             GlyphInfo glyph = font.glyphs[i];
+        for (i32 i = 0; i < size; i++) {
+            sprintf(str, "%c", letters[i]);
+            printf(str);
+            // Image image = GenImageColor(256, 256, RED);
+            Image image = ImageCopy(background);
             
             
-//             Vector2 center = {128, 128};
+            Rectangle rec = {256 - font_size, 256 - font_size, font_size - (256-font_size), font_size - (256-font_size)};
+            ImageDrawRectangleLines(&image, rec, 5, color);
             
-//             Vector2 position = {center.x - (glyphRec.width * 0.5f) - glyph.offsetX, 0};
+            Rectangle glyphRec = font.recs[i];
+            GlyphInfo glyph = font.glyphs[i];
             
-//             if (str[0] != 'Q') {
-//                 position.y += 10;
-//             } else {
-//                 position.y -= 5;
-//             }
             
-//             ImageDrawTextEx(&image, font, str, position, font_size, 0, color);
+            Vector2 center = {128, 128};
             
-//             ExportImage(image, tprintf("temp/result/Achievement_%d_%s.jpg", b, str));
+            Vector2 position = {center.x - (glyphRec.width * 0.5f) - glyph.offsetX, 0};
             
-//             ImageColorGrayscale(&image);
-//             ImageColorBrightness(&image, -70);
-//             ExportImage(image, tprintf("temp/result/Achievement_%d_%s_gray.jpg", b, str));
-//         }
-//     }
-// }
+            if (str[0] != 'Q') {
+                position.y += 10;
+            } else {
+                position.y -= 5;
+            }
+            
+            if (dark_background) ImageDrawTextEx(&image, font, str, position + Vector2_right * 5 + Vector2_up * 5, font_size, 0, alt_color);
+            else                 ImageDrawTextEx(&image, font, str, position + Vector2_right * 4 + Vector2_up * 4, font_size, 0, alt_color);
+            
+            
+            ImageDrawTextEx(&image, font, str, position, font_size, 0, color);
+            
+            ExportImage(image, tprintf("temp/result/Achievement_%d_%s.jpg", b, str));
+            
+            ImageColorGrayscale(&image);
+            ImageColorBrightness(&image, -70);
+            ExportImage(image, tprintf("temp/result/Achievement_%d_%s_gray.jpg", b, str));
+        }
+        
+        static Image flower = LoadImage("flower.png");
+        Image image = ImageCopy(background);
+        
+        Rectangle rec = {256 - font_size, 256 - font_size, font_size - (256-font_size), font_size - (256-font_size)};
+        ImageDrawRectangleLines(&image, rec, 5, color);
+        
+        Rectangle src_rec = {0, 0, (f32)flower.width, (f32)flower.height};
+        Rectangle dst_rec = {0, 0, 256.0f, 256.0f};
+        ImageDraw(&image, flower, src_rec, dst_rec, WHITE);
+        
+        ExportImage(image, tprintf("temp/result/Achievement_icon_%d_%s.jpg", b, "flower"));
+    }
+}
 
 int main(){
     // make_thing();

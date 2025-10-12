@@ -1,7 +1,7 @@
 #pragma once
 
 #define CHECK_CHANGES_COUNT true
-#define LOG_UNDO_DIFFERENCES true
+#define LOG_UNDO_DIFFERENCES false
 
 inline void undo_mark_entity_changed(Entity *entity) {
     entity->runtime_only_flags |= EDITOR_CHANGED;

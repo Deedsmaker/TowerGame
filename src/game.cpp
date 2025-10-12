@@ -1577,7 +1577,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & ENEMY_BARRIER) {
         assert(entity->union_enemy);
     
-        entity->union_enemy->max_hits_taken = 5;
+        entity->union_enemy->max_hits_taken = 20; // We don't really want enemy barrier to be killed by the bullets.
     }
     
     // init explosive
@@ -7308,7 +7308,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     }
     
     // player body collision
-    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK);
+    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET);
     
     b32 is_body_huge_collision_speed = false;
     b32 on_propeller = false;
@@ -8347,6 +8347,12 @@ void calculate_projectile_collisions(Entity *entity) {
                         enemy->last_hit_time = core.time.game_time;
                         play_sound("ShootBlock", col.point);
                     }
+                }
+                if (other->flags & ENEMY_BARRIER) {
+                    can_damage = false;
+                    enemy->last_hit_time = core.time.game_time;
+                    need_bounce = true;
+                    play_sound("ShootBlock", col.point);
                 }
                 
                 if (other->flags & BIRD_ENEMY && can_damage) {
