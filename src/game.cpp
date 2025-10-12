@@ -5346,15 +5346,23 @@ void update_editor() {
                         removed = true;
                     } else {
                         add_to_multiselection(editor.cursor_entity->id);
+                        
+                        if (editor.selected && !multiselection->entities.contains(editor.selected->id)) {
+                            add_to_multiselection(editor.selected->id);
+                        }
+                        
+                        // So if it was first multiselected and we do not have selected - wanna make first one selected.
+                        if (multiselection->entities.count == 1) {
+                            assign_selected_entity(editor.cursor_entity);
+                        }
                     }
+                } else {
+                    assign_selected_entity(editor.cursor_entity);
+                    clear_multiselected_entities();
                 }
                 
                 if (!removed) {
-                    if (!IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_LEFT_SHIFT)) {
-                        clear_multiselected_entities();
-                    }
-                    assign_selected_entity(editor.cursor_entity);
-                    editor.place_cursor_entities.append(editor.selected);
+                    editor.place_cursor_entities.append(editor.selected); // @CLEANUP: Do not know what is place_cursor_entities. Maybe we should make it just temp array.
                     
                     editor.selected_this_click = true;
                 }
