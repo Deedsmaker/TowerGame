@@ -2604,6 +2604,12 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
     update_all_collision_cells(update_static_collision_cells);
     
     current_level_context->current_win_blocks_count = current_level_context->original_win_blocks_count;
+    
+    // Simulating game world for 2 seconds before the start.
+    input = {0};
+    for (i32 i = 0; i < FIXED_FPS * 2; i++) { 
+        update_entities(TARGET_FRAME_TIME);
+    }
 }
 
 void kill_player() {
