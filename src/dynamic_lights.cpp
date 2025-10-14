@@ -233,7 +233,7 @@ void draw_dynamic_lights(RenderTexture *render_texture_for_lights) {
         b32 should_calculate_light_anyway = light.bake_shadows && session_context.just_entered_game_state;
         
         Bounds lightmap_bounds = {lightmap_game_scale, {0, 0}};
-        if (!should_calculate_light_anyway && (!check_bounds_collision(current_level_context->cam.view_position, light.position, get_cam_bounds(current_level_context->cam, current_level_context->cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && game_state == GAME)) || debug.full_light) {
+        if (!should_calculate_light_anyway && (!check_bounds_collision(current_level_context->cam.view_position, light.position, get_cam_bounds(current_level_context->cam, current_level_context->cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && editor_state == GAME)) || debug.full_light) {
             continue;
         }
         
@@ -241,12 +241,12 @@ void draw_dynamic_lights(RenderTexture *render_texture_for_lights) {
         
         // Vector2 shadows_texture_size = {(f32)light.shadows_size, (f32)light.shadows_size};
         
-        // if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (game_state == EDITOR) && !session_context.baked_shadows_this_frame) || session_context.just_entered_game_state || !light_ptr->baked && game_state == GAME)) {
+        // if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (editor_state == EDITOR) && !session_context.baked_shadows_this_frame) || session_context.just_entered_game_state || !light_ptr->baked && editor_state == GAME)) {
         //     light_ptr->last_bake_time = core.time.app_time;
             
         //     if (light.bake_shadows) {
         //         session_context.baked_shadows_this_frame = true;
-        //         if (game_state == GAME) {
+        //         if (editor_state == GAME) {
         //             light_ptr->baked = true;
         //         }
         //     }

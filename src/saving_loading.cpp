@@ -369,8 +369,8 @@ b32 load_level(String name) {
     clear_allocator(temp);
     name = copy_string(name, temp); // Beacuse we're just cleared temp allocator and if "name" was temp allocated - it could go wrong.
     
-    Game_State original_game_state = game_state;
-    game_state = EDITOR; // @TODO: Do we really need this?
+    Editor_State original_game_state = editor_state;
+    editor_state = EDITOR; // @TODO: Do we really need this?
     
     session_context.playing_replay = false;
     String level_path = tstring("levels/%s", c_str(name));
@@ -687,7 +687,7 @@ b32 load_level(String name) {
         }
     }
     
-    game_state = original_game_state;
+    editor_state = original_game_state;
     
     setup_context_cam(current_level_context);
     current_level_context->cam.cam2D.zoom = 0.35f;
@@ -706,7 +706,7 @@ b32 load_level(String name) {
     clear_level_context(editor_level_context);
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
-    if (enter_game_state_on_new_level || game_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
+    if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
         enter_game_state(&loaded_level_context, true);
         
         if (enter_game_state_on_new_level) {

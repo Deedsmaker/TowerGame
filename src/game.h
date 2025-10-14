@@ -1,6 +1,6 @@
 #pragma once
 
-enum Game_State{
+enum Editor_State{
     EDITOR,
     GAME
 };
@@ -10,7 +10,7 @@ enum Drawing_State {
     LIGHTING_DRAWING
 };
 
-global_variable Game_State game_state = EDITOR;
+global_variable Editor_State editor_state = EDITOR;
 global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
 inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot);

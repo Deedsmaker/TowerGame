@@ -136,7 +136,7 @@ inline void remove_flag(FLAGS *flags, FLAGS flag) {
 }
 
 inline b32 is_editor_active() {
-    return game_state == EDITOR || state_context.in_pause_editor;
+    return editor_state == EDITOR || state_context.in_pause_editor;
 }
 
 void log_short(const char *str) {
@@ -624,8 +624,8 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(dest);
     
-    Game_State original_game_state = game_state;
-    game_state = EDITOR;
+    Editor_State original_game_state = editor_state;
+    editor_state = EDITOR;
     
     dest->level_name = copy_string(src->level_name, src->level_name.allocator);
     dest->player_spawn_point = src->player_spawn_point;
@@ -668,7 +668,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     }
     
     switch_current_level_context(original_level_context);
-    game_state = original_game_state;
+    editor_state = original_game_state;
 }
 
 void clear_level_context(Level_Context *level_context) {
@@ -1377,7 +1377,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         
         // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
-        if (game_state == GAME) {
+        if (editor_state == GAME) {
             assert(entity->centipede);     
             Centipede *centipede = entity->centipede;
             
@@ -1623,7 +1623,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     }
     
     // init blocker
-    if (entity->flags & BLOCKER && game_state == GAME) {
+    if (entity->flags & BLOCKER && editor_state == GAME) {
         assert(entity->union_enemy);
     
         if (entity->union_enemy->blocker_sticky_id > 0) {
@@ -1650,7 +1650,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     }
     
     // init sword size required
-    if (entity->flags & SWORD_SIZE_REQUIRED && game_state == GAME) {
+    if (entity->flags & SWORD_SIZE_REQUIRED && editor_state == GAME) {
         assert(entity->union_enemy);
     
         if (entity->union_enemy->sword_required_sticky_id > 0) {
@@ -2001,7 +2001,7 @@ void restart_game() {
     // enter_editor_state();
     
     // We could already enter game state if we was in it while loading.
-    if (game_state != GAME) {
+    if (editor_state != GAME) {
         enter_game_state(current_level_context, true);
     }
     
@@ -2395,7 +2395,7 @@ void init_game() {
     
     switch_current_level_context(&loaded_level_context);
 
-    game_state = EDITOR;
+    editor_state = EDITOR;
 
     session_context.entity_lights_start_index = session_context.temp_lights_count; 
     
@@ -2569,7 +2569,7 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
     //     current_level_context->collision_grid.cells[i].static_entities.clear();
     // }
     
-    game_state = GAME;
+    editor_state = GAME;
     
     current_level_context->cam.cam2D.zoom = 0.35f;
     current_level_context->cam.target_zoom = 0.35f;
@@ -2629,7 +2629,7 @@ void kill_player() {
 }
 
 void enter_editor_state() {
-    game_state = EDITOR;
+    editor_state = EDITOR;
     state_context = {};
     
     session_context.playing_replay = false;
@@ -2675,7 +2675,7 @@ void fixed_game_update(f32 dt) {
     frame_rnd = perlin_noise3(core.time.game_time, core.time.app_time, 5) * 2 - 1.0f;
     frame_on_circle_rnd = get_perlin_in_circle(1.0f);
 
-    if (game_state == GAME && !state_context.in_pause_editor) {
+    if (editor_state == GAME && !state_context.in_pause_editor) {
         if (!session_context.playing_replay) {
             //record input
             if (level_replay.input_record.count >= MAX_INPUT_RECORDS - 1) {
@@ -2699,7 +2699,7 @@ void fixed_game_update(f32 dt) {
     }
 
     debug.dragging_player = false;
-    if (game_state == GAME && player_entity) {
+    if (editor_state == GAME && player_entity) {
         if (IsKeyDown(KEY_K) && !console.is_open) {
             player_entity->position = input.mouse_position;
             debug.dragging_player = true;
@@ -2712,7 +2712,7 @@ void fixed_game_update(f32 dt) {
     // update_particles(dt);
     
     // update camera
-    if (game_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())) {
+    if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())) {
         f32 time_since_death_instinct_stop = core.time.app_time - state_context.death_instinct.stop_time;
         
         f32 locked_speed_t = clamp01(time_since_death_instinct_stop);
@@ -2879,11 +2879,11 @@ void fixed_game_update(f32 dt) {
     state_context.explosion_trauma = clamp01(state_context.explosion_trauma - dt * 20);
 
     if (!is_in_death_instinct() || !is_death_instinct_threat_active()) {
-        f32 zoom_speed = game_state == GAME ? 3 : 10;
+        f32 zoom_speed = editor_state == GAME ? 3 : 10;
         Cam *cam = &current_level_context->cam;
         
         f32 target_zoom = cam->target_zoom;
-        if (game_state == GAME && player_data->in_slowmo) {
+        if (editor_state == GAME && player_data->in_slowmo) {
             target_zoom *= 1.2f;
         }
         cam->cam2D.zoom = lerp(cam->cam2D.zoom, target_zoom, dt * zoom_speed);
@@ -3169,15 +3169,15 @@ void update_game() {
     }
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)) {
-        if (game_state == EDITOR) {
+        if (editor_state == EDITOR) {
             enter_game_state(editor_level_context, true);
-        } else if (game_state == GAME) {
+        } else if (editor_state == GAME) {
             enter_editor_state();
         }
     } 
     
     // editor game pause
-    if (IsKeyPressed(KEY_TAB) && !console.is_open && game_state == GAME) {
+    if (IsKeyPressed(KEY_TAB) && !console.is_open && editor_state == GAME) {
         assign_selected_entity(NULL);
         state_context.in_pause_editor = !state_context.in_pause_editor;
         if (state_context.in_pause_editor) {
@@ -3185,7 +3185,7 @@ void update_game() {
         }
     }
     
-    if (game_state == GAME && !console.is_open) {
+    if (editor_state == GAME && !console.is_open) {
         if (IsKeyPressed(KEY_T)) {
             if (session_context.speedrun_timer.game_timer_active && player_data->dead_man) {
                 restart_game();
@@ -3218,7 +3218,7 @@ void update_game() {
     core.time.real_dt = GetFrameTime();
     
     // update death instinct
-    if (is_in_death_instinct() && is_death_instinct_threat_active() && game_state == GAME) {
+    if (is_in_death_instinct() && is_death_instinct_threat_active() && editor_state == GAME) {
         f32 time_since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
         
         Entity *threat_entity = get_entity(state_context.death_instinct.threat_entity_id);
@@ -3259,14 +3259,14 @@ void update_game() {
         stop_death_instinct();
         // core.time.target_time_scale = 1;
         state_context.death_instinct.was_in_death_instinct = false;
-    } else if (game_state == GAME) {
+    } else if (editor_state == GAME) {
         core.time.target_time_scale = lerp(core.time.target_time_scale, 1.0f, clamp01(core.time.real_dt * 2));        
         if (1.0f - core.time.target_time_scale <= 0.01f) {
             core.time.target_time_scale = 1;
         }
     }
     
-    if (game_state == GAME && !state_context.in_pause_editor) {
+    if (editor_state == GAME && !state_context.in_pause_editor) {
         core.time.unscaled_dt = GetFrameTime();
         if (core.time.hitstop > 0) {
             core.time.time_scale = fminf(core.time.time_scale, 0.1f);
@@ -3290,20 +3290,20 @@ void update_game() {
         }
         
         core.time.dt = GetFrameTime() * core.time.time_scale;
-    } else if (game_state == EDITOR || state_context.in_pause_editor) {
+    } else if (editor_state == EDITOR || state_context.in_pause_editor) {
         core.time.unscaled_dt = 0;
         core.time.dt          = 0;
     }
 
     
-    if (game_state == EDITOR || state_context.in_pause_editor) {
+    if (editor_state == EDITOR || state_context.in_pause_editor) {
         update_editor_ui();
         update_editor();
     }
     
     update_console();
     
-    if (game_state == GAME && !state_context.in_pause_editor) {
+    if (editor_state == GAME && !state_context.in_pause_editor) {
         f32 full_delta = core.time.dt + core.time.previous_dt;
         core.time.previous_dt = 0;
         
@@ -3331,7 +3331,7 @@ void update_game() {
     }
     
     // update speedrun timer
-    if (game_state == GAME && (session_context.speedrun_timer.level_timer_active || session_context.speedrun_timer.game_timer_active)) {
+    if (editor_state == GAME && (session_context.speedrun_timer.level_timer_active || session_context.speedrun_timer.game_timer_active)) {
         Color color = WHITE;
         if (state_context.we_got_a_winner) {
             session_context.speedrun_timer.paused = true;
@@ -3350,7 +3350,7 @@ void update_game() {
     }
     
     // update_entities();
-    // if (!session_context.updated_today && game_state == GAME) {
+    // if (!session_context.updated_today && editor_state == GAME) {
     //     update_particle_emitters(core.time.dt);
     // }
     // // update_particles();
@@ -3368,7 +3368,7 @@ void update_game() {
         debug_unlock_camera();
     }
     
-    if (game_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor) {
+    if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor) {
     } else {
         f32 zoom = current_level_context->cam.target_zoom;
 
@@ -3430,7 +3430,7 @@ void update_color_changer(Entity *entity, f32 dt) {
     } else if (changer->interpolating) {
         entity->color = lerp(changer->start_color, changer->target_color, changer->progress);
     } else {
-        if (game_state == EDITOR || state_context.in_pause_editor) {
+        if (editor_state == EDITOR || state_context.in_pause_editor) {
             entity->color = changer->start_color;
         }
     }
@@ -3715,7 +3715,7 @@ void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> verti
         for (i32 c = 0; c < entities_in_cell.count; c++) {
             Entity *other = get_entity(entities_in_cell.get_value(c));
             
-            if (other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && game_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id) || other->will_be_destroyed) {
+            if (other->flags <= 0 || ((other->flags & include_flags) <= 0 && include_flags > 0) || (other->hidden && editor_state == GAME && !state_context.in_pause_editor) || other->id == my_id || added_collision_ids.contains(other->id) || other->will_be_destroyed) {
                 continue;
             }
             
@@ -4318,7 +4318,7 @@ void update_editor_ui() {
             v_pos += height_add;
             
             if (editor.draw_trigger_settings) {
-                if (make_button({inspector_position.x + inspector_size.x * 0.2f, v_pos + 3}, {inspector_size.x * 0.6f, height_add - 4}, "Trigger (in game)", "trigger_now_button", SKYBLUE, ColorBrightness(BROWN, -0.3f)) && game_state == GAME) {
+                if (make_button({inspector_position.x + inspector_size.x * 0.2f, v_pos + 3}, {inspector_size.x * 0.6f, height_add - 4}, "Trigger (in game)", "trigger_now_button", SKYBLUE, ColorBrightness(BROWN, -0.3f)) && editor_state == GAME) {
                     selected->trigger->debug_should_trigger_now = true;
                 }
                 v_pos += height_add;
@@ -5132,7 +5132,7 @@ b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold) {
     return result;
 }
 
-// This can be called not only when game_state is EDITOR, but even when we're in pause for example.
+// This can be called not only when editor_state is EDITOR, but even when we're in pause for example.
 void update_editor() {
     if (editor.selected && editor.selected->will_be_destroyed) {
         assign_selected_entity(NULL);
@@ -5151,7 +5151,7 @@ void update_editor() {
     Multiselection *multiselection = &editor.multiselection;
 
     // levels switching context stitch
-    if (game_state == EDITOR) {
+    if (editor_state == EDITOR) {
         if (IsKeyPressed(KEY_ONE) && IsKeyDown(KEY_LEFT_CONTROL) && !console.is_open) {
             current_editor_level_context_index += 1;    
             current_editor_level_context_index %= MAX_LOADED_LEVELS;    
@@ -6128,7 +6128,7 @@ void update_editor() {
     }
     
     f32 time_since_autosave = core.time.app_time - editor.last_autosave_time;
-    if (time_since_autosave > 40 && game_state == EDITOR) {
+    if (time_since_autosave > 40 && editor_state == EDITOR) {
         autosave_level();
         editor.last_autosave_time = core.time.app_time;
     }
@@ -6240,7 +6240,7 @@ void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation) {
 }
 
 void rotate_to(Entity *entity, f32 new_rotation, b32 add_to_undo) {
-    if (add_to_undo) assert(game_state == EDITOR || state_context.in_pause_editor);
+    if (add_to_undo) assert(editor_state == EDITOR || state_context.in_pause_editor);
 
     while (new_rotation >= 360) {
         new_rotation -= 360;
@@ -6268,7 +6268,7 @@ void rotate_to(Entity *entity, f32 new_rotation, b32 add_to_undo) {
 }
 
 inline void rotate(Entity *entity, f32 rotation, b32 add_to_undo) {
-    if (add_to_undo) assert(game_state == EDITOR || state_context.in_pause_editor);
+    if (add_to_undo) assert(editor_state == EDITOR || state_context.in_pause_editor);
 
     rotate_to(entity, entity->rotation + rotation);
 }
@@ -8719,7 +8719,7 @@ inline b32 verify_kill_switch_connected(Entity *entity) {
 }
 
 void update_editor_entity(Entity *e) {
-    if (e->flags & CENTIPEDE && game_state == EDITOR) {
+    if (e->flags & CENTIPEDE && editor_state == EDITOR) {
         e->flags |= ENEMY;
         // e->enemy.dead_man = true;
     }
@@ -9031,7 +9031,7 @@ void update_move_sequence(Entity *entity, f32 dt) {
     
     f32 speed = sequence->speed;
     
-    if (sequence->speed_related_player_distance && game_state == GAME) {
+    if (sequence->speed_related_player_distance && editor_state == GAME) {
         f32 distance_to_player = magnitude(player_entity->position - entity->position);
         f32 distance_t = clamp01((distance_to_player + sequence->min_distance) / sequence->max_distance);
         speed = lerp(sequence->speed, sequence->max_distance_speed, distance_t * distance_t);
@@ -9703,7 +9703,7 @@ void update_entities(f32 dt) {
 
     Chunk_Array<Entity> *entities = &current_level_context->entities;
     
-    b32 update_static_entities_collision_cells = game_state == EDITOR || state_context.in_pause_editor;
+    b32 update_static_entities_collision_cells = editor_state == EDITOR || state_context.in_pause_editor;
     update_all_collision_cells(update_static_entities_collision_cells);        
     
     // for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
@@ -9730,12 +9730,12 @@ void update_entities(f32 dt) {
             continue;
         }
         
-        if (e->enabled && game_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
+        if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
             Entity *spawned = spawn_object_by_name("ammo_pack", e->position);
             e->spawned_enemy_id = spawned->id;
         }
         
-        if (!e->enabled || (e->hidden && game_state == GAME && !state_context.in_pause_editor)) {
+        if (!e->enabled || (e->hidden && editor_state == GAME && !state_context.in_pause_editor)) {
             continue;
         }
         
@@ -9746,9 +9746,9 @@ void update_entities(f32 dt) {
             verify_kill_switch_connected(e);
         }
         
-        if (game_state == EDITOR || state_context.in_pause_editor) {
+        if (editor_state == EDITOR || state_context.in_pause_editor) {
             update_color_changer(e, dt);
-            if (game_state == EDITOR) {
+            if (editor_state == EDITOR) {
                 update_editor_entity(e);
             }
             continue;
@@ -9892,7 +9892,7 @@ Bounds get_cam_bounds(Cam cam, f32 zoom) {
 }
 
 // inline b32 should_draw_entity_anyway(Entity *e) {
-//     b32 is_should_draw_anyway = e->flags & TRIGGER || (e->flags & MOVE_SEQUENCE && game_state != GAME);
+//     b32 is_should_draw_anyway = e->flags & TRIGGER || (e->flags & MOVE_SEQUENCE && editor_state != GAME);
 //     return is_should_draw_anyway;
 // }
 
@@ -9918,7 +9918,7 @@ void fill_entities_draw_queue() {
             continue;
         }
         
-        if (entity->hidden && game_state == GAME && !state_context.in_pause_editor/* && !should_draw_entity_anyway(&e)*/) {
+        if (entity->hidden && editor_state == GAME && !state_context.in_pause_editor/* && !should_draw_entity_anyway(&e)*/) {
             continue;
         }
         
@@ -10029,7 +10029,7 @@ void fill_entities_draw_queue() {
         
         // always draw explosive
         if (entity->flags & EXPLOSIVE) {
-            if (game_state == EDITOR) {
+            if (editor_state == EDITOR) {
                 draw_game_circle(entity->position, get_explosion_radius(entity), Fade(ORANGE, 0.1f));
             }
         }
@@ -10079,7 +10079,7 @@ void fill_entities_draw_queue() {
                     continue;
                 }
                 
-                if (connected->flags & DOOR && ((entity->flags ^ TRIGGER) > 0 || game_state != GAME)) {
+                if (connected->flags & DOOR && ((entity->flags ^ TRIGGER) > 0 || editor_state != GAME)) {
                     Color color = connected->door.is_open == (trigger->settings & OPEN_DOORS) ? SKYBLUE : ORANGE;
                     f32 width = connected->door.is_open == (trigger->settings & OPEN_DOORS) ? 1.0f : 0.2f;
                     make_line(entity->position, connected->position, width, Fade(ColorBrightness(color, 0.2f), 0.3f));
@@ -10117,7 +10117,7 @@ void fill_entities_draw_queue() {
                                 
                 if (is_trigger_selected && should_draw_editor_hints()) {
                     make_line(entity->position, tracked_entity->position, GREEN);
-                } else if ((trigger->settings & DRAW_LINES_TO_TRACKED) && game_state != EDITOR) {
+                } else if ((trigger->settings & DRAW_LINES_TO_TRACKED) && editor_state != EDITOR) {
                     if ((tracked_entity->flags & ENEMY | CENTIPEDE) && !tracked_entity->union_enemy->dead_man) {
                         make_line(entity->position, tracked_entity->position, 1.0f, Fade(PINK, 0.3f));
                     }
@@ -10239,7 +10239,7 @@ inline Vector2 get_shoot_stoper_cross_position(Entity *entity) {
 }
 
 inline b32 should_draw_editor_hints() {
-    return (game_state == EDITOR || state_context.in_pause_editor || debug.draw_areas_in_game);
+    return (editor_state == EDITOR || state_context.in_pause_editor || debug.draw_areas_in_game);
 }
 
 void draw_entity(Entity *e) {
@@ -10263,7 +10263,7 @@ void draw_entity(Entity *e) {
                 
                 // Currently in game mode we don't want to draw textures that goes into light baking as light emitters,
                 // just because it messes up the looks.
-                if (game_state == GAME && !state_context.in_pause_editor) {
+                if (editor_state == GAME && !state_context.in_pause_editor) {
                     if (e->flags & LIGHT) {
                         assert(e->lights.count > 0);
                         Light *light = get_light(e->lights.get_value(0));
@@ -10287,7 +10287,7 @@ void draw_entity(Entity *e) {
     if (e->flags & NOTE) {
         assert(e->note_index != -1);
         Note *note = current_level_context->notes.get(e->note_index);
-        if (game_state == EDITOR || state_context.in_pause_editor) {
+        if (editor_state == EDITOR || state_context.in_pause_editor) {
             make_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
             // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
             if (editor.selected && editor.selected->id == e->id || (IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_ALT)) || focus_input_field.in_focus && str_contains(focus_input_field.tag, tprintf("%d", e->id))) {
@@ -10301,7 +10301,7 @@ void draw_entity(Entity *e) {
                     str_copy(note->content, focus_input_field.content);
                 }
             }
-        } else if (note->draw_in_game && game_state == GAME) {
+        } else if (note->draw_in_game && editor_state == GAME) {
             draw_game_text(e->position, note->content, 50, note->in_game_color);
         }
     }
@@ -10343,7 +10343,7 @@ void draw_entity(Entity *e) {
     
     if (e->flags & DUMMY) {
         // draw dummy
-        if (game_state == EDITOR || state_context.in_pause_editor) {
+        if (editor_state == EDITOR || state_context.in_pause_editor) {
             draw_game_triangle_strip(e);
             draw_game_line_strip(e, SKYBLUE);
         }
@@ -10468,7 +10468,7 @@ void draw_entity(Entity *e) {
             // Drawing charge line
             Vector2 start = e->position - e->up * e->scale.y * (1.0f - e->pivot.y); 
             f32 length = e->scale.y * e->pivot.y;
-            if (game_state == GAME && !state_context.in_pause_editor) {
+            if (editor_state == GAME && !state_context.in_pause_editor) {
                 f32 t = get_turret_charge_progress(e->turret);
                 length = lerp(0.0f, length, t * t * t);
             }
@@ -10516,7 +10516,7 @@ void draw_entity(Entity *e) {
         draw_game_rect(position, {width, height}, {0, 0}, 0, PINK);
     }
 
-    if (e->flags & SPIKES && (!e->hidden || game_state == EDITOR || state_context.in_pause_editor)) {
+    if (e->flags & SPIKES && (!e->hidden || editor_state == EDITOR || state_context.in_pause_editor)) {
         draw_spikes(e, e->right, e->up, e->scale.x, e->scale.y);
     }
     
@@ -10563,12 +10563,12 @@ void draw_entity(Entity *e) {
     if (e->flags & EXPLOSIVE) {
     }
     
-    if (e->flags & PROPELLER && (game_state == EDITOR || state_context.in_pause_editor || debug.draw_areas_in_game)) {
+    if (e->flags & PROPELLER && (editor_state == EDITOR || state_context.in_pause_editor || debug.draw_areas_in_game)) {
         draw_game_line_strip(e, e->color);
         draw_game_triangle_strip(e, e->color * 0.1f);
     }
     
-    if (e->flags & BLOCKER && (game_state == EDITOR) && !e->union_enemy->blocker_immortal) {
+    if (e->flags & BLOCKER && (editor_state == EDITOR) && !e->union_enemy->blocker_immortal) {
         Texture texture = e->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
         
         draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.6f));
@@ -10580,7 +10580,7 @@ void draw_entity(Entity *e) {
         draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
     }
     
-    if (e->flags & SWORD_SIZE_REQUIRED && (game_state == EDITOR)) {
+    if (e->flags & SWORD_SIZE_REQUIRED && (editor_state == EDITOR)) {
         Texture texture = e->union_enemy->big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
         
         draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
@@ -10608,12 +10608,12 @@ void draw_entity(Entity *e) {
         }
     }
     
-    if ((game_state == EDITOR || debug.draw_up_right) && editor.selected && editor.selected->id == e->id) {
+    if ((editor_state == EDITOR || debug.draw_up_right) && editor.selected && editor.selected->id == e->id) {
         make_line(e->position, e->position + e->right * 3, RED);
         make_line(e->position, e->position + e->up    * 3, GREEN);
     }
     
-    if (debug.draw_bounds || editor.selected && (game_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected->id) {
+    if (debug.draw_bounds || editor.selected && (editor_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected->id) {
         make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / current_level_context->cam.cam2D.zoom, GREEN);
     }
 }
@@ -10631,7 +10631,7 @@ void draw_entities() {
             continue;
         }
         
-        if (game_state == GAME && !session_context.updated_today) {
+        if (editor_state == GAME && !session_context.updated_today) {
             //
             // To do that we must know globally that it's imaginary update and don't do anything stupid on this update.
             // We don't want to: React to player actions besides movement. Kill player.
@@ -10807,7 +10807,7 @@ void draw_particles() {
 
 void draw_ui(const char *tag) {
     // draw spin bar
-    if (game_state == GAME) {
+    if (editor_state == GAME) {
         if (player_data->timers.slowmo_timer > 0) {
             f32 t = player_data->timers.slowmo_timer / 6.0f;
             f32 opacity = lerp(0.0f, 1.0f, t * t);
@@ -11201,7 +11201,7 @@ void draw_game() {
     update_input_field();
     
     BeginMode2D(current_level_context->cam.cam2D); {
-        if (game_state == EDITOR || state_context.in_pause_editor) {
+        if (editor_state == EDITOR || state_context.in_pause_editor) {
             draw_game_space_editor();
         }
         draw_immediate_stuff();
@@ -11213,7 +11213,7 @@ void draw_game() {
         // make_ui_text("Finale for now!\nNow you can try speedruns.\nOpen console with \"/\" (slash) button and type help.\ngame_speedrun for full game speedrun.\nlevel_speedrun for current level speedrun.\nfirst for loading first level\nnext for loading next level", {screen_width * 0.3f, screen_height * 0.2f}, 20, GREEN, "win_speedrun_text");
     }
     
-    if (game_state == GAME && player_data->dead_man && !state_context.we_got_a_winner) {
+    if (editor_state == GAME && player_data->dead_man && !state_context.we_got_a_winner) {
         f32 since_died = core.time.game_time - player_data->timers.died_time;
         
         f32 t = clamp01((since_died - 3.0f) / 2.0f);
@@ -11224,7 +11224,7 @@ void draw_game() {
     
     current_level_context->cam = saved_cam;
     
-    if (game_state == EDITOR || state_context.in_pause_editor) {
+    if (editor_state == EDITOR || state_context.in_pause_editor) {
         make_lightmap_settings_panel();
     }
     
@@ -11235,7 +11235,7 @@ void draw_game() {
         v_pos += font_size;
     }
     
-    if (game_state == GAME && player_entity) {            
+    if (editor_state == GAME && player_entity) {            
         if (debug.info_spin_progress) {
             draw_text(tprintf("Spin progress: %.2f", player_data->sword_spin_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
@@ -11287,7 +11287,7 @@ void draw_game() {
     }
     
     // draw cursor
-    if (game_state == GAME) {
+    if (editor_state == GAME) {
         draw_line(input.screen_mouse_position - Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position + Vector2_right * 10 + Vector2_up * 10, WHITE);
         draw_line(input.screen_mouse_position + Vector2_right * 10 - Vector2_up * 10, input.screen_mouse_position - Vector2_right * 10 + Vector2_up * 10, WHITE);
         draw_rect({input.screen_mouse_position.x - 2.5f, input.screen_mouse_position.y - 2.5f}, {5, 5}, GREEN);

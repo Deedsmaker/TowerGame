@@ -336,7 +336,7 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         Particle *particle = current_level_context->particles.get(i);
         // dt = game_state == EDITOR ? core.time.real_dt : dt;
         
-        if (particle->lifetime <= 0.2f && game_state == GAME){
+        if (particle->lifetime <= 0.2f && editor_state == GAME){
             // dt = core.time.real_dt;
         }
         
