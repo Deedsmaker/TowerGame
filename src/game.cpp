@@ -6753,7 +6753,6 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             }
             player_data->in_big_sword = false;
         }
-                
     }
     
     Vector2 sword_target_size = player_data->in_big_sword ? player_data->big_sword_scale : player_data->sword_start_scale;

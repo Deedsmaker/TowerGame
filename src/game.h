@@ -10,6 +10,12 @@ enum Drawing_State {
     LIGHTING_DRAWING
 };
 
+enum Game_State {
+    GAME_PLANNING,  
+    GAMING
+};
+
+global_variable Game_State game_state = PLANNING;
 global_variable Editor_State editor_state = EDITOR;
 global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
