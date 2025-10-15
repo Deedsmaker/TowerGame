@@ -1973,7 +1973,7 @@ void load_replay(const char *replay_name) {
     if (read_result != -1) {
         // session_context.playing_replay = true;
         // enter_editor_state();
-        // enter_game_state(current_level_context, true);
+        // enter_editor_game_state(current_level_context, true);
         play_loaded_replay();
     
         builder_append(&console.content_builder, tstring("\t>Replay named %s is loaded\n", name));
@@ -1989,7 +1989,7 @@ void debug_toggle_play_replay() {
     session_context.playing_replay = !session_context.playing_replay;
         
     if (session_context.playing_replay) {
-        enter_game_state(editor_level_context, true);
+        enter_editor_game_state(editor_level_context, true);
         play_loaded_replay();
     }
     
@@ -2002,7 +2002,7 @@ void restart_game() {
     
     // We could already enter game state if we was in it while loading.
     if (editor_state != GAME) {
-        enter_game_state(current_level_context, true);
+        enter_editor_game_state(current_level_context, true);
     }
     
     player_data->ammo_count = 0;
@@ -2013,7 +2013,7 @@ void begin_level_speedrun() {
     if (!session_context.speedrun_timer.level_timer_active) {
         reload_level();
         enter_editor_state();
-        enter_game_state(current_level_context, true);
+        enter_editor_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = true;        
         session_context.speedrun_timer.game_timer_active  = false;        
@@ -2033,7 +2033,7 @@ void begin_game_speedrun() {
     if (!session_context.speedrun_timer.game_timer_active) {
         restart_game();
         enter_editor_state();
-        enter_game_state(current_level_context, true);
+        enter_editor_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = false;        
         session_context.speedrun_timer.game_timer_active  = true;        
@@ -2539,7 +2539,7 @@ Entity *add_player_entity(Player *data) {
     return new_player_entity;
 }
 
-void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
+void enter_editor_game_state(Level_Context *level_context, b32 should_init_entities) {
     // player_data = {};
     real_player_data = {};
     player_data = &real_player_data;
@@ -2570,6 +2570,7 @@ void enter_game_state(Level_Context *level_context, b32 should_init_entities) {
     // }
     
     editor_state = GAME;
+    game_state = GAME_PLANNING;
     
     current_level_context->cam.cam2D.zoom = 0.35f;
     current_level_context->cam.target_zoom = 0.35f;
@@ -2711,7 +2712,7 @@ void fixed_game_update(f32 dt) {
     update_particle_emitters(dt);
     // update_particles(dt);
     
-    // update camera
+    // Update camera.
     if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())) {
         f32 time_since_death_instinct_stop = core.time.app_time - state_context.death_instinct.stop_time;
         
@@ -3170,7 +3171,7 @@ void update_game() {
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)) {
         if (editor_state == EDITOR) {
-            enter_game_state(editor_level_context, true);
+            enter_editor_game_state(editor_level_context, true);
         } else if (editor_state == GAME) {
             enter_editor_state();
         }
@@ -3192,14 +3193,14 @@ void update_game() {
                 session_context.speedrun_timer.time = 0;
             } else if (session_context.speedrun_timer.level_timer_active) {
                 // enter_editor_state();
-                enter_game_state(editor_level_context, true);
+                enter_editor_game_state(editor_level_context, true);
                 session_context.speedrun_timer.time = 0;
             } else {
                 b32 is_have_checkpoint = checkpoint_trigger_id > 0;
                 session_context.playing_replay = false;            
                 // enter_editor_state();
                 if (is_have_checkpoint) {
-                    enter_game_state(&checkpoint_level_context, false);
+                    enter_editor_game_state(&checkpoint_level_context, false);
                     player_entity = checkpoint_player_entity;
                     real_player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
@@ -3208,7 +3209,7 @@ void update_game() {
                     player_data->velocity = Vector2_zero;
                     session_context.speedrun_timer.time = 0;
                 } else {
-                    enter_game_state(editor_level_context, true);
+                    enter_editor_game_state(editor_level_context, true);
                 }
             }
         }
@@ -3217,7 +3218,7 @@ void update_game() {
     core.time.app_time += GetFrameTime();
     core.time.real_dt = GetFrameTime();
     
-    // update death instinct
+    // Update death instinct.
     if (is_in_death_instinct() && is_death_instinct_threat_active() && editor_state == GAME) {
         f32 time_since_death_instinct = core.time.app_time - state_context.death_instinct.start_time;
         

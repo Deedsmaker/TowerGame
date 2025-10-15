@@ -15,7 +15,7 @@ enum Game_State {
     GAMING
 };
 
-global_variable Game_State game_state = PLANNING;
+global_variable Game_State game_state = GAME_PLANNING;
 global_variable Editor_State editor_state = EDITOR;
 global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
@@ -25,7 +25,7 @@ void switch_current_level_context(Level_Context *target, b32 clear_stuff = false
 void clear_level_context(Level_Context *level_context);
 void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init_entities);
 void clean_up_scene();
-void enter_game_state(Level_Context *level_context, b32 should_init_entities);
+void enter_editor_game_state(Level_Context *level_context, b32 should_init_entities);
 void enter_editor_state();
 
 void bird_clear_formation(Bird_Enemy *bird);

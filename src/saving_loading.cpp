@@ -634,9 +634,9 @@ b32 load_level(String name) {
         } // End of a entity file scope.
     } // End of a files for loop.
     
-    // This code needs for loading because entity ids in level save file will not be the same 
+    // Following code needs for loading because entity ids in level save file will not be the same 
     // as entity ids after loading.
-    // That's because we're storing our entities in chunk array and entity id is actually just (index + 1)
+    // And that's because we're storing our entities in chunk array and entity id is actually just (index + 1)
     // of that chunk array. In chunk array removing object and growing is not moving pointers, 
     // so after work on level we could have a large gaps of empty slots (for example we have chunk size
     // of 128 and we're just adding entities and last entity id is 555. Then we're deleting all 
@@ -707,7 +707,7 @@ b32 load_level(String name) {
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
     if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
-        enter_game_state(&loaded_level_context, true);
+        enter_editor_game_state(&loaded_level_context, true);
         
         if (enter_game_state_on_new_level) {
             player_data->blood_amount = last_player_data.blood_amount;
