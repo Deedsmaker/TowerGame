@@ -49,6 +49,8 @@ b32 window_minimized = false;
 #include "game.cpp"
 
 void make_thing() {
+    init_allocator(temp, Megabytes(4));
+
     const char *letters = "QWERTYUIOPASDFGHJKLZXCVBNM";
 
     int size = 0;
@@ -64,6 +66,9 @@ void make_thing() {
     backgrounds.append(LoadImage("temp/purple.png"));
     backgrounds.append(LoadImage("temp/white.png"));
     backgrounds.append(LoadImage("temp/pink.png"));
+    backgrounds.append(LoadImage("temp/violet.png"));
+    
+    Array <String> icons = get_files_in_directory(tstring("temp/icons"));
     
     for_array(b, &backgrounds) {
         Image background = backgrounds.get_value(b);
@@ -108,17 +113,38 @@ void make_thing() {
             ExportImage(image, tprintf("temp/result/Achievement_%d_%s_gray.jpg", b, str));
         }
         
-        static Image flower = LoadImage("flower.png");
+        for_array(i, &icons) {
+            Image icon = LoadImage(c_str(icons.get_value(i)));
+            Image image = ImageCopy(background);
+            
+            Rectangle rec = {256 - font_size, 256 - font_size, font_size - (256-font_size), font_size - (256-font_size)};
+            ImageDrawRectangleLines(&image, rec, 5, color);
+            
+            Rectangle src_rec = {0, 0, (f32)icon.width, (f32)icon.height};
+            Rectangle dst_rec = {0, 0, 256.0f, 256.0f};
+            
+            String image_name = strip_path_to_just_name(icons.get_value(i), temp);
+            image_name = remove_extension(image_name, temp);
+            if (string_contains(image_name, tstring("infinity"))) {
+                dst_rec.width *= 1.2f;
+                dst_rec.height *= 0.8f;
+                dst_rec.x -= 128 * 0.2f;
+                dst_rec.y += 128 * 0.2f;
+            }
+            
+            ImageDraw(&image, icon, src_rec, dst_rec, WHITE);
+            
+            
+            ExportImage(image, tprintf("temp/result/Achievement_icon_%d_%s.jpg", b, c_str(image_name)));
+            
+            ImageColorGrayscale(&image);
+            ImageColorBrightness(&image, -70);
+            ExportImage(image, tprintf("temp/result/Achievement_icon_%d_%s_gray.jpg", b, c_str(image_name)));
+        }
+        
         Image image = ImageCopy(background);
         
-        Rectangle rec = {256 - font_size, 256 - font_size, font_size - (256-font_size), font_size - (256-font_size)};
-        ImageDrawRectangleLines(&image, rec, 5, color);
         
-        Rectangle src_rec = {0, 0, (f32)flower.width, (f32)flower.height};
-        Rectangle dst_rec = {0, 0, 256.0f, 256.0f};
-        ImageDraw(&image, flower, src_rec, dst_rec, WHITE);
-        
-        ExportImage(image, tprintf("temp/result/Achievement_icon_%d_%s.jpg", b, "flower"));
     }
 }
 

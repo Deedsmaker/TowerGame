@@ -87,6 +87,14 @@ String strip_path_to_just_name(String path, Allocator *allocator) {
     return make_substring(path, index_from, path.count - 1, allocator);
 }
 
+String remove_extension(String name, Allocator *allocator) {
+    i32 dot_index = string_find_from_back(name, tstring("."));
+    if (dot_index <= 0) return {0};
+    
+    String s = make_substring(name, 0, dot_index - 1, allocator);
+    return s;
+}
+
 u64 get_file_modification_time(String path) {
     return GetFileModTime(c_str(path));
 }

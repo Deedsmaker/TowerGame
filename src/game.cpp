@@ -1288,10 +1288,6 @@ String *register_entity_name(Entity *entity) {
     return entities_names.get(index);
 }
 
-// In default case ignore_existing_types is set to false, which means that when we're going to re-init entity
-// for any reason - we will not add new type info to type array if one already set (for example trigger or enemy)
-// and we will keep old one and re-init other things.
-//
 // ignore_existing_types for situations when we want to add new type info even if one is non-zero.
 // For example on copy_and_add_entity we're doing thing like *entity = *to_copy, which means that we'll gonna have 
 // the same pointers to types as a copy (like trigger, propeller, some enemy etc.) and in that case we don't want to 
@@ -2616,6 +2612,12 @@ void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_i
     }
 }
 
+void enter_gaming_state() {
+    enter_and_reload_game_state(current_level_context, true); 
+    
+    game_state = GAMING;
+}
+
 void kill_player() {
     if (debug.god_mode && !state_context.we_got_a_winner || player_data->dead_man || debug.dragging_player) { 
         return;
@@ -2711,12 +2713,21 @@ void fixed_game_update(f32 dt) {
         } 
     } 
 
-    update_entities(dt);
+    if (game_state == GAME_PLANNING) {
+        if (IsKeyPressed(KEY_SPACE)) {
+            enter_gaming_state();
+        }
+    } else if (game_state == GAMING) {
+        update_entities(dt);
+    }
     update_particle_emitters(dt);
     // update_particles(dt);
     
     // Update camera.
-    if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())) {
+    if (0) {
+    } else if (editor_state == GAME && game_state == GAME_PLANNING) {
+        current_level_context->cam.position += input.direction * dt * 250;
+    } else if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())) {
         f32 time_since_death_instinct_stop = core.time.app_time - state_context.death_instinct.stop_time;
         
         f32 locked_speed_t = clamp01(time_since_death_instinct_stop);
@@ -10808,6 +10819,10 @@ void draw_particles() {
     }
 }
 
+void draw_planning_state_ui() {
+    make_ui_image({50, 300}, {200, 400}, {0, 0}, color_fade(SKYBLUE, 0.2f), "planning_panel");
+}
+
 void draw_ui(const char *tag) {
     // draw spin bar
     if (editor_state == GAME) {
@@ -10837,6 +10852,8 @@ void draw_ui(const char *tag) {
                 draw_rect({horizontal, vertical}, {width, height}, {0, 0}, 0, color);
             }
         }
+        
+        draw_planning_state_ui();
     }
 
     // Draw speedrun info after last level
@@ -11492,22 +11509,6 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     return e;
 }
-
-// inline void copy_entity(Entity *dest, Entity *to_copy, b32 do_deep_copy, Level_Context *level_context_for_deep_copy, i32 id_to_set) {
-//     *dest = copy_entity(to_copy, do_deep_copy, level_context_for_deep_copy);
-// }
-
-// inline Entity* copy_and_add_entity(Entity *to_copy) {
-//     i32 id = 0;
-//     Entity *e = current_level_context->entities.append({}, &id);
-//     *e = copy_entity(to_copy, true, current_level_context, id);
-
-//     return e;
-// }
-// inline Entity* copy_and_insert_entity(Entity *to_copy, i32 index) {
-//     Entity *e = current_level_context->entities.insert(copy_entity(to_copy, true, current_level_context, index), index);
-//     return e;
-// }
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     i32 id = 0;
