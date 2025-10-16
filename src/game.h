@@ -25,8 +25,10 @@ void switch_current_level_context(Level_Context *target, b32 clear_stuff = false
 void clear_level_context(Level_Context *level_context);
 void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init_entities);
 void clean_up_scene();
-void enter_editor_game_state(Level_Context *level_context, b32 should_init_entities);
-void enter_editor_state();
+void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_init_entities);
+
+void editor_enter_game_state(Level_Context *from_level_context);
+void editor_enter_editor_state();
 
 void bird_clear_formation(Bird_Enemy *bird);
 

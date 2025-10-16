@@ -1735,7 +1735,7 @@ void load_level_by_name(const char *name) {
     editor.last_autosave_time = core.time.app_time;
     load_level(tstring(name));
     
-    // enter_editor_state();
+    // editor_enter_editor_state();
 }
 
 void try_load_next_level() {
@@ -1745,7 +1745,7 @@ void try_load_next_level() {
             found = true;
             if (load_level(tstring(entity->trigger->level_name))) {            
                 print_to_console("Next level loaded successfuly");
-                enter_editor_state();
+                editor_enter_editor_state();
             } else {
                 print_to_console("Next level FAILED TO LOAD");
             }
@@ -1762,7 +1762,7 @@ void try_load_previous_level() {
     if (session_context.old_previous_level_name[0]) {
         if (load_level(tstring(session_context.old_previous_level_name))) {
             print_to_console("Previous level loaded successfuly");
-            // enter_editor_state();
+            // editor_enter_editor_state();
         } else {
             print_to_console("Previous level FAILED TO LOAD");
         }
@@ -1972,8 +1972,8 @@ void load_replay(const char *replay_name) {
     
     if (read_result != -1) {
         // session_context.playing_replay = true;
-        // enter_editor_state();
-        // enter_editor_game_state(current_level_context, true);
+        // editor_enter_editor_state();
+        // enter_and_reload_game_state(current_level_context, true);
         play_loaded_replay();
     
         builder_append(&console.content_builder, tstring("\t>Replay named %s is loaded\n", name));
@@ -1989,7 +1989,7 @@ void debug_toggle_play_replay() {
     session_context.playing_replay = !session_context.playing_replay;
         
     if (session_context.playing_replay) {
-        enter_editor_game_state(editor_level_context, true);
+        enter_and_reload_game_state(editor_level_context, true);
         play_loaded_replay();
     }
     
@@ -1998,12 +1998,9 @@ void debug_toggle_play_replay() {
 
 void restart_game() {
     load_level(tstring(first_level_name));
-    // enter_editor_state();
+    // editor_enter_editor_state();
     
-    // We could already enter game state if we was in it while loading.
-    if (editor_state != GAME) {
-        enter_editor_game_state(current_level_context, true);
-    }
+    enter_and_reload_game_state(current_level_context, true);
     
     player_data->ammo_count = 0;
     session_context.speedrun_timer.time = 0;        
@@ -2012,8 +2009,8 @@ void restart_game() {
 void begin_level_speedrun() {
     if (!session_context.speedrun_timer.level_timer_active) {
         reload_level();
-        enter_editor_state();
-        enter_editor_game_state(current_level_context, true);
+        // editor_enter_editor_state();
+        enter_and_reload_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = true;        
         session_context.speedrun_timer.game_timer_active  = false;        
@@ -2032,8 +2029,8 @@ void disable_speedrun() {
 void begin_game_speedrun() {
     if (!session_context.speedrun_timer.game_timer_active) {
         restart_game();
-        enter_editor_state();
-        enter_editor_game_state(current_level_context, true);
+        editor_enter_editor_state();
+        enter_and_reload_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = false;        
         session_context.speedrun_timer.game_timer_active  = true;        
@@ -2539,7 +2536,18 @@ Entity *add_player_entity(Player *data) {
     return new_player_entity;
 }
 
-void enter_editor_game_state(Level_Context *level_context, b32 should_init_entities) {
+void editor_enter_game_state(Level_Context *from_level_context) {
+    state_context = {};
+    session_context.just_entered_game_state = true;
+    core.time.game_time = 0;
+    core.time.hitstop = 0;
+    core.time.previous_dt = 0;
+    
+    enter_and_reload_game_state(from_level_context, true);    
+}
+
+// We're not initing entities on enter_and_reload_game_state only on respawn to checkpoint.
+void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_init_entities) {
     // player_data = {};
     real_player_data = {};
     player_data = &real_player_data;
@@ -2547,18 +2555,13 @@ void enter_editor_game_state(Level_Context *level_context, b32 should_init_entit
     clean_up_scene();
     clear_level_context(&game_level_context);
     
-    state_context = {};
-    session_context.just_entered_game_state = true;
-    core.time.game_time = 0;
-    core.time.hitstop = 0;
-    core.time.previous_dt = 0;
     
     HideCursor();
     DisableCursor();
     
     // clear_level_context(&game_level_context);
     switch_current_level_context(&game_level_context);
-    copy_level_context(&game_level_context, level_context, should_init_entities);
+    copy_level_context(&game_level_context, from_level_context, should_init_entities);
     
     Vector2 grid_target_pos = current_level_context->player_spawn_point;
     current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
@@ -2629,7 +2632,7 @@ void kill_player() {
     state_context.timers.background_flash_time = core.time.app_time;
 }
 
-void enter_editor_state() {
+void editor_enter_editor_state() {
     editor_state = EDITOR;
     state_context = {};
     
@@ -3171,9 +3174,9 @@ void update_game() {
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)) {
         if (editor_state == EDITOR) {
-            enter_editor_game_state(editor_level_context, true);
+            editor_enter_game_state(editor_level_context);
         } else if (editor_state == GAME) {
-            enter_editor_state();
+            editor_enter_editor_state();
         }
     } 
     
@@ -3192,15 +3195,15 @@ void update_game() {
                 restart_game();
                 session_context.speedrun_timer.time = 0;
             } else if (session_context.speedrun_timer.level_timer_active) {
-                // enter_editor_state();
-                enter_editor_game_state(editor_level_context, true);
+                // editor_enter_editor_state();
+                enter_and_reload_game_state(editor_level_context, true);
                 session_context.speedrun_timer.time = 0;
             } else {
                 b32 is_have_checkpoint = checkpoint_trigger_id > 0;
                 session_context.playing_replay = false;            
-                // enter_editor_state();
+                // editor_enter_editor_state();
                 if (is_have_checkpoint) {
-                    enter_editor_game_state(&checkpoint_level_context, false);
+                    enter_and_reload_game_state(&checkpoint_level_context, false);
                     player_entity = checkpoint_player_entity;
                     real_player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
@@ -3209,7 +3212,7 @@ void update_game() {
                     player_data->velocity = Vector2_zero;
                     session_context.speedrun_timer.time = 0;
                 } else {
-                    enter_editor_game_state(editor_level_context, true);
+                    enter_and_reload_game_state(editor_level_context, true);
                 }
             }
         }

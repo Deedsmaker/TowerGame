@@ -359,7 +359,7 @@ void create_level(String name) {
     editor_level_context->level_name = copy_string(name, &editor_level_context->memory_arena);
     
     // save_level(name);
-    enter_editor_state();
+    editor_enter_editor_state();
     print_to_console("Level successfuly created");
 }
 
@@ -707,7 +707,7 @@ b32 load_level(String name) {
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
     if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
-        enter_editor_game_state(&loaded_level_context, true);
+        enter_and_reload_game_state(&loaded_level_context, true);
         
         if (enter_game_state_on_new_level) {
             player_data->blood_amount = last_player_data.blood_amount;
@@ -717,7 +717,7 @@ b32 load_level(String name) {
         
         enter_game_state_on_new_level = false;
     } else {
-        enter_editor_state();
+        editor_enter_editor_state();
     }
     
     current_level_context->cam.position = current_level_context->player_spawn_point;
