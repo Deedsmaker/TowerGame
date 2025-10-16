@@ -140,9 +140,9 @@ void draw_entity(Entity *e);
 inline b32 should_add_immediate_stuff();
 inline b32 should_not_draw_entity(Entity *e, Cam cam);
 
-inline Vector2 global(Entity *e, Vector2 local_pos);
-inline Vector2 global(Vector2 position, Vector2 local_pos);
-Vector2 local (Entity *e, Vector2 global_pos);
+inline Vector2 global_position(Entity *e, Vector2 local_pos);
+inline Vector2 global_position(Vector2 position, Vector2 local_pos);
+Vector2 local_position(Entity *e, Vector2 global_pos);
 
 Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise);
 

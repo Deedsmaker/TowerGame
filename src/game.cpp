@@ -3575,7 +3575,7 @@ Collision check_collision(Vector2 position1, Vector2 position2, Static_Array<Vec
             }
             
             for (i32 j = 0; j < vertices.count; j++) {            
-                f32 p = dot(global(position, vertices.get_value(j)), axis);
+                f32 p = dot(global_position(position, vertices.get_value(j)), axis);
                 
                 f32 min = fmin(projections[shape].x, p);
                 f32 max = fmax(projections[shape].y, p);
@@ -3849,7 +3849,7 @@ void move_vertex(Entity *entity, Vector2 target_position, i32 vertex_index) {
     Vector2 *vertex = entity->vertices.get(vertex_index);
     Vector2 *unscaled_vertex = entity->unscaled_vertices.get(vertex_index);
     
-    Vector2 local_target = local(entity, target_position);
+    Vector2 local_target = local_position(entity, target_position);
 
     *vertex = local_target;
     *unscaled_vertex = {vertex->x / entity->scale.x, vertex->y / entity->scale.y};
@@ -4808,10 +4808,10 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
         for (i32 v = 0; v < e->vertices.count; v++) {
             Vector2 *vertex = e->vertices.get(v);
             
-            Vector2 vertex_global = global(e, *vertex);
+            Vector2 vertex_global = global_position(e, *vertex);
                 
             if (e->id != editor.selected->id) {
-                f32 sqr_distance = sqr_magnitude(global(editor.selected, *entity_vertex) - vertex_global);
+                f32 sqr_distance = sqr_magnitude(global_position(editor.selected, *entity_vertex) - vertex_global);
                 if (sqr_distance < distance_to_closest_vertex) {
                     distance_to_closest_vertex = sqr_distance;
                     closest_vertex_global = vertex_global;
@@ -5261,7 +5261,7 @@ void update_editor() {
         // for (i32 v = 0; v < e->vertices.count && need_move_vertices; v++) {
         //     Vector2 *vertex = e->vertices.get(v);
             
-        //     Vector2 vertex_global = global(e, *vertex);
+        //     Vector2 vertex_global = global_position(e, *vertex);
             
         //     if (need_move_vertices && (!moving_vertex_entity_candidate || (editor.selected && e->id == editor.selected->id))) {
         //         if (is_vertex_on_mouse(vertex_global)) {
@@ -10695,7 +10695,7 @@ void draw_game_space_editor() {
         // draw vertices
         if (draw_circles_on_vertices) {
             for (i32 v = 0; v < e->vertices.count; v++) {
-                Vector2 global_vertex_position = global(e, e->vertices.get_value(v));
+                Vector2 global_vertex_position = global_position(e, e->vertices.get_value(v));
                 if (editor.selected && editor.selected->id == e->id) {
                     const char *text = v == 0 ? "T" : (v == 1 ? "Y" : (v == 2 ? "F" : "G"));
                     draw_game_text(global_vertex_position, text, 22.0f / current_level_context->cam.cam2D.zoom, YELLOW);
@@ -10703,7 +10703,7 @@ void draw_game_space_editor() {
                 draw_game_circle(global_vertex_position, 1.0f * (0.4f / current_level_context->cam.cam2D.zoom), PINK);
                 //draw unscaled vertices
                 if (IsKeyDown(KEY_LEFT_SHIFT)) {    
-                    draw_game_circle(global(e, e->unscaled_vertices.get_value(v)), 1.0f * 0.4f, PURPLE);
+                    draw_game_circle(global_position(e, e->unscaled_vertices.get_value(v)), 1.0f * 0.4f, PURPLE);
                 }
             }
         }
@@ -11543,39 +11543,15 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Colo
     return e;
 }
 
-// Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
-//     i32 id = 0;
-//     Entity *e = 
-//     Entity e = make_entity(pos, scale, pivot, rotation, flags);    
-//     // e.id = id;
-//     e.level_context = current_level_context;
-//     // check_avaliable_ids_and_set_if_found(&e.id);
-//     return current_level_context->entities.append(e, &e.id);
-// }
-
-// Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
-//     Entity *e = add_entity(id, pos, scale, pivot, rotation, flags);    
-//     e->color = color;
-//     setup_color_changer(e);
-//     return e;
-// }
-
-// Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags, Static_Array<Vector2, MAX_VERTICES> vertices) {
-//     Entity *e = add_entity(id, pos, scale, pivot, rotation, color, flags);    
-//     e->vertices = vertices;
-//     setup_color_changer(e);
-//     return e;
-// }
-
-inline Vector2 global(Entity *e, Vector2 local_pos) {
+inline Vector2 global_position(Entity *e, Vector2 local_pos) {
     return e->position + local_pos;
 }
 
-inline Vector2 global(Vector2 position, Vector2 local_pos) {
+inline Vector2 global_position(Vector2 position, Vector2 local_pos) {
     return position + local_pos;
 }
 
-inline Vector2 local(Entity *e, Vector2 global_pos) {
+inline Vector2 local_position(Entity *e, Vector2 global_pos) {
     return global_pos - e->position;
 }
 
@@ -11663,7 +11639,7 @@ Static_Array<Vector2, 2048> screen_positions_buffer = Static_Array<Vector2, 2048
 inline void draw_game_line_strip(Entity *entity, Color color) {
     screen_positions_buffer.clear();
     for (i32 i = 0; i < entity->vertices.count; i++) {
-        screen_positions_buffer.append(world_to_screen(global(entity, entity->vertices.get_value(i))));
+        screen_positions_buffer.append(world_to_screen(global_position(entity, entity->vertices.get_value(i))));
     }
     
     draw_line_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
@@ -11691,7 +11667,7 @@ inline void draw_game_line_strip(Vector2 position, Static_Array<Vector2, MAX_VER
 void draw_game_triangle_strip(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color) {
     screen_positions_buffer.clear();
     for (i32 i = 0; i < vertices.count; i++) {
-        screen_positions_buffer.append(world_to_screen(global(position, vertices.get_value(i))));
+        screen_positions_buffer.append(world_to_screen(global_position(position, vertices.get_value(i))));
     }
     
     draw_triangle_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
