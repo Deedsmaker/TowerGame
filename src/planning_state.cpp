@@ -17,16 +17,22 @@ void planning_start_holding_entity(Entity *entity_to_drag) {
 
 void update_planning() { 
     if (planning.dragged_entity) {
-        planning.dragged_entity->position = input.mouse_position;
-        planning.dragged_entity->position = round_to_factor(planning.dragged_entity->position, CELL_SIZE);
+        Entity *entity = planning.dragged_entity;
+        entity->position = input.mouse_position;
+        entity->position = round_to_factor(entity->position, CELL_SIZE);
         
         if (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_E)) {   
             f32 to_rotate = 0;
             if (IsKeyPressed(KEY_Q)) to_rotate = -15;
             if (IsKeyPressed(KEY_E)) to_rotate = 15;
             
-            f32 next_rotation = round_to_factor(planning.dragged_entity->rotation + to_rotate, 15);
-            rotate_to(planning.dragged_entity, next_rotation);
+            f32 next_rotation = round_to_factor(entity->rotation + to_rotate, 15);
+            rotate_to(entity, next_rotation);
+        }
+        
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            entity->position = round_to_factor(entity->position, CELL_SIZE);
+            planning.dragged_entity = NULL;
         }
     }
 }

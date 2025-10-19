@@ -11,7 +11,7 @@ name Trigger
  unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
  hidden 0 
  spawn_enemy_when_no_ammo 0 
- trigger_settings 1150089 
+ trigger_settings 1117321 
  trigger_locked_camera_position { -92.085022,  235.676224} 
  trigger_zoom_value 0.350000 
  
