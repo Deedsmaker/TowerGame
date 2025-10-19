@@ -957,9 +957,14 @@ struct Light {
     // RenderTexture backshadows_rt;
 };
 
+enum Spawn_Object_Flags : FLAGS {
+    PLANNING_OBJECT = 0x01,
+};
+
 struct Spawn_Object {
     char name[64];
     Entity entity = {0};
+    FLAGS flags = 0;
 };
 
 //scale 150 should be full screen;

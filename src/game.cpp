@@ -11,7 +11,7 @@
 //#define assert(a) (if (!a) (i32*)void*);
 //#define assert(Expression) if(!(Expression)) {*(i32 *)0 = 0;}
 
-global_variable Array<Collision> collisions_buffer; // Should probably reserve data.
+global_variable Array <Collision> collisions_buffer; // Should probably reserve data.
 
 #include "game.h"
 #include "perlin.h"
@@ -65,7 +65,7 @@ global_variable Debug  debug  = {};
 
 global_variable const char *first_level_name = "new_basics1";
 
-global_variable Array<Vector2> global_normals = {0};
+global_variable Array <Vector2> global_normals = {0};
 
 global_variable Entity mouse_entity = {0};
 Entity empty_entity = {0};
@@ -80,9 +80,9 @@ global_variable b32 clicked_ui = false;
 
 global_variable b32 enter_game_state_on_new_level = false;
 
-global_variable Array<Texture_Data> loaded_textures = {0};
-global_variable Array<Texture_Data> normal_maps = {0};
-global_variable Array<Sound_Handler> sounds_array = {0};
+global_variable Array <Texture_Data> loaded_textures = {0};
+global_variable Array <Texture_Data> normal_maps = {0};
+global_variable Array <Sound_Handler> sounds_array = {0};
 
 global_variable b32 initing_game = false;
 
@@ -122,12 +122,8 @@ Texture missing_texture;
 
 Sound_Handler *missing_sound = NULL;
 
-#include "random.hpp"
-#include "particles.hpp"
-#include "text_input.hpp"
-#include "ui.hpp"
-#include "lightmaps.cpp"
-#include "planning_state.cpp"
+global_variable Array <Spawn_Object> spawn_objects = {0};
+
 
 // #include "entity_ids.cpp"
 
@@ -157,6 +153,12 @@ inline void log_short(Vector2 value) {
     log_short(tprintf("{%f, %f}", value.x, value.y));
 }
 
+#include "random.hpp"
+#include "particles.hpp"
+#include "text_input.hpp"
+#include "ui.hpp"
+#include "lightmaps.cpp"
+#include "planning_state.cpp"
 #include "dynamic_lights.cpp"
 #include "undo.cpp"
 #include "saving_loading.cpp"
@@ -328,7 +330,7 @@ void free_entity(Entity *e) {
     e->level_context->entities.remove(e->id - 1);
 } // free entity end
 
-inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+inline void add_rect_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     vertices->clear();
     vertices->append({1.0f - pivot.x, pivot.y});
     vertices->append({-pivot.x, pivot.y});
@@ -336,14 +338,14 @@ inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vec
     vertices->append({-pivot.x, pivot.y - 1.0f});
 }
 
-void add_triangle_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_triangle_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     vertices->clear();
     vertices->append({pivot.x, pivot.y});
     vertices->append({-pivot.x, pivot.y});
     vertices->append({pivot.x, pivot.y - 1.0f});
 }
 
-void add_sword_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_sword_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     add_rect_vertices(vertices, pivot);
     vertices->get(0)->x *= 0.3f;
     vertices->get(1)->x *= 0.3f;
@@ -352,19 +354,19 @@ void add_sword_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 p
     vertices->get(3)->y += 0.15f;
 }
 
-void add_prism_shaped_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot, f32 narrowing = 0.3f) {
+void add_prism_shaped_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot, f32 narrowing = 0.3f) {
     add_rect_vertices(vertices, pivot);
     vertices->get(0)->x *= narrowing;
     vertices->get(1)->x *= narrowing;
 }
 
-void add_upsidedown_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_upsidedown_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     add_rect_vertices(vertices, pivot);
     vertices->get(2)->x *= 0.3f;
     vertices->get(3)->x *= 0.3f;
 }
 
-void add_romb_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
+void add_romb_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     add_rect_vertices(vertices, pivot);
     vertices->get(0)->x *= 1.5f;
     vertices->get(3)->x *= 1.5f;
@@ -767,9 +769,7 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
 #define ForCollisions(entity, flags) fill_collisions(entity, &collisions_buffer, flags); Entity *other = NULL; Collision col = {}; for (i32 col_index = 0; set_next_collision_stuff(col_index, &col, &other); col_index++)
 
 // It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_affected_collision_cells).
-global_variable Array<Collision_Grid_Cell*> collision_cells_buffer = {0};
-
-global_variable Array<Spawn_Object> spawn_objects = {0};
+global_variable Array <Collision_Grid_Cell*> collision_cells_buffer = {0};
 
 Entity *spawn_object_by_name(const char* name, Vector2 position) {
     for (i32 i = 0; i < spawn_objects.count; i++) {
@@ -814,7 +814,7 @@ inline void free_particle_emitters(i32 *start_ptr, i32 count) {
 }
 
 inline void free_entity_particle_emitters(Entity *entity) {
-    Static_Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
+    Static_Array <i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     // free_particle_emitters(emitters_indexes->data, emitters_indexes->count);
     for (i32 i = 0; i < emitters_indexes->count; i++) {    
         Particle_Emitter *emitter = get_particle_emitter(emitters_indexes->get_value(i));
@@ -828,7 +828,7 @@ inline void free_entity_particle_emitters(Entity *entity) {
 void init_bird_emitters(Entity *entity) {
     assert(entity->flags & BIRD_ENEMY && entity->bird_enemy);
 
-    Static_Array<i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
+    Static_Array <i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
     free_entity_particle_emitters(entity);
     entity->bird_enemy->trail_emitter_index = add_entity_particle_emitter(entity, entity->flags & EXPLOSIVE ? &little_fire_emitter : &air_dust_emitter);
     enable_emitter(entity->bird_enemy->trail_emitter_index, entity->position);
@@ -1102,6 +1102,7 @@ void init_spawn_objects() {
     
     Spawn_Object hit_booster_object;
     hit_booster_object.entity = hit_booster_entity;
+    hit_booster_object.flags |= PLANNING_OBJECT;
     str_copy(hit_booster_object.name, "hit_booster");
     spawn_objects.append(hit_booster_object);
     
@@ -1120,10 +1121,10 @@ void init_spawn_objects() {
 
 struct Tile_Sheet {
     String sheet_name;
-    Array<Texture_Data> textures;
+    Array <Texture_Data> textures;
 };
 
-Array<Tile_Sheet> tile_sheets = {0};
+Array <Tile_Sheet> tile_sheets = {0};
 
 void add_spawn_object_from_texture(Texture texture, const char *name, const char *directory_name = 0) {
     Entity texture_entity = make_entity({0, 0}, {(f32)texture.width * 0.25f, (f32)texture.height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
@@ -2740,6 +2741,7 @@ void fixed_game_update(f32 dt) {
     if (game_state == GAME_PLANNING && editor_state == GAME) {
         if (input.press_flags & ENTER_GAMING_STATE) {
             enter_gaming_state();
+        } else {
         }
     } else if (game_state == GAMING) {
         update_entities(dt);
@@ -2774,7 +2776,7 @@ void fixed_game_update(f32 dt) {
             
             if (state_context.cam_state.on_rails_horizontal || state_context.cam_state.on_rails_vertical) {
                 Entity *rails_trigger_entity = get_entity(state_context.cam_state.rails_trigger_id);
-                Array<Vector2> *rails_points = &rails_trigger_entity->trigger->cam_rails_points;
+                Array <Vector2> *rails_points = &rails_trigger_entity->trigger->cam_rails_points;
                 assert(rails_trigger_entity);
                 
                 b32 on_rails = rails_points->count >= 2;
@@ -3350,6 +3352,10 @@ void update_game() {
     
     update_console();
     
+    if (editor_state == GAME && game_state == GAME_PLANNING) { 
+        update_planning();
+    }
+    
     if (editor_state == GAME && !state_context.in_pause_editor) {
         f32 full_delta = core.time.dt + core.time.previous_dt;
         core.time.previous_dt = 0;
@@ -3506,7 +3512,7 @@ inline Vector2 get_rotated_vector_90(Vector2 v, f32 clockwise) {
     return {-v.y * clockwise, v.x * clockwise};
 }
 
-inline void fill_arr_with_normals(Array<Vector2> *normals, Static_Array<Vector2, MAX_VERTICES> vertices) {
+inline void fill_arr_with_normals(Array <Vector2> *normals, Static_Array <Vector2, MAX_VERTICES> vertices) {
     //@INCOMPLETE now only for rects and triangles, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
     // Update 03.03.2025: Graham scan algorithm should do the job if we will really need it.
@@ -3578,7 +3584,7 @@ inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *ent
     return check_rectangles_collision(position1 + bounds1.offset, bounds1.size, final2, entity2->bounds.size);
 }
 
-Collision check_collision(Vector2 position1, Vector2 position2, Static_Array<Vector2, MAX_VERTICES> vertices1, Static_Array<Vector2, MAX_VERTICES> vertices2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}) {
+Collision check_collision(Vector2 position1, Vector2 position2, Static_Array <Vector2, MAX_VERTICES> vertices1, Static_Array <Vector2, MAX_VERTICES> vertices2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}) {
     Collision result = {};
     
     Bounds bounds1 = get_bounds(vertices1, pivot1);
@@ -3607,7 +3613,7 @@ Collision check_collision(Vector2 position1, Vector2 position2, Static_Array<Vec
         Vector2 axis = global_normals.get_value(i);
 
         for (i32 shape = 0; shape < 2; shape++) {
-            Static_Array<Vector2, MAX_VERTICES> vertices;
+            Static_Array <Vector2, MAX_VERTICES> vertices;
             Vector2 position;
             if (shape == 0) {
                 vertices = vertices1;
@@ -3685,7 +3691,7 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
     return cell;
 }
 
-void fill_affected_collision_cells(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision_Grid_Cell*> *out_cells) {
+void fill_affected_collision_cells(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array <Collision_Grid_Cell*> *out_cells) {
     out_cells->clear();
     Collision_Grid grid = current_level_context->collision_grid;
     Vector2 center = position + bounds.offset;
@@ -3743,9 +3749,9 @@ inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_s
     }
 }
 
-global_variable Array<i32> added_collision_ids = {0};
+global_variable Array <i32> added_collision_ids = {0};
 
-void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision> *result, FLAGS include_flags, i32 my_id) {
+void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array <Collision> *result, FLAGS include_flags, i32 my_id) {
     result->clear();
     
     fill_affected_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
@@ -3785,8 +3791,8 @@ void fill_collisions(Entity *entity, Array <Collision> *result, FLAGS include_fl
     fill_collisions(entity->position, entity->vertices, entity->bounds, entity->pivot, result, include_flags, entity->id);
 }
 
-void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<Collision> *result, FLAGS include_flags) {
-    Static_Array<Vector2, MAX_VERTICES> vertices = Static_Array<Vector2, MAX_VERTICES>();
+void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array <Collision> *result, FLAGS include_flags) {
+    Static_Array <Vector2, MAX_VERTICES> vertices = Static_Array <Vector2, MAX_VERTICES>();
     add_rect_vertices(&vertices, pivot);    
     for (i32 i = 0; i < vertices.count; i++) {
         vertices.get(i)->x *= scale.x;
@@ -3841,7 +3847,7 @@ inline b32 entity_array_contains_id(Entity **arr, i32 count, i32 id) {
 
 Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, f32 step = 4, i32 my_id = -1) {
     f32 current_len = 0;
-    Static_Array<Vector2, MAX_VERTICES> ray_vertices = Static_Array<Vector2, MAX_VERTICES>();
+    Static_Array <Vector2, MAX_VERTICES> ray_vertices = Static_Array <Vector2, MAX_VERTICES>();
     
     b32 found = false;
     Collision result = {};
@@ -4966,7 +4972,7 @@ inline void add_to_multiselection(i32 id) {
     }
 }
 
-void add_to_multiselection(Array<i32> *ids) {
+void add_to_multiselection(Array <i32> *ids) {
     for (i32 i = 0 ; i < ids->count; i++) {
         i32 id = ids->get_value(i);
                 
@@ -4994,7 +5000,7 @@ void remove_id_from_multiselection(i32 id) {
     }
 }
 
-void remove_ids_from_multiselection(Array<i32> *ids) {
+void remove_ids_from_multiselection(Array <i32> *ids) {
     // Backwards because if we'll got multiselection.entities array itself - things will broke if go beginning to end.
     for (i32 i = ids->count - 1; i >= 0; i--) {
         i32 id = ids->get_value(i);
@@ -5011,7 +5017,7 @@ b32 clicked_on_entity_edge(f32 rotation, Vector2 edge_center, b32 is_horizontal,
         return false;
     }
 
-    Static_Array<Vector2, MAX_VERTICES> edge_vertices = Static_Array<Vector2, MAX_VERTICES>();
+    Static_Array <Vector2, MAX_VERTICES> edge_vertices = Static_Array <Vector2, MAX_VERTICES>();
     add_rect_vertices(&edge_vertices, {0.5f, 0.5f});
     f32 selection_radius = fmaxf(3.0f, 1.5f / current_level_context->cam.cam2D.zoom) * radius_multiplier;
     for (i32 i = 0; i < edge_vertices.count; i++) {
@@ -5134,9 +5140,6 @@ void rotate_multiselected(f32 to_rotate) {
         f32 next_rotation = round_to_factor(entity->rotation + to_rotate, 15);
         to_rotate = next_rotation - entity->rotation;
         
-        // @TODO: Should rewrite undo system and make that we add to undo all the changes at once so we don't have to undo
-        // a thousand times.
-//         undo_remember_vertices_start(entity);
         rotate(entity, to_rotate);
         
         Vector2 before_position = entity->position;
@@ -5686,7 +5689,7 @@ void update_editor() {
         
         assign_selected_entity(NULL);
         
-        Array<i32> spawned_ids = {.allocator = temp};
+        Array <i32> spawned_ids = {.allocator = temp};
         
         clear_multiselected_entities();
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
@@ -6199,7 +6202,7 @@ void change_color(Entity *entity, Color new_color) {
     setup_color_changer(entity);
 }
 
-Bounds get_bounds(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot) {
+Bounds get_bounds(Static_Array <Vector2, MAX_VERTICES> vertices, Vector2 pivot) {
     f32 top_vertex    = -INFINITY;
     f32 bottom_vertex =  INFINITY;
     f32 right_vertex  = -INFINITY;
@@ -9037,7 +9040,7 @@ void activate_door(Entity *entity, b32 is_open) {
 }
 
 Collision get_nearest_ground_collision(Vector2 point, f32 radius) {
-    Static_Array<Vector2, MAX_VERTICES> vertices;
+    Static_Array <Vector2, MAX_VERTICES> vertices;
     f32 radius_step = 4;
     f32 current_radius = 0;
     
@@ -9566,7 +9569,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 f32 angle = -shooter->spread * 0.5f;
                 f32 angle_step = shooter->spread / shooter->shots_count;
                 
-                local_persist Static_Array<i32, 64> explosive_indexes;
+                local_persist Static_Array <i32, 64> explosive_indexes;
                 explosive_indexes.clear();
                 
                 for (i32 i = 0; i < shooter->explosive_count; i++) {
@@ -9759,7 +9762,7 @@ void update_entities(f32 dt) {
         state_context.turret_state.ticked_this_frame = true;
     }
 
-    Chunk_Array<Entity> *entities = &current_level_context->entities;
+    Chunk_Array <Entity> *entities = &current_level_context->entities;
     
     b32 update_static_entities_collision_cells = editor_state == EDITOR || state_context.in_pause_editor;
     update_all_collision_cells(update_static_entities_collision_cells);        
@@ -10255,7 +10258,7 @@ void fill_entities_draw_queue() {
 
 #define MAX_LINE_STRIP_POINTS 1024
 
-Static_Array<Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
+Static_Array <Vector2, MAX_LINE_STRIP_POINTS> line_strip_points;
 
 void draw_spikes(Entity *e, Vector2 side_direction, Vector2 up_direction, f32 width, f32 height) {
     if (drawing_state != CAMERA_DRAWING) {
@@ -10682,7 +10685,7 @@ void draw_entities() {
     fill_entities_draw_queue();
 
     //Hash_Table_Int<Entity> *entities = &current_level_context->entities;
-    Array<Entity> *entities = &session_context.entities_draw_queue;
+    Array <Entity> *entities = &session_context.entities_draw_queue;
     
     for (i32 entity_index = 0; entity_index < entities->count; entity_index++) {
         Entity *e = entities->get(entity_index);
@@ -10736,7 +10739,7 @@ void draw_entities() {
 }
 
 void draw_game_space_editor() {
-    Chunk_Array<Entity> *entities = &current_level_context->entities;
+    Chunk_Array <Entity> *entities = &current_level_context->entities;
 
     // for (i32 i = 0; i < entities->capacity; i++) {
     for_chunk_array(i, entities) {
@@ -11043,7 +11046,7 @@ inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Colo
     make_rect_lines(position, scale, pivot, 0, color);
 }
 
-inline void make_outline(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color) {
+inline void make_outline(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Color color) {
     if (!should_add_immediate_stuff()) {
         return;
     }
@@ -11679,7 +11682,7 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
     draw_rect_lines(screen_pos, scale * current_level_context->cam.unit_size, color);
 }
 
-Static_Array<Vector2, 2048> screen_positions_buffer = Static_Array<Vector2, 2048>();
+Static_Array <Vector2, 2048> screen_positions_buffer = Static_Array <Vector2, 2048>();
 
 inline void draw_game_line_strip(Entity *entity, Color color) {
     screen_positions_buffer.clear();
@@ -11699,8 +11702,8 @@ inline void draw_game_line_strip(Vector2 *points, i32 count, Color color) {
     draw_line_strip(screen_positions_buffer.data, screen_positions_buffer.count, color);
 }
 
-inline void draw_game_line_strip(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color) {
-    local_persist Static_Array<Vector2, MAX_VERTICES> global_vertices_buffer = Static_Array<Vector2, MAX_VERTICES>();
+inline void draw_game_line_strip(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Color color) {
+    local_persist Static_Array <Vector2, MAX_VERTICES> global_vertices_buffer = Static_Array <Vector2, MAX_VERTICES>();
     global_vertices_buffer.clear();
     
     for (i32 i = 0; i < vertices.count; i++) {
@@ -11709,7 +11712,7 @@ inline void draw_game_line_strip(Vector2 position, Static_Array<Vector2, MAX_VER
     draw_game_line_strip(global_vertices_buffer.data, global_vertices_buffer.count, color);
 }
 
-void draw_game_triangle_strip(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 position, Color color) {
+void draw_game_triangle_strip(Static_Array <Vector2, MAX_VERTICES> vertices, Vector2 position, Color color) {
     screen_positions_buffer.clear();
     for (i32 i = 0; i < vertices.count; i++) {
         screen_positions_buffer.append(world_to_screen(global_position(position, vertices.get_value(i))));

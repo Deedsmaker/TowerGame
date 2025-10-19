@@ -16,10 +16,10 @@ name No_name
  light_make_shadows 0 
  light_make_backshadows 0 
  light_bake_shadows 0 
- light_radius 99.000000 
+ light_radius 120.000000 
  light_opacity 1.000000 
  light_power 1.000000 
- light_color { 255,  255,  255,  255} 
+ light_color { 255,  179,  51,  255} 
  enemy_gives_ammo 0 
  explosive_radius_multiplier 1.000000s 
  
