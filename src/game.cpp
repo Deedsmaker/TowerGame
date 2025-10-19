@@ -39,6 +39,7 @@ i32 current_editor_level_context_index = 0;
 i32 last_loaded_editor_level_context_index = 0;
 
 global_variable Level_Context game_level_context = {};
+global_variable Level_Context planning_level_context = {};
 global_variable Level_Context checkpoint_level_context = {};
 global_variable Level_Context loaded_level_context = {};
 global_variable Level_Context undo_level_context = {};
@@ -54,7 +55,7 @@ global_variable State_Context checkpoint_state_context;
 global_variable i32 checkpoint_trigger_id = -1;
 
 global_variable Player *player_data = {};
-global_variable Player real_player_data = {};
+// global_variable Player real_player_data = {};
 global_variable Player replay_player_data = {};
 
 global_variable Level_Replay level_replay = {};
@@ -179,6 +180,8 @@ void switch_current_level_context(Level_Context *target, b32 clear_stuff) {
 
     current_level_context = target;
     setup_context_cam(current_level_context);
+    
+    player_data = &current_level_context->player_data;
 }
 
 inline Color color_fade(Color color, f32 alpha_multiplier) {
@@ -654,9 +657,18 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         }
     }
     
+    // First of all we just copying raw entities and then going through all of them deep copy properly into dest level context.
     dest->entities = copy_chunk_array(&src->entities);
     for_chunk_array(i, (&dest->entities)) {
-        copy_and_add_entity(src->entities.get(i), dest, i + 1);
+        Entity *added = copy_and_add_entity(src->entities.get(i), dest, i + 1);
+        
+        if (added->flags & PLAYER) {
+            dest->player = added;
+        }
+    }
+    
+    if (dest->player) {
+        dest->player_data = src->player_data;
     }
     
     for (i32 i = 0; i < src->line_trails.capacity; i++) {
@@ -1695,6 +1707,13 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }
     
+    // Init player.
+    if (entity->flags & PLAYER) { 
+        if (!entity->player_data || ignore_existing_types) {
+            entity->player_data = &entity->level_context->player_data;
+        }
+    }
+    
     entity->name = register_entity_name(entity);
     
     calculate_bounds(entity);
@@ -2006,7 +2025,7 @@ void restart_game() {
     
     enter_and_reload_game_state(current_level_context, true);
     
-    player_data->ammo_count = 0;
+    // player_data->ammo_count = 0;
     session_context.speedrun_timer.time = 0;        
 }
 
@@ -2375,6 +2394,7 @@ void init_game() {
     str_copy(loaded_level_context.name, "loaded_level_context");
     // str_copy(editor_level_context.name, "editor_level_context");
     str_copy(game_level_context.name, "game_level_context");
+    str_copy(planning_level_context.name, "planning_level_context");
     str_copy(checkpoint_level_context.name, "checkpoint_level_context");
     str_copy(undo_level_context.name, "undo_level_context");
     str_copy(copied_entities_level_context.name, "copied_entities_level_context");
@@ -2382,6 +2402,7 @@ void init_game() {
     // Now we need to init all level contexts once 
     init_level_context(&loaded_level_context);
     init_level_context(&game_level_context);
+    init_level_context(&planning_level_context);
     init_level_context(&checkpoint_level_context);
     init_level_context(&undo_level_context);
     init_level_context(&copied_entities_level_context);
@@ -2392,7 +2413,7 @@ void init_game() {
     }
     editor_level_context = &loaded_levels_contexts[0];
     
-    player_data = &real_player_data;
+    // player_data = &real_player_data;
     
     switch_current_level_context(&loaded_level_context);
 
@@ -2457,10 +2478,8 @@ void destroy_player() {
     mark_entity_destroyed(current_level_context->player);
     current_level_context->player->enabled   = false;
     
-    // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.ground_checker_id));
-    mark_entity_destroyed(get_entity(player_data->connected_entities_ids.ground_checker_id));
-    // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
-    mark_entity_destroyed(get_entity(player_data->connected_entities_ids.sword_entity_id));
+    mark_entity_destroyed(get_entity(current_level_context->player_data.connected_entities_ids.ground_checker_id));
+    mark_entity_destroyed(get_entity(current_level_context->player_data.connected_entities_ids.sword_entity_id));
     
     current_level_context->player = NULL;
 }
@@ -2557,6 +2576,8 @@ void editor_enter_game_state(Level_Context *from_level_context) {
     core.time.hitstop = 0;
     core.time.previous_dt = 0;
     
+    clear_level_context(&planning_level_context);
+    copy_level_context(&planning_level_context, from_level_context, true);
     enter_and_reload_game_state(from_level_context, true);    
 }
 
@@ -2569,19 +2590,15 @@ void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_i
     HideCursor();
     DisableCursor();
     
-    switch_current_level_context(&game_level_context);
-    
-    // If we just want to reload game level context it does not really makes sense to copy it to itself. 
-    // We already performed all the clearing necessary.
-    if (!str_equal(game_level_context.name, from_level_context->name)) {
-        real_player_data = {};
-        player_data = &real_player_data;
-        clear_level_context(&game_level_context);
-        copy_level_context(&game_level_context, from_level_context, should_init_entities);
-    }
+    switch_current_level_context(&planning_level_context);
     
     Vector2 grid_target_pos = current_level_context->player_spawn_point;
     current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
+    
+    // real_player_data = {};
+    // player_data = &real_player_data;
+    planning_level_context.player_data = {0};
+    add_player_entity(&planning_level_context, &planning_level_context.player_data);
 
     // state_context.timers.last_collision_cells_clear_time = core.time.app_time;
     // for (i32 i = 0; i < current_level_context->collision_grid.cells.count; i++) {        
@@ -2600,10 +2617,6 @@ void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_i
     if (!session_context.playing_replay) {
         level_replay.input_record.clear();
     }
-    
-    if (should_init_entities && !current_level_context->player) {
-        add_player_entity(current_level_context, player_data);
-    }     
     
     current_level_context->original_win_blocks_count = 0;
     
@@ -2635,12 +2648,27 @@ void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_i
 
 void enter_gaming_state() {
     enter_and_reload_game_state(current_level_context, true); 
+    game_level_context.player_data = {0};
+    copy_level_context(&game_level_context, current_level_context, true);
+    
+    assert(game_level_context.player);
+    
+    // real_player_data = {};
+    // player_data = &real_player_data;
+    
+    switch_current_level_context(&game_level_context);
+    
+    b32 update_static_collision_cells = true;
+    update_all_collision_cells(update_static_collision_cells);
+    
+    current_level_context->current_win_blocks_count = current_level_context->original_win_blocks_count;
     
     game_state = GAMING;
 }
 
 void kill_player() {
-    if (debug.god_mode && !state_context.we_got_a_winner || player_data->dead_man || debug.dragging_player) { 
+    Player *player_data = &current_level_context->player_data;
+    if (debug.god_mode && !state_context.we_got_a_winner || !player_data || player_data->dead_man || debug.dragging_player) { 
         return;
     }
     
@@ -2663,7 +2691,7 @@ void editor_enter_editor_state() {
     
     session_context.playing_replay = false;
     
-    player_data->dead_man = false; 
+    current_level_context->player_data.dead_man = false; 
     
     // We want to enable cursor when user hits escape key.
     HideCursor();
@@ -2705,6 +2733,7 @@ void fixed_game_update(f32 dt) {
     frame_on_circle_rnd = get_perlin_in_circle(1.0f);
     
     Entity *player_entity = current_level_context->player;
+    Player *player_data = &current_level_context->player_data;
 
     if (editor_state == GAME && !state_context.in_pause_editor) {
         if (!session_context.playing_replay) {
@@ -3232,6 +3261,7 @@ void update_game() {
         }
     }
     
+    Player *player_data = &current_level_context->player_data;
     if (editor_state == GAME && !console.is_open) {
         if (IsKeyPressed(KEY_T)) {
             if (session_context.speedrun_timer.game_timer_active && player_data->dead_man) {
@@ -3248,7 +3278,7 @@ void update_game() {
                 if (is_have_checkpoint) {
                     enter_and_reload_game_state(&checkpoint_level_context, false);
                     current_level_context->player = checkpoint_player_entity;
-                    real_player_data = checkpoint_player_data;
+                    // real_player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
                     state_context = checkpoint_state_context;
                     
@@ -6478,7 +6508,7 @@ inline void add_player_ammo(i32 amount) {
 
 inline b32 is_sword_can_damage() {
     f32 threshold = player_data->is_sword_accelerating ? 0.01f : 0.5f;
-    return !is_player_in_stun() && player_data->sword_spin_progress >= threshold;
+    return !is_player_in_stun(current_level_context->player) && player_data->sword_spin_progress >= threshold;
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity) {
@@ -6509,6 +6539,8 @@ inline b32 can_sword_damage_enemy(Entity *enemy_entity) {
 
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
     assert(enemy_entity->union_enemy);
+
+    Player *player_data = &current_level_context->player_data;
 
     Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
@@ -6543,9 +6575,10 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
     assert(enemy_entity->union_enemy);
     
     Entity *player_entity = current_level_context->player;
+    Player *player_data = &current_level_context->player_data;
 
     b32 killed_enemy = false;
-    if (is_sword_can_damage() && !is_player_in_stun() && is_enemy_can_take_damage(enemy_entity)) {
+    if (is_sword_can_damage() && !is_player_in_stun(player_entity) && is_enemy_can_take_damage(enemy_entity)) {
         b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
                 
         Enemy *enemy = enemy_entity->union_enemy;
@@ -6680,12 +6713,15 @@ inline void cut_rope(Entity *entity, Vector2 point = Vector2_zero) {
 void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
     fill_collisions(sword, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE);
     
+    assert(player_entity->player_data);
+    Player *player_data = player_entity->player_data;
+    
     for (i32 i = 0; i < collisions_buffer.count; i++) {
         Collision col = collisions_buffer.get_value(i);
         Entity *other = col.other_entity;
         
         // blocker block
-        if ((other->flags & BLOCKER || other->flags & SWORD_SIZE_REQUIRED) && !is_player_in_stun()) {
+        if ((other->flags & BLOCKER || other->flags & SWORD_SIZE_REQUIRED) && !is_player_in_stun(player_entity)) {
             if (is_sword_can_damage() && !can_sword_damage_enemy(other)) {
                 player_data->velocity = player_data->velocity * -0.5f;
                 emit_particles(&rifle_bullet_emitter, col.point, col.normal, 3, 5);
@@ -6705,7 +6741,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
             try_sword_damage_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y);
         }
         
-        // if (other->flags & WIN_BLOCK && !is_player_in_stun()) {
+        // if (other->flags & WIN_BLOCK && !is_player_in_stun(player_entity)) {
         //     win_level();
         // }
         
@@ -6721,6 +6757,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
 }
 
 void push_player_up(f32 power) {
+    Player *player_data = &current_level_context->player_data;
     if (player_data->velocity.y < 0) {
         player_data->velocity.y = 0;
     }
@@ -6731,6 +6768,7 @@ void push_player_up(f32 power) {
 }
 
 void push_or_set_player_up(f32 power) {
+    Player *player_data = &current_level_context->player_data;
     if (player_data->velocity.y > power) {
         power *= 0.25f;
     }
@@ -6742,6 +6780,7 @@ void push_or_set_player_up(f32 power) {
 }
 
 inline void update_player_connected_entities_positions(Entity *player_entity) {
+    Player *player_data = player_entity->player_data;
     Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
     Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
     Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
@@ -6758,20 +6797,23 @@ inline Vector2 get_move_plane(Vector2 normal, f32 move_dir) {
     return get_rotated_vector_90(normal, -normalized(move_dir));
 }
 
-inline void player_snap_to_plane(Vector2 normal) {
+inline void player_snap_to_plane(Entity *player_entity, Vector2 normal) {
+    Player *player_data = player_entity->player_data;
     player_data->ground_normal = normal;
     player_data->velocity_plane = get_move_plane(player_data->ground_normal, player_data->velocity.x);
     player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
 }
 
-inline b32 is_player_in_stun() {
+inline b32 is_player_in_stun(Entity *entity) {
     f32 max_weak_stun_time = 0.3f;
-    f32 in_weak_stun_time   = core.time.game_time - player_data->weak_recoil_stun_start_time;
+    f32 in_weak_stun_time  = core.time.game_time - entity->player_data->weak_recoil_stun_start_time;
     return (in_weak_stun_time <= max_weak_stun_time);
 }
 
 void update_player(Entity *player_entity, f32 dt, Input input) {
     assert(player_entity->flags & PLAYER);
+    
+    Player *player_data = player_entity->player_data;
 
     if (player_data->dead_man) {
         return;
@@ -6831,7 +6873,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     
     f32 sword_max_spin_speed = player_data->in_big_sword ? max_big_sword_speed : max_small_sword_speed;
     
-    b32 can_sword_spin = !is_player_in_stun();
+    b32 can_sword_spin = !is_player_in_stun(player_entity);
     if (can_sword_spin) {
         f32 sword_spin_sense = player_data->in_big_sword ? 40 : 10; 
         
@@ -7069,7 +7111,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     
     player_data->timers.since_jump_timer += dt;
     
-    if (!is_player_in_stun()) {
+    if (!is_player_in_stun(player_entity)) {
         disable_emitter(player_data->stun_emitter_index);
     } else {
         enable_emitter(player_data->stun_emitter_index);
@@ -7080,10 +7122,10 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     //player movement
     if (since_hit_booster <= HIT_BOOSTER_BOOST_TIME) {
         
-    } else if (player_data->grounded && !is_player_in_stun() && !player_data->on_propeller) {
+    } else if (player_data->grounded && !is_player_in_stun(player_entity) && !player_data->on_propeller) {
         player_ground_move(player_entity, dt);
         
-        player_snap_to_plane(player_data->ground_normal);
+        player_snap_to_plane(player_entity, player_data->ground_normal);
         
         player_entity->position.y -= dt;
         player_data->velocity -= player_data->ground_normal * dt;
@@ -7099,7 +7141,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             f32 t = player_data->velocity.y / 100.0f;
             player_data->gravity_mult = lerp(1.0f, 3.0f, sqrtf(t));
         } else {
-            if (input.sum_direction.y < 0 && !is_player_in_stun()) {
+            if (input.sum_direction.y < 0 && !is_player_in_stun(player_entity)) {
                 player_data->gravity_mult = 6;
                 max_downwards_speed = -150;
             } else {
@@ -7112,7 +7154,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             }
         }
         
-        if (!is_player_in_stun()) {
+        if (!is_player_in_stun(player_entity)) {
             player_air_move(player_entity, dt);
         }
         
@@ -7178,7 +7220,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     
     // player left wall
     fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++) {
+    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(player_entity); i++) {
         Collision col = collisions_buffer.get_value(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
@@ -7210,7 +7252,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     
     // player right wall
     fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++) {
+    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(player_entity); i++) {
         Collision col = collisions_buffer.get_value(i);
         
         if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
@@ -7250,7 +7292,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
     b32 is_ground_huge_collision_speed = false;
     b32 found_no_move_block = false;
-    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(); i++) {
+    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(player_entity); i++) {
         Collision col = collisions_buffer.get_value(i);
         Entity *other = col.other_entity;
         assert(col.collided);
@@ -7333,7 +7375,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             player_data->ground_point = col.point;
             
             if (!player_data->grounded && !just_grounded) {
-                player_snap_to_plane(player_data->ground_normal);
+                player_snap_to_plane(player_entity, player_data->ground_normal);
                 // player_data->velocity_plane = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
                 // player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
                 just_grounded = true;
@@ -7459,7 +7501,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         last_collision_point = col.point;
         last_collision_normal = col.normal;
         
-        if (is_player_in_stun()) {
+        if (is_player_in_stun(player_entity)) {
             player_data->velocity = reflected_vector(player_data->velocity * 0.5f, col.normal);
             shake_camera(0.2f);
             continue;
@@ -7503,7 +7545,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             f32 angle_difference = fangle(col.normal, player_data->ground_normal);
             if (col.normal != player_data->ground_normal && angle_difference < 35) {
                 found_ground = true;
-                player_snap_to_plane(col.normal);
+                player_snap_to_plane(player_entity, col.normal);
                 
                 // This thing just kills player in centipede case, but we're probably should first of all think of a better way
                 // for centipede walking and secondly make better centipede segments collision.
@@ -7709,6 +7751,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     assert(entity->bird_enemy);
     
     Entity *player_entity = current_level_context->player;
+    Player *player_data = player_entity->player_data;
     
     Bird_Enemy *bird = entity->bird_enemy;
     Enemy *enemy = entity->bird_enemy;
@@ -8051,7 +8094,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     cut_rope(other_entity);
                 }
                 
-                if (other_entity->flags & PLAYER && !player_data->dead_man && distance_to_other < explosion_radius * 0.75f) {
+                if (other_entity->flags & PLAYER && !current_level_context->player_data.dead_man && distance_to_other < explosion_radius * 0.75f) {
                     kill_player();
                 }
             }
@@ -8227,7 +8270,7 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
 
 Vector2 get_entity_velocity(Entity *entity) {
     if (entity->flags & PLAYER) {
-        return player_data->velocity;
+        return entity->player_data->velocity;
     }
     if (entity->flags & BIRD_ENEMY) {
         return entity->bird_enemy->velocity;
@@ -8272,7 +8315,7 @@ b32 is_death_instinct_threat_active() {
                 return is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), dir_to_player, distance_to_player, check_for_flying_towards);
             } break;
             case SWORD_WILL_EXPLODE:{
-                return player_data->is_sword_will_hit_explosive;     
+                return current_level_context->player_data.is_sword_will_hit_explosive;     
             } break;
             default: return true;
         }
@@ -8353,7 +8396,7 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
 }
 
 b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
-    if (is_in_death_instinct() || is_death_instinct_in_cooldown() || player_data->dead_man) {
+    if (is_in_death_instinct() || is_death_instinct_in_cooldown() || current_level_context->player_data.dead_man) {
         return false;
     }
     
@@ -8537,7 +8580,7 @@ void calculate_projectile_collisions(Entity *entity) {
                 emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
             }
             
-            if (other->flags & PLAYER && !player_data->dead_man && !enemy->dead_man) {
+            if (other->flags & PLAYER && !current_level_context->player_data.dead_man && !enemy->dead_man) {
                 // It's a good thing that we don't kill player when projectile is blocker or explosive, 
                 // but of course we need to better tell player what exactly will kill him on touch. 
                 // While projectiles are flying - they're leave particle trail and all flying projectiles 
@@ -8564,7 +8607,7 @@ void calculate_projectile_collisions(Entity *entity) {
             Entity *other = col.other_entity;
             
             if (other->flags & PLAYER) {
-                b32 should_kill_player = !player_data->dead_man && !enemy->dead_man && !(entity->flags & EXPLOSIVE);
+                b32 should_kill_player = !current_level_context->player_data.dead_man && !enemy->dead_man && !(entity->flags & EXPLOSIVE);
                 if (should_kill_player) {
                     kill_player();
                     kill_enemy(entity, col.point, col.normal);
@@ -8584,7 +8627,7 @@ void update_projectile(Entity *entity, f32 dt) {
     Projectile *projectile = entity->projectile;
     f32 lifetime = core.time.game_time - projectile->birth_time;
     
-    Entity *player_entity = current_level_context->player;
+    Vector2 player_position = current_level_context->player ? current_level_context->player->position : Vector2_zero;
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
         if (entity->flags & ENEMY) {
@@ -8596,7 +8639,7 @@ void update_projectile(Entity *entity, f32 dt) {
         return;
     }
     
-    f32 sqr_distance_to_player = sqr_magnitude(entity->position - player_entity->position);
+    f32 sqr_distance_to_player = sqr_magnitude(entity->position - player_position);
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
         if (sqr_distance_to_player > 1000 * 1000) {
             mark_entity_destroyed(entity);
@@ -8611,13 +8654,13 @@ void update_projectile(Entity *entity, f32 dt) {
                 projectile->dying = true;
                 
                 clamp_magnitude(&projectile->velocity, 60);
-                projectile->velocity.y -= player_data->gravity * dt;
+                projectile->velocity.y -= current_level_context->player_data.gravity * dt;
             }
         }
     }
     
     if (projectile->type == TURRET_HOMING_PROJECTILE) {
-        Vector2 vec_to_player = player_entity->position - entity->position;
+        Vector2 vec_to_player = player_position - entity->position;
         Vector2 dir = normalized(vec_to_player);
         
         if (dot(dir, entity->up) > 0) {
@@ -8856,6 +8899,8 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
 i32 update_trigger(Entity *e) {
     assert(e->flags & TRIGGER);
     
+    if (game_state == GAME_PLANNING) return 0;
+    
     Trigger *trigger = e->trigger;
     
     b32 trigger_now = false;
@@ -8905,7 +8950,8 @@ i32 update_trigger(Entity *e) {
         trigger_now = true;
     }
     
-    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && check_entities_collision(e, current_level_context->player).collided) {
+    Player *player_data = &current_level_context->player_data;
+    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && current_level_context->player && check_entities_collision(e, current_level_context->player).collided) {
         if (trigger->settings & FORBID_PLAYER_SHOOT) {
             player_data->can_shoot = false;
         }
@@ -9203,7 +9249,7 @@ inline void update_turret(Entity *entity, f32 dt) {
     b32 player_in_angle_range = true;
     
     turret->see_player = false;
-    if (turret->homing) {
+    if (turret->homing && player_entity) {
         // projectile_type = TURRET_HOMING_PROJECTILE;
         projectile_color = ColorBrightness(ORANGE, -0.2f);
         
@@ -9288,12 +9334,12 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 return true;
             }
             // @HACK if we'll use replay characters more - we should really look into where we use player_data->
-            player_data = &replay_player_data;
-            e->position = replay_input.player_position;
-            update_player(e, dt, replay_input);
+            // player_data = &replay_player_data;
+            // e->position = replay_input.player_position;
+            // update_player(e, dt, replay_input);
             // player_data = &real_player_data;
         } else {
-            player_data = &real_player_data;
+            // player_data = &real_player_data;
             update_player(e, dt, input);
         }
     }

@@ -712,9 +712,9 @@ b32 load_level(String name) {
         enter_and_reload_game_state(&loaded_level_context, true);
         
         if (enter_game_state_on_new_level) {
-            player_data->blood_amount = last_player_data.blood_amount;
-            player_data->blood_progress = last_player_data.blood_progress;
-            player_data->ammo_count = last_player_data.ammo_count;
+            // current_level_context->player_data->blood_amount = last_player_data.blood_amount;
+            // current_level_context->player_data->blood_progress = last_player_data.blood_progress;
+            // current_level_context->player_data->ammo_count = last_player_data.ammo_count;
         }
         
         enter_game_state_on_new_level = false;

@@ -888,6 +888,8 @@ struct Entity {
         Jump_Shooter *jump_shooter;
         Kill_Switch *kill_switch;
         Turret *turret;
+        
+        Player *player_data;
     };
     
     Door door;
