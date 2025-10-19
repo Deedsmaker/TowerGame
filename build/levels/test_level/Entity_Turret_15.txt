@@ -19,7 +19,7 @@ name Turret
  turret_start_tick_delay 0 
  turret_projectile_speed 150.000000 
  turret_projectile_max_lifetime 15.000000 
- turret_shoot_width 400.000000 
+ turret_shoot_width 342.526825 
  turret_shoot_height 400.000000 
  enemy_gives_ammo 0 
  

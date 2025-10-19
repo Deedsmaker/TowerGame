@@ -957,10 +957,6 @@ struct Light {
     // RenderTexture backshadows_rt;
 };
 
-global_variable Player *player_data = {};
-global_variable Player real_player_data = {};
-global_variable Player replay_player_data = {};
-
 struct Spawn_Object {
     char name[64];
     Entity entity = {0};
@@ -1145,6 +1141,9 @@ struct Level_Context {
     
     Chunk_Array <Centipede> centipedes = {0};
     Chunk_Array <Centipede_Segment> centipede_segments = {0};
+    
+    Entity *player = NULL;
+    Player player_data = {0};  
       
     Array <Particle>         particles = {0};
     Array <Particle_Emitter> particle_emitters  = {0};
@@ -1326,12 +1325,13 @@ enum Hold_Flags {
 };
 
 enum Press_Flags {
-    JUMP           = 1 << 1,
-    SHOOT          = 1 << 2,
-    SPIN           = 1 << 3,
-    SPIN_RELEASED  = 1 << 4,
-    SWORD_BIG      = 1 << 5,
-    SHOOT_RELEASED = 1 << 6
+    JUMP               = 0x01,
+    SHOOT              = 0x02,
+    SPIN               = 0x04,
+    SPIN_RELEASED      = 0x08,
+    SWORD_BIG          = 0x10,
+    SHOOT_RELEASED     = 0x20,
+    ENTER_GAMING_STATE = 0x40,
 };
 
 struct Input {

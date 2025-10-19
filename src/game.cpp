@@ -53,6 +53,10 @@ global_variable Time checkpoint_time;
 global_variable State_Context checkpoint_state_context;
 global_variable i32 checkpoint_trigger_id = -1;
 
+global_variable Player *player_data = {};
+global_variable Player real_player_data = {};
+global_variable Player replay_player_data = {};
+
 global_variable Level_Replay level_replay = {};
 global_variable Render render = {};
 global_variable Console console = {0};
@@ -66,7 +70,7 @@ global_variable Array<Vector2> global_normals = {0};
 global_variable Entity mouse_entity = {0};
 Entity empty_entity = {0};
 
-global_variable Entity *player_entity;
+// global_variable Entity *player_entity;
 global_variable b32 need_destroy_player = false;
 
 global_variable f32 frame_rnd;
@@ -123,6 +127,7 @@ Sound_Handler *missing_sound = NULL;
 #include "text_input.hpp"
 #include "ui.hpp"
 #include "lightmaps.cpp"
+#include "planning_state.cpp"
 
 // #include "entity_ids.cpp"
 
@@ -647,7 +652,6 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         }
     }
     
-    // @TODO: check this copying
     dest->entities = copy_chunk_array(&src->entities);
     for_chunk_array(i, (&dest->entities)) {
         copy_and_add_entity(src->entities.get(i), dest, i + 1);
@@ -681,6 +685,9 @@ void clear_level_context(Level_Context *level_context) {
         free_entity(entity);
         *entity = {0};
     }
+    
+    level_context->player = NULL;
+    level_context->player_data = {0};
     
     level_context->entities.clear();
     
@@ -1948,7 +1955,7 @@ void save_temp_replay() {
 
 void play_loaded_replay() {
     session_context.playing_replay = true;
-    Entity *replay_player_entity = add_player_entity(&replay_player_data);
+    Entity *replay_player_entity = add_player_entity(current_level_context, &replay_player_data);
     replay_player_entity->flags |= REPLAY_PLAYER;
 }
 
@@ -2037,7 +2044,7 @@ void begin_game_speedrun() {
 }
 
 void debug_add_100_ammo() {
-    if (player_entity) {
+    if (current_level_context->player) {
         add_player_ammo(100);
     }    
 }
@@ -2441,17 +2448,20 @@ void init_game() {
 } // end init game end
 
 void destroy_player() {
-    assert(player_entity);
+    if (!current_level_context->player) {
+        printf("Destroy player was called when there's no player_entity is present. That should not happen.\n");
+        return;
+    }
 
-    mark_entity_destroyed(player_entity);
-    player_entity->enabled   = false;
+    mark_entity_destroyed(current_level_context->player);
+    current_level_context->player->enabled   = false;
     
     // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.ground_checker_id));
     mark_entity_destroyed(get_entity(player_data->connected_entities_ids.ground_checker_id));
     // assert(current_level_context->entities.has_key(player_data->connected_entities_ids.sword_entity_id));
     mark_entity_destroyed(get_entity(player_data->connected_entities_ids.sword_entity_id));
     
-    player_entity = NULL;
+    current_level_context->player = NULL;
 }
 
 void clean_up_scene() {
@@ -2478,7 +2488,10 @@ void clean_up_scene() {
     close_create_box();
 }
 
-Entity *add_player_entity(Player *data) {
+Entity *add_player_entity(Level_Context *level_context, Player *data) {
+    Level_Context *original_level_context = current_level_context;
+    switch_current_level_context(level_context);
+
     Entity *new_player_entity = add_entity(current_level_context->player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
     new_player_entity->collision_flags = GROUND | ENEMY;
     new_player_entity->draw_order = 30;
@@ -2529,6 +2542,10 @@ Entity *add_player_entity(Player *data) {
     
     data->ammo_count = last_player_data.ammo_count;
     
+    current_level_context->player = new_player_entity;
+    
+    switch_current_level_context(original_level_context);
+    
     return new_player_entity;
 }
 
@@ -2545,19 +2562,22 @@ void editor_enter_game_state(Level_Context *from_level_context) {
 // We're not initing entities on enter_and_reload_game_state only on respawn to checkpoint.
 void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_init_entities) {
     // player_data = {};
-    real_player_data = {};
-    player_data = &real_player_data;
-
-    clean_up_scene();
-    clear_level_context(&game_level_context);
     
+    clean_up_scene();
     
     HideCursor();
     DisableCursor();
     
-    // clear_level_context(&game_level_context);
     switch_current_level_context(&game_level_context);
-    copy_level_context(&game_level_context, from_level_context, should_init_entities);
+    
+    // If we just want to reload game level context it does not really makes sense to copy it to itself. 
+    // We already performed all the clearing necessary.
+    if (!str_equal(game_level_context.name, from_level_context->name)) {
+        real_player_data = {};
+        player_data = &real_player_data;
+        clear_level_context(&game_level_context);
+        copy_level_context(&game_level_context, from_level_context, should_init_entities);
+    }
     
     Vector2 grid_target_pos = current_level_context->player_spawn_point;
     current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
@@ -2580,8 +2600,8 @@ void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_i
         level_replay.input_record.clear();
     }
     
-    if (should_init_entities) {
-        player_entity = add_player_entity(player_data);
+    if (should_init_entities && !current_level_context->player) {
+        add_player_entity(current_level_context, player_data);
     }     
     
     current_level_context->original_win_blocks_count = 0;
@@ -2622,6 +2642,8 @@ void kill_player() {
     if (debug.god_mode && !state_context.we_got_a_winner || player_data->dead_man || debug.dragging_player) { 
         return;
     }
+    
+    Entity *player_entity = current_level_context->player;
     
     death_player_data = *player_data;
 
@@ -2680,6 +2702,8 @@ inline Vector2 game_mouse_pos() {
 void fixed_game_update(f32 dt) {
     frame_rnd = perlin_noise3(core.time.game_time, core.time.app_time, 5) * 2 - 1.0f;
     frame_on_circle_rnd = get_perlin_in_circle(1.0f);
+    
+    Entity *player_entity = current_level_context->player;
 
     if (editor_state == GAME && !state_context.in_pause_editor) {
         if (!session_context.playing_replay) {
@@ -2713,8 +2737,8 @@ void fixed_game_update(f32 dt) {
         } 
     } 
 
-    if (game_state == GAME_PLANNING) {
-        if (IsKeyPressed(KEY_SPACE)) {
+    if (game_state == GAME_PLANNING && editor_state == GAME) {
+        if (input.press_flags & ENTER_GAMING_STATE) {
             enter_gaming_state();
         }
     } else if (game_state == GAMING) {
@@ -3158,6 +3182,12 @@ void update_game() {
             if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
                 input.press_flags |= SHOOT_RELEASED;
             }
+            
+            if (game_state == GAME_PLANNING) {
+                if (IsKeyPressed(KEY_SPACE)) {
+                    input.press_flags |= ENTER_GAMING_STATE;
+                }
+            }
         }
     // }
     //end update input
@@ -3215,7 +3245,7 @@ void update_game() {
                 // editor_enter_editor_state();
                 if (is_have_checkpoint) {
                     enter_and_reload_game_state(&checkpoint_level_context, false);
-                    player_entity = checkpoint_player_entity;
+                    current_level_context->player = checkpoint_player_entity;
                     real_player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
                     state_context = checkpoint_state_context;
@@ -3231,6 +3261,8 @@ void update_game() {
     
     core.time.app_time += GetFrameTime();
     core.time.real_dt = GetFrameTime();
+    
+    Entity *player_entity = current_level_context->player;
     
     // Update death instinct.
     if (is_in_death_instinct() && is_death_instinct_threat_active() && editor_state == GAME) {
@@ -6506,6 +6538,8 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         return false;
     }
     assert(enemy_entity->union_enemy);
+    
+    Entity *player_entity = current_level_context->player;
 
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !is_player_in_stun() && is_enemy_can_take_damage(enemy_entity)) {
@@ -7671,6 +7705,8 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     assert(entity->flags & ENEMY);
     assert(entity->bird_enemy);
     
+    Entity *player_entity = current_level_context->player;
+    
     Bird_Enemy *bird = entity->bird_enemy;
     Enemy *enemy = entity->bird_enemy;
     
@@ -8223,7 +8259,7 @@ b32 is_death_instinct_threat_active() {
     if (entity_alive) {
         switch (state_context.death_instinct.last_reason) {
             case ENEMY_ATTACKING:{
-                Vector2 vec_to_player = player_entity->position - threat_entity->position;
+                Vector2 vec_to_player = current_level_context->player->position - threat_entity->position;
                 Vector2 dir_to_player = normalized(vec_to_player);
                 f32 distance_to_player = magnitude(vec_to_player);
                 
@@ -8326,6 +8362,8 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
 
 void calculate_projectile_collisions(Entity *entity) {
     Projectile *projectile = entity->projectile;
+    
+    Entity *player_entity = current_level_context->player;
     
     // Player projectile collisions.
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
@@ -8542,6 +8580,8 @@ void update_projectile(Entity *entity, f32 dt) {
     
     Projectile *projectile = entity->projectile;
     f32 lifetime = core.time.game_time - projectile->birth_time;
+    
+    Entity *player_entity = current_level_context->player;
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
         if (entity->flags & ENEMY) {
@@ -8862,7 +8902,7 @@ i32 update_trigger(Entity *e) {
         trigger_now = true;
     }
     
-    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && check_entities_collision(e, player_entity).collided) {
+    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && check_entities_collision(e, current_level_context->player).collided) {
         if (trigger->settings & FORBID_PLAYER_SHOOT) {
             player_data->can_shoot = false;
         }
@@ -8873,7 +8913,7 @@ i32 update_trigger(Entity *e) {
         if (str_contains(temp_entity_name(e).data, "checkpoint") && checkpoint_trigger_id != e->id) {
             clear_level_context(&checkpoint_level_context);
             copy_level_context(&checkpoint_level_context, current_level_context, false);
-            checkpoint_player_entity = player_entity;
+            checkpoint_player_entity = current_level_context->player;
             checkpoint_player_data = *player_data;
             checkpoint_time = core.time;
             checkpoint_state_context = state_context;
@@ -9046,7 +9086,7 @@ void update_move_sequence(Entity *entity, f32 dt) {
     f32 speed = sequence->speed;
     
     if (sequence->speed_related_player_distance && editor_state == GAME) {
-        f32 distance_to_player = magnitude(player_entity->position - entity->position);
+        f32 distance_to_player = magnitude(current_level_context->player->position - entity->position);
         f32 distance_t = clamp01((distance_to_player + sequence->min_distance) / sequence->max_distance);
         speed = lerp(sequence->speed, sequence->max_distance_speed, distance_t * distance_t);
     }
@@ -9154,6 +9194,8 @@ inline void update_turret(Entity *entity, f32 dt) {
     Projectile_Type projectile_type = TURRET_DIRECT_PROJECTILE;
     Color projectile_color = ColorBrightness(RED, 0.5f);
     
+    Entity *player_entity = current_level_context->player;
+    
     b32 player_in_range = true;
     b32 player_in_angle_range = true;
     
@@ -9225,6 +9267,8 @@ inline void update_turret(Entity *entity, f32 dt) {
 // We return false if we should stop updating entities this frame. Shoulda make result flag or something, but for now comment will do.
 inline b32 update_entity(Entity *e, f32 dt) {
     update_color_changer(e, dt);            
+    
+    Entity *player_entity = current_level_context->player;
     
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT) {
@@ -9857,12 +9901,12 @@ inline void draw_rifle(Entity *entity) {
 }
 
 inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len) {
-    if (!player_entity) {
+    if (!current_level_context->player) {
         print("WARNING: Tried to get ray collision to player, but player is not present");
         return {};     
     }
     
-    Vector2 vec_to_player = player_entity->position - entity->position;
+    Vector2 vec_to_player = current_level_context->player->position - entity->position;
     Vector2 dir = normalized(vec_to_player);
     f32 len = magnitude(vec_to_player);
     return raycast(entity->position, dir, len - reduced_len, collision_flags, 6, entity->id);
@@ -9924,6 +9968,8 @@ inline f32 get_turret_charge_progress(Turret *turret) {
 
 void fill_entities_draw_queue() {
     session_context.entities_draw_queue.clear();
+    
+    Entity *player_entity = current_level_context->player;
     
     // That also acts entities loop on draw update call. For example we use it for some immediate stuff that should
     // work on occluded entities.
@@ -10819,10 +10865,6 @@ void draw_particles() {
     }
 }
 
-void draw_planning_state_ui() {
-    make_ui_image({50, 300}, {200, 400}, {0, 0}, color_fade(SKYBLUE, 0.2f), "planning_panel");
-}
-
 void draw_ui(const char *tag) {
     // draw spin bar
     if (editor_state == GAME) {
@@ -10853,7 +10895,7 @@ void draw_ui(const char *tag) {
             }
         }
         
-        draw_planning_state_ui();
+        planning_draw_ui();
     }
 
     // Draw speedrun info after last level
@@ -11115,6 +11157,8 @@ void apply_shake() {
 }
 
 void new_render() {
+    Entity *player_entity = current_level_context->player;
+
     bake_lightmaps_if_need();
 
     // Drawing baked lightmaps on camera plane.
@@ -11255,7 +11299,7 @@ void draw_game() {
         v_pos += font_size;
     }
     
-    if (editor_state == GAME && player_entity) {            
+    if (editor_state == GAME && current_level_context->player) {
         if (debug.info_spin_progress) {
             draw_text(tprintf("Spin progress: %.2f", player_data->sword_spin_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
