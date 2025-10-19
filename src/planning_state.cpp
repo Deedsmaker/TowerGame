@@ -38,8 +38,8 @@ void update_planning() {
 }
 
 void planning_draw_ui() {
-    Vector2 panel_pos = {50, 300};
-    Vector2 panel_size = {100, 400};
+    Vector2 panel_pos  = {screen_width * 0.05f, screen_height * 0.2f};
+    Vector2 panel_size = {screen_width * 0.1f, screen_height * 0.4f};
     make_ui_image(panel_pos, panel_size, {0, 0}, color_fade(SKYBLUE, 0.2f), "planning_panel");
     
     i32 buttons_count = 0;
@@ -54,4 +54,13 @@ void planning_draw_ui() {
             planning_start_holding_entity(&object->entity);
         }
     }
+    
+    // Now some hints.
+    
+    panel_pos = {screen_width * 0.3f, screen_height * 0.85f};
+    panel_size = {screen_width * 0.3f, screen_height * 0.1f};
+    make_ui_image(panel_pos, panel_size, {0, 0}, color_fade(VIOLET, 0.3f), "planning_hints");
+    make_ui_text("SPACE - go gaming.", panel_pos, "gaming_hint"); 
+    make_ui_text("X - delete thing.", panel_pos + Vector2_up * 20, "gaming_hint2"); 
+    make_ui_text("Q/E - rotate thing.", panel_pos + Vector2_up * 40, "gaming_hint2"); 
 }
