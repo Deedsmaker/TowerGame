@@ -709,7 +709,7 @@ b32 load_level(String name) {
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
     if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
-        enter_and_reload_game_state(&loaded_level_context, true);
+        // enter_and_reload_game_state(&loaded_level_context, true);
         
         if (enter_game_state_on_new_level) {
             // current_level_context->player_data->blood_amount = last_player_data.blood_amount;

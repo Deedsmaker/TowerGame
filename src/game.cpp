@@ -2011,10 +2011,10 @@ void load_temp_replay() {
 void debug_toggle_play_replay() {
     session_context.playing_replay = !session_context.playing_replay;
         
-    if (session_context.playing_replay) {
-        enter_and_reload_game_state(editor_level_context, true);
-        play_loaded_replay();
-    }
+    // if (session_context.playing_replay) {
+    //     enter_and_reload_game_state(editor_level_context, true);
+    //     play_loaded_replay();
+    // }
     
     builder_append(&console.content_builder, tstring("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled"));
 }
@@ -2023,7 +2023,11 @@ void restart_game() {
     load_level(tstring(first_level_name));
     // editor_enter_editor_state();
     
-    enter_and_reload_game_state(current_level_context, true);
+    if (editor_state == EDITOR) {
+        editor_enter_game_state(current_level_context);
+    } else {
+        enter_planning_state();
+    }
     
     // player_data->ammo_count = 0;
     session_context.speedrun_timer.time = 0;        
@@ -2033,7 +2037,7 @@ void begin_level_speedrun() {
     if (!session_context.speedrun_timer.level_timer_active) {
         reload_level();
         // editor_enter_editor_state();
-        enter_and_reload_game_state(current_level_context, true);
+        // enter_and_reload_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = true;        
         session_context.speedrun_timer.game_timer_active  = false;        
@@ -2053,7 +2057,7 @@ void begin_game_speedrun() {
     if (!session_context.speedrun_timer.game_timer_active) {
         restart_game();
         editor_enter_editor_state();
-        enter_and_reload_game_state(current_level_context, true);
+        // enter_and_reload_game_state(current_level_context, true);
         
         session_context.speedrun_timer.level_timer_active = false;        
         session_context.speedrun_timer.game_timer_active  = true;        
@@ -2569,75 +2573,70 @@ Entity *add_player_entity(Level_Context *level_context, Player *data) {
     return new_player_entity;
 }
 
-void editor_enter_game_state(Level_Context *from_level_context) {
-    state_context = {};
-    session_context.just_entered_game_state = true;
-    core.time.game_time = 0;
-    core.time.hitstop = 0;
-    core.time.previous_dt = 0;
-    
-    clear_level_context(&planning_level_context);
-    copy_level_context(&planning_level_context, from_level_context, true);
-    enter_and_reload_game_state(from_level_context, true);    
-}
-
-// We're not initing entities on enter_and_reload_game_state only on respawn to checkpoint.
-void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_init_entities) {
-    // player_data = {};
-    
-    clean_up_scene();
-    
-    HideCursor();
-    DisableCursor();
-    
-    switch_current_level_context(&planning_level_context);
-    
+void game_setup_collisions() { 
     Vector2 grid_target_pos = current_level_context->player_spawn_point;
     current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
     
-    // real_player_data = {};
-    // player_data = &real_player_data;
-    planning_level_context.player_data = {0};
-    add_player_entity(&planning_level_context, &planning_level_context.player_data);
+    b32 update_static_collision_cells = true;
+    update_all_collision_cells(update_static_collision_cells);
+}
 
-    // state_context.timers.last_collision_cells_clear_time = core.time.app_time;
-    // for (i32 i = 0; i < current_level_context->collision_grid.cells.count; i++) {        
-    //     current_level_context->collision_grid.cells[i].dynamic_entities.clear();
-    //     current_level_context->collision_grid.cells[i].static_entities.clear();
-    // }
+void enter_gaming_state() {
+    copy_level_context(&game_level_context, current_level_context, true);
     
-    editor_state = GAME;
-    game_state = GAME_PLANNING;
+    switch_current_level_context(&game_level_context);
+    game_state = GAMING;
     
-    current_level_context->cam.cam2D.zoom = 0.35f;
-    current_level_context->cam.target_zoom = 0.35f;
-    current_level_context->cam.position = current_level_context->player_spawn_point;
-    
-    session_context.game_frame_count = 0;
-    if (!session_context.playing_replay) {
-        level_replay.input_record.clear();
+    if (!current_level_context->player) {
+        current_level_context->player_data = {0};
+        add_player_entity(current_level_context, &current_level_context->player_data);
     }
+    
+    game_setup_collisions();
     
     current_level_context->original_win_blocks_count = 0;
     
     ForEntities(entity, 0) {
-        if (should_init_entities) {
+        // if (should_init_entities) {
             update_editor_entity(entity);
             // Initing it again because some entities (like centipede) wanna init things only in game state. 
             // Need to change that.
             init_entity(entity);
             // update_entity_collision_cells(entity, true);
-        }
+        // }
         
         if (entity->flags & WIN_BLOCK) {
             current_level_context->original_win_blocks_count += 1;
         }
     }
     
-    b32 update_static_collision_cells = true;
-    update_all_collision_cells(update_static_collision_cells);
-    
     current_level_context->current_win_blocks_count = current_level_context->original_win_blocks_count;
+    
+    current_level_context->cam.cam2D.zoom = 0.35f;
+    current_level_context->cam.target_zoom = 0.35f;
+    current_level_context->cam.position = current_level_context->player_spawn_point;
+}
+
+void enter_planning_state() {
+    assert(editor_state == GAME);
+    game_state = GAME_PLANNING;
+    
+    clear_level_context(&game_level_context);
+    
+    clean_up_scene();
+    switch_current_level_context(&planning_level_context);
+    
+    game_setup_collisions();
+    
+    
+    if (!current_level_context->player) { 
+        planning_level_context.player_data = {0};
+        add_player_entity(current_level_context, &current_level_context->player_data);
+    }
+    
+    current_level_context->cam.cam2D.zoom = 0.35f;
+    current_level_context->cam.target_zoom = 0.35f;
+    current_level_context->cam.position = current_level_context->player_spawn_point;
     
     // Simulating game world for 2 seconds before the start.
     input = {0};
@@ -2646,24 +2645,21 @@ void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_i
     }
 }
 
-void enter_gaming_state() {
-    enter_and_reload_game_state(current_level_context, true); 
-    game_level_context.player_data = {0};
-    copy_level_context(&game_level_context, current_level_context, true);
+void editor_enter_game_state(Level_Context *from_level_context) {
+    state_context = {};
+    session_context.just_entered_game_state = true;
+    core.time.game_time = 0;
+    core.time.hitstop = 0;
+    core.time.previous_dt = 0;
     
-    assert(game_level_context.player);
+    HideCursor();
+    DisableCursor();
     
-    // real_player_data = {};
-    // player_data = &real_player_data;
+    editor_state = GAME;
     
-    switch_current_level_context(&game_level_context);
-    
-    b32 update_static_collision_cells = true;
-    update_all_collision_cells(update_static_collision_cells);
-    
-    current_level_context->current_win_blocks_count = current_level_context->original_win_blocks_count;
-    
-    game_state = GAMING;
+    clear_level_context(&planning_level_context);
+    copy_level_context(&planning_level_context, from_level_context, true);
+    enter_planning_state();    
 }
 
 void kill_player() {
@@ -3269,14 +3265,14 @@ void update_game() {
                 session_context.speedrun_timer.time = 0;
             } else if (session_context.speedrun_timer.level_timer_active) {
                 // editor_enter_editor_state();
-                enter_and_reload_game_state(editor_level_context, true);
+                // enter_and_reload_game_state(editor_level_context, true);
                 session_context.speedrun_timer.time = 0;
             } else {
                 b32 is_have_checkpoint = checkpoint_trigger_id > 0;
                 session_context.playing_replay = false;            
                 // editor_enter_editor_state();
                 if (is_have_checkpoint) {
-                    enter_and_reload_game_state(&checkpoint_level_context, false);
+                    // enter_and_reload_game_state(&checkpoint_level_context, false);
                     current_level_context->player = checkpoint_player_entity;
                     // real_player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
@@ -3285,7 +3281,8 @@ void update_game() {
                     player_data->velocity = Vector2_zero;
                     session_context.speedrun_timer.time = 0;
                 } else {
-                    enter_and_reload_game_state(editor_level_context, true);
+                    // enter_and_reload_game_state(editor_level_context, true);
+                    enter_planning_state();
                 }
             }
         }
