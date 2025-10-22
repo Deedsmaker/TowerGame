@@ -5,10 +5,16 @@ enum Planning_Flags : FLAGS {
 
 struct Planning_Data {
     Entity *dragged_entity = NULL;
-    
+        
+    Array <i32> spawned_ids = {0};
 };
 
 global_variable Planning_Data planning = {0};
+
+void reset_planning_data() {
+    planning.dragged_entity = NULL;
+    planning.spawned_ids.clear();
+}
 
 void planning_start_holding_entity(Entity *entity_to_drag) {
     planning.dragged_entity = copy_and_add_entity(entity_to_drag, current_level_context);
@@ -32,7 +38,25 @@ void update_planning() {
         
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             entity->position = round_to_factor(entity->position, CELL_SIZE);
+            
+            planning.spawned_ids.append(entity->id);
+            
             planning.dragged_entity = NULL;
+        }
+    }
+
+    if (IsKeyPressed(KEY_X)) {
+        auto mouse_collisions = get_tcollisions(&mouse_entity, 0);
+        for_array(i, &mouse_collisions) {
+            Entity *other = mouse_collisions.get(i)->other_entity;
+            
+            i32 spawned_index = planning.spawned_ids.find(other->id);
+            if (spawned_index >= 0) {
+                Entity *entity = get_entity(planning.spawned_ids.get_value(spawned_index));
+                mark_entity_destroyed(entity);
+                planning.spawned_ids.remove(spawned_index);
+                break;
+            }
         }
     }
 }

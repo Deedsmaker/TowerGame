@@ -2767,6 +2767,7 @@ void fixed_game_update(f32 dt) {
         if (input.press_flags & ENTER_GAMING_STATE) {
             enter_gaming_state();
         } else {
+            update_entities(-1);
         }
     } else if (game_state == GAMING) {
         update_entities(dt);
@@ -3218,6 +3219,8 @@ void update_game() {
         }
     // }
     //end update input
+    
+    mouse_entity.position = input.mouse_position;
     
     if (screen_size_changed) {
         global_cam_data.width = screen_width;
@@ -3816,6 +3819,12 @@ void fill_collisions(Entity *entity, Array <Collision> *result, FLAGS include_fl
     }
     
     fill_collisions(entity->position, entity->vertices, entity->bounds, entity->pivot, result, include_flags, entity->id);
+}
+
+Array <Collision> get_tcollisions(Entity *entity, FLAGS include_flags) {
+    Array <Collision> collisions = {.allocator = temp};
+    fill_collisions(entity, &collisions, include_flags);
+    return collisions;
 }
 
 void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array <Collision> *result, FLAGS include_flags) {
@@ -5290,8 +5299,6 @@ void update_editor() {
     // b32 need_snap_vertex = IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_V);
     
     i32 selected_vertex_index;
-    
-    mouse_entity.position = input.mouse_position;
     
     i32 cursor_entities_count = 0;
     
@@ -9834,6 +9841,8 @@ void update_entities(f32 dt) {
             continue;
         }
         
+        if (dt < 0) continue;
+        
         if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
             Entity *spawned = spawn_object_by_name("ammo_pack", e->position);
             e->spawned_enemy_id = spawned->id;
@@ -10941,7 +10950,9 @@ void draw_ui(const char *tag) {
             }
         }
         
-        planning_draw_ui();
+        if (game_state == GAME_PLANNING) {
+            planning_draw_ui();
+        }
     }
 
     // Draw speedrun info after last level
