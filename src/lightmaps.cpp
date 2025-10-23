@@ -392,7 +392,7 @@ void make_lightmap_settings_panel(){
         editor.picking_lightmap_position = false;        
     }
 
-    if (make_button({5, screen_height * 0.2f - 20}, {screen_width * 0.08f, 20.0f}, {0.0f, 0.0f}, "Lightmap settings", 18, "lightmap_settings_button", Fade(SKYBLUE, 0.4f))){
+    if (Old::make_button({5, screen_height * 0.2f - 20}, {screen_width * 0.08f, 20.0f}, {0.0f, 0.0f}, "Lightmap settings", 18, "lightmap_settings_button", Fade(SKYBLUE, 0.4f))){
         editor.lightmap_settings_active = !editor.lightmap_settings_active;
     }
     
@@ -400,11 +400,11 @@ void make_lightmap_settings_panel(){
         return;
     }
 
-    begin_panel({5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "lightmap_settings_panel");
+    Old::begin_panel({5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "lightmap_settings_panel");
         
-    make_panel_text(tprintf("Lightmaps count: %d", current_level_context->lightmaps.count), "lightmap_count_panel_text");
+    Old::make_panel_text(tprintf("Lightmaps count: %d", current_level_context->lightmaps.count), "lightmap_count_panel_text");
     
-    if (make_panel_button("Add lightmap", "add_lightmap_button")){
+    if (Old::make_panel_button("Add lightmap", "add_lightmap_button")){
         current_level_context->lightmaps.append({});
     }
     
@@ -415,7 +415,7 @@ void make_lightmap_settings_panel(){
     else if (lightmap_level == 1) lightmap_level_text = tprintf("Nice bake setting");
     else if (lightmap_level == 2) lightmap_level_text = tprintf("Highest bake setting");
     
-    if (make_panel_button(lightmap_level_text, "lightmap_level_text")){
+    if (Old::make_panel_button(lightmap_level_text, "lightmap_level_text")){
         lightmap_level += 1;    
         lightmap_level %= 3;
         if (0){}
@@ -429,7 +429,7 @@ void make_lightmap_settings_panel(){
     else if (pixel_per_unit == 2) pixels_per_unit_text = tprintf("2 pixel per unit");
     else if (pixel_per_unit == 4) pixels_per_unit_text = tprintf("4 pixel per unit");
     
-    if (make_panel_button(pixels_per_unit_text, "pixels_per_unit_text")){
+    if (Old::make_panel_button(pixels_per_unit_text, "pixels_per_unit_text")){
         pixel_per_unit += 2;    
         if (pixel_per_unit > 4) pixel_per_unit = 2;
     }
@@ -437,51 +437,51 @@ void make_lightmap_settings_panel(){
     i32 hovered_index = -1;
     
     for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
-        make_panel_text(tprintf("Lightmap: %d", i+1), tprintf("lightmap_text_%d", i+1));
-        panel_indent();
+        Old::make_panel_text(tprintf("Lightmap: %d", i+1), tprintf("lightmap_text_%d", i+1));
+        Old::panel_indent();
         
-        if (make_panel_button(tprintf("Bake %d", i+1), tprintf("bake_lightmap_%d"))){
+        if (Old::make_panel_button(tprintf("Bake %d", i+1), tprintf("bake_lightmap_%d"))){
             bake_only_one_index = i;
             need_to_bake = true;
         }
         
         if (editor.editing_lightmap && editor.editing_lightmap_index == i){
-            if (make_panel_button(tprintf("Cancel edit %d", i+1), tprintf("cancel_edit_%d"))){
+            if (Old::make_panel_button(tprintf("Cancel edit %d", i+1), tprintf("cancel_edit_%d"))){
                 editor.editing_lightmap = false;
             }
         } else{
-            if (make_panel_button(tprintf("Edit lightmap %d", i+1), tprintf("edit_lightmap_%d", i+1))){
+            if (Old::make_panel_button(tprintf("Edit lightmap %d", i+1), tprintf("edit_lightmap_%d", i+1))){
                 editor.editing_lightmap = true;
                 editor.editing_lightmap_index = i;
             }
             
-            if (last_ui_element_hovered()) hovered_index = i;
+            if (Old::last_ui_element_hovered()) hovered_index = i;
         }
         
         if (editor.picking_lightmap_position && editor.editing_lightmap_index == i){
-            if (make_panel_button(tprintf("Cancel picking %d position", i+1), tprintf("cancel_pick_lightmap_position_%d", i+1))){
+            if (Old::make_panel_button(tprintf("Cancel picking %d position", i+1), tprintf("cancel_pick_lightmap_position_%d", i+1))){
                 editor.picking_lightmap_position = false;                
             }
         } else{
-            if (make_panel_button(tprintf("Pick %d position", i+1), tprintf("pick_lightmap_position_%d", i+1))){
+            if (Old::make_panel_button(tprintf("Pick %d position", i+1), tprintf("pick_lightmap_position_%d", i+1))){
                 editor.picking_lightmap_position = true;                
                 editor.editing_lightmap_index = i;
             }
             
-            if (last_ui_element_hovered()) hovered_index = i;
+            if (Old::last_ui_element_hovered()) hovered_index = i;
         }
         
-        if (make_panel_button(tprintf("Remove lightmap %d", i+1), tprintf("remove_lightmap_%d", i+1))){
+        if (Old::make_panel_button(tprintf("Remove lightmap %d", i+1), tprintf("remove_lightmap_%d", i+1))){
             unload_lightmap_render_textures(i);
             
             current_level_context->lightmaps.remove(i);
             editor.editing_lightmap = false;
         }
         
-        panel_unindent();
+        Old::panel_unindent();
     }
 
-    end_panel();
+    Old::end_panel();
     
     hovered_edit_button_index = hovered_index;
     
@@ -493,40 +493,40 @@ void make_lightmap_settings_panel(){
     
     // Making size choosing panel.
     if (editor.editing_lightmap){
-        begin_panel({screen_width * 0.15f + 5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.3f}, Fade(GREEN, 0.4f), "lightam_editing_panel");
+        Old::begin_panel({screen_width * 0.15f + 5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.3f}, Fade(GREEN, 0.4f), "lightam_editing_panel");
         
         assert(editor.editing_lightmap_index > -1 && editor.editing_lightmap_index < current_level_context->lightmaps.count);
         Lightmap_Data* l = current_level_context->lightmaps.get(editor.editing_lightmap_index);
-        make_panel_text(tprintf("Position : {%.0f, %.0f}", l->position.x, l->position.y), "editing_lightmap_position");
-        make_panel_text(tprintf("Game size: {%.0f, %.0f}", l->game_size.x, l->game_size.y), "editing_lightmap_gamesize");
+        Old::make_panel_text(tprintf("Position : {%.0f, %.0f}", l->position.x, l->position.y), "editing_lightmap_position");
+        Old::make_panel_text(tprintf("Game size: {%.0f, %.0f}", l->game_size.x, l->game_size.y), "editing_lightmap_gamesize");
         
-        if (make_panel_button("Up 50", "up_position_lightmap_50")){
+        if (Old::make_panel_button("Up 50", "up_position_lightmap_50")){
             l->position = round_to_factor(l->position + Vector2_up * 50, 50);
         }
-        if (make_panel_button("Down 50", "down_position_lightmap_50")){
+        if (Old::make_panel_button("Down 50", "down_position_lightmap_50")){
             l->position = round_to_factor(l->position - Vector2_up * 50, 50);
         }
-        if (make_panel_button("Right 50", "right_position_lightmap_50")){
+        if (Old::make_panel_button("Right 50", "right_position_lightmap_50")){
             l->position = round_to_factor(l->position + Vector2_right * 50, 50);
         }
-        if (make_panel_button("Left 50", "left_position_lightmap_50")){
+        if (Old::make_panel_button("Left 50", "left_position_lightmap_50")){
             l->position = round_to_factor(l->position - Vector2_right * 50, 50);
         }
         
-        if (make_panel_button("+Height 100", "plus_height_lightmap_100")){
+        if (Old::make_panel_button("+Height 100", "plus_height_lightmap_100")){
             l->game_size = round_to_factor(l->game_size + Vector2_up * 100, 100);
         }
-        if (make_panel_button("-Height 100", "minus_height_lightmap_100")){
+        if (Old::make_panel_button("-Height 100", "minus_height_lightmap_100")){
             l->game_size = round_to_factor(l->game_size - Vector2_up * 100, 100);
         }
-        if (make_panel_button("+Width 100", "plus_width_lightmap_100")){
+        if (Old::make_panel_button("+Width 100", "plus_width_lightmap_100")){
             l->game_size = round_to_factor(l->game_size + Vector2_right * 100, 100);
         }
-        if (make_panel_button("-Width 100", "minus_width_lightmap_100")){
+        if (Old::make_panel_button("-Width 100", "minus_width_lightmap_100")){
             l->game_size = round_to_factor(l->game_size - Vector2_right * 100, 100);
         }
         
-        end_panel();
+        Old::end_panel();
     }
 }
 

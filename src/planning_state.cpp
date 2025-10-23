@@ -70,7 +70,7 @@ void update_planning() {
 void planning_draw_ui() {
     Vector2 panel_pos  = {screen_width * 0.05f, screen_height * 0.2f};
     Vector2 panel_size = {screen_width * 0.1f, screen_height * 0.4f};
-    make_ui_image(panel_pos, panel_size, {0, 0}, color_fade(SKYBLUE, 0.2f), "planning_panel");
+    Old::make_ui_image(panel_pos, panel_size, {0, 0}, color_fade(SKYBLUE, 0.2f), "planning_panel");
     
     i32 buttons_count = 0;
     for_array(i, &spawn_objects) {
@@ -80,7 +80,7 @@ void planning_draw_ui() {
         buttons_count += 1;
         Vector2 pos = panel_pos + Vector2_up * 10 * buttons_count;
         Vector2 size = {panel_size.x - 20, 100};
-        if (make_button(pos, size, object->name, tprintf("planning_object_%d", i))) {
+        if (Old::make_button(pos, size, object->name, tprintf("planning_object_%d", i))) {
             planning_start_holding_entity(&object->entity);
         }
     }
@@ -89,8 +89,8 @@ void planning_draw_ui() {
     
     panel_pos = {screen_width * 0.3f, screen_height * 0.85f};
     panel_size = {screen_width * 0.3f, screen_height * 0.1f};
-    make_ui_image(panel_pos, panel_size, {0, 0}, color_fade(VIOLET, 0.3f), "planning_hints");
-    make_ui_text("SPACE - go gaming.", panel_pos, "gaming_hint"); 
-    make_ui_text("X - delete thing.", panel_pos + Vector2_up * 20, "gaming_hint2"); 
-    make_ui_text("Q/E - rotate thing.", panel_pos + Vector2_up * 40, "gaming_hint2"); 
+    Old::make_ui_image(panel_pos, panel_size, {0, 0}, color_fade(VIOLET, 0.3f), "planning_hints");
+    Old::make_ui_text("SPACE - go gaming.", panel_pos, "gaming_hint"); 
+    Old::make_ui_text("X - delete thing.", panel_pos + Vector2_up * 20, "gaming_hint2"); 
+    Old::make_ui_text("Q/E - rotate thing.", panel_pos + Vector2_up * 40, "gaming_hint2"); 
 }

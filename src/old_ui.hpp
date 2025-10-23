@@ -1,5 +1,8 @@
 #pragma once
 
+namespace Old
+{
+
 #define UI_FLAGS u32
 
 enum Ui_Flags{
@@ -218,3 +221,4 @@ void make_panel_text(const char* text, const char* tag){
 }
 
 
+};

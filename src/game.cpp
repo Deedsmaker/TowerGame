@@ -158,6 +158,7 @@ inline void log_short(Vector2 value) {
 #include "particles.hpp"
 #include "text_input.hpp"
 #include "old_ui.hpp"
+#include "immediate_ui.cpp"
 #include "lightmaps.cpp"
 #include "planning_state.cpp"
 #include "dynamic_lights.cpp"
@@ -3002,7 +3003,7 @@ void update_console() {
         b32 content_changed = false;
         for (i32 i = 0; i < console.commands.count && console.args.count == 1; i++) {
             if (str_start_with(console.commands.get_value(i).name, console.args.get_value(0).data)) {
-                make_ui_text(console.commands.get_value(i).name, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
+                Old::make_ui_text(console.commands.get_value(i).name, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
                 
                 if (IsKeyPressed(KEY_TAB) && console.args.count == 1) {
                     set_focus_input_field(console.commands.get_value(i).name);
@@ -3017,7 +3018,7 @@ void update_console() {
                 if (str_contains(console.level_names.get_value(i).data, console.args.get_value(1).data)) {
                     const char *new_console_content = tprintf("%s %s", console.args.get_value(0).data, console.level_names.get_value(i).data);
                     
-                    make_ui_text(new_console_content, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
+                    Old::make_ui_text(new_console_content, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");
                     
                     if (IsKeyPressed(KEY_TAB)) {
                         set_focus_input_field(new_console_content);
@@ -3428,7 +3429,7 @@ void update_game() {
         }
         
         const char *title_and_time = tprintf("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? c_str(current_level_context->level_name) : "Game speedrun", session_context.speedrun_timer.time);
-        make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
+        Old::make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
     }
     
     // update_entities();
@@ -4010,59 +4011,59 @@ void close_create_box() {
 }
 
 void make_color_picker(Vector2 inspector_position, Vector2 inspector_size, f32 v_pos, Color *color_ptr) {
-    make_ui_text("Color: ", {inspector_position.x + 25, v_pos}, "light_bake_shadows");
+    Old::make_ui_text("Color: ", {inspector_position.x + 25, v_pos}, "light_bake_shadows");
     f32 color_h_pos_mult = 0.2f;
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, WHITE, *color_ptr == WHITE, "light_color_picker_white")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, WHITE, *color_ptr == WHITE, "light_color_picker_white")) {
         *color_ptr = WHITE;
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(RED, 0.3f), *color_ptr == ColorBrightness(RED, 0.3f), "light_color_picker_RED")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(RED, 0.3f), *color_ptr == ColorBrightness(RED, 0.3f), "light_color_picker_RED")) {
         *color_ptr = ColorBrightness(RED, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(ORANGE, 0.3f), *color_ptr == ColorBrightness(ORANGE, 0.3f), "light_color_picker_ORANGE")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(ORANGE, 0.3f), *color_ptr == ColorBrightness(ORANGE, 0.3f), "light_color_picker_ORANGE")) {
         *color_ptr = ColorBrightness(ORANGE, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(SKYBLUE, 0.3f), *color_ptr == ColorBrightness(SKYBLUE, 0.3f), "light_color_picker_SKYBLUE")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(SKYBLUE, 0.3f), *color_ptr == ColorBrightness(SKYBLUE, 0.3f), "light_color_picker_SKYBLUE")) {
         *color_ptr = ColorBrightness(SKYBLUE, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(BLUE, 0.3f), *color_ptr == ColorBrightness(BLUE, 0.3f), "light_color_picker_BLUE")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(BLUE, 0.3f), *color_ptr == ColorBrightness(BLUE, 0.3f), "light_color_picker_BLUE")) {
         *color_ptr = ColorBrightness(BLUE, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(GREEN, 0.3f), *color_ptr == ColorBrightness(GREEN, 0.3f), "light_color_picker_GREEN")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(GREEN, 0.3f), *color_ptr == ColorBrightness(GREEN, 0.3f), "light_color_picker_GREEN")) {
         *color_ptr = ColorBrightness(GREEN, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(LIME, 0.3f), *color_ptr == ColorBrightness(LIME, 0.3f), "light_color_picker_LIME")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(LIME, 0.3f), *color_ptr == ColorBrightness(LIME, 0.3f), "light_color_picker_LIME")) {
         *color_ptr = ColorBrightness(LIME, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(PINK, 0.3f), *color_ptr == ColorBrightness(PINK, 0.3f), "light_color_picker_PINK")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(PINK, 0.3f), *color_ptr == ColorBrightness(PINK, 0.3f), "light_color_picker_PINK")) {
         *color_ptr = ColorBrightness(PINK, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(VIOLET, 0.3f), *color_ptr == ColorBrightness(VIOLET, 0.3f), "light_color_picker_VIOLET")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(VIOLET, 0.3f), *color_ptr == ColorBrightness(VIOLET, 0.3f), "light_color_picker_VIOLET")) {
         *color_ptr = ColorBrightness(VIOLET, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(MAGENTA, 0.3f), *color_ptr == ColorBrightness(MAGENTA, 0.3f), "light_color_picker_MAGENTA")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(MAGENTA, 0.3f), *color_ptr == ColorBrightness(MAGENTA, 0.3f), "light_color_picker_MAGENTA")) {
         *color_ptr = ColorBrightness(MAGENTA, 0.3f);
     }
     color_h_pos_mult += 0.05f;
     
-    if (make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(BROWN, 0.3f), *color_ptr == ColorBrightness(BROWN, 0.3f), "light_color_picker_MAGENTA")) {
+    if (Old::make_ui_color_picker({inspector_position.x + inspector_size.x * color_h_pos_mult, v_pos}, ColorBrightness(BROWN, 0.3f), *color_ptr == ColorBrightness(BROWN, 0.3f), "light_color_picker_MAGENTA")) {
         *color_ptr = ColorBrightness(BROWN, 0.3f);
     }
     color_h_pos_mult += 0.05f;
@@ -4075,54 +4076,54 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
     // There we're just updating our own light - that's where that name came from.  
     Light *light_to_update = get_light(selected->lights.get_value(0));
     f32 h_pos_mult = 0.05f;
-    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & ULTRA_SMALL_LIGHT, "ultra_small_size_flag")) {
+    if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & ULTRA_SMALL_LIGHT, "ultra_small_size_flag")) {
         *size_flags = ULTRA_SMALL_LIGHT;
         copy_and_add_light_to_entity(selected, light_to_update, true);
     }
-    make_ui_text("(64): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "ultra_small_size_flag");
+    Old::make_ui_text("(64): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "ultra_small_size_flag");
     h_pos_mult += 0.15f;
     
-    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & SMALL_LIGHT, "small_size_flag")) {
+    if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & SMALL_LIGHT, "small_size_flag")) {
         *size_flags = SMALL_LIGHT;
         copy_and_add_light_to_entity(selected, light_to_update, true);
     }
-    make_ui_text("(128): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "small_size_flag");
+    Old::make_ui_text("(128): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "small_size_flag");
     h_pos_mult += 0.15f;
     
-    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & MEDIUM_LIGHT, "medium_light_flag")) {
+    if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & MEDIUM_LIGHT, "medium_light_flag")) {
         *size_flags = MEDIUM_LIGHT;
         copy_and_add_light_to_entity(selected, light_to_update, true);
     }
-    make_ui_text("(256): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "medium_light_flag");
+    Old::make_ui_text("(256): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "medium_light_flag");
     h_pos_mult += 0.15f;
 
-    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & BIG_LIGHT, "big_light_flag")) {
+    if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & BIG_LIGHT, "big_light_flag")) {
         *size_flags = BIG_LIGHT;
         copy_and_add_light_to_entity(selected, light_to_update, true);
     }
-    make_ui_text("(512): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "big_light_flag");
+    Old::make_ui_text("(512): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "big_light_flag");
     h_pos_mult += 0.15f;
 
-    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & HUGE_LIGHT, "huge_light_flag")) {
+    if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & HUGE_LIGHT, "huge_light_flag")) {
         *size_flags = HUGE_LIGHT;
         copy_and_add_light_to_entity(selected, light_to_update, true);
     }
-    make_ui_text("(1024): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "huge_light_flag");
+    Old::make_ui_text("(1024): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "huge_light_flag");
     h_pos_mult += 0.15f;
 
-    if (make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & GIANT_LIGHT, "giant_light_flag")) {
+    if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * h_pos_mult, v_pos}, *size_flags & GIANT_LIGHT, "giant_light_flag")) {
         *size_flags = GIANT_LIGHT;
         copy_and_add_light_to_entity(selected, light_to_update, true);
     }
-    make_ui_text("(2048): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "giant_light_flag");
+    Old::make_ui_text("(2048): ", {inspector_position.x + inspector_size.x * h_pos_mult, v_pos + height_add}, "giant_light_flag");
     h_pos_mult += 0.15f;
 }
 
 #ifndef INSPECTOR_MACRO
 #define INSPECTOR_MACRO
     #define INSPECTOR_UI_TOGGLE_COLOR(text, tag, bool_to_change, color, additional_action) { \
-        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag, color); \
-        if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, bool_to_change, tag)) { \
+        Old::make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag, color); \
+        if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, bool_to_change, tag)) { \
             bool_to_change = !bool_to_change; \
             additional_action; \
         } \
@@ -4132,8 +4133,8 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
         INSPECTOR_UI_TOGGLE_COLOR(text, tag, bool_to_change, WHITE, additional_action); \
     }   
     #define INSPECTOR_UI_TOGGLE_FLAGS(text, tag, flags, flag, additional_action) { \
-        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
-        if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, flags & flag, tag)) { \
+        Old::make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag); \
+        if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, flags & flag, tag)) { \
             flags ^= flag; \
             additional_action; \
         } \
@@ -4141,7 +4142,7 @@ void make_light_size_picker(Vector2 inspector_position, Vector2 inspector_size, 
     }   
     
     #define INSPECTOR_UI_INPUT_FIELD_COLOR(text, tag, format, value_to_change, convert_function, color, additional_action) { \
-        make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag, color); \
+        Old::make_ui_text(text, {inspector_position.x + h_pos, v_pos}, tag, color); \
         if (make_input_field(tprintf(format, value_to_change), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, 100, tag)) { \
             value_to_change = convert_function(focus_input_field.content); \
             additional_action; \
@@ -4161,24 +4162,24 @@ void update_editor_ui() {
         if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_F3)) {
             editor.move_entity_points = !editor.move_entity_points;
         }
-        make_ui_text(tprintf("Ctrl+F3:\nMove entity points: %s", editor.move_entity_points ? "YES" : "NO"), {10, screen_height * 0.5f}, 30, Fade(GREEN, 0.6f), "move_entity_points_hint");
+        Old::make_ui_text(tprintf("Ctrl+F3:\nMove entity points: %s", editor.move_entity_points ? "YES" : "NO"), {10, screen_height * 0.5f}, 30, Fade(GREEN, 0.6f), "move_entity_points_hint");
     }
     
     Entity *selected = editor.selected;
     if (selected) {
         Vector2 inspector_size = {screen_width * 0.2f, screen_height * 0.6f};
         Vector2 inspector_position = {screen_width - inspector_size.x - inspector_size.x * 0.1f, 0 + inspector_size.y * 0.05f};
-        make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
+        Old::make_ui_image(inspector_position, inspector_size, {0, 0}, SKYBLUE * 0.7f, "inspector_window");
         f32 height_add = 30 * UI_SCALING;
         f32 v_pos = inspector_position.y + height_add + 40;
         f32 h_pos = 5;
         
-        make_ui_text(tprintf("ID: %d", selected->id), {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
+        Old::make_ui_text(tprintf("ID: %d", selected->id), {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y - 10}, 18, WHITE, "inspector_id"); 
         
-        make_ui_text(c_str(*selected->name), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_name"); 
-        make_ui_text("POSITION", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
-        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
-        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
+        Old::make_ui_text(c_str(*selected->name), {inspector_position.x, inspector_position.y + 10}, 24, BLACK, "inspector_name"); 
+        Old::make_ui_text("POSITION", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + 40}, 24, WHITE * 0.9f, "inspector_pos");
+        Old::make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_pos_x");
+        Old::make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_pos_y");
         if (make_input_field(tprintf("%.3f", selected->position.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_pos_x")
             || make_input_field(tprintf("%.3f", selected->position.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_pos_y")
             ) {
@@ -4196,14 +4197,14 @@ void update_editor_ui() {
         // v_pos += height_add;
 
         if (editor.multiselection.entities.count > 1) {
-            make_ui_text("Multiselected editing (only draw order)", {inspector_position.x + inspector_size.x * 0.05f, inspector_position.y + v_pos}, 24, RED * 0.9f, "inspector_pos");
+            Old::make_ui_text("Multiselected editing (only draw order)", {inspector_position.x + inspector_size.x * 0.05f, inspector_position.y + v_pos}, 24, RED * 0.9f, "inspector_pos");
             v_pos += height_add;
         }
         
-        make_ui_text("SCALE", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + v_pos}, 24, WHITE * 0.9f, "inspector_scale");
+        Old::make_ui_text("SCALE", {inspector_position.x + inspector_size.x * 0.4f, inspector_position.y + v_pos}, 24, WHITE * 0.9f, "inspector_scale");
         v_pos += height_add * 2;
-        make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
-        make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
+        Old::make_ui_text("X:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_scale_x");
+        Old::make_ui_text("Y:", {inspector_position.x + 5 + 35 + 100, v_pos}, 22, BLACK * 0.9f, "inspector_scale_y");
         if (make_input_field(tprintf("%.3f", editor.selected->scale.x), {inspector_position.x + 30, v_pos}, {100, 25}, "inspector_scale_x")
             || make_input_field(tprintf("%.3f", editor.selected->scale.y), {inspector_position.x + 30 + 100 + 35, v_pos}, {100, 25}, "inspector_scale_y")
             ) {
@@ -4229,7 +4230,7 @@ void update_editor_ui() {
         }
         v_pos += height_add;
         
-        make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
+        Old::make_ui_text("Rotation:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
         if (make_input_field(tprintf("%.2f", editor.selected->rotation), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_rotation")
             ) {
             f32 old_rotation = editor.selected->rotation;
@@ -4252,7 +4253,7 @@ void update_editor_ui() {
         }
         v_pos += height_add;
         
-        make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
+        Old::make_ui_text("Draw Order:", {inspector_position.x + 5, v_pos}, 22, BLACK * 0.9f, "inspector_rotation");
         if (make_input_field(tprintf("%d", editor.selected->draw_order), {inspector_position.x + 150, v_pos}, {75, 25}, "inspector_draw_order")
             ) {
             
@@ -4286,11 +4287,11 @@ void update_editor_ui() {
         f32 type_info_v_pos = type_font_size;
         
         for (f32 line_pos = v_pos; line_pos < inspector_size.y; line_pos += height_add) {
-            make_ui_image({inspector_position.x + 5, line_pos}, {inspector_size.x - 10, 1}, {0, 0}, Fade(ColorBrightness(SKYBLUE, 0.4f), 0.5f), "ui_line");
+            Old::make_ui_image({inspector_position.x + 5, line_pos}, {inspector_size.x - 10, 1}, {0, 0}, Fade(ColorBrightness(SKYBLUE, 0.4f), 0.5f), "ui_line");
         }
 
         //entity settings overall
-        if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Entity settings", "entity_settings")) {
+        if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Entity settings", "entity_settings")) {
             editor.draw_entity_settings = !editor.draw_entity_settings;
         }
         v_pos += height_add;
@@ -4320,16 +4321,16 @@ void update_editor_ui() {
                     INSPECTOR_UI_INPUT_FIELD("Max distance speed: ", "move_sequence_max_distance_speed", "%.1f", selected->move_sequence->max_distance_speed, to_f32, );  
                 }
                 
-                make_ui_text(tprintf("Points count: %d", selected->move_sequence->points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
+                Old::make_ui_text(tprintf("Points count: %d", selected->move_sequence->points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_count");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Ctrl+L clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
+                Old::make_ui_text("Ctrl+L clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_clear");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Ctrl+M Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_remove");
+                Old::make_ui_text("Ctrl+M Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_remove");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Ctrl+N Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_add_point");
+                Old::make_ui_text("Ctrl+N Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "move_sequence_add_point");
                 type_info_v_pos += type_font_size;
                 
-                make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "move_sequence_settings");
+                Old::make_ui_text("Move sequence settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "move_sequence_settings");
                 type_info_v_pos += type_font_size;
             }
             
@@ -4346,7 +4347,7 @@ void update_editor_ui() {
         }
         
         // inspector light inspector
-        if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Light settings", "light_settings")) {
+        if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Light settings", "light_settings")) {
             editor.draw_light_settings = !editor.draw_light_settings;
         }
         v_pos += height_add;
@@ -4371,8 +4372,8 @@ void update_editor_ui() {
                 INSPECTOR_UI_INPUT_FIELD("Light power: ", "light_power", "%.2f", light->power, to_f32, );
                 
                 // Leave this without macro for colors.
-                make_ui_text("Bake shadows: ", {inspector_position.x + 5, v_pos}, "light_bake_shadows", 17, ColorBrightness(light->bake_shadows ? GREEN : RED, 0.5f));
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->bake_shadows, "light_bake_shadows")) {
+                Old::make_ui_text("Bake shadows: ", {inspector_position.x + 5, v_pos}, "light_bake_shadows", 17, ColorBrightness(light->bake_shadows ? GREEN : RED, 0.5f));
+                if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, light->bake_shadows, "light_bake_shadows")) {
                     light->bake_shadows = !light->bake_shadows;
                     copy_and_add_light_to_entity(selected, light, true);
                 }
@@ -4381,7 +4382,7 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE("Make shadows: ", "light_make_shadows", light->make_shadows, copy_and_add_light_to_entity(selected, light, true));
 
                 if (light->make_shadows) {
-                    make_ui_text("Shadows Size flags: ", {inspector_position.x + 5, v_pos}, "shadows_size_flags");
+                    Old::make_ui_text("Shadows Size flags: ", {inspector_position.x + 5, v_pos}, "shadows_size_flags");
                     v_pos += height_add;
                     make_light_size_picker(inspector_position, inspector_size, v_pos, height_add, &light->shadows_size_flags, selected);
                     v_pos += height_add * 2;
@@ -4390,7 +4391,7 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE("Make backshadows: ", "light_make_backshadows", light->make_backshadows, copy_and_add_light_to_entity(selected, light, true));
 
                 if (light->make_backshadows) {
-                    make_ui_text("Backshadows Size flags: ", {inspector_position.x + 5, v_pos}, "backshadows_size_flags");
+                    Old::make_ui_text("Backshadows Size flags: ", {inspector_position.x + 5, v_pos}, "backshadows_size_flags");
                     v_pos += height_add;
                     make_light_size_picker(inspector_position, inspector_size, v_pos, height_add, &light->backshadows_size_flags, selected);
                     v_pos += height_add * 2;
@@ -4400,13 +4401,13 @@ void update_editor_ui() {
         
         // trigger inspector
         if (selected->flags & TRIGGER) {
-            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Trigger settings", "trigger_settings")) {
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Trigger settings", "trigger_settings")) {
                 editor.draw_trigger_settings = !editor.draw_trigger_settings;
             }
             v_pos += height_add;
             
             if (editor.draw_trigger_settings) {
-                if (make_button({inspector_position.x + inspector_size.x * 0.2f, v_pos + 3}, {inspector_size.x * 0.6f, height_add - 4}, "Trigger (in game)", "trigger_now_button", SKYBLUE, ColorBrightness(BROWN, -0.3f)) && editor_state == GAME) {
+                if (Old::make_button({inspector_position.x + inspector_size.x * 0.2f, v_pos + 3}, {inspector_size.x * 0.6f, height_add - 4}, "Trigger (in game)", "trigger_now_button", SKYBLUE, ColorBrightness(BROWN, -0.3f)) && editor_state == GAME) {
                     selected->trigger->debug_should_trigger_now = true;
                 }
                 v_pos += height_add;
@@ -4446,7 +4447,7 @@ void update_editor_ui() {
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Play sound: ", "trigger_play_sound",                   selected->trigger->settings, PLAY_SOUND, );
                 if (selected->trigger->settings & PLAY_SOUND) {
-                    make_ui_text("Sound name: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound_name_text");
+                    Old::make_ui_text("Sound name: ", {inspector_position.x + 5, v_pos}, "trigger_play_sound_name_text");
                     if (make_input_field(selected->trigger->sound_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.25f, 20}, "trigger_sound_name") ) {
                         str_copy(selected->trigger->sound_name, focus_input_field.content);
                     }
@@ -4455,7 +4456,7 @@ void update_editor_ui() {
                 
                 INSPECTOR_UI_TOGGLE_FLAGS("Load level: ", "trigger_load_level", selected->trigger->settings, LOAD_LEVEL, );
                 if (selected->trigger->settings & LOAD_LEVEL) {
-                    make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
+                    Old::make_ui_text("Level name: ", {inspector_position.x + 5, v_pos}, "trigger_load_level_name_text");
                     if (make_input_field(selected->trigger->level_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_load_level_name") ) {
                         str_copy(selected->trigger->level_name, focus_input_field.content);
                     }
@@ -4463,7 +4464,7 @@ void update_editor_ui() {
                 }
                 INSPECTOR_UI_TOGGLE_FLAGS("Play replay: ", "trigger_play_replay", selected->trigger->settings, PLAY_REPLAY, );
                 if (selected->trigger->settings & PLAY_REPLAY) {
-                    make_ui_text("Replay name: ", {inspector_position.x + 5, v_pos}, "trigger_replay_name");
+                    Old::make_ui_text("Replay name: ", {inspector_position.x + 5, v_pos}, "trigger_replay_name");
                     if (make_input_field(selected->trigger->replay_name, {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "trigger_replay_name") ) {
                         str_copy(selected->trigger->replay_name, focus_input_field.content);
                     }
@@ -4472,46 +4473,46 @@ void update_editor_ui() {
             }
         
             if (selected->trigger->settings & (START_CAM_RAILS_HORIZONTAL | START_CAM_RAILS_VERTICAL)) {
-                make_ui_text("Ctrl+L rails clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_clear");
+                Old::make_ui_text("Ctrl+L rails clear points", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_clear");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Ctrl+M Rails Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_remove");
+                Old::make_ui_text("Ctrl+M Rails Remove point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_remove");
                 type_info_v_pos += type_font_size;
-                make_ui_text("Ctrl+N Rails Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_add_point");
+                Old::make_ui_text("Ctrl+N Rails Add point", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "cam_rails_add_point");
                 type_info_v_pos += type_font_size;
-                make_ui_text(tprintf("Rails points count: %d", selected->trigger->cam_rails_points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_rails_points_count");
+                Old::make_ui_text(tprintf("Rails points count: %d", selected->trigger->cam_rails_points.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_rails_points_count");
             type_info_v_pos += type_font_size;
 
             }
             if (selected->trigger->settings & CHANGE_ZOOM) {
-                make_ui_text("Ctrl+R: Camera position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
+                Old::make_ui_text("Ctrl+R: Camera position", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "locked_cam_position");
                 type_info_v_pos += type_font_size;
             }
-            make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_clear");
+            Old::make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_clear");
             type_info_v_pos += type_font_size;
-            make_ui_text("Remove selected: Ctrl+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_remove");
+            Old::make_ui_text("Remove selected: Ctrl+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_remove");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
+            Old::make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign tracking enemy: Ctrl+Q", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
+            Old::make_ui_text("Assign tracking enemy: Ctrl+Q", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "trigger_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(tprintf("Connected count: %d", selected->trigger->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_connected_count");
+            Old::make_ui_text(tprintf("Connected count: %d", selected->trigger->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_connected_count");
             type_info_v_pos += type_font_size;
-            make_ui_text(tprintf("Tracking count: %d", selected->trigger->tracking.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_tracking_count");
+            Old::make_ui_text(tprintf("Tracking count: %d", selected->trigger->tracking.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "trigger_tracking_count");
             type_info_v_pos += type_font_size;
-            make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
+            Old::make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
         }
         
         if (selected->flags & KILL_SWITCH) {
-            make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_clear");
+            Old::make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_clear");
             type_info_v_pos += type_font_size;
-            make_ui_text("Remove selected: Ctrl+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_remove");
+            Old::make_ui_text("Remove selected: Ctrl+D", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_remove");
             type_info_v_pos += type_font_size;
-            make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_assign");
+            Old::make_ui_text("Assign New: Ctrl+A", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_assign");
             type_info_v_pos += type_font_size;
-            make_ui_text(tprintf("Connected count: %d", selected->kill_switch->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "kill_switch_connected_count");
+            Old::make_ui_text(tprintf("Connected count: %d", selected->kill_switch->connected.count), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, 0.2f), "kill_switch_connected_count");
             type_info_v_pos += type_font_size;
-            make_ui_text("Kill switch settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "kill_switch_settings");
+            Old::make_ui_text("Kill switch settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "kill_switch_settings");
             type_info_v_pos += type_font_size;
         }
         
@@ -4519,7 +4520,7 @@ void update_editor_ui() {
         if (selected->flags & ENEMY) {
             assert(selected->union_enemy);
         
-            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Enemy settings", "enemy_settings")) {
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Enemy settings", "enemy_settings")) {
                 editor.draw_enemy_settings = !editor.draw_enemy_settings;
             }
             v_pos += height_add;
@@ -4577,31 +4578,31 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE_FLAGS("Multiple hits: ", "enemy_multiple_hits", selected->flags, MULTIPLE_HITS, init_entity(selected)); 
             }
         
-            make_ui_text(tprintf("Ctrl+O/P Sword kill speed: %.1f", selected->union_enemy->sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
+            Old::make_ui_text(tprintf("Ctrl+O/P Sword kill speed: %.1f", selected->union_enemy->sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
             type_info_v_pos += type_font_size;
             
             if (selected->flags & SHOOT_BLOCKER) {
                 if (!selected->union_enemy->shoot_blocker_immortal) {
-                    make_ui_text(tprintf("Ctrl+F/G Shoot Block Vector: {%.2f, %.2f}", selected->union_enemy->shoot_blocker_direction.x, selected->union_enemy->shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
+                    Old::make_ui_text(tprintf("Ctrl+F/G Shoot Block Vector: {%.2f, %.2f}", selected->union_enemy->shoot_blocker_direction.x, selected->union_enemy->shoot_blocker_direction.y), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "shoot_blocker_direction");
                     type_info_v_pos += type_font_size;
                 }
             }
 
-            make_ui_text("Enemy settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
+            Old::make_ui_text("Enemy settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "enemy_settings");
             type_info_v_pos += type_font_size;
         } // enemy inspector end
         
         if (selected->flags & PROPELLER) {
-            make_ui_text(tprintf("Ctrl+Q/E Power change: %.0f", selected->propeller->power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
+            Old::make_ui_text(tprintf("Ctrl+Q/E Power change: %.0f", selected->propeller->power), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "propeller_power");
             type_info_v_pos += type_font_size;
             
-            make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
+            Old::make_ui_text("Propeller settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "propeller_settings");
             type_info_v_pos += type_font_size;
 
         }
         
         if (selected->flags & CENTIPEDE) {
-            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Centipede settings", "centipede_settings")) {
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Centipede settings", "centipede_settings")) {
                 editor.draw_centipede_settings = !editor.draw_centipede_settings;
             }
             v_pos += height_add;
@@ -4618,7 +4619,7 @@ void update_editor_ui() {
         
         // jumps shooter inspector
         if (selected->flags & JUMP_SHOOTER) {
-            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Jump shooter settings", "jump_shooter_settings")) {
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Jump shooter settings", "jump_shooter_settings")) {
                 editor.draw_jump_shooter_settings = !editor.draw_jump_shooter_settings;
             }
             v_pos += height_add;
@@ -4641,8 +4642,8 @@ void update_editor_ui() {
                     h_pos = 5;
                 }
                 
-                make_ui_text("Shoot bullet blockers: ", {inspector_position.x + 5, v_pos}, "shoot_bullet_blockers");
-                if (make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->jump_shooter->shoot_bullet_blockers, "shoot_bullet_blockers")) {
+                Old::make_ui_text("Shoot bullet blockers: ", {inspector_position.x + 5, v_pos}, "shoot_bullet_blockers");
+                if (Old::make_ui_toggle({inspector_position.x + inspector_size.x * 0.6f, v_pos}, selected->jump_shooter->shoot_bullet_blockers, "shoot_bullet_blockers")) {
                     selected->jump_shooter->shoot_bullet_blockers = !selected->jump_shooter->shoot_bullet_blockers;
                 }
                 v_pos += height_add;
@@ -4651,7 +4652,7 @@ void update_editor_ui() {
         
         // inspector turret inspector
         if (selected->flags & TURRET) {
-            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Turret settings", "turret_settings")) {
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Turret settings", "turret_settings")) {
                 editor.draw_turret_settings = !editor.draw_turret_settings;
             }
             v_pos += height_add;
@@ -4684,7 +4685,7 @@ void update_editor_ui() {
         }
 
         if (selected->flags & DOOR) {
-            if (make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Door settings", "door_settings")) {
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Door settings", "door_settings")) {
                 editor.draw_door_settings = !editor.draw_door_settings;
             }
             v_pos += height_add;
@@ -4693,15 +4694,15 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE("Open: ", "door_open_closed", selected->door.is_open, );
             }
         
-            make_ui_text(tprintf("Ctrl+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
+            Old::make_ui_text(tprintf("Ctrl+T Trigger: %s", selected->door.is_open ? "Open" : "Close"), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "door_trigger");
             type_info_v_pos += type_font_size;
             
-            make_ui_text("Door settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "door_settings");
+            Old::make_ui_text("Door settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "door_settings");
             type_info_v_pos += type_font_size;
         }
         
         //type info background
-        make_ui_image({inspector_position.x - 160, (f32)screen_height - type_info_v_pos}, {(f32)screen_width * 0.5f, type_info_v_pos}, {0, 0}, SKYBLUE * 0.7f, "inspector_type_info_background");
+        Old::make_ui_image({inspector_position.x - 160, (f32)screen_height - type_info_v_pos}, {(f32)screen_width * 0.5f, type_info_v_pos}, {0, 0}, SKYBLUE * 0.7f, "inspector_type_info_background");
     }
     
     // Create box.
@@ -4782,7 +4783,7 @@ void update_editor_ui() {
             Color button_color = lerp(BLACK * 0, BLACK * 0.9f, clamp01(create_t * 2));
             Color text_color   = lerp(WHITE * 0, WHITE * 0.9f, clamp01(create_t * 2));
             
-            if (make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))) {
+            if (Old::make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))) {
                 Entity *entity = copy_and_add_entity(&obj.entity, current_level_context);
                 entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
@@ -4792,13 +4793,13 @@ void update_editor_ui() {
             
             if (obj.entity.flags & TEXTURE) {
                 Vector2 texture_position = obj_position - Vector2_right * field_size.y;
-                make_ui_image(obj.entity.texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
+                Old::make_ui_image(obj.entity.texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
             }
             
             if (this_object_selected) {
                 f32 color_multiplier = lerp(0.7f, 0.9f, (sinf(core.time.app_time * 3) + 1) * 0.5f);
                 Color selected_color = lerp(WHITE * 0, WHITE * color_multiplier, clamp01(create_t * 2));
-                make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, selected_color, "create_box");
+                Old::make_ui_image(obj_position, {obj_size.x * 0.2f, obj_size.y}, {1, 0}, selected_color, "create_box");
             }
             
             fitting_count++;
@@ -10956,20 +10957,20 @@ void draw_ui(const char *tag) {
 
     // Draw speedrun info after last level
     if (state_context.we_got_a_winner) {
-        // make_ui_text(
+        // Old::make_ui_text(
     }
     
     i32 tag_len = str_len(tag);
 
-    for (i32 i = 0; i < ui_context.elements.count; i++) {
-        Ui_Element element = ui_context.elements.get_value(i);
+    for (i32 i = 0; i < Old::ui_context.elements.count; i++) {
+        Old::Ui_Element element = Old::ui_context.elements.get_value(i);
         
         if (tag_len > 0 && !str_equal(element.tag, tag)) {
             continue;
         }
         
-        if (element.ui_flags & UI_IMAGE) {
-            Ui_Image ui_image = element.ui_image;
+        if (element.ui_flags & Old::UI_IMAGE) {
+            Old::Ui_Image ui_image = element.ui_image;
             
             if (element.has_texture) {
                 element.texture.width = element.size.x;
@@ -10980,25 +10981,25 @@ void draw_ui(const char *tag) {
             }
         }
     }
-    for (i32 i = 0; i < ui_context.elements.count; i++) {
-        Ui_Element element = ui_context.elements.get_value(i);
+    for (i32 i = 0; i < Old::ui_context.elements.count; i++) {
+        Old::Ui_Element element = Old::ui_context.elements.get_value(i);
         
         if (tag_len > 0 && !str_equal(element.tag, tag)) {
             continue;
         }
         
-        if (element.ui_flags & BUTTON) {
-            Button button = element.button;
+        if (element.ui_flags & Old::BUTTON) {
+            Old::Button button = element.button;
             
             draw_rect(element.position, element.size, element.pivot, 0, element.color);
             
-            if (element.ui_flags & UI_TOGGLE && element.toggle_value) {
+            if (element.ui_flags & Old::UI_TOGGLE && element.toggle_value) {
                 Vector2 down_pos = element.position + Vector2_up * element.size.y + Vector2_right * element.size.x * 0.5f;
                 draw_line(element.position, down_pos, WHITE);
                 draw_line(down_pos, down_pos + Vector2_right * element.size.x * 0.4f - Vector2_up * element.size.y * 0.9f, WHITE);
             }
             
-            if (element.ui_flags & UI_COLOR_PICKER) {
+            if (element.ui_flags & Old::UI_COLOR_PICKER) {
                 draw_rect(element.position, element.size, element.pivot, 0, element.color);
                 
                 if (element.toggle_value) {
@@ -11007,8 +11008,8 @@ void draw_ui(const char *tag) {
             }
         }
         
-        if (element.ui_flags & UI_TEXT) {
-            Ui_Text ui_text = element.text;
+        if (element.ui_flags & Old::UI_TEXT) {
+            Old::Ui_Text ui_text = element.text;
             draw_text(ui_text.content, element.position, ui_text.font_size, ui_text.text_color);
         }
     }
@@ -11036,7 +11037,7 @@ void draw_ui(const char *tag) {
     }
     
     if (tag_len == 0) {
-        ui_context.elements.clear();
+        Old::ui_context.elements.clear();
         input_fields.clear();
     }
 }
@@ -11330,14 +11331,14 @@ void draw_game() {
     draw_screen_space_editor();
     
     if (state_context.we_got_a_winner) {
-        // make_ui_text("Finale for now!\nNow you can try speedruns.\nOpen console with \"/\" (slash) button and type help.\ngame_speedrun for full game speedrun.\nlevel_speedrun for current level speedrun.\nfirst for loading first level\nnext for loading next level", {screen_width * 0.3f, screen_height * 0.2f}, 20, GREEN, "win_speedrun_text");
+        // Old::make_ui_text("Finale for now!\nNow you can try speedruns.\nOpen console with \"/\" (slash) button and type help.\ngame_speedrun for full game speedrun.\nlevel_speedrun for current level speedrun.\nfirst for loading first level\nnext for loading next level", {screen_width * 0.3f, screen_height * 0.2f}, 20, GREEN, "win_speedrun_text");
     }
     
     if (editor_state == GAME && player_data->dead_man && !state_context.we_got_a_winner) {
         f32 since_died = core.time.game_time - player_data->timers.died_time;
         
         f32 t = clamp01((since_died - 3.0f) / 2.0f);
-        make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "restart_text");
+        Old::make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "restart_text");
     }
     
     draw_ui("");
