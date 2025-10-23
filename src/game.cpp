@@ -157,7 +157,7 @@ inline void log_short(Vector2 value) {
 #include "random.hpp"
 #include "particles.hpp"
 #include "text_input.hpp"
-#include "ui.hpp"
+#include "old_ui.hpp"
 #include "lightmaps.cpp"
 #include "planning_state.cpp"
 #include "dynamic_lights.cpp"
@@ -3103,122 +3103,120 @@ void update_game() {
     frame_on_circle_rnd = rnd_on_circle();
     
     //update input
-    // if (!session_context.playing_replay) {    
-        input.rnd_state = rnd_state;
-        input.mouse_delta = GetMouseDelta();
-        input.screen_mouse_position += input.mouse_delta;
-        input.sum_mouse_delta += input.mouse_delta;
-        clamp(&input.screen_mouse_position.x, 0, screen_width);
-        clamp(&input.screen_mouse_position.y, 0, screen_height);
+    input.rnd_state = rnd_state;
+    input.mouse_delta = GetMouseDelta();
+    input.screen_mouse_position += input.mouse_delta;
+    input.sum_mouse_delta += input.mouse_delta;
+    clamp(&input.screen_mouse_position.x, 0, screen_width);
+    clamp(&input.screen_mouse_position.y, 0, screen_height);
+    
+    input.mouse_position = game_mouse_pos();
+    input.mouse_wheel = GetMouseWheelMove();
+    input.sum_mouse_wheel += input.mouse_wheel;
+    
+    input.direction.x = 0;
+    input.direction.y = 0;
+    
+    b32 can_player_input = !console.is_open;
+    
+    if (can_player_input) {
+        if (IsKeyDown(KEY_RIGHT)) {
+            input.direction.x = 1;
+            input.hold_flags |= RIGHT;
+        } else if (IsKeyDown(KEY_LEFT)) {
+            input.direction.x = -1;
+            input.hold_flags |= LEFT;
+        }
+        if (IsKeyDown(KEY_UP)) {
+            input.direction.y = 1;
+            input.hold_flags |= UP;
+        } else if (IsKeyDown(KEY_DOWN)) {
+            input.direction.y = -1;
+            input.hold_flags |= DOWN;
+        }
+        if (IsKeyDown(KEY_D)) {
+            input.direction.x = 1;
+            input.hold_flags |= RIGHT;
+        } else if (IsKeyDown(KEY_A)) {
+            input.direction.x = -1;
+            input.hold_flags |= LEFT;
+        }
+        if (IsKeyDown(KEY_W)) {
+            input.direction.y = 1;
+            input.hold_flags |= UP;
+        } else if (IsKeyDown(KEY_S)) {
+            input.direction.y = -1;
+            input.hold_flags |= DOWN;
+        }
         
-        input.mouse_position = game_mouse_pos();
-        input.mouse_wheel = GetMouseWheelMove();
-        input.sum_mouse_wheel += input.mouse_wheel;
+        if (IsKeyDown(KEY_F)) {
+            input.hold_flags |= SWORD_BIG_DOWN;
+        }
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            input.hold_flags |= SHOOT_DOWN;
+        }
         
-        input.direction.x = 0;
-        input.direction.y = 0;
+        if (input.direction.x != 0 || input.direction.y != 0) {
+            normalize(&input.direction);
+        }
         
-        b32 can_player_input = !console.is_open;
+        if (input.tap_direction.x == 0 && IsKeyPressed(KEY_RIGHT)) {
+            input.tap_direction.x = 1;
+        } else if (input.tap_direction.x == 0 && IsKeyPressed(KEY_LEFT)) {
+            input.tap_direction.x = -1;
+        } else {
+            input.tap_direction.x = 0;
+        }
+        if (input.tap_direction.y == 0 && IsKeyPressed(KEY_UP)) {
+            input.tap_direction.y = 1;
+        } else if (input.tap_direction.y == 0 && IsKeyPressed(KEY_DOWN)) {
+            input.tap_direction.y = -1;
+        } else {
+            input.tap_direction.y = 0;
+        }
+    
+        if (input.hold_flags & RIGHT) {
+            input.sum_direction.x = 1;
+        } else if (input.hold_flags & LEFT) {
+            input.sum_direction.x = -1;
+        }
         
-        if (can_player_input) {
-            if (IsKeyDown(KEY_RIGHT)) {
-                input.direction.x = 1;
-                input.hold_flags |= RIGHT;
-            } else if (IsKeyDown(KEY_LEFT)) {
-                input.direction.x = -1;
-                input.hold_flags |= LEFT;
-            }
-            if (IsKeyDown(KEY_UP)) {
-                input.direction.y = 1;
-                input.hold_flags |= UP;
-            } else if (IsKeyDown(KEY_DOWN)) {
-                input.direction.y = -1;
-                input.hold_flags |= DOWN;
-            }
-            if (IsKeyDown(KEY_D)) {
-                input.direction.x = 1;
-                input.hold_flags |= RIGHT;
-            } else if (IsKeyDown(KEY_A)) {
-                input.direction.x = -1;
-                input.hold_flags |= LEFT;
-            }
-            if (IsKeyDown(KEY_W)) {
-                input.direction.y = 1;
-                input.hold_flags |= UP;
-            } else if (IsKeyDown(KEY_S)) {
-                input.direction.y = -1;
-                input.hold_flags |= DOWN;
-            }
-            
-            if (IsKeyDown(KEY_F)) {
-                input.hold_flags |= SWORD_BIG_DOWN;
-            }
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
-                input.hold_flags |= SHOOT_DOWN;
-            }
-            
-            if (input.direction.x != 0 || input.direction.y != 0) {
-                normalize(&input.direction);
-            }
-            
-            if (input.tap_direction.x == 0 && IsKeyPressed(KEY_RIGHT)) {
-                input.tap_direction.x = 1;
-            } else if (input.tap_direction.x == 0 && IsKeyPressed(KEY_LEFT)) {
-                input.tap_direction.x = -1;
-            } else {
-                input.tap_direction.x = 0;
-            }
-            if (input.tap_direction.y == 0 && IsKeyPressed(KEY_UP)) {
-                input.tap_direction.y = 1;
-            } else if (input.tap_direction.y == 0 && IsKeyPressed(KEY_DOWN)) {
-                input.tap_direction.y = -1;
-            } else {
-                input.tap_direction.y = 0;
-            }
+        if (input.hold_flags & UP) {
+            input.sum_direction.y = 1;
+        } else if (input.hold_flags & DOWN) {
+            input.sum_direction.y = -1;
+        }
         
-            if (input.hold_flags & RIGHT) {
-                input.sum_direction.x = 1;
-            } else if (input.hold_flags & LEFT) {
-                input.sum_direction.x = -1;
-            }
-            
-            if (input.hold_flags & UP) {
-                input.sum_direction.y = 1;
-            } else if (input.hold_flags & DOWN) {
-                input.sum_direction.y = -1;
-            }
-            
+        if (IsKeyPressed(KEY_SPACE)) {
+            input.press_flags |= JUMP;
+        }
+        if (IsKeyPressed(KEY_F)) {
+            input.press_flags |= SWORD_BIG;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            input.press_flags |= SHOOT;
+        }
+        
+        if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
+            input.hold_flags |= SPIN_DOWN;
+        }
+        if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
+            input.press_flags |= SPIN;
+        }
+        if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
+            input.press_flags |= SPIN_RELEASED;
+        }
+        
+        if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
+            input.press_flags |= SHOOT_RELEASED;
+        }
+        
+        if (game_state == GAME_PLANNING) {
             if (IsKeyPressed(KEY_SPACE)) {
-                input.press_flags |= JUMP;
-            }
-            if (IsKeyPressed(KEY_F)) {
-                input.press_flags |= SWORD_BIG;
-            }
-            if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-                input.press_flags |= SHOOT;
-            }
-            
-            if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-                input.hold_flags |= SPIN_DOWN;
-            }
-            if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
-                input.press_flags |= SPIN;
-            }
-            if (IsMouseButtonReleased(MOUSE_BUTTON_RIGHT)) {
-                input.press_flags |= SPIN_RELEASED;
-            }
-            
-            if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-                input.press_flags |= SHOOT_RELEASED;
-            }
-            
-            if (game_state == GAME_PLANNING) {
-                if (IsKeyPressed(KEY_SPACE)) {
-                    input.press_flags |= ENTER_GAMING_STATE;
-                }
+                input.press_flags |= ENTER_GAMING_STATE;
             }
         }
-    // }
+    }
     //end update input
     
     mouse_entity.position = input.mouse_position;
