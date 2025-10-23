@@ -2628,7 +2628,6 @@ void enter_planning_state() {
     
     game_setup_collisions();
     
-    
     if (!current_level_context->player) { 
         planning_level_context.player_data = {0};
         add_player_entity(current_level_context, &current_level_context->player_data);
@@ -2659,6 +2658,8 @@ void editor_enter_game_state(Level_Context *from_level_context) {
     
     clear_level_context(&planning_level_context);
     copy_level_context(&planning_level_context, from_level_context, true);
+    
+    reset_planning_data();
     enter_planning_state();    
 }
 

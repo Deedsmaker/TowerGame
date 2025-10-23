@@ -36,6 +36,14 @@ void update_planning() {
             rotate_to(entity, next_rotation);
         }
         
+        if (IsKeyPressed(KEY_X)) {
+            i32 dragged_index = planning.spawned_ids.find(planning.dragged_entity->id);
+            assert(dragged_index >= 0);
+            planning.spawned_ids.remove(dragged_index);
+                       
+            mark_entity_destroyed(planning.dragged_entity);
+        }
+        
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             entity->position = round_to_factor(entity->position, CELL_SIZE);
             
@@ -43,9 +51,8 @@ void update_planning() {
             
             planning.dragged_entity = NULL;
         }
-    }
-
-    if (IsKeyPressed(KEY_X)) {
+        
+    } else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         auto mouse_collisions = get_tcollisions(&mouse_entity, 0);
         for_array(i, &mouse_collisions) {
             Entity *other = mouse_collisions.get(i)->other_entity;
@@ -53,8 +60,7 @@ void update_planning() {
             i32 spawned_index = planning.spawned_ids.find(other->id);
             if (spawned_index >= 0) {
                 Entity *entity = get_entity(planning.spawned_ids.get_value(spawned_index));
-                mark_entity_destroyed(entity);
-                planning.spawned_ids.remove(spawned_index);
+                planning.dragged_entity = entity;
                 break;
             }
         }
