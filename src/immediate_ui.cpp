@@ -17,9 +17,10 @@ void begin_panel(Rectangle rect) {
     active_panels.append(panel);
 }
 
-// void end_panel() { 
-//     active_panels.pop();
-// }
+void end_panel() { 
+    assert(active_panels.count > 0);
+    active_panels.pop();
+}
 
 void draw_immediate_ui() {
     // Will go from oldest panel to newest.

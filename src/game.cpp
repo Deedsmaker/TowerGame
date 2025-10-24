@@ -2726,6 +2726,28 @@ inline Vector2 game_mouse_pos() {
     return screen_to_world(input.screen_mouse_position);
 }
 
+inline b32 maybe_destroy_entity(Entity *entity) {
+    if (entity->destroyed) {
+        free_entity(entity);
+        return true;
+    }
+    
+    // With will_be_destroyed we'll waiting one extra frame before actually be destroyed so every entity that referring
+    // to that entity could detect that and remove reference.
+    if (entity->will_be_destroyed) {
+        entity->destroyed = true;
+        return true;
+    }
+    
+    return false;
+}
+
+inline void check_entities_that_should_be_destroyed() {
+    for_chunk_array(i, &current_level_context->entities) {
+        maybe_destroy_entity(current_level_context->entities.get(i));
+    }
+}
+
 void fixed_game_update(f32 dt) {
     frame_rnd = perlin_noise3(core.time.game_time, core.time.app_time, 5) * 2 - 1.0f;
     frame_on_circle_rnd = get_perlin_in_circle(1.0f);
@@ -2769,7 +2791,8 @@ void fixed_game_update(f32 dt) {
         if (input.press_flags & ENTER_GAMING_STATE) {
             enter_gaming_state();
         } else {
-            update_entities(-1);
+            // update_entities(-1);
+            check_entities_that_should_be_destroyed();
         }
     } else if (game_state == GAMING) {
         update_entities(dt);
@@ -9252,6 +9275,7 @@ inline void update_turret(Entity *entity, f32 dt) {
     b32 player_in_range = true;
     b32 player_in_angle_range = true;
     
+    
     turret->see_player = false;
     if (turret->homing && player_entity) {
         // projectile_type = TURRET_HOMING_PROJECTILE;
@@ -9829,20 +9853,10 @@ void update_entities(f32 dt) {
             }
         }
         
-        if (e->destroyed) {
-            free_entity(e);
+        if (maybe_destroy_entity(e)) {
             continue;
         }
-        
-        // With will_be_destroyed we'll waiting one extra frame before actually be destroyed so every entity that referring
-        // to that entity could detect that and remove reference.
-        if (e->will_be_destroyed) {
-            e->destroyed = true;
-            continue;
-        }
-        
-        if (dt < 0) continue;
-        
+                
         if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
             Entity *spawned = spawn_object_by_name("ammo_pack", e->position);
             e->spawned_enemy_id = spawned->id;
