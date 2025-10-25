@@ -279,7 +279,7 @@ void free_entity(Entity *e) {
         e->centipede_segment = NULL;
     }
     
-    // free centipede
+    // Free centipede.
     if (e->flags & CENTIPEDE) {
         assert(e->centipede && e->centipede->index >= 0);
     
@@ -635,8 +635,8 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     Level_Context *original_level_context = current_level_context;
     switch_current_level_context(dest);
     
-    Editor_State original_game_state = editor_state;
-    editor_state = EDITOR;
+    // Editor_State original_game_state = editor_state;
+    // editor_state = EDITOR;
     
     dest->level_name = copy_string(src->level_name, src->level_name.allocator);
     dest->player_spawn_point = src->player_spawn_point;
@@ -660,7 +660,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     
     // First of all we just copying raw entities and then going through all of them deep copy properly into dest level context.
     dest->entities = copy_chunk_array(&src->entities);
-    for_chunk_array(i, (&dest->entities)) {
+    for_chunk_array(i, (&src->entities)) {
         Entity *added = copy_and_add_entity(src->entities.get(i), dest, i + 1);
         
         if (added->flags & PLAYER) {
@@ -687,7 +687,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     }
     
     switch_current_level_context(original_level_context);
-    editor_state = original_game_state;
+    // editor_state = original_game_state;
 }
 
 void clear_level_context(Level_Context *level_context) {
@@ -784,11 +784,11 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
 // It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_affected_collision_cells).
 global_variable Array <Collision_Grid_Cell*> collision_cells_buffer = {0};
 
-Entity *spawn_object_by_name(const char* name, Vector2 position) {
+Entity *spawn_object_by_name(const char* name, Vector2 position, Level_Context *level_context) {
     for (i32 i = 0; i < spawn_objects.count; i++) {
         Spawn_Object *obj = spawn_objects.get(i);
         if (str_equal(obj->name, name)) {
-            Entity *e = copy_and_add_entity(&obj->entity, current_level_context);
+            Entity *e = copy_and_add_entity(&obj->entity, level_context);
             e->position = position;
             return e;
         }
@@ -1329,6 +1329,22 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->texture = get_texture("Prop");
     }
 
+    // init move sequence
+    if (entity->flags & MOVE_SEQUENCE) {
+        if (!entity->move_sequence || ignore_existing_types) {
+            i32 index = -1;
+            entity->move_sequence = entity->level_context->move_sequences.append({0}, &index);
+            entity->move_sequence->index = index;
+        }
+        
+        if (entity->flags & CENTIPEDE) {
+            entity->move_sequence->moving = true;
+            entity->move_sequence->loop = true;
+            entity->move_sequence->rotate = true;
+            // entity->move_sequence->speed = 100;
+        }
+    }
+
     // Here we're initing concrete enemy types, which could not be mixed (unlike some modifiers like BLOCKER that could 
     // require union_enemy set to itself.
     //
@@ -1394,48 +1410,48 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         
         // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
-        if (editor_state == GAME) {
-            assert(entity->centipede);     
-            Centipede *centipede = entity->centipede;
-            
-            for_array(i, &centipede->segments) {
-                mark_entity_destroyed(centipede->segments.get_value(i));
-            }
-            centipede->segments.clear();
-            
-            for (i32 i = 0; i < centipede->segments_count; i++) {
-                Entity* segment = spawn_object_by_name("centipede_segment", entity->position);
-                assert(segment->centipede_segment);
-                
-                segment->centipede_segment->head = entity;
-                change_up(segment, entity->up);
-                segment->draw_order = entity->draw_order + 1;
-                centipede->segments.append(segment);
-                Entity *previous;
-                if (i > 0) previous = centipede->segments.get_value(i-1);
-                else       previous = entity;
-    
-                segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
-                
-                assert(segment->move_sequence);
-                i32 segment_index = segment->move_sequence->index;
-                *segment->move_sequence = *entity->move_sequence;
-                segment->move_sequence->index = segment_index;
-                // Probably we could think about a way to not copy array for every segment, but I'll probably will rewrite 
-                // segments logic to work without move_sequence, so that doesn't matter currently.
-                segment->move_sequence->points = copy_array(&entity->move_sequence->points);
-                
-                segment->hidden = entity->hidden;
-                
-                segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
-                
-                i32 my_index = segment->union_enemy->index;
-                *segment->union_enemy = *entity->union_enemy; // Just copying enemy settings that were applied to centipede in editor.
-                segment->union_enemy->index =my_index;
-                
-                init_entity(segment);
-            }
+        // if (editor_state == GAME) {
+        assert(entity->centipede);     
+        Centipede *centipede = entity->centipede;
+        
+        for_array(i, &centipede->segments) {
+            mark_entity_destroyed(centipede->segments.get_value(i));
         }
+        centipede->segments.clear();
+        
+        for (i32 i = 0; i < centipede->segments_to_spawn; i++) {
+            Entity* segment = spawn_object_by_name("centipede_segment", entity->position, entity->level_context);
+            log_short("spawned presumably");
+            assert(segment->centipede_segment);
+            segment->centipede_segment->head = entity;
+            change_up(segment, entity->up);
+            segment->draw_order = entity->draw_order + 1;
+            centipede->segments.append(segment);
+            Entity *previous;
+            if (i > 0) previous = centipede->segments.get_value(i-1);
+            else       previous = entity;
+
+            segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
+            
+            assert(segment->move_sequence);
+            i32 segment_index = segment->move_sequence->index;
+            *segment->move_sequence = *entity->move_sequence;
+            segment->move_sequence->index = segment_index;
+            // Probably we could think about a way to not copy array for every segment, but I'll probably will rewrite 
+            // segments logic to work without move_sequence, so that doesn't matter currently.
+            segment->move_sequence->points = copy_array(&entity->move_sequence->points);
+            
+            segment->hidden = entity->hidden;
+            
+            segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
+            
+            i32 my_index = segment->union_enemy->index;
+            *segment->union_enemy = *entity->union_enemy; // Just copying enemy settings that were applied to centipede in editor.
+            segment->union_enemy->index =my_index;
+            
+            init_entity(segment);
+        }
+        // }
     } else if (entity->flags & CENTIPEDE_SEGMENT) {    // init centipede segment.
         assert(!(entity->flags & CENTIPEDE));
         if (!entity->centipede_segment || ignore_existing_types) {
@@ -1560,22 +1576,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->trigger->start_tracking_count = entity->trigger->tracking.count;
         
         entity->trigger->entity = entity;
-    }
-    
-    // init move sequence
-    if (entity->flags & MOVE_SEQUENCE) {
-        if (!entity->move_sequence || ignore_existing_types) {
-            i32 index = -1;
-            entity->move_sequence = entity->level_context->move_sequences.append({0}, &index);
-            entity->move_sequence->index = index;
-        }
-        
-        if (entity->flags & CENTIPEDE) {
-            entity->move_sequence->moving = true;
-            entity->move_sequence->loop = true;
-            entity->move_sequence->rotate = true;
-            // entity->move_sequence->speed = 100;
-        }
     }
     
     // init sticky texture
@@ -1705,7 +1705,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             i32 index = -1;
             entity->projectile = entity->level_context->projectiles.append({0}, &index);
             entity->projectile->index = index;
-            log_short(index);
         }
     }
     
@@ -2292,7 +2291,7 @@ void init_level_context(Level_Context *level_context) {
     
     init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
     
-    init_chunk_array(&level_context->entities, 2, HEAP_ALLOCATOR);
+    init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->propellers, 16, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->triggers, 32, HEAP_ALLOCATOR);
     init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
@@ -2659,6 +2658,7 @@ void editor_enter_game_state(Level_Context *from_level_context) {
     editor_state = GAME;
     
     clear_level_context(&planning_level_context);
+    log_short("entering game state");
     copy_level_context(&planning_level_context, from_level_context, true);
     
     reset_planning_data();
@@ -2743,9 +2743,9 @@ inline b32 maybe_destroy_entity(Entity *entity) {
     return false;
 }
 
-inline void check_entities_that_should_be_destroyed() {
-    for_chunk_array(i, &current_level_context->entities) {
-        maybe_destroy_entity(current_level_context->entities.get(i));
+inline void check_entities_that_should_be_destroyed(Level_Context *level_context) {
+    for_chunk_array(i, &level_context->entities) {
+        maybe_destroy_entity(level_context->entities.get(i));
     }
 }
 
@@ -2793,8 +2793,8 @@ void fixed_game_update(f32 dt) {
             enter_gaming_state();
         } else {
             // update_entities(-1);
-            check_entities_that_should_be_destroyed();
         }
+            check_entities_that_should_be_destroyed(current_level_context);
     } else if (game_state == GAMING) {
         update_entities(dt);
     }
@@ -4632,8 +4632,8 @@ void update_editor_ui() {
                 INSPECTOR_UI_TOGGLE("Spikes on right: ", "spikes_on_right", selected->centipede->spikes_on_right, );
                 INSPECTOR_UI_TOGGLE("Spikes on left: ", "spikes_on_left", selected->centipede->spikes_on_left, );
 
-                INSPECTOR_UI_INPUT_FIELD("Segments count:", "segments_count", "%d", selected->centipede->segments_count, to_i32,
-                    selected->centipede->segments_count = fminf(selected->centipede->segments_count, 128);
+                INSPECTOR_UI_INPUT_FIELD("Segments count:", "segments_to_spawn", "%d", selected->centipede->segments_to_spawn, to_i32,
+                    selected->centipede->segments_to_spawn = fminf(selected->centipede->segments_to_spawn, 128);
                 );
             }
         }
@@ -4886,7 +4886,7 @@ Entity *get_cursor_entity() {
 }
 
 Entity *editor_spawn_entity(const char *name, Vector2 position) {
-    Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5));
+    Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5), current_level_context);
     
     if (entity) {
         editor.just_spawned_ids.append(entity->id);
@@ -7161,12 +7161,9 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         
         player_data->timers.since_airborn_timer = 0;
     } else/* if (!in_climbing_state)*/{
-        f32 max_downwards_speed = -75;
+        f32 max_downwards_speed = -150;
     
         if (player_data->velocity.y > 10/* && player_data->timers.since_jump_timer <= 0.3f*/) { //so we make jump gravity
-            // f32 max_height_jump_time = 0.2f;
-            // f32 jump_t = clamp01(player_data->timers.since_airborn_timer / max_height_jump_time);
-            // player_data->gravity_mult = lerp(3.0f, 1.0f, jump_t * jump_t * jump_t);
             f32 t = player_data->velocity.y / 100.0f;
             player_data->gravity_mult = lerp(1.0f, 3.0f, sqrtf(t));
         } else {
@@ -7174,7 +7171,8 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                 player_data->gravity_mult = 6;
                 max_downwards_speed = -150;
             } else {
-                player_data->gravity_mult = lerp(1.0f, 0.5f, player_data->sword_spin_progress * player_data->sword_spin_progress);
+                // player_data->gravity_mult = lerp(1.0f, 0.5f, player_data->sword_spin_progress * player_data->sword_spin_progress);
+                player_data->gravity_mult = 3;
                 if (player_data->velocity.y > 0) {
                     f32 up_velocity_t = clamp01(player_data->velocity.y / 200.0f);
                     f32 additional_gravity = lerp(0.0f, 2.0f, up_velocity_t * up_velocity_t);
@@ -8879,6 +8877,12 @@ void update_editor_entity(Entity *e) {
             init_propeller_emitter_settings(e, air_emitter);
         }
     }
+    
+    if (e->flags & CENTIPEDE) {
+        if (e->centipede->segments.count != e->centipede->segments_to_spawn) {
+            init_entity(e); // On init entity centipede will destroy all existing segments and respawn them with proper count.
+        }
+    }
 }
 
 void activate_turret(Entity *entity) {
@@ -8899,7 +8903,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     
     if (connected->flags & CENTIPEDE) {
         assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
-        for (i32 i = 0; i < connected->centipede->segments_count; i++) {
+        for (i32 i = 0; i < connected->centipede->segments_to_spawn; i++) {
             Entity *segment = connected->centipede->segments.get_value(i);
             assert(segment);
             segment->hidden = connected->hidden;
@@ -9448,7 +9452,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         // that they're dead. But actually we'll remove move_sequence from centiepde eventually and it will update segments 
         // by itself probably, so that's not actually a problem.
         i32 alive_count = 0;
-        for (i32 i = 0; i < centipede->segments_count; i++) {
+        for (i32 i = 0; i < centipede->segments.count; i++) {
             Entity *segment = centipede->segments.get_value(i);
             
             if (!segment->centipede_segment->dead_man) {
@@ -9474,7 +9478,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             // funny fly away while dead.
             mark_entity_destroyed(e);
             
-            for (i32 i = 0; i < centipede->segments_count; i++) {
+            for (i32 i = 0; i < centipede->segments.count; i++) {
                 Entity *segment = centipede->segments.get_value(i);
                 // Centipede itself will tell all the segments to be destroyed.
                 mark_entity_destroyed(segment);
@@ -9862,7 +9866,7 @@ void update_entities(f32 dt) {
         }
                 
         if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
-            Entity *spawned = spawn_object_by_name("ammo_pack", e->position);
+            Entity *spawned = spawn_object_by_name("ammo_pack", e->position, current_level_context);
             e->spawned_enemy_id = spawned->id;
         }
         
@@ -11565,17 +11569,20 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     if (e->flags & CENTIPEDE && to_copy->centipede) {
         assert(e->centipede);
         i32 my_index = e->centipede->index;
+        Array <Entity *> *my_segments = &e->centipede->segments;
         *e->centipede = *to_copy->centipede;
+               
         e->centipede->index = my_index;
+        e->centipede->segments = *my_segments;
     }
-    // Copy centipede segment.
-    if (e->flags & CENTIPEDE_SEGMENT && to_copy->centipede_segment) {
-        assert(!(e->flags & CENTIPEDE));
-        assert(e->centipede_segment);
-        i32 my_index = e->centipede_segment->index;
-        *e->centipede_segment = *to_copy->centipede_segment;
-        e->centipede_segment->index = my_index;
-    }
+    // // Copy centipede segment.
+    // if (e->flags & CENTIPEDE_SEGMENT && to_copy->centipede_segment) {
+    //     assert(!(e->flags & CENTIPEDE));
+    //     assert(e->centipede_segment);
+    //     i32 my_index = e->centipede_segment->index;
+    //     *e->centipede_segment = *to_copy->centipede_segment;
+    //     e->centipede_segment->index = my_index;
+    // }
     
     // Copy kill switch.
     if (e->flags & KILL_SWITCH && to_copy->kill_switch) {

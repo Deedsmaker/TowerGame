@@ -592,7 +592,7 @@ struct Entity;
 struct Centipede : Enemy {
     Array <Entity *> segments = {0};
     
-    i32 segments_count = 32;
+    i32 segments_to_spawn = 32;
     b32 spikes_on_right = false;
     b32 spikes_on_left = false;
     
@@ -688,8 +688,8 @@ struct Player {
     b32 is_sword_accelerating = false;
     
     // f32 max_speed_multiplier = 1.0f;
-    f32 ground_walk_speed = 150.0f;  
-    f32 air_walk_speed = 150.0f;  
+    f32 ground_walk_speed = 100.0f;  
+    f32 air_walk_speed = 75.0f;  
     f32 big_sword_ground_walk_speed = 225.0f;
     f32 big_sword_air_walk_speed = 300.0f;
     f32 ground_acceleration = 600;
@@ -1120,6 +1120,7 @@ struct Entity_Undo_Change {
 };
 
 struct Level_Context {
+    char name[64] = {0};
     Allocator memory_arena = {0};
 
     Array <Array<Entity_Undo_Change>> undo_actions = {0};
@@ -1127,7 +1128,6 @@ struct Level_Context {
     Cam cam = {};
 
     b32 inited = false;
-    char name[64] = "\0";
     
     Vector2 player_spawn_point = Vector2_zero;
     String level_name = {0};

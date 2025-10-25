@@ -44,6 +44,8 @@ void assign_selected_entity(Entity *new_selected);
 
 void close_create_box();
 
+inline void check_entities_that_should_be_destroyed(Level_Context *level_context);
+
 // void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
 void calculate_bounds(Entity *entity);

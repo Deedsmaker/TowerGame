@@ -130,6 +130,8 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
 inline void update_undo_logic() {
     // First of all detecting changed entities to add them to undo actions.
     
+    check_entities_that_should_be_destroyed(&undo_level_context);
+    
     if (editor.just_deleted_entity) {
         editor.just_deleted_entity = false;
         // In case of deleting entity we want to go through all of entities and look at entities that might 

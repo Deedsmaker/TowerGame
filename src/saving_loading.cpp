@@ -153,7 +153,7 @@ void save_level(String level_name) {
         if (e->flags & CENTIPEDE) {
             builder_append(&builder, tstring("spikes_on_right %d \n ", e->centipede->spikes_on_right));
             builder_append(&builder, tstring("spikes_on_left %d \n ", e->centipede->spikes_on_left));
-            builder_append(&builder, tstring("segments_count %d \n ", e->centipede->segments_count));
+            builder_append(&builder, tstring("segments_count %d \n ", e->centipede->segments_to_spawn));
         }
         
         if (e->flags & JUMP_SHOOTER) {
@@ -573,7 +573,7 @@ b32 load_level(String name) {
                 
                 IF_FIND("spikes_on_right") centipede->spikes_on_right = to_i32(splitted.get_value(i+1));
                 IF_FIND("spikes_on_left")  centipede->spikes_on_left = to_i32(splitted.get_value(i+1));
-                IF_FIND("segments_count")  centipede->segments_count = to_i32(splitted.get_value(i+1));
+                IF_FIND("segments_count")  centipede->segments_to_spawn = to_i32(splitted.get_value(i+1));
             }
             
             // Enemy loading.
