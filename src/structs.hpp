@@ -688,16 +688,16 @@ struct Player {
     b32 is_sword_accelerating = false;
     
     // f32 max_speed_multiplier = 1.0f;
-    f32 ground_walk_speed = 225.0f;  
+    f32 ground_walk_speed = 150.0f;  
     f32 air_walk_speed = 150.0f;  
-    f32 big_sword_ground_walk_speed = 300.0f;
+    f32 big_sword_ground_walk_speed = 225.0f;
     f32 big_sword_air_walk_speed = 300.0f;
     f32 ground_acceleration = 600;
-    f32 ground_deceleration = 450;
+    f32 ground_deceleration = 650;
     f32 air_acceleration    = 600;
     f32 air_deceleration    = 150;
     // f32 friction = 100;
-    f32 jump_force = 80;
+    f32 jump_force = 160;
     f32 gravity = 100;
     f32 gravity_mult = 1;
     f32 max_blood_amount = 100;

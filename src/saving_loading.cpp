@@ -371,8 +371,8 @@ b32 load_level(String name) {
     clear_allocator(temp);
     name = copy_string(name, temp); // Beacuse we're just cleared temp allocator and if "name" was temp allocated - it could go wrong.
     
-    Editor_State original_game_state = editor_state;
-    editor_state = EDITOR; // @TODO: Do we really need this?
+    // editor_enter_editor_state();
+    // editor_state = EDITOR; // @TODO: Do we really need this? Edit: Right now yes, for convinience.
     
     session_context.playing_replay = false;
     String level_path = tstring("levels/%s", c_str(name));
@@ -689,8 +689,6 @@ b32 load_level(String name) {
         }
     }
     
-    editor_state = original_game_state;
-    
     setup_context_cam(current_level_context);
     current_level_context->cam.cam2D.zoom = 0.35f;
     
@@ -708,19 +706,21 @@ b32 load_level(String name) {
     clear_level_context(editor_level_context);
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
-    if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
-        // enter_and_reload_game_state(&loaded_level_context, true);
+    editor_enter_editor_state();
+    
+    // if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
+    //     // enter_and_reload_game_state(&loaded_level_context, true);
         
-        if (enter_game_state_on_new_level) {
-            // current_level_context->player_data->blood_amount = last_player_data.blood_amount;
-            // current_level_context->player_data->blood_progress = last_player_data.blood_progress;
-            // current_level_context->player_data->ammo_count = last_player_data.ammo_count;
-        }
+    //     if (enter_game_state_on_new_level) {
+    //         // current_level_context->player_data->blood_amount = last_player_data.blood_amount;
+    //         // current_level_context->player_data->blood_progress = last_player_data.blood_progress;
+    //         // current_level_context->player_data->ammo_count = last_player_data.ammo_count;
+    //     }
         
-        enter_game_state_on_new_level = false;
-    } else {
-        editor_enter_editor_state();
-    }
+    //     enter_game_state_on_new_level = false;
+    // } else {
+    //     editor_enter_editor_state();
+    // }
     
     current_level_context->cam.position = current_level_context->player_spawn_point;
     current_level_context->cam.target = current_level_context->player_spawn_point;

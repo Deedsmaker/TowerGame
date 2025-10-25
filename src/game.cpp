@@ -3284,6 +3284,8 @@ void update_game() {
     }
     
     Player *player_data = &current_level_context->player_data;
+    
+    // In game level restart.
     if (editor_state == GAME && !console.is_open) {
         if (IsKeyPressed(KEY_T)) {
             if (session_context.speedrun_timer.game_timer_active && player_data->dead_man) {
@@ -3368,6 +3370,7 @@ void update_game() {
         }
     }
     
+    // Hitstop logic.
     if (editor_state == GAME && !state_context.in_pause_editor) {
         core.time.unscaled_dt = GetFrameTime();
         if (core.time.hitstop > 0) {
@@ -3454,12 +3457,6 @@ void update_game() {
         const char *title_and_time = tprintf("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? c_str(current_level_context->level_name) : "Game speedrun", session_context.speedrun_timer.time);
         Old::make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
     }
-    
-    // update_entities();
-    // if (!session_context.updated_today && editor_state == GAME) {
-    //     update_particle_emitters(core.time.dt);
-    // }
-    // // update_particles();
     
     if (IsKeyPressed(KEY_PAGE_UP)) {
         state_context.free_cam = !state_context.free_cam;
@@ -5348,7 +5345,9 @@ void update_editor() {
         }
     }
     
-    //editor entities loop
+    update_entities(core.time.real_dt);
+    
+    // Editor entities loop.
     for_chunk_array(i, (&current_level_context->entities)) {
         Entity *e = current_level_context->entities.get(i);
         
@@ -5407,7 +5406,7 @@ void update_editor() {
                 *point = input.mouse_position;
             }
         }
-    }
+    } // End editor entities loop.
     
     //assign move vertex
     // if (need_move_vertices && moving_vertex_entity_candidate) {
@@ -7218,6 +7217,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                  || (player_data->grounded && time_since_air_jump_press <= player_data->jump_buffer_time) 
                  || (input.press_flags & JUMP && player_data->timers.since_airborn_timer <= player_data->coyote_time && player_data->timers.since_jump_timer > player_data->coyote_time);
     
+    // Player jump.
     if (need_jump) {
         push_player_up(player_data->jump_force);
     }
