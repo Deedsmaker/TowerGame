@@ -649,6 +649,12 @@ struct Bounds {
     Vector2 offset;
 };
 
+enum Sword_Mode {
+    RIFLE_MODE,  
+    GROUND_MODE,
+    AIR_MODE
+};
+
 struct Player {
     // Static_Array <Collision, MAX_COLLISIONS> collisions = {0};
     i32 stun_emitter_index = -1;
@@ -703,11 +709,13 @@ struct Player {
     f32 heavy_collision_time = 0;
     Vector2 heavy_collision_velocity = Vector2_zero;
     
-    Vector2 sword_start_scale = {3.0f, 18.0f};
-    Vector2 big_sword_scale = {9.0f, 46.0f};
-    
-    b32 in_big_sword = false;
-    f32 big_sword_start_time = -12;
+    Vector2 sword_start_scale = {2.0f, 12.0f};
+    Vector2 sword_ground_mode_scale = {3.0f, 18.0f};
+    Vector2 sword_air_mode_scale = {9.0f, 46.0f};
+
+    Sword_Mode sword_mode = RIFLE_MODE;
+    // b32 in_big_sword = false;
+    f32 sword_mode_change_time = -12;
     
     f32 blood_amount = 0;
     f32 blood_progress = 0;

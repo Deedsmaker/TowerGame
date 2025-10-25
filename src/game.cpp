@@ -6399,7 +6399,7 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
 }
 
 void player_ground_move(Entity *entity, f32 dt) {
-    f32 walk_speed = player_data->in_big_sword ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
+    f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -6441,7 +6441,7 @@ void player_ground_move(Entity *entity, f32 dt) {
 }
 
 void player_air_move(Entity *entity, f32 dt) {
-    f32 walk_speed = player_data->in_big_sword ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
+    f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -6545,7 +6545,7 @@ inline b32 can_damage_blocker(Entity *blocker_entity) {
 
 inline b32 can_damage_sword_size_required_enemy(Entity *enemy_entity) {
     assert(enemy_entity->union_enemy);
-    return is_sword_can_damage() && player_data->in_big_sword == enemy_entity->union_enemy->big_sword_killable;
+    return is_sword_can_damage() && player_data->sword_mode == AIR_MODE == enemy_entity->union_enemy->big_sword_killable;
 }
 
 inline b32 can_sword_damage_enemy(Entity *enemy_entity) {
@@ -6853,32 +6853,35 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     
     update_player_connected_entities_positions(player_entity);    
     
-    f32 in_big_sword_time = core.time.game_time - player_data->big_sword_start_time;
+    f32 since_sword_mode_change = core.time.game_time - player_data->sword_mode_change_time;
     
     f32 big_sword_max_time = 1.4f;
     
     // big sword
-    if (in_big_sword_time > big_sword_max_time) {
+    if (since_sword_mode_change > big_sword_max_time) {
         if (input.press_flags & SPIN && player_data->current_big_sword_charges > 0) {
-            player_data->big_sword_start_time = core.time.game_time;    
+            player_data->sword_mode_change_time = core.time.game_time;    
             // player_data->max_speed_multiplier = 2.0f;
-            player_data->in_big_sword = true;
+            player_data->sword_mode = AIR_MODE;
+            
             play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
             
             assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
             player_data->current_big_sword_charges -= 1;
         } else {
             // player_data->max_speed_multiplier = 1.0f;
-            if (player_data->in_big_sword) {
+            if (player_data->sword_mode != RIFLE_MODE ) {
                 play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
             }
-            player_data->in_big_sword = false;
+            player_data->sword_mode = RIFLE_MODE;
         }
     }
     
-    Vector2 sword_target_size = player_data->in_big_sword ? player_data->big_sword_scale : player_data->sword_start_scale;
+    Vector2 sword_target_scale = player_data->sword_start_scale;
+    if      (player_data->sword_mode == GROUND_MODE) sword_target_scale = player_data->sword_ground_mode_scale;
+    else if (player_data->sword_mode == AIR_MODE)    sword_target_scale = player_data->sword_air_mode_scale;
     
-    change_scale(sword, lerp(sword->scale, sword_target_size, dt * 5));
+    change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
     
     Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
     
@@ -6898,28 +6901,6 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     
     Vector2 input_direction = input.sum_direction;
     
-    f32 sword_max_spin_speed = player_data->in_big_sword ? max_big_sword_speed : max_small_sword_speed;
-    
-    b32 can_sword_spin = !is_player_in_stun(player_entity);
-    if (can_sword_spin) {
-        f32 sword_spin_sense = player_data->in_big_sword ? 40 : 10; 
-        
-        f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
-        
-        if (!player_data->in_big_sword && player_data->grounded) {
-            wish_angular_velocity *= 2;
-        }
-        
-        if (core.time.time_scale < 1) {
-            sword_spin_sense /= core.time.time_scale;
-            sword_spin_sense = fminf(sword_spin_sense, 60);
-        }
-        player_data->sword_angular_velocity = lerp(player_data->sword_angular_velocity, wish_angular_velocity, dt * sword_spin_sense);
-    }
-    player_data->is_sword_accelerating = input_direction.x != 0;
-    
-    player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
-    
     b32 rifle_failed_hard = false;
     
     Particle_Emitter *rifle_trail_emitter = get_particle_emitter(player_data->rifle_trail_emitter_index);
@@ -6928,7 +6909,53 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         rifle_trail_emitter->direction = sword->up;
     }
     
-    // @DO REdo this machinegun shit when we'll know for sure how we think this should work.
+    // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
+    change_color(sword, player_data->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
+    
+    Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
+    if (sword_tip_emitter) {
+        enable_emitter(sword_tip_emitter);
+        sword_tip_emitter->position = sword_tip;
+    }
+    Particle_Emitter *sword_tip_ground_emitter = get_particle_emitter(sword_tip_ground_emitter_index);
+    if (sword_tip_ground_emitter) {
+        sword_tip_ground_emitter->position = sword_tip;
+    }
+    if (chainsaw_emitter) {
+        chainsaw_emitter->position = input.mouse_position;
+    }
+    
+    f32 blood_t = player_data->blood_progress;
+    f32 spin_t = player_data->sword_spin_progress;
+    {
+        chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; 
+        chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; 
+        
+        chainsaw_emitter->count_multiplier = player_data->sword_mode == AIR_MODE ? 0.1f : 1;
+        chainsaw_emitter->size_multiplier  = player_data->sword_mode == AIR_MODE ? 5 : 1;
+        chainsaw_emitter->color            = player_data->sword_mode == AIR_MODE ? ColorBrightness(ORANGE, 0.2f) : YELLOW;
+        
+        // sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
+        sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 5.0f;
+        sword_tip_emitter->count_multiplier    = blood_t * blood_t * 2.0f;
+              
+        f32 blood_decease = 25;
+              
+        add_blood_amount(player_data, -blood_decease * dt);
+    }
+    
+    f32 sword_min_rotation_amount = 5;
+    f32 need_to_rotate = player_data->sword_angular_velocity * dt;
+    
+    if (sword->rotation + need_to_rotate >= 360 || sword->rotation + need_to_rotate < 0) {
+        // emit_particles(sword_tip_emitter, player_entity->position, sword->up);
+        //@SOUND sound on swing could be nice, but we should not depend on actual spin and instead find a proper looping sound.
+        // local_persist f32 volume = 0.1f;
+        // volume = lerp(volume, 0.1f + player_data->sword_spin_progress * 0.1f + player_data->sword_mode == AIR_MODE ? 0.4f : 0.0f, dt * 10);
+        // play_sound("SwordSwing", volume, lerp(0.4f, player_data->sword_mode == AIR_MODE ? 1.0f : 1.5f, player_data->sword_spin_progress), 0.1f);
+    }
+    
+        // @DO REdo this machinegun shit when we'll know for sure how we think this should work.
     i32 shoots_queued = 0;
     local_persist f32 shoot_press_time = -12;
     local_persist f32 rifle_in_machinegun_mode = false;
@@ -6975,151 +7002,32 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         emit_particles(&gunpowder_emitter, sword_tip, sword->up);
     }
     
-    // player shoot
-    b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
-    
-    while (shoots_queued > 0) {
-        if (can_shoot_rifle) {
-            Vector2 sword_vec_to_mouse = input.mouse_position - sword->position;
-            Vector2 sword_to_mouse = normalized(sword_vec_to_mouse);
-            change_up(sword, sword_to_mouse);
-            sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
-            
-            Vector2 sword_tip_vec_to_mouse = input.mouse_position - sword->position;
-            Vector2 sword_tip_to_mouse = normalized(sword_tip_vec_to_mouse);
-            
-            
-            Vector2 shoot_direction = sword_tip_to_mouse;
-            
-            if (rifle_in_machinegun_mode) {
-                f32 max_spread = 20;
-                f32 spread_angle = rnd(-max_spread * 0.5f, max_spread * 0.5f);
-                
-                shoot_direction = get_rotated_vector(shoot_direction, spread_angle);
-            }
-            
-            f32 rifle_projectile_speed = 1400;
-            add_rifle_projectile(sword_tip, shoot_direction * rifle_projectile_speed);
-            add_player_ammo(-1);
-            
-            add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
-            
-            if (!player_data->grounded) {
-                push_or_set_player_up(rifle_in_machinegun_mode ? 5 : 20);
-            }
-            
-            shake_camera(0.1f);
-            play_sound("RifleShot", sword_tip, 0.3f);
-            player_data->timers.rifle_shake_start_time = core.time.game_time;
-            player_data->timers.rifle_shoot_time = core.time.game_time;
-            
-            enable_emitter(player_data->rifle_trail_emitter_index);
-            
-        } else if (input.press_flags & SHOOT) {
-            player_data->timers.rifle_shake_start_time = core.time.game_time;
-            emit_particles(&gunpowder_emitter, sword_tip, sword->up);
-            
-            // shoot stoper blocked
-            if (state_context.shoot_stopers_count > 0) {
-                local_persist i32 contiguous_failed_shots_count = 0;
-                f32 time_since_last_failed_shot = core.time.app_time - state_context.timers.last_shoot_stoper_failed_shot_app_time;
-                
-                if (time_since_last_failed_shot <= 0.4f) {
-                    contiguous_failed_shots_count += 1;
-                } else {
-                    contiguous_failed_shots_count = 0;
-                }
-                
-                state_context.timers.last_shoot_stoper_failed_shot_app_time = core.time.app_time;
-                
-                if (contiguous_failed_shots_count <= 5) {
-                    ForEntities(entity, SHOOT_STOPER) {
-                        assert(entity->union_enemy);
-                        if (entity->union_enemy->in_agro) {
-                        
-                            Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
-                            sticky_line->sticky_texture->draw_line = true;
-                            sticky_line->sticky_texture->line_color = ColorBrightness(VIOLET, 0.1f);
-                            sticky_line->sticky_texture->line_width = contiguous_failed_shots_count * 0.5f;
-                            sticky_line->sticky_texture->follow_id = entity->id;
-                            sticky_line->sticky_texture->need_to_follow = true;
-                            sticky_line->position = get_shoot_stoper_cross_position(entity);
-                            sticky_line->sticky_texture->birth_time = core.time.game_time;
-                            sticky_line->sticky_texture->max_distance = 0;
-                            sticky_line->draw_order = 1;
-                            shake_camera(0.1f);
-                        }
-                    }
-                }
-                
-                play_sound("FailedRifleActivation", 0.4f, 0.5f);
-            }
-        }
-        shoots_queued -= 1;
-    }
-    
-    f32 time_since_shoot = core.time.game_time - player_data->timers.rifle_shoot_time;
-    
-    if (time_since_shoot >= 0.5f && core.time.game_time > 1) {
-        disable_emitter(player_data->rifle_trail_emitter_index);
-    } else {
-    }
-    
-    //rifle activate
-    if (input.press_flags & SHOOT) {
-        // Failed to activate rifle.
-    }
-    
-    // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
-    change_color(sword, player_data->in_big_sword ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
-    
-    Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
-    if (sword_tip_emitter) {
-        enable_emitter(sword_tip_emitter);
-        sword_tip_emitter->position = sword_tip;
-    }
-    Particle_Emitter *sword_tip_ground_emitter = get_particle_emitter(sword_tip_ground_emitter_index);
-    if (sword_tip_ground_emitter) {
-        sword_tip_ground_emitter->position = sword_tip;
-    }
-    if (chainsaw_emitter) {
-        chainsaw_emitter->position = input.mouse_position;
-    }
-    
-    f32 blood_t = player_data->blood_progress;
-    f32 spin_t = player_data->sword_spin_progress;
-    {
-    
-        chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; 
-        chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; 
-        
-        chainsaw_emitter->count_multiplier = player_data->in_big_sword ? 0.1f : 1;
-        chainsaw_emitter->size_multiplier  = player_data->in_big_sword ? 5 : 1;
-        chainsaw_emitter->color            = player_data->in_big_sword ? ColorBrightness(ORANGE, 0.2f) : YELLOW;
-        
-        // sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
-        sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 5.0f;
-        sword_tip_emitter->count_multiplier    = blood_t * blood_t * 2.0f;
-              
-        f32 blood_decease = 25;
-              
-        add_blood_amount(player_data, -blood_decease * dt);
-    }
-    
-    f32 sword_min_rotation_amount = 5;
-    f32 need_to_rotate = player_data->sword_angular_velocity * dt;
-    
-    if (sword->rotation + need_to_rotate >= 360 || sword->rotation + need_to_rotate < 0) {
-        // emit_particles(sword_tip_emitter, player_entity->position, sword->up);
-        //@SOUND sound on swing could be nice, but we should not depend on actual spin and instead find a proper looping sound.
-        // local_persist f32 volume = 0.1f;
-        // volume = lerp(volume, 0.1f + player_data->sword_spin_progress * 0.1f + player_data->in_big_sword ? 0.4f : 0.0f, dt * 10);
-        // play_sound("SwordSwing", volume, lerp(0.4f, player_data->in_big_sword ? 1.0f : 1.5f, player_data->sword_spin_progress), 0.1f);
-    }
-    
     player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
     
-    { // sword rotation
+    // Sword spin.
+    if (player_data->sword_mode != RIFLE_MODE) {
+        f32 sword_max_spin_speed = player_data->sword_mode == AIR_MODE ? max_big_sword_speed : max_small_sword_speed;
+        
+        b32 can_sword_spin = !is_player_in_stun(player_entity);
+        if (can_sword_spin) {
+            f32 sword_spin_sense = player_data->sword_mode == AIR_MODE ? 40 : 10; 
+            
+            f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
+            
+            if (player_data->sword_mode != AIR_MODE && player_data->grounded) {
+                wish_angular_velocity *= 2;
+            }
+            
+            if (core.time.time_scale < 1) {
+                sword_spin_sense /= core.time.time_scale;
+                sword_spin_sense = fminf(sword_spin_sense, 60);
+            }
+            player_data->sword_angular_velocity = lerp(player_data->sword_angular_velocity, wish_angular_velocity, dt * sword_spin_sense);
+        }
+        player_data->is_sword_accelerating = input_direction.x != 0;
+        
+        player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
+    
         // Someone could enter sword on previous frame after this update so we'll check for that.
         rotate(sword, -1.0f * 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
         calculate_sword_collisions(sword, player_entity);
@@ -7134,6 +7042,100 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         }
         rotate(sword, need_to_rotate);
         calculate_sword_collisions(sword, player_entity);
+    } else { // Player rifle mode. Sword is not spinning.
+        player_data->sword_angular_velocity = 0;
+        player_data->is_sword_accelerating = 0;
+        player_data->sword_spin_progress = 0;
+    
+        Vector2 sword_vec_to_mouse = input.mouse_position - sword->position;
+        Vector2 sword_to_mouse = normalized(sword_vec_to_mouse);
+        change_up(sword, sword_to_mouse);
+        // player shoot
+        b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
+        
+        while (shoots_queued > 0) {
+            if (can_shoot_rifle) {
+                sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
+                
+                Vector2 sword_tip_vec_to_mouse = input.mouse_position - sword->position;
+                Vector2 sword_tip_to_mouse = normalized(sword_tip_vec_to_mouse);
+                
+                
+                Vector2 shoot_direction = sword_tip_to_mouse;
+                
+                if (rifle_in_machinegun_mode) {
+                    f32 max_spread = 20;
+                    f32 spread_angle = rnd(-max_spread * 0.5f, max_spread * 0.5f);
+                    
+                    shoot_direction = get_rotated_vector(shoot_direction, spread_angle);
+                }
+                
+                f32 rifle_projectile_speed = 1400;
+                add_rifle_projectile(sword_tip, shoot_direction * rifle_projectile_speed);
+                add_player_ammo(-1);
+                
+                add_explosion_light(sword_tip, 50, 0.03f, 0.05f, ColorBrightness(ORANGE, 0.3f));
+                
+                if (!player_data->grounded) {
+                    push_or_set_player_up(rifle_in_machinegun_mode ? 5 : 20);
+                }
+                
+                shake_camera(0.1f);
+                play_sound("RifleShot", sword_tip, 0.3f);
+                player_data->timers.rifle_shake_start_time = core.time.game_time;
+                player_data->timers.rifle_shoot_time = core.time.game_time;
+                
+                enable_emitter(player_data->rifle_trail_emitter_index);
+                
+            } else if (input.press_flags & SHOOT) {
+                player_data->timers.rifle_shake_start_time = core.time.game_time;
+                emit_particles(&gunpowder_emitter, sword_tip, sword->up);
+                
+                // shoot stoper blocked
+                if (state_context.shoot_stopers_count > 0) {
+                    local_persist i32 contiguous_failed_shots_count = 0;
+                    f32 time_since_last_failed_shot = core.time.app_time - state_context.timers.last_shoot_stoper_failed_shot_app_time;
+                    
+                    if (time_since_last_failed_shot <= 0.4f) {
+                        contiguous_failed_shots_count += 1;
+                    } else {
+                        contiguous_failed_shots_count = 0;
+                    }
+                    
+                    state_context.timers.last_shoot_stoper_failed_shot_app_time = core.time.app_time;
+                    
+                    if (contiguous_failed_shots_count <= 5) {
+                        ForEntities(entity, SHOOT_STOPER) {
+                            assert(entity->union_enemy);
+                            if (entity->union_enemy->in_agro) {
+                            
+                                Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
+                                sticky_line->sticky_texture->draw_line = true;
+                                sticky_line->sticky_texture->line_color = ColorBrightness(VIOLET, 0.1f);
+                                sticky_line->sticky_texture->line_width = contiguous_failed_shots_count * 0.5f;
+                                sticky_line->sticky_texture->follow_id = entity->id;
+                                sticky_line->sticky_texture->need_to_follow = true;
+                                sticky_line->position = get_shoot_stoper_cross_position(entity);
+                                sticky_line->sticky_texture->birth_time = core.time.game_time;
+                                sticky_line->sticky_texture->max_distance = 0;
+                                sticky_line->draw_order = 1;
+                                shake_camera(0.1f);
+                            }
+                        }
+                    }
+                    
+                    play_sound("FailedRifleActivation", 0.4f, 0.5f);
+                }
+            }
+            shoots_queued -= 1;
+        }
+    }
+    
+    f32 time_since_shoot = core.time.game_time - player_data->timers.rifle_shoot_time;
+    
+    if (time_since_shoot >= 0.5f && core.time.game_time > 1) {
+        disable_emitter(player_data->rifle_trail_emitter_index);
+    } else {
     }
     
     player_data->timers.since_jump_timer += dt;
@@ -7187,7 +7189,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         
         // In air and in big sword mode we keeping velocity mostly horizontal for more control.
         // This on wall check needs so that our wall boost system worked nice.
-        if (player_data->in_big_sword && !player_data->on_wall) {
+        if (player_data->sword_mode == AIR_MODE && !player_data->on_wall) {
             player_data->velocity.y = lerp(player_data->velocity.y, 0.0f, dt * 10);            
         } else {
             player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
