@@ -875,8 +875,6 @@ struct Entity {
     b32 spawn_enemy_when_no_ammo = false;
     i32 spawned_enemy_id = -1;
     
-    // union {
-        
     union {
         Propeller *propeller;
         Trigger *trigger;
@@ -886,8 +884,6 @@ struct Entity {
     
     Move_Sequence *move_sequence;
     
-    // Enemy enemy;
-    // };
     union {
         Enemy *union_enemy;
         Bird_Enemy *bird_enemy;

@@ -1705,6 +1705,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             i32 index = -1;
             entity->projectile = entity->level_context->projectiles.append({0}, &index);
             entity->projectile->index = index;
+            log_short(index);
         }
     }
     
@@ -9239,6 +9240,7 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
     // @CLEANUP: Right now we set additional projectile enemy flags directly to entity, but when we redo entity system we will 
     // want to set that on enemy of spawned projectile->
     Entity *projectile_entity = add_entity(position, scale, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | settings.enemy_flags);
+    assert(projectile_entity->projectile->index >= 0);
     change_color(projectile_entity, color);
     projectile_entity->projectile->birth_time = core.time.game_time;
     projectile_entity->projectile->type = type;
@@ -11510,7 +11512,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->propeller->index = my_index;
     }
     
-    // copy sticky texture
+    // Copy sticky texture.
     if (e->flags & STICKY_TEXTURE && to_copy->sticky_texture) {
         assert(e->sticky_texture);
         i32 my_index = e->sticky_texture->index;
@@ -11518,7 +11520,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->sticky_texture->index = my_index;
     }
     
-    // copy move sequence
+    // Copy move sequence.
     if (e->flags & MOVE_SEQUENCE && to_copy->move_sequence) {
         assert(e->move_sequence);
         i32 my_index = e->move_sequence->index;
@@ -11529,7 +11531,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->move_sequence->points = copy_array(&to_copy->move_sequence->points);
     }
     
-    // copy bird enemy
+    // Copy bird enemy.
     if (e->flags & BIRD_ENEMY && to_copy->bird_enemy) {
         assert(e->bird_enemy);
         i32 my_index = e->bird_enemy->index;
@@ -11537,7 +11539,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->bird_enemy->index = my_index;
     }
     
-    // copy turret
+    // Copy turret.
     if (e->flags & TURRET && to_copy->turret) {
         assert(e->turret);
         i32 my_index = e->turret->index;
@@ -11545,7 +11547,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->turret->index = my_index;
     }
     
-    // copy jump shooter
+    // Copy jump shooter.
     if (e->flags & JUMP_SHOOTER && to_copy->jump_shooter) {
         assert(e->jump_shooter);
         i32 my_index = e->jump_shooter->index;
@@ -11559,14 +11561,14 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     // Right now centipede in editor will be just it's head, so no need for strange segments copying.
     // And in case of copying level context it's should work fine out of a box.
     //
-    // copy centipede
+    // Copy centipede.
     if (e->flags & CENTIPEDE && to_copy->centipede) {
         assert(e->centipede);
         i32 my_index = e->centipede->index;
         *e->centipede = *to_copy->centipede;
         e->centipede->index = my_index;
     }
-    // copy centipede segment
+    // Copy centipede segment.
     if (e->flags & CENTIPEDE_SEGMENT && to_copy->centipede_segment) {
         assert(!(e->flags & CENTIPEDE));
         assert(e->centipede_segment);
@@ -11575,7 +11577,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->centipede_segment->index = my_index;
     }
     
-    // copy kill switch
+    // Copy kill switch.
     if (e->flags & KILL_SWITCH && to_copy->kill_switch) {
         assert(e->kill_switch);
     
@@ -11588,7 +11590,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->kill_switch->connected = copy_array(&to_copy->kill_switch->connected);
     }
     
-    // copy trigger
+    // Copy trigger.
     if (e->flags & TRIGGER && to_copy->trigger) {
         assert(e->trigger);
         i32 my_index = e->trigger->index;
@@ -11606,7 +11608,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     
     // We actually could copy all enemy data above, but that's not that importnat because data should stay the same.
     // (Unless some type would make some manipulations on enemy data after copying, but we'll leave it be for now).
-    // copy enemy
+    // Copy enemy.
     if (e->flags & ENEMY && to_copy->union_enemy) {
         assert(e->union_enemy);
         
@@ -11615,11 +11617,11 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->union_enemy->index = my_index;
     }
     
-    // copy projectile
+    // Copy projectile.
     if (e->flags & PROJECTILE && to_copy->projectile) {
         assert(e->projectile);
         
-        i32 my_index = -1;
+        i32 my_index = e->projectile->index;
         *e->projectile = *to_copy->projectile;
         e->projectile->index = my_index;
     }
