@@ -1421,7 +1421,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         for (i32 i = 0; i < centipede->segments_to_spawn; i++) {
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position, entity->level_context);
-            log_short("spawned presumably");
             assert(segment->centipede_segment);
             segment->centipede_segment->head = entity;
             change_up(segment, entity->up);
@@ -4805,8 +4804,8 @@ void update_editor_ui() {
             Color text_color   = lerp(WHITE * 0, WHITE * 0.9f, clamp01(create_t * 2));
             
             if (Old::make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))) {
+                obj.entity.position = editor.create_box_open_mouse_position; // So that on init_entity it has real position.
                 Entity *entity = copy_and_add_entity(&obj.entity, current_level_context);
-                entity->position = editor.create_box_open_mouse_position;
                 need_close_create_box = true;
                 
                 editor.just_spawned_ids.append(entity->id);
@@ -8882,6 +8881,10 @@ void update_editor_entity(Entity *e) {
         if (e->centipede->segments.count != e->centipede->segments_to_spawn) {
             init_entity(e); // On init entity centipede will destroy all existing segments and respawn them with proper count.
         }
+        
+        // for_array(i, &e->centipede->segments) {
+        //     log_short(e->centipede->segments.get_value(i)->position);
+        // }
     }
 }
 
