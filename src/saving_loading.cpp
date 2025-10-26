@@ -706,6 +706,8 @@ b32 load_level(String name) {
     clear_level_context(editor_level_context);
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
+    log_short(editor_level_context->centipede_segments.first_chunk->occupied_count);
+    
     editor_enter_editor_state();
     
     // if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {

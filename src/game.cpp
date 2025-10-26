@@ -26,9 +26,9 @@ global_variable Array <Collision> collisions_buffer; // Should probably reserve 
 
 //#define For(arr, type, value) for(i32 ii = 0; ii < arr.count; ii++) { type value = arr.get_value(ii);
 
-global_variable Input input = {};
-global_variable Input replay_input = {};
-// global_variable Level_Context editor_level_context = {};
+global_variable Input input = {0};
+global_variable Input replay_input = {0};
+// global_variable Level_Context editor_level_context = {0};
 
 #define CELL_SIZE 5
 
@@ -38,15 +38,15 @@ global_variable Level_Context *editor_level_context = NULL;
 i32 current_editor_level_context_index = 0;
 i32 last_loaded_editor_level_context_index = 0;
 
-global_variable Level_Context game_level_context = {};
-global_variable Level_Context planning_level_context = {};
-global_variable Level_Context checkpoint_level_context = {};
-global_variable Level_Context loaded_level_context = {};
-global_variable Level_Context undo_level_context = {};
-global_variable Level_Context copied_entities_level_context = {};
+global_variable Level_Context game_level_context = {0};
+global_variable Level_Context planning_level_context = {0};
+global_variable Level_Context checkpoint_level_context = {0};
+global_variable Level_Context loaded_level_context = {0};
+global_variable Level_Context undo_level_context = {0};
+global_variable Level_Context copied_entities_level_context = {0};
 global_variable Level_Context *current_level_context = NULL;
-global_variable State_Context state_context = {};
-global_variable Session_Context session_context = {};
+global_variable State_Context state_context = {0};
+global_variable Session_Context session_context = {0};
 
 global_variable Entity *checkpoint_player_entity;
 global_variable Player checkpoint_player_data;
@@ -54,15 +54,15 @@ global_variable Time checkpoint_time;
 global_variable State_Context checkpoint_state_context;
 global_variable i32 checkpoint_trigger_id = -1;
 
-global_variable Player *player_data = {};
-// global_variable Player real_player_data = {};
-global_variable Player replay_player_data = {};
+global_variable Player *player_data = {0};
+// global_variable Player real_player_data = {0};
+global_variable Player replay_player_data = {0};
 
-global_variable Level_Replay level_replay = {};
-global_variable Render render = {};
+global_variable Level_Replay level_replay = {0};
+global_variable Render render = {0};
 global_variable Console console = {0};
-global_variable Editor editor  = {}; 
-global_variable Debug  debug  = {};
+global_variable Editor editor  = {0}; 
+global_variable Debug  debug  = {0};
 
 global_variable const char *first_level_name = "new_basics1";
 
@@ -128,10 +128,10 @@ global_variable Array <Spawn_Object> spawn_objects = {0};
 
 // #include "entity_ids.cpp"
 
-Player last_player_data = {};
-Player death_player_data = {};
+Player last_player_data = {0};
+Player death_player_data = {0};
 
-Cam global_cam_data = {};
+Cam global_cam_data = {0};
 
 inline void remove_flag(FLAGS *flags, FLAGS flag) {
     if ((*flags) & flag) (*flags) ^= flag;
@@ -197,6 +197,15 @@ inline void mark_entity_destroyed(Entity *entity) {
     // mark_entity_destroyed(entity);
     // entity->destroyed = true;
     entity->will_be_destroyed = true;
+    
+    // @CLEANUP: That will probably be not necessary if we'll make that it's centipede itself who will call update on all 
+    // segments. The right moment to do that will be when we'll make updating entities by type and not just going thgough
+    // all of em.
+    if (entity->flags & CENTIPEDE) {
+        for_array(i, &entity->centipede->segments) {
+            mark_entity_destroyed(entity->centipede->segments.get_value(i));
+        }
+    }
 }
 
 void free_entity(Entity *e) {
@@ -331,7 +340,7 @@ void free_entity(Entity *e) {
     free_entity_particle_emitters(e);
     
     e->level_context->entities.remove(e->id - 1);
-} // free entity end
+} // Free entity end.
 
 inline void add_rect_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     vertices->clear();
@@ -660,6 +669,10 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
     // First of all we just copying raw entities and then going through all of them deep copy properly into dest level context.
     dest->entities = copy_chunk_array(&src->entities);
     for_chunk_array(i, (&src->entities)) {
+        // NOTE: On copy_and_add_entity happening init_entity. Some entities (like centipede) would want to spawn things on initing
+        // so someone might thing that it could be an issue that we're inserting entities here directly with index.
+        // Actually before we copied the whole array, so even if some entity will spawn things in dest level context
+        // on initing - newly spawned things will go to non-occupied indexes that we're not going to insert into.
         Entity *added = copy_and_add_entity(src->entities.get(i), dest, i + 1);
         
         if (added->flags & PLAYER) {
@@ -746,7 +759,7 @@ void clear_level_context(Level_Context *level_context) {
     //     level_context->lights.get(i)->exists = false;
     //     if (i >= session_context.entity_lights_start_index) {
     //         free_light(level_context->lights.get(i));       
-    //         *(level_context->lights.get(i)) = {};
+    //         *(level_context->lights.get(i)) = {0};
     //     } else { // So we in temp lights section
     //     }
     // }
@@ -754,7 +767,7 @@ void clear_level_context(Level_Context *level_context) {
     current_level_context->lightmaps.clear();
     
     // level_context->we_got_a_winner = false;
-    // player_data = {};
+    // player_data = {0};
     
     clear_allocator(&level_context->memory_arena);
     
@@ -778,7 +791,7 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
     return true;
 }
 
-#define ForCollisions(entity, flags) fill_collisions(entity, &collisions_buffer, flags); Entity *other = NULL; Collision col = {}; for (i32 col_index = 0; set_next_collision_stuff(col_index, &col, &other); col_index++)
+#define ForCollisions(entity, flags) fill_collisions(entity, &collisions_buffer, flags); Entity *other = NULL; Collision col = {0}; for (i32 col_index = 0; set_next_collision_stuff(col_index, &col, &other); col_index++)
 
 // It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_affected_collision_cells).
 global_variable Array <Collision_Grid_Cell*> collision_cells_buffer = {0};
@@ -816,7 +829,7 @@ inline void free_particle_emitter(i32 index) {
         printf("L_WARNING: No emitter existing on free_particle_emitter. Index is %d\n", index);
     }
     
-    *current_level_context->particle_emitters.get(index) = {};
+    *current_level_context->particle_emitters.get(index) = {0};
 }
 
 inline void free_particle_emitters(i32 *start_ptr, i32 count) {
@@ -1080,7 +1093,7 @@ void init_spawn_objects() {
     str_copy(enemy_trigger_object.name, "enemy_trigger");
     spawn_objects.append(enemy_trigger_object);
     
-    Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
+    Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.0f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
     centipede_entity.color = ColorBrightness(RED, 0.6f);
     setup_color_changer(&centipede_entity);
     
@@ -1089,7 +1102,7 @@ void init_spawn_objects() {
     str_copy(centipede_object.name, "centipede");
     spawn_objects.append(centipede_object);
     
-    Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT | MOVE_SEQUENCE);
+    Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.0f}, 0, ENEMY | CENTIPEDE_SEGMENT);
     centipede_segment_entity.need_to_save = false;
     centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
     setup_color_changer(&centipede_segment_entity);
@@ -1230,7 +1243,7 @@ void load_textures(const char* path, b32 in_root_textures_directory) {
         substring_after_line(name, path_string.data);
         name = get_substring_before_symbol(name, '.');
         
-        Texture_Data data = {};
+        Texture_Data data = {0};
         str_copy(data.name, name);
         data.texture = texture;
         
@@ -1308,13 +1321,16 @@ String *register_entity_name(Entity *entity) {
     return entities_names.get(index);
 }
 
-// NOTE: Currentoly passing centipede entity and not really using it because later we'll want to make right segment position not 
+// NOTE: Currently passing centipede entity and not really using it because later we'll want to make right segment position not 
 // just below previous segment, but along centipede path.
 inline Vector2 get_centipede_segment_start_position(Entity *segment, Entity *centipede, i32 segment_index) {
     assert(segment->centipede_segment && centipede->centipede && segment_index >= 0);
     
     Entity *previous = segment->centipede_segment->previous;
-    Vector2 result = previous->position - previous->up * previous->scale.y * 1.0f;
+    
+    f32 pivot_add = (1.0f - previous->pivot.y);
+    // if (segment_index == 0) pivot_add = 0;
+    Vector2 result = previous->position - previous->up * previous->scale.y * pivot_add;
     
     return result;
 }
@@ -1426,8 +1442,8 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->centipede->index = index;
         }
         
-        // Right now we're spawning centipede segments only in game-mode, but that's probably will change.
-        // if (editor_state == GAME) {
+        entity->pivot = {0.5f, 0.0f};
+        
         assert(entity->centipede);     
         Centipede *centipede = entity->centipede;
         
@@ -1449,13 +1465,13 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             // segment->position = get_centipede_segment_start_position(segment, entity, i);
             put_centipede_segment_at_right_start_position(segment, entity, i);
             
-            assert(segment->move_sequence);
-            i32 segment_index = segment->move_sequence->index;
-            *segment->move_sequence = *entity->move_sequence;
-            segment->move_sequence->index = segment_index;
+            // assert(segment->move_sequence);
+            // i32 segment_index = segment->move_sequence->index;
+            // *segment->move_sequence = *entity->move_sequence;
+            // segment->move_sequence->index = segment_index;
             // Probably we could think about a way to not copy array for every segment, but I'll probably will rewrite 
             // segments logic to work without move_sequence, so that doesn't matter currently.
-            segment->move_sequence->points = copy_array(&entity->move_sequence->points);
+            // segment->move_sequence->points = copy_array(&entity->move_sequence->points);
             
             segment->hidden = entity->hidden;
             
@@ -1622,7 +1638,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
         entity->flags |= LIGHT;
         entity->color_changer.change_time = 5.0f;
-        Light explosive_light = {};
+        Light explosive_light = {0};
         // explosive_light.make_backshadows = false; @WTF screen goes black in game mode with this shit. Should change the way lights stored and way we get access to them so don't bother, but wtf ebat (also render doc don't loading with this shit)
         if (entity->union_enemy->explosive_radius_multiplier >= 3) {
             explosive_light.shadows_size_flags = BIG_LIGHT;
@@ -2205,7 +2221,7 @@ void load_sounds() {
         substring_after_line(name, "resources\\audio\\");
         name = get_substring_before_symbol(name, '.');
         
-        Sound_Handler handler = {};
+        Sound_Handler handler = {0};
         str_copy(handler.name, name);
         
         for (i32 s = 0; s < handler.buffer.capacity; s++) {
@@ -2330,7 +2346,7 @@ void init_level_context(Level_Context *level_context) {
     //init context
     // for (i32 i = 0; i < level_context->lights.capacity; i++) {
     //     Light *light = level_context->lights.append({0});
-    //     // *(light) = {};
+    //     // *(light) = {0};
         
     //     if (i < session_context.temp_lights_count) {
     //         light->make_shadows             = true;
@@ -2442,7 +2458,7 @@ void init_game() {
 
     session_context.entity_lights_start_index = session_context.temp_lights_count; 
     
-    render = {};
+    render = {0};
     
     white_pixel_image = GenImageColor(1, 1, WHITE);
     white_pixel_texture = LoadTextureFromImage(white_pixel_image);
@@ -2461,9 +2477,9 @@ void init_game() {
     
     gaussian_blur_shader = LoadShader(0, "./resources/shaders/gaussian_blur.fs");
 
-    input = {};
+    input = {0};
     init_console();
-    // current_level = {};
+    // current_level = {0};
     load_all_textures();
     init_spawn_objects();
     
@@ -2564,7 +2580,7 @@ Entity *add_player_entity(Level_Context *level_context, Player *data) {
     data->connected_entities_ids.sword_entity_id       = sword_entity->id;
     data->dead_man = false;
     
-    data->timers = {};
+    data->timers = {0};
     
     free_entity_particle_emitters(new_player_entity);
     data->stun_emitter_index        = add_entity_particle_emitter(new_player_entity, &air_dust_emitter);
@@ -2662,7 +2678,7 @@ void enter_planning_state() {
 }
 
 void editor_enter_game_state(Level_Context *from_level_context) {
-    state_context = {};
+    state_context = {0};
     session_context.just_entered_game_state = true;
     core.time.game_time = 0;
     core.time.hitstop = 0;
@@ -2701,7 +2717,7 @@ void kill_player() {
 
 void editor_enter_editor_state() {
     editor_state = EDITOR;
-    state_context = {};
+    state_context = {0};
     
     session_context.playing_replay = false;
     
@@ -3651,7 +3667,7 @@ inline b32 check_bounds_collision(Vector2 position1, Bounds bounds1, Entity *ent
 }
 
 Collision check_collision(Vector2 position1, Vector2 position2, Static_Array <Vector2, MAX_VERTICES> vertices1, Static_Array <Vector2, MAX_VERTICES> vertices2, Vector2 pivot1 = {0.5f, 0.5f}, Vector2 pivot2 = {0.5f, 0.5f}) {
-    Collision result = {};
+    Collision result = {0};
     
     Bounds bounds1 = get_bounds(vertices1, pivot1);
     Bounds bounds2 = get_bounds(vertices2, pivot2);
@@ -3666,7 +3682,7 @@ Collision check_collision(Vector2 position1, Vector2 position2, Static_Array <Ve
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
     
-    Vector2 min_overlap_projection = {};
+    Vector2 min_overlap_projection = {0};
 
     for (i32 i = 0; i < global_normals.count; i++) {
         Vector2 projections[2];
@@ -3922,7 +3938,7 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
     Static_Array <Vector2, MAX_VERTICES> ray_vertices = Static_Array <Vector2, MAX_VERTICES>();
     
     b32 found = false;
-    Collision result = {};
+    Collision result = {0};
     while (current_len < len) {
         if (current_len + step > len) {
             current_len = len;
@@ -5962,7 +5978,7 @@ void update_editor() {
     
     //editor free entity scaling
     if (editor.selected && IsKeyDown(KEY_LEFT_ALT) && editor.moving_entity_edge_type == NONE) {
-        Vector2 scaling = {};
+        Vector2 scaling = {0};
         f32 speed = 80;
         
         if (!editor.is_scaling_entity && (IsKeyPressed(KEY_W) || IsKeyPressed(KEY_S) || IsKeyPressed(KEY_D) || IsKeyPressed(KEY_A))) {
@@ -6280,8 +6296,6 @@ Bounds get_bounds(Static_Array <Vector2, MAX_VERTICES> vertices, Vector2 pivot) 
     f32 right_vertex  = -INFINITY;
     f32 left_vertex   =  INFINITY;
     
-    Vector2 middle_position;
-    
     for (i32 i = 0; i < vertices.count; i++) {
         Vector2 *vertex = vertices.get(i);
         
@@ -6299,8 +6313,8 @@ Bounds get_bounds(Static_Array <Vector2, MAX_VERTICES> vertices, Vector2 pivot) 
         }
     }    
     
-    middle_position = {(1.0f - pivot.x) * left_vertex + pivot.x * right_vertex,
-                       pivot.y * bottom_vertex + (1.0f - pivot.y) * top_vertex};
+    Vector2 middle_position = {.x = (1.0f - pivot.x) * left_vertex + pivot.x * right_vertex,
+                               .y = pivot.y * bottom_vertex + (1.0f - pivot.y) * top_vertex};
     
     return {{right_vertex - left_vertex, top_vertex - bottom_vertex}, middle_position};
 }
@@ -8862,11 +8876,6 @@ inline b32 verify_kill_switch_connected(Entity *entity) {
 }
 
 void update_editor_entity(Entity *e) {
-    if (e->flags & CENTIPEDE && editor_state == EDITOR) {
-        e->flags |= ENEMY;
-        // e->enemy.dead_man = true;
-    }
-
     if (e->flags & LIGHT) {
         if (e->lights.count == 0) {
             printf("WARNING: Entity with flag LIGHT don't have corresponding light index (name: %s; id: %d)\n", temp_entity_name(e).data, e->id);
@@ -8897,7 +8906,6 @@ void update_editor_entity(Entity *e) {
         if (e->centipede->segments.count != e->centipede->segments_to_spawn) {
             init_entity(e); // On init entity centipede will destroy all existing segments and respawn them with proper count.
         }
-        
         for_array(i, &e->centipede->segments) {
             Entity *segment = e->centipede->segments.get_value(i);
             Vector2 right_position = get_centipede_segment_start_position(segment, e, i);
@@ -8926,7 +8934,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     
     if (connected->flags & CENTIPEDE) {
         assert(connected->flags & MOVE_SEQUENCE); // While we move centipede by move sequence we want that to be checked.
-        for (i32 i = 0; i < connected->centipede->segments_to_spawn; i++) {
+        for (i32 i = 0; i < connected->centipede->segments.count; i++) {
             Entity *segment = connected->centipede->segments.get_value(i);
             assert(segment);
             segment->hidden = connected->hidden;
@@ -9467,13 +9475,21 @@ inline b32 update_entity(Entity *e, f32 dt) {
         update_move_sequence(e, dt);
     }
     
+    // Update centipede.
     if (e->flags & CENTIPEDE && debug.enemy_ai && !e->centipede->dead_man) {
-        // update centipede
         Centipede *centipede = e->centipede;
         
+        for_array(i, &centipede->segments) {
+            Entity *segment = centipede->segments.get_value(i);
+            // Centipede and segments pivots should be close to {0.5f, 0.0f}.
+            
+            Entity *previous = segment->centipede_segment->previous;
+            Vector2 previous_bottom = previous->position - previous->up * previous->scale.y * (1.0f - previous->pivot.y);
+            segment->position = previous_bottom;
+        }
+        
         // @SPEED: We could make this faster by just not checking every segment every frame and just let segments tell centipede
-        // that they're dead. But actually we'll remove move_sequence from centiepde eventually and it will update segments 
-        // by itself probably, so that's not actually a problem.
+        // that they're dead. 
         i32 alive_count = 0;
         for (i32 i = 0; i < centipede->segments.count; i++) {
             Entity *segment = centipede->segments.get_value(i);
@@ -9497,8 +9513,6 @@ inline b32 update_entity(Entity *e, f32 dt) {
             // init_bird_emitters(e);
             // add_fire_light_to_entity(e);
             
-            // Will need to rewrite that. We can't just tell that this entities is now birds for solemn reason that they can 
-            // funny fly away while dead.
             mark_entity_destroyed(e);
             
             for (i32 i = 0; i < centipede->segments.count; i++) {
@@ -9522,7 +9536,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         Jump_Shooter *shooter = e->jump_shooter;
         
         if (!shooter->in_agro) {
-            shooter->states = {};
+            shooter->states = {0};
             shooter->states.standing_start_time = core.time.game_time;
         }
         
@@ -9533,7 +9547,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         if (shooter->dead_man || is_stunned) {
             shooter->velocity.y -= GRAVITY * dt;
             rotate(e, shooter->velocity.x * 30 * dt);
-            shooter->states = {};
+            shooter->states = {0};
             disable_emitter(shooter->trail_emitter_index);
             shooter->states.standing = false;
             shooter->states.standing_start_time = core.time.game_time;
@@ -10534,28 +10548,56 @@ void draw_entity(Entity *e) {
         draw_bird_enemy(e);
     } else if (e->flags & CENTIPEDE_SEGMENT) {
         assert(!(e->flags & CENTIPEDE));
-        Color color = e->color;
-        if (e->union_enemy->dead_man) {
-            //color = Fade(color, 0.3f);
-            color = Fade(BLACK, 0.3f);
-        }
-        draw_game_triangle_strip(e, color);
-        if (e->centipede_segment->head->centipede->spikes_on_right) {
-            draw_spikes(e, e->up, e->right, e->scale.y, e->scale.x);
-        } else {
-            if (!e->union_enemy->dead_man) {
-                draw_game_circle(e->position + e->right * e->scale.x * 0.5f, 2.0f, GREEN);
-            }
-        }
-        if (e->centipede_segment->head->centipede->spikes_on_left) {
-            draw_spikes(e, e->up, e->right * -1.0f, e->scale.y, e->scale.x);
-        } else {
-            if (!e->union_enemy->dead_man) {
-                draw_game_circle(e->position - e->right * e->scale.x * 0.5f, 2.0f, GREEN);
-            }
-        }
+        // Entity *segment = e;
+        // Color color = segment->color;
+        // if (segment->union_enemy->dead_man) {
+        //     //color = Fade(color, 0.3f);
+        //     color = Fade(BLACK, 0.3f);
+        // }
+        // draw_game_triangle_strip(segment, color);
+        // if (e->centipede_segment->head->centipede->spikes_on_right) {
+        //     draw_spikes(segment, segment->up, segment->right, segment->scale.y, segment->scale.x);
+        // } else {
+        //     if (!segment->union_enemy->dead_man) {
+        //         draw_game_circle(segment->position + segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
+        //     }
+        // }
+        // if (e->centipede_segment->head->centipede->spikes_on_left) {
+        //     draw_spikes(segment, segment->up, segment->right * -1.0f, segment->scale.y, segment->scale.x);
+        // } else {
+        //     if (!segment->union_enemy->dead_man) {
+        //         draw_game_circle(segment->position - segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
+        //     }
+        // }
     } else if (e->flags & CENTIPEDE) {
-        // draw centipede
+        assert(e->centipede);
+    
+        // First draw segments.
+        // for_array(i, &e->centipede->segments) {
+        //     Entity *segment = e->centipede->segments.get_value(i);
+        //     Color color = segment->color;
+        //     if (segment->union_enemy->dead_man) {
+        //         //color = Fade(color, 0.3f);
+        //         color = Fade(BLACK, 0.3f);
+        //     }
+        //     draw_game_triangle_strip(segment, color);
+        //     if (e->centipede->spikes_on_right) {
+        //         draw_spikes(segment, segment->up, segment->right, segment->scale.y, segment->scale.x);
+        //     } else {
+        //         if (!segment->union_enemy->dead_man) {
+        //             draw_game_circle(segment->position + segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
+        //         }
+        //     }
+        //     if (e->centipede->spikes_on_left) {
+        //         draw_spikes(segment, segment->up, segment->right * -1.0f, segment->scale.y, segment->scale.x);
+        //     } else {
+        //         if (!segment->union_enemy->dead_man) {
+        //             draw_game_circle(segment->position - segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
+        //         }
+        //     }
+        // }
+    
+        // Now draw centipede (head).
         draw_game_triangle_strip(e);
     } else if (e->flags & JUMP_SHOOTER) {
         // draw jump shooter
@@ -10767,15 +10809,6 @@ void draw_entity(Entity *e) {
             make_line(start_position, start_position + right * len * 0.2f + direction * len * 0.32f, 1.0f, ColorBrightness(VIOLET, 0.2f));
         }
     }
-    
-    if ((editor_state == EDITOR || debug.draw_up_right) && editor.selected && editor.selected->id == e->id) {
-        make_line(e->position, e->position + e->right * 3, RED);
-        make_line(e->position, e->position + e->up    * 3, GREEN);
-    }
-    
-    if (debug.draw_bounds || editor.selected && (editor_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected->id) {
-        make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / current_level_context->cam.cam2D.zoom, GREEN);
-    }
 }
 
 void draw_entities() {
@@ -10893,6 +10926,16 @@ void draw_game_space_editor() {
                 make_line(start, end, 0.5f, PURPLE);
                 draw_game_rect(end, {1, 1}, {0.5f, 0.5f}, PURPLE * 0.9f);
             }
+        }
+        
+        // Draw direction lines.
+        if ((editor_state == EDITOR || debug.draw_up_right) && editor.selected && editor.selected->id == e->id) {
+            make_line(e->position, e->position + e->right * 3, RED);
+            make_line(e->position, e->position + e->up    * 3, GREEN);
+        }
+        
+        if (debug.draw_bounds || editor.selected && (editor_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected->id) {
+            make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / current_level_context->cam.cam2D.zoom, GREEN);
         }
     }
     
@@ -11095,7 +11138,7 @@ void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivo
     if (!should_add_immediate_stuff()) {
         return;
     }
-    Immediate_Texture im_texture = {};
+    Immediate_Texture im_texture = {0};
     im_texture.texture  = texture;
     im_texture.position = position;
     im_texture.scale    = scale;
@@ -11110,7 +11153,7 @@ void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color
     if (!should_add_immediate_stuff()) {
         return;
     }
-    Line line = {};
+    Line line = {0};
     line.start_position = start_position;
     line.target_position = target_position;
     line.color = color;
@@ -11129,7 +11172,7 @@ void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, 
     if (!should_add_immediate_stuff()) {
         return;
     }
-    Rect_Lines rect = {};
+    Rect_Lines rect = {0};
     rect.position = position;
     rect.scale = scale;
     rect.pivot = pivot;
@@ -11150,7 +11193,7 @@ inline void make_outline(Vector2 position, Static_Array <Vector2, MAX_VERTICES> 
         return;
     }
     
-    Outline outline = {};
+    Outline outline = {0};
     outline.position = position;
     outline.vertices = vertices;
     outline.color = color;
@@ -11161,7 +11204,7 @@ void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 seg
     if (!should_add_immediate_stuff()) {
         return;
     }
-    Ring_Lines ring = {};
+    Ring_Lines ring = {0};
     ring.center = center;
     ring.inner_radius = inner_radius;
     ring.outer_radius = outer_radius;
@@ -11485,8 +11528,8 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         id_to_set += 1;
     }
     *e = *to_copy;
-    e->will_be_destroyed = false; // That could've shot when we're copying entity that will be destoryed for undo.
-    e->destroyed = false;
+    // e->will_be_destroyed = false; // That could've shot when we're copying entity that will be destoryed for undo.
+    // e->destroyed = false;
     e->color = to_copy->color_changer.start_color;
     e->id = id_to_set;
     

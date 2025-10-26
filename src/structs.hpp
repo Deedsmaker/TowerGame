@@ -434,7 +434,7 @@ struct Move_Sequence {
 
     Array <Vector2> points = {0};  
     b32 moving = false;
-    f32 speed = 10;
+    f32 speed = 100;
     Vector2 velocity = Vector2_zero;
     Vector2 wish_velocity = Vector2_zero;
     Vector2 wish_position = Vector2_zero;
@@ -833,7 +833,7 @@ struct Entity {
     
     Level_Context *level_context = NULL;
     
-    String *name;
+    String *name = NULL;
 
     b32 enabled = 12;
     
