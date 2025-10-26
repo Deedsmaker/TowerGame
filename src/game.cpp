@@ -282,7 +282,7 @@ void free_entity(Entity *e) {
     // Free centipede.
     if (e->flags & CENTIPEDE) {
         assert(e->centipede && e->centipede->index >= 0);
-    
+        log_short("freeing");
         for_array(i, &e->centipede->segments) {
             Entity *segment = e->centipede->segments.get_value(i);
             mark_entity_destroyed(segment);
@@ -1451,7 +1451,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             init_entity(segment);
         }
         // }
-    } else if (entity->flags & CENTIPEDE_SEGMENT) {    // init centipede segment.
+    } else if (entity->flags & CENTIPEDE_SEGMENT) {    // Init centipede segment.
         assert(!(entity->flags & CENTIPEDE));
         if (!entity->centipede_segment || ignore_existing_types) {
             i32 index = -1;
@@ -11572,11 +11572,11 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     if (e->flags & CENTIPEDE && to_copy->centipede) {
         assert(e->centipede);
         i32 my_index = e->centipede->index;
-        Array <Entity *> *my_segments = &e->centipede->segments;
+        Array <Entity *> my_segments = e->centipede->segments;
         *e->centipede = *to_copy->centipede;
                
         e->centipede->index = my_index;
-        e->centipede->segments = *my_segments;
+        e->centipede->segments = my_segments;
     }
     // // Copy centipede segment.
     // if (e->flags & CENTIPEDE_SEGMENT && to_copy->centipede_segment) {
