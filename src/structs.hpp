@@ -818,6 +818,7 @@ struct Collision_Grid {
 
 struct Centipede_Segment : Enemy {
     Entity *head = NULL;      
+    Entity *previous = NULL;
 };
 
 enum Runtime_Flags : FLAGS {

@@ -282,7 +282,6 @@ void free_entity(Entity *e) {
     // Free centipede.
     if (e->flags & CENTIPEDE) {
         assert(e->centipede && e->centipede->index >= 0);
-        log_short("freeing");
         for_array(i, &e->centipede->segments) {
             Entity *segment = e->centipede->segments.get_value(i);
             mark_entity_destroyed(segment);
@@ -1309,6 +1308,24 @@ String *register_entity_name(Entity *entity) {
     return entities_names.get(index);
 }
 
+// NOTE: Currentoly passing centipede entity and not really using it because later we'll want to make right segment position not 
+// just below previous segment, but along centipede path.
+inline Vector2 get_centipede_segment_start_position(Entity *segment, Entity *centipede, i32 segment_index) {
+    assert(segment->centipede_segment && centipede->centipede && segment_index >= 0);
+    
+    Entity *previous = segment->centipede_segment->previous;
+    Vector2 result = previous->position - previous->up * previous->scale.y * 1.0f;
+    
+    return result;
+}
+inline void put_centipede_segment_at_right_start_position(Entity *segment, Entity *centipede, i32 segment_index) {
+    Entity *previous = segment->centipede_segment->previous;
+    change_up(segment, previous->up);
+    Vector2 target_position = get_centipede_segment_start_position(segment, centipede, segment_index);  
+    
+    segment->position = target_position;
+}
+
 // ignore_existing_types for situations when we want to add new type info even if one is non-zero.
 // For example on copy_and_add_entity we're doing thing like *entity = *to_copy, which means that we'll gonna have 
 // the same pointers to types as a copy (like trigger, propeller, some enemy etc.) and in that case we don't want to 
@@ -1426,11 +1443,11 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
             centipede->segments.append(segment);
-            Entity *previous;
-            if (i > 0) previous = centipede->segments.get_value(i-1);
-            else       previous = entity;
-
-            segment->position = previous->position - previous->up * previous->scale.y * 1.0f;
+            if (i > 0) segment->centipede_segment->previous = centipede->segments.get_value(i-1);
+            else       segment->centipede_segment->previous = entity;
+            
+            // segment->position = get_centipede_segment_start_position(segment, entity, i);
+            put_centipede_segment_at_right_start_position(segment, entity, i);
             
             assert(segment->move_sequence);
             i32 segment_index = segment->move_sequence->index;
@@ -2657,7 +2674,6 @@ void editor_enter_game_state(Level_Context *from_level_context) {
     editor_state = GAME;
     
     clear_level_context(&planning_level_context);
-    log_short("entering game state");
     copy_level_context(&planning_level_context, from_level_context, true);
     
     reset_planning_data();
@@ -8882,9 +8898,13 @@ void update_editor_entity(Entity *e) {
             init_entity(e); // On init entity centipede will destroy all existing segments and respawn them with proper count.
         }
         
-        // for_array(i, &e->centipede->segments) {
-        //     log_short(e->centipede->segments.get_value(i)->position);
-        // }
+        for_array(i, &e->centipede->segments) {
+            Entity *segment = e->centipede->segments.get_value(i);
+            Vector2 right_position = get_centipede_segment_start_position(segment, e, i);
+            if (segment->position != right_position) {
+                put_centipede_segment_at_right_start_position(segment, e, i);
+            }
+        }
     }
 }
 
