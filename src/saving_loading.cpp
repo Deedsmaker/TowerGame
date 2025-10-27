@@ -37,7 +37,7 @@ void save_level(String level_name) {
     for_chunk_array(entity_index, (&current_level_context->entities)) {
         Entity *e = current_level_context->entities.get(entity_index);
         
-        if (!e->need_to_save) {
+        if (e->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) {
             continue;
         }
         
@@ -652,42 +652,42 @@ b32 load_level(String name) {
     // entity ids.
     // Note that because we're just before added all loaded entities to level context there's no gaps and indexes of 
     // loaded_entities and actual chunk array of entities will be the same.
-    for_array(i, &loaded_entities) {
-        Entity *loaded = loaded_entities.get(i);
-        Entity *new_entity = get_entity(i + 1);
+    // for_array(i, &loaded_entities) {
+    //     Entity *loaded = loaded_entities.get(i);
+    //     Entity *new_entity = get_entity(i + 1);
         
-        if (new_entity->flags & TRIGGER) {
-            for_array(j, &loaded_entities) {
-                // i == j would mean that we're looking at the same entity.
-                if (i == j) continue;
+    //     if (new_entity->flags & TRIGGER) {
+    //         for_array(j, &loaded_entities) {
+    //             // i == j would mean that we're looking at the same entity.
+    //             if (i == j) continue;
                               
-                Entity *another_loaded = loaded_entities.get(j);
-                // Going through all loaded entities and looking if this entity old id is contained in connected.
-                // If it is - we're replacing id in connected with this entity new id (and this entity new id is current index (j) + 1).
-                i32 connected_index = new_entity->trigger->connected.find(another_loaded->id);
-                if (connected_index >= 0) {
-                    new_entity->trigger->connected.insert(j + 1, connected_index);
-                }
-                i32 tracking_index = new_entity->trigger->tracking.find(another_loaded->id);
-                if (tracking_index >= 0) {
-                    new_entity->trigger->tracking.insert(j + 1, tracking_index);
-                }
-            }
-        }
-        if (new_entity->flags & KILL_SWITCH) {
-            for_array(j, &loaded_entities) {
-                if (i == j) continue;
+    //             Entity *another_loaded = loaded_entities.get(j);
+    //             // Going through all loaded entities and looking if this entity old id is contained in connected.
+    //             // If it is - we're replacing id in connected with this entity new id (and this entity new id is current index (j) + 1).
+    //             i32 connected_index = new_entity->trigger->connected.find(another_loaded->id);
+    //             if (connected_index >= 0) {
+    //                 new_entity->trigger->connected.insert(j + 1, connected_index);
+    //             }
+    //             i32 tracking_index = new_entity->trigger->tracking.find(another_loaded->id);
+    //             if (tracking_index >= 0) {
+    //                 new_entity->trigger->tracking.insert(j + 1, tracking_index);
+    //             }
+    //         }
+    //     }
+    //     if (new_entity->flags & KILL_SWITCH) {
+    //         for_array(j, &loaded_entities) {
+    //             if (i == j) continue;
                 
-                Entity *another_loaded = loaded_entities.get(j);
+    //             Entity *another_loaded = loaded_entities.get(j);
                 
-                // Explainded earlier.
-                i32 connected_index = new_entity->kill_switch->connected.find(another_loaded->id);
-                if (connected_index >= 0) {
-                    new_entity->kill_switch->connected.insert(j + 1, connected_index);
-                }
-            }
-        }
-    }
+    //             // Explainded earlier.
+    //             i32 connected_index = new_entity->kill_switch->connected.find(another_loaded->id);
+    //             if (connected_index >= 0) {
+    //                 new_entity->kill_switch->connected.insert(j + 1, connected_index);
+    //             }
+    //         }
+    //     }
+    // }
     
     setup_context_cam(current_level_context);
     current_level_context->cam.cam2D.zoom = 0.35f;
@@ -706,7 +706,7 @@ b32 load_level(String name) {
     clear_level_context(editor_level_context);
     copy_level_context(editor_level_context, &loaded_level_context, true);
     
-    log_short(editor_level_context->centipede_segments.first_chunk->occupied_count);
+    // log_short(editor_level_context->centipede_segments.first_chunk->occupied_count);
     
     editor_enter_editor_state();
     

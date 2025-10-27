@@ -822,12 +822,12 @@ struct Centipede_Segment : Enemy {
 };
 
 enum Runtime_Flags : FLAGS {
-    EDITOR_CHANGED = 0x1,  
+    EDITOR_CHANGED          = 0x1,  
+    SHOULD_NOT_SAVE_OR_COPY = 0x2,
 };
 
 struct Entity {
     i32 id = 0;
-    b32 need_to_save = true;
     b32 visible = true;
     b32 hidden = false;
     

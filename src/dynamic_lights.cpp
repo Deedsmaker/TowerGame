@@ -54,13 +54,13 @@ void init_light(Light *light) {
     // if (light->make_shadows) {
     //     light->shadowmask_rt  = LoadRenderTexture(light->shadows_size, light->shadows_size);
     // } else {
-    //     light->shadowmask_rt = {};
+    //     light->shadowmask_rt = {0};
     // }
     
     // if (light->make_backshadows) {
     //     light->backshadows_rt = LoadRenderTexture(light->backshadows_size, light->backshadows_size);
     // } else {
-    //     light->backshadows_rt = {};
+    //     light->backshadows_rt = {0};
     // }
             
     if (light->make_shadows || light->make_backshadows) {
@@ -89,12 +89,12 @@ void free_light(Light *light, i32 index, Level_Context *level_context) {
     // if (light->exists) {
     //     if (light->make_shadows) {
     //         UnloadRenderTexture(light->shadowmask_rt);
-    //         light->shadowmask_rt = {};
+    //         light->shadowmask_rt = {0};
     //     }
     //     // UnloadRenderTexture(light->geometry_rt);
     //     if (light->make_backshadows) {
     //         UnloadRenderTexture(light->backshadows_rt);
-    //         light->backshadows_rt = {};
+    //         light->backshadows_rt = {0};
     //     }
         
     //     light->exists = false;
@@ -420,7 +420,7 @@ void add_fire_light_to_entity(Entity *entity) {
 void make_light(Vector2 position, f32 radius, f32 power, f32 opacity, Color color) {
     if (!should_add_immediate_stuff()) return;
     
-    Light light = {};
+    Light light = {0};
     light.position = position;
     light.radius = radius;
     light.power = power;

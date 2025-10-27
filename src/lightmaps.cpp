@@ -410,7 +410,7 @@ void make_lightmap_settings_panel(){
     
     local_persist i32 lightmap_level = 0;
     const char* lightmap_level_text = NULL;
-    if (0){}
+    if (0) { }
     else if (lightmap_level == 0) lightmap_level_text = tprintf("Fast bake setting");
     else if (lightmap_level == 1) lightmap_level_text = tprintf("Nice bake setting");
     else if (lightmap_level == 2) lightmap_level_text = tprintf("Highest bake setting");
@@ -418,7 +418,7 @@ void make_lightmap_settings_panel(){
     if (Old::make_panel_button(lightmap_level_text, "lightmap_level_text")){
         lightmap_level += 1;    
         lightmap_level %= 3;
-        if (0){}
+        if (0) { }
         else if (lightmap_level == 0) bake_settings = light_bake_settings;
         else if (lightmap_level == 1) bake_settings = heavy_bake_settings;
         else if (lightmap_level == 2) bake_settings = final_bake_settings;

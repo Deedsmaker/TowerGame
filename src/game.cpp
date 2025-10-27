@@ -125,7 +125,6 @@ Sound_Handler *missing_sound = NULL;
 
 global_variable Array <Spawn_Object> spawn_objects = {0};
 
-
 // #include "entity_ids.cpp"
 
 Player last_player_data = {0};
@@ -142,7 +141,7 @@ inline b32 is_editor_active() {
 }
 
 void log_short(const char *str) {
-    Log_Message *new_log = debug.log_messages_short.append({});
+    Log_Message *new_log = debug.log_messages_short.append({0});
     str_copy(new_log->data, str);
     new_log->birth_time = core.time.app_time;
 }
@@ -675,6 +674,12 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         // on initing - newly spawned things will go to non-occupied indexes that we're not going to insert into.
         Entity *added = copy_and_add_entity(src->entities.get(i), dest, i + 1);
         
+        // Could happen if, for example, entity have SHOULD_NOT_SAVE_OR_COPY flag.
+        if (!added) {
+            dest->entities.remove(i);           
+            continue;
+        }
+        
         if (added->flags & PLAYER) {
             dest->player = added;
         }
@@ -1103,7 +1108,6 @@ void init_spawn_objects() {
     spawn_objects.append(centipede_object);
     
     Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.0f}, 0, ENEMY | CENTIPEDE_SEGMENT);
-    centipede_segment_entity.need_to_save = false;
     centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
     setup_color_changer(&centipede_segment_entity);
     
@@ -1173,7 +1177,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
         Tile_Sheet *sheet = NULL;
         
         if (tile_sheet_index == -1) {
-            sheet = tile_sheets.append({});
+            sheet = tile_sheets.append({0});
             sheet->sheet_name = make_string(NULL, directory_name);
             sheet->textures = {0};
         } else {
@@ -1182,7 +1186,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
         
         assert(sheet);
         
-        Texture_Data *new_data = sheet->textures.append({});
+        Texture_Data *new_data = sheet->textures.append({0});
         str_copy(new_data->name, name);
         new_data->texture = texture;
     }
@@ -1451,9 +1455,11 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             mark_entity_destroyed(centipede->segments.get_value(i));
         }
         centipede->segments.clear();
-        
         for (i32 i = 0; i < centipede->segments_to_spawn; i++) {
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position, entity->level_context);
+            
+            segment->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
+            
             assert(segment->centipede_segment);
             segment->centipede_segment->head = entity;
             change_up(segment, entity->up);
@@ -1475,12 +1481,16 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             
             segment->hidden = entity->hidden;
             
-            segment->flags = (entity->flags ^ CENTIPEDE) | CENTIPEDE_SEGMENT;
+            segment->flags = (entity->flags) | CENTIPEDE_SEGMENT; // That's for some enemy settings and we'll change that if separate enemy flags will be made.
+            remove_flag(&segment->flags, CENTIPEDE);
+            remove_flag(&segment->flags, MOVE_SEQUENCE);
             
             i32 my_index = segment->union_enemy->index;
             *segment->union_enemy = *entity->union_enemy; // Just copying enemy settings that were applied to centipede in editor.
             segment->union_enemy->index =my_index;
-            
+                        
+            assert(segment->flags & CENTIPEDE_SEGMENT);
+                        
             init_entity(segment);
         }
         // }
@@ -1683,7 +1693,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             Texture texture = entity->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
             Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
             // str_copy(sticky_entity->name, "blocker_attack_mark");
-            sticky_entity->need_to_save = false;
+            sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
             //sticky_entity->texture = texture;
             sticky_entity->draw_order = 1;
             sticky_entity->sticky_texture->max_lifetime   = 0;
@@ -1718,7 +1728,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         
         // str_copy(sticky_entity->name, "sword_size_attack_mark");
-        sticky_entity->need_to_save = false;
+        sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
         //sticky_entity->texture = texture;
         sticky_entity->draw_order = 1;
         sticky_entity->sticky_texture->max_lifetime   = 0;
@@ -2539,6 +2549,8 @@ void clean_up_scene() {
     if (!session_context.speedrun_timer.game_timer_active) {
         session_context.speedrun_timer.time = 0;        
     }
+    
+    session_context.entities_draw_queue.clear();
     
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
@@ -4026,6 +4038,12 @@ void editor_destroy_entity(i32 entity_id) {
 
 // New selected could be NULL, which means that we're not selecting anyone anymore.
 void assign_selected_entity(Entity *new_selected) {
+    // We're just not allowing copying things for that flag so it could not be unchanged copy. Maybe will try to work around
+    // it eventually, but probably will leave it as constrained as it is.
+    if (new_selected && new_selected->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) {
+        return;
+    }
+    
     if (editor.selected) {
         editor.selected->color_changer.changing = 0;
         editor.selected->color = editor.selected->color_changer.start_color;
@@ -8312,7 +8330,7 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale) {
 
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color tint) {
     Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
-    hitmark->need_to_save = false;
+    hitmark->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
     change_color(hitmark, tint);
     hitmark->draw_order = 1;
     
@@ -9175,7 +9193,7 @@ Collision get_nearest_ground_collision(Vector2 point, f32 radius) {
         }
     }
     
-    return {};
+    return {0};
 }
 
 void update_move_sequence(Entity *entity, f32 dt) {
@@ -10017,7 +10035,7 @@ inline void draw_rifle(Entity *entity) {
 inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len) {
     if (!current_level_context->player) {
         print("WARNING: Tried to get ray collision to player, but player is not present");
-        return {};     
+        return {0};     
     }
     
     Vector2 vec_to_player = current_level_context->player->position - entity->position;
@@ -10548,27 +10566,27 @@ void draw_entity(Entity *e) {
         draw_bird_enemy(e);
     } else if (e->flags & CENTIPEDE_SEGMENT) {
         assert(!(e->flags & CENTIPEDE));
-        // Entity *segment = e;
-        // Color color = segment->color;
-        // if (segment->union_enemy->dead_man) {
-        //     //color = Fade(color, 0.3f);
-        //     color = Fade(BLACK, 0.3f);
-        // }
-        // draw_game_triangle_strip(segment, color);
-        // if (e->centipede_segment->head->centipede->spikes_on_right) {
-        //     draw_spikes(segment, segment->up, segment->right, segment->scale.y, segment->scale.x);
-        // } else {
-        //     if (!segment->union_enemy->dead_man) {
-        //         draw_game_circle(segment->position + segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
-        //     }
-        // }
-        // if (e->centipede_segment->head->centipede->spikes_on_left) {
-        //     draw_spikes(segment, segment->up, segment->right * -1.0f, segment->scale.y, segment->scale.x);
-        // } else {
-        //     if (!segment->union_enemy->dead_man) {
-        //         draw_game_circle(segment->position - segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
-        //     }
-        // }
+        Entity *segment = e;
+        Color color = segment->color;
+        if (segment->union_enemy->dead_man) {
+            //color = Fade(color, 0.3f);
+            color = Fade(BLACK, 0.3f);
+        }
+        draw_game_triangle_strip(segment, color);
+        if (e->centipede_segment->head->centipede->spikes_on_right) {
+            draw_spikes(segment, segment->up, segment->right, segment->scale.y, segment->scale.x);
+        } else {
+            if (!segment->union_enemy->dead_man) {
+                draw_game_circle(segment->position + segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
+            }
+        }
+        if (e->centipede_segment->head->centipede->spikes_on_left) {
+            draw_spikes(segment, segment->up, segment->right * -1.0f, segment->scale.y, segment->scale.x);
+        } else {
+            if (!segment->union_enemy->dead_man) {
+                draw_game_circle(segment->position - segment->right * segment->scale.x * 0.5f, 2.0f, GREEN);
+            }
+        }
     } else if (e->flags & CENTIPEDE) {
         assert(e->centipede);
     
@@ -11517,6 +11535,11 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     // On calling copy_entity we're always doing a deep copy and adding entity to the entities array because we're cannot 
     // init entity without it being inside a entity array because other entities might want to refer to it. And it's don't 
     // really makes sense to have dummy entity that creating things on level context.
+    
+    if (to_copy->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) {
+        return NULL;
+    }
+  
     i32 id_to_set = 0;
     Entity *e = NULL;
     if (id_to_insert > 0) {
@@ -11704,7 +11727,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     i32 id = 0;
-    Entity *e = current_level_context->entities.append({}, &id);
+    Entity *e = current_level_context->entities.append({0}, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
     id += 1;
     *e = make_entity(pos, scale, pivot, rotation, flags);    
@@ -11718,7 +11741,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags) {
     i32 id = 0;
-    Entity *e = current_level_context->entities.append({}, &id);
+    Entity *e = current_level_context->entities.append({0}, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
     id += 1;
     *e = make_entity(pos, scale, pivot, rotation, texture, flags);    
