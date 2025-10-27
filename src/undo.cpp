@@ -57,7 +57,7 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
         changes.append({
             .entity_id = changed->id,
             .change_type = ENTITY_DESTROYED,
-            .destroyed_entity_copy = copy_and_add_entity(changed, &undo_level_context)
+            .destroyed_entity_copy = copy_and_add_entity(original, &undo_level_context) // changed would have will_be_destroyed runtime flag set, whereas for original we've unset it.
         });
     }
 
@@ -145,6 +145,7 @@ inline void update_undo_logic() {
             Entity *entity = current_level_context->entities.get(i);
             if (entity->will_be_destroyed) found_one_that_will_be_destroyed = true;
             Entity *unchanged_entity = copy_and_add_entity(entity, &undo_level_context);
+            if (!unchanged_entity) continue; // Could happen because of SHOULD_NOT_SAVE_OR_COPY runtime flag.
             
             // On verifying trigger and kill switch will detect if someone will be destroyed -> will remive
             // it from an array and mark itself as EDITOR_CHANGED.
@@ -154,6 +155,7 @@ inline void update_undo_logic() {
             if (entity->runtime_only_flags & EDITOR_CHANGED) {
                 entity->runtime_only_flags ^= EDITOR_CHANGED;
 
+                unchanged_entity->will_be_destroyed = false;
                 auto entity_change = get_entities_difference(entity, unchanged_entity, temp);
                 changes.append_another_array(&entity_change);
             }

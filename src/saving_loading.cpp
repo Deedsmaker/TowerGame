@@ -396,7 +396,7 @@ b32 load_level(String name) {
     setup_particles();
     
     Array <String> splitted = {.allocator = temp};
-    Array <Entity> loaded_entities = {.allocator = temp};
+    // Array <Entity> loaded_entities = {.allocator = temp};
     
     Array <String> level_files = get_files_in_directory(level_path, temp);
     if (level_files.count == 0) {
@@ -455,10 +455,12 @@ b32 load_level(String name) {
             
             Entity dummy_entity = {0}; // It's here just for setting data for initing.
             i32 i = -1;
+            i32 id = 0;
+            IF_FIND("id") id = to_i32(splitted.get_value(i+1));
             
             IF_FIND("flags") dummy_entity.flags = to_u64(splitted.get_value(i+1));
             
-            entity = copy_and_add_entity(&dummy_entity, &loaded_level_context);
+            entity = copy_and_add_entity(&dummy_entity, &loaded_level_context, id);
             
             if (entity->flags & LIGHT) {        
                 // We're adding empty ligh just because on loading we're gonna fill this empty light.
@@ -466,12 +468,10 @@ b32 load_level(String name) {
                 copy_and_add_light_to_entity(entity, &dummy_light, true);
             }
             
-            i32 old_id = 0;
             Note note_to_fill = {};
             
             // Entity loading.
             
-            IF_FIND("id") old_id = to_i32(splitted.get_value(i+1));
             
             IF_FIND("position") entity->position = parse_vector2(&splitted, i+1);
             IF_FIND("scale") entity->scale = parse_vector2(&splitted, i+1);
@@ -631,8 +631,8 @@ b32 load_level(String name) {
             // depend on exact data that we filled on loading.
             init_entity(entity);
             
-            Entity *loaded = loaded_entities.append(*entity);
-            loaded->id = old_id;
+            // Entity *loaded = loaded_entities.insert(*entity, entity->level_context->entities.get_total_occupied_count() - 1);
+            // loaded->id = old_id;
         } // End of a entity file scope.
     } // End of a files for loop.
     

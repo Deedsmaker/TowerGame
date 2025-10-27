@@ -677,6 +677,17 @@ struct Chunk_Array {
         *chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
         (*chunk)->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
     }
+    
+    inline i32 get_total_occupied_count() {
+        Chunk *chunk = first_chunk;
+        i32 result = 0;
+        while (chunk) {
+            result += chunk->occupied_count;
+            chunk = chunk->next;
+        }
+        
+        return result;
+    }
 };
 
 template <typename T>
