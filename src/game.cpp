@@ -718,6 +718,8 @@ void clear_level_context(Level_Context *level_context) {
         *entity = {0};
     }
     
+    level_context->initially_simulated = false;
+    
     level_context->player = NULL;
     level_context->player_data = {0};
     
@@ -2682,10 +2684,14 @@ void enter_planning_state() {
     current_level_context->cam.target_zoom = 0.35f;
     current_level_context->cam.position = current_level_context->player_spawn_point;
     
-    // Simulating game world for 2 seconds before the start.
-    input = {0};
-    for (i32 i = 0; i < FIXED_FPS * 2; i++) { 
-        update_entities(TARGET_FRAME_TIME);
+    if (!current_level_context->initially_simulated) {
+        // Simulating game world for 2 seconds before the start.
+        input = {0};
+        for (i32 i = 0; i < FIXED_FPS * 2; i++) { 
+            update_entities(TARGET_FRAME_TIME);
+        }
+        
+        current_level_context->initially_simulated = true;
     }
 }
 

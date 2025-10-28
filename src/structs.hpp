@@ -1130,6 +1130,8 @@ struct Level_Context {
 
     b32 inited = false;
     
+    b32 initially_simulated = true;
+    
     Vector2 player_spawn_point = Vector2_zero;
     String level_name = {0};
 
