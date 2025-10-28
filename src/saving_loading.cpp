@@ -374,7 +374,7 @@ b32 load_level(String name) {
     // editor_enter_editor_state();
     // editor_state = EDITOR; // @TODO: Do we really need this? Edit: Right now yes, for convinience.
     
-    session_context.playing_replay = false;
+    global_data.playing_replay = false;
     String level_path = tstring("levels/%s", c_str(name));
     
     if (!directory_exists(level_path)) {
@@ -388,7 +388,7 @@ b32 load_level(String name) {
     clear_context(&loaded_context);
     
     if (!(current_context->level_name == name)) {
-        session_context.previous_level_name = copy_string(current_context->level_name, &current_context->memory_arena);
+        global_data.previous_level_name = copy_string(current_context->level_name, &current_context->memory_arena);
     }
     
     current_context->level_name = copy_string(name, &current_context->memory_arena);

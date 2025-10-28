@@ -1242,7 +1242,7 @@ struct State_Context {
     i32 contiguous_projectile_hits_count = 0;
 };
 
-struct Session_Context{
+struct Global_Data{
     Array <Entity> entities_draw_queue = {0};
     
     // Array <Light> temp_lights = {0};

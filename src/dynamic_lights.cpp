@@ -199,8 +199,8 @@ void draw_dynamic_lights(RenderTexture *render_texture_for_lights) {
             set_shader_value(gaussian_blur_shader, u_pixel_loc, {(1.0f) / (screen_width), (1.0f) / (screen_height)});
 
             // ForEntities(entity, GROUND | ENEMY | PLAYER | PLATFORM | SWORD) {
-            for (i32 i = 0; i < session_context.entities_draw_queue.count; i++) {
-                Entity *entity = session_context.entities_draw_queue.get(i);
+            for (i32 i = 0; i < global_data.entities_draw_queue.count; i++) {
+                Entity *entity = global_data.entities_draw_queue.get(i);
                 if (entity->hidden || should_not_draw_entity(entity, current_context->cam)) {
                     continue;
                 }
@@ -230,7 +230,7 @@ void draw_dynamic_lights(RenderTexture *render_texture_for_lights) {
         // Vector2 light_position = light.position;
         Vector2 lightmap_game_scale = {light.radius, light.radius};
         
-        b32 should_calculate_light_anyway = light.bake_shadows && session_context.just_entered_game_state;
+        b32 should_calculate_light_anyway = light.bake_shadows && global_data.just_entered_game_state;
         
         Bounds lightmap_bounds = {lightmap_game_scale, {0, 0}};
         if (!should_calculate_light_anyway && (!check_bounds_collision(current_context->cam.view_position, light.position, get_cam_bounds(current_context->cam, current_context->cam.cam2D.zoom), lightmap_bounds) || (connected_entity && connected_entity->hidden && editor_state == GAME)) || debug.full_light) {
@@ -241,11 +241,11 @@ void draw_dynamic_lights(RenderTexture *render_texture_for_lights) {
         
         // Vector2 shadows_texture_size = {(f32)light.shadows_size, (f32)light.shadows_size};
         
-        // if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (editor_state == EDITOR) && !session_context.baked_shadows_this_frame) || session_context.just_entered_game_state || !light_ptr->baked && editor_state == GAME)) {
+        // if (light.make_shadows && (!light.bake_shadows || (core.time.app_time - light.last_bake_time > 1 && (editor_state == EDITOR) && !global_data.baked_shadows_this_frame) || global_data.just_entered_game_state || !light_ptr->baked && editor_state == GAME)) {
         //     light_ptr->last_bake_time = core.time.app_time;
             
         //     if (light.bake_shadows) {
-        //         session_context.baked_shadows_this_frame = true;
+        //         global_data.baked_shadows_this_frame = true;
         //         if (editor_state == GAME) {
         //             light_ptr->baked = true;
         //         }

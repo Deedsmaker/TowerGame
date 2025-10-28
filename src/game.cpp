@@ -46,7 +46,7 @@ global_variable Context undo_context = {0};
 global_variable Context copied_entities_context = {0};
 global_variable Context *current_context = NULL;
 global_variable State_Context state_context = {0};
-global_variable Session_Context session_context = {0};
+global_variable Global_Data global_data = {0};
 
 global_variable Entity *checkpoint_player_entity;
 global_variable Player checkpoint_player_data;
@@ -764,7 +764,7 @@ void clear_context(Context *context) {
     
     // for (i32 i = 0; i < context->lights.capacity; i++) {
     //     context->lights.get(i)->exists = false;
-    //     if (i >= session_context.entity_lights_start_index) {
+    //     if (i >= global_data.entity_lights_start_index) {
     //         free_light(context->lights.get(i));       
     //         *(context->lights.get(i)) = {0};
     //     } else { // So we in temp lights section
@@ -1827,8 +1827,8 @@ void try_load_next_level() {
 }
 
 void try_load_previous_level() {
-    if (session_context.old_previous_level_name[0]) {
-        if (load_level(tstring(session_context.old_previous_level_name))) {
+    if (global_data.old_previous_level_name[0]) {
+        if (load_level(tstring(global_data.old_previous_level_name))) {
             print_to_console("Previous level loaded successfuly");
             // editor_enter_editor_state();
         } else {
@@ -2019,7 +2019,7 @@ void save_temp_replay() {
 }
 
 void play_loaded_replay() {
-    session_context.playing_replay = true;
+    global_data.playing_replay = true;
     Entity *replay_player_entity = add_player_entity(current_context, &replay_player_data);
     replay_player_entity->flags |= REPLAY_PLAYER;
 }
@@ -2036,10 +2036,10 @@ void load_replay(const char *replay_name) {
 
     size_t read_result = fread(level_replay.input_record.data, sizeof(Replay_Frame_Data), level_replay.input_record.capacity, fptr);
     level_replay.input_record.count = read_result;    
-    level_replay.start_frame = session_context.game_frame_count;
+    level_replay.start_frame = global_data.game_frame_count;
     
     if (read_result != -1) {
-        // session_context.playing_replay = true;
+        // global_data.playing_replay = true;
         // editor_enter_editor_state();
         // enter_and_reload_game_state(current_context, true);
         play_loaded_replay();
@@ -2054,14 +2054,14 @@ void load_temp_replay() {
 
 
 void debug_toggle_play_replay() {
-    session_context.playing_replay = !session_context.playing_replay;
+    global_data.playing_replay = !global_data.playing_replay;
         
-    // if (session_context.playing_replay) {
+    // if (global_data.playing_replay) {
     //     enter_and_reload_game_state(editor_context, true);
     //     play_loaded_replay();
     // }
     
-    builder_append(&console.content_builder, tstring("\t>Replay mode is %s\n", session_context.playing_replay ? "enabled" : "disabled"));
+    builder_append(&console.content_builder, tstring("\t>Replay mode is %s\n", global_data.playing_replay ? "enabled" : "disabled"));
 }
 
 void restart_game() {
@@ -2075,38 +2075,38 @@ void restart_game() {
     }
     
     // player_data->ammo_count = 0;
-    session_context.speedrun_timer.time = 0;        
+    global_data.speedrun_timer.time = 0;        
 }
 
 void begin_level_speedrun() {
-    if (!session_context.speedrun_timer.level_timer_active) {
+    if (!global_data.speedrun_timer.level_timer_active) {
         reload_level();
         // editor_enter_editor_state();
         // enter_and_reload_game_state(current_context, true);
         
-        session_context.speedrun_timer.level_timer_active = true;        
-        session_context.speedrun_timer.game_timer_active  = false;        
-        session_context.speedrun_timer.time = 0;        
+        global_data.speedrun_timer.level_timer_active = true;        
+        global_data.speedrun_timer.game_timer_active  = false;        
+        global_data.speedrun_timer.time = 0;        
     } else {
         disable_speedrun();
     }
 }
 
 void disable_speedrun() {
-    session_context.speedrun_timer.level_timer_active = false;
-    session_context.speedrun_timer.game_timer_active = false;
-    session_context.speedrun_timer.time = 0;
+    global_data.speedrun_timer.level_timer_active = false;
+    global_data.speedrun_timer.game_timer_active = false;
+    global_data.speedrun_timer.time = 0;
 }
 
 void begin_game_speedrun() {
-    if (!session_context.speedrun_timer.game_timer_active) {
+    if (!global_data.speedrun_timer.game_timer_active) {
         restart_game();
         editor_enter_editor_state();
         // enter_and_reload_game_state(current_context, true);
         
-        session_context.speedrun_timer.level_timer_active = false;        
-        session_context.speedrun_timer.game_timer_active  = true;        
-        session_context.speedrun_timer.time = 0;        
+        global_data.speedrun_timer.level_timer_active = false;        
+        global_data.speedrun_timer.game_timer_active  = true;        
+        global_data.speedrun_timer.time = 0;        
     } else {
         disable_speedrun();
     }
@@ -2360,7 +2360,7 @@ void init_context(Context *context) {
     //     Light *light = context->lights.append({0});
     //     // *(light) = {0};
         
-    //     if (i < session_context.temp_lights_count) {
+    //     if (i < global_data.temp_lights_count) {
     //         light->make_shadows             = true;
     //         light->make_backshadows         = true;
     //         light->additional_shadows_flags = 0;
@@ -2369,9 +2369,9 @@ void init_context(Context *context) {
     //         light->birth_time = -12;
             
     //         i32 size = ULTRA_SMALL_LIGHT;
-    //         if (i < session_context.big_temp_lights_count) {
+    //         if (i < global_data.big_temp_lights_count) {
     //             size = BIG_LIGHT;
-    //         } else if (i < session_context.big_temp_lights_count + session_context.huge_temp_lights_count) {
+    //         } else if (i < global_data.big_temp_lights_count + global_data.huge_temp_lights_count) {
     //             size = HUGE_LIGHT;
     //         } else { // So it's usual temp lights
     //             light->make_shadows = false;
@@ -2468,7 +2468,7 @@ void init_game() {
 
     editor_state = EDITOR;
 
-    session_context.entity_lights_start_index = session_context.temp_lights_count; 
+    global_data.entity_lights_start_index = global_data.temp_lights_count; 
     
     render = {0};
     
@@ -2547,12 +2547,12 @@ void clean_up_scene() {
     state_context = {0};
     checkpoint_trigger_id = -1;
     
-    session_context.speedrun_timer.paused = false;
-    if (!session_context.speedrun_timer.game_timer_active) {
-        session_context.speedrun_timer.time = 0;        
+    global_data.speedrun_timer.paused = false;
+    if (!global_data.speedrun_timer.game_timer_active) {
+        global_data.speedrun_timer.time = 0;        
     }
     
-    session_context.entities_draw_queue.clear();
+    global_data.entities_draw_queue.clear();
     
     assign_selected_entity(NULL);
     editor.in_editor_time = 0;
@@ -2697,7 +2697,7 @@ void enter_planning_state() {
 
 void editor_enter_game_state(Context *from_context) {
     state_context = {0};
-    session_context.just_entered_game_state = true;
+    global_data.just_entered_game_state = true;
     core.time.game_time = 0;
     core.time.hitstop = 0;
     core.time.previous_dt = 0;
@@ -2737,7 +2737,7 @@ void editor_enter_editor_state() {
     editor_state = EDITOR;
     state_context = {0};
     
-    session_context.playing_replay = false;
+    global_data.playing_replay = false;
     
     current_context->player_data.dead_man = false; 
     
@@ -2806,7 +2806,7 @@ void fixed_game_update(f32 dt) {
     Player *player_data = &current_context->player_data;
 
     if (editor_state == GAME && !state_context.in_pause_editor) {
-        if (!session_context.playing_replay) {
+        if (!global_data.playing_replay) {
             //record input
             if (level_replay.input_record.count >= MAX_INPUT_RECORDS - 1) {
                 // level_replay.input_record.remove_first_half();
@@ -2816,13 +2816,13 @@ void fixed_game_update(f32 dt) {
                 level_replay.input_record.append({input});
             }
         } else {
-            i32 frame = session_context.game_frame_count - level_replay.start_frame;
+            i32 frame = global_data.game_frame_count - level_replay.start_frame;
             if (frame >= level_replay.input_record.count) {
                 // debug_set_time_scale(0);
-                session_context.playing_replay = false;
+                global_data.playing_replay = false;
             } else {
                 replay_input = level_replay.input_record.get_value(frame).frame_input;
-                // core.time = level_replay.input_record.get_value(session_context.game_frame_count).frame_time_data;
+                // core.time = level_replay.input_record.get_value(global_data.game_frame_count).frame_time_data;
                 rnd_state = replay_input.rnd_state;
             }
         }
@@ -3043,7 +3043,7 @@ void fixed_game_update(f32 dt) {
     input.sum_mouse_delta = Vector2_zero;
     input.sum_mouse_wheel = 0;
     
-    session_context.game_frame_count += 1;
+    global_data.game_frame_count += 1;
 } // end fixed game update
 
 void update_console() {
@@ -3338,16 +3338,16 @@ void update_game() {
     // In game level restart.
     if (editor_state == GAME && !console.is_open) {
         if (IsKeyPressed(KEY_T)) {
-            if (session_context.speedrun_timer.game_timer_active && player_data->dead_man) {
+            if (global_data.speedrun_timer.game_timer_active && player_data->dead_man) {
                 restart_game();
-                session_context.speedrun_timer.time = 0;
-            } else if (session_context.speedrun_timer.level_timer_active) {
+                global_data.speedrun_timer.time = 0;
+            } else if (global_data.speedrun_timer.level_timer_active) {
                 // editor_enter_editor_state();
                 // enter_and_reload_game_state(editor_context, true);
-                session_context.speedrun_timer.time = 0;
+                global_data.speedrun_timer.time = 0;
             } else {
                 b32 is_have_checkpoint = checkpoint_trigger_id > 0;
-                session_context.playing_replay = false;            
+                global_data.playing_replay = false;            
                 // editor_enter_editor_state();
                 if (is_have_checkpoint) {
                     // enter_and_reload_game_state(&checkpoint_context, false);
@@ -3357,7 +3357,7 @@ void update_game() {
                     state_context = checkpoint_state_context;
                     
                     player_data->velocity = Vector2_zero;
-                    session_context.speedrun_timer.time = 0;
+                    global_data.speedrun_timer.time = 0;
                 } else {
                     // enter_and_reload_game_state(editor_context, true);
                     enter_planning_state();
@@ -3467,16 +3467,16 @@ void update_game() {
         core.time.previous_dt = 0;
         
         full_delta = Clamp(full_delta, 0, 0.5f * core.time.time_scale);
-        session_context.updated_today = false;
+        global_data.updated_today = false;
         while (full_delta >= TARGET_FRAME_TIME) {
             core.time.fixed_dt = TARGET_FRAME_TIME;
             core.time.game_time += core.time.fixed_dt;
             fixed_game_update(core.time.fixed_dt);
-            session_context.updated_today = true;
+            global_data.updated_today = true;
             full_delta -= TARGET_FRAME_TIME;
         }
         
-        if (session_context.updated_today) {
+        if (global_data.updated_today) {
             input.hold_flags = 0;
             core.time.not_updated_accumulated_dt = 0;
             input.sum_direction = Vector2_zero;
@@ -3490,21 +3490,21 @@ void update_game() {
     }
     
     // update speedrun timer
-    if (editor_state == GAME && (session_context.speedrun_timer.level_timer_active || session_context.speedrun_timer.game_timer_active)) {
+    if (editor_state == GAME && (global_data.speedrun_timer.level_timer_active || global_data.speedrun_timer.game_timer_active)) {
         Color color = WHITE;
         if (state_context.we_got_a_winner) {
-            session_context.speedrun_timer.paused = true;
+            global_data.speedrun_timer.paused = true;
             color = GREEN;
         } else if (player_data->dead_man) {
             color = RED;
-            session_context.speedrun_timer.paused = true;
+            global_data.speedrun_timer.paused = true;
         }
         
-        if (!session_context.speedrun_timer.paused) {
-            session_context.speedrun_timer.time += core.time.dt;
+        if (!global_data.speedrun_timer.paused) {
+            global_data.speedrun_timer.time += core.time.dt;
         }
         
-        const char *title_and_time = tprintf("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? c_str(current_context->level_name) : "Game speedrun", session_context.speedrun_timer.time);
+        const char *title_and_time = tprintf("%s\n%.4f", global_data.speedrun_timer.level_timer_active ? c_str(current_context->level_name) : "Game speedrun", global_data.speedrun_timer.time);
         Old::make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
     }
     
@@ -3555,13 +3555,13 @@ void update_game() {
         UpdateMusicStream(relas_music);
     }
     
-    session_context.just_entered_game_state = false;
+    global_data.just_entered_game_state = false;
     
     
     // We do this so lights don't bake all at one frame 
-    session_context.baked_shadows_this_frame = false;
+    global_data.baked_shadows_this_frame = false;
     
-    session_context.app_frame_count += 1;
+    global_data.app_frame_count += 1;
 } // update game end
 
 void update_color_changer(Entity *entity, f32 dt) {
@@ -9065,7 +9065,7 @@ i32 update_trigger(Entity *e) {
     
         if (trigger->settings & LOAD_LEVEL) {
             b32 we_on_last_level = str_equal(trigger->level_name, "LAST_LEVEL_MARK");
-            if (we_on_last_level || session_context.speedrun_timer.level_timer_active) {
+            if (we_on_last_level || global_data.speedrun_timer.level_timer_active) {
                 win_level();
             } else {
                 enter_game_state_on_new_level = true;
@@ -9076,7 +9076,7 @@ i32 update_trigger(Entity *e) {
         }
         
         if (trigger->settings & PLAY_REPLAY) {
-            if (!session_context.playing_replay) {
+            if (!global_data.playing_replay) {
                 load_replay(trigger->replay_name);
             }
         }
@@ -9420,7 +9420,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     // update player
     if (e->flags & PLAYER && !debug.dragging_player) {
         if (e->flags & REPLAY_PLAYER) {
-            if (!session_context.playing_replay) {
+            if (!global_data.playing_replay) {
                 mark_entity_destroyed(e);
                 return true;
             }
@@ -10105,7 +10105,7 @@ inline f32 get_turret_charge_progress(Turret *turret) {
 }
 
 void fill_entities_draw_queue() {
-    session_context.entities_draw_queue.clear();
+    global_data.entities_draw_queue.clear();
     
     Entity *player_entity = current_context->player;
     
@@ -10385,10 +10385,10 @@ void fill_entities_draw_queue() {
             entity->visible = true;
         }
         
-        session_context.entities_draw_queue.append(*entity);
+        global_data.entities_draw_queue.append(*entity);
     }
     
-    qsort(session_context.entities_draw_queue.data, session_context.entities_draw_queue.count, sizeof(Entity), compare_entities_draw_order);
+    qsort(global_data.entities_draw_queue.data, global_data.entities_draw_queue.count, sizeof(Entity), compare_entities_draw_order);
 }
 
 #define MAX_LINE_STRIP_POINTS 1024
@@ -10839,7 +10839,7 @@ void draw_entities() {
     fill_entities_draw_queue();
 
     //Hash_Table_Int<Entity> *entities = &current_context->entities;
-    Array <Entity> *entities = &session_context.entities_draw_queue;
+    Array <Entity> *entities = &global_data.entities_draw_queue;
     
     for (i32 entity_index = 0; entity_index < entities->count; entity_index++) {
         Entity *e = entities->get(entity_index);
@@ -10848,7 +10848,7 @@ void draw_entities() {
             continue;
         }
         
-        if (editor_state == GAME && !session_context.updated_today) {
+        if (editor_state == GAME && !global_data.updated_today) {
             //
             // To do that we must know globally that it's imaginary update and don't do anything stupid on this update.
             // We don't want to: React to player actions besides movement. Kill player.
