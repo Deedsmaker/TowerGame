@@ -1184,7 +1184,7 @@ struct Turret_State {
     f32 tick_countdown = 0.2f;
 };
 
-struct State_Context {
+struct State_Context { // @TODO: How can we rename this?
     b32 playing_relax = false;
 
     struct Timers {
