@@ -33,7 +33,7 @@ global_variable Input replay_input = {0};
 #define CELL_SIZE 5
 
 #define MAX_LOADED_LEVELS 2
-global_variable Context loaded_levels_contexts[MAX_LOADED_LEVELS];
+global_variable Context loaded_editor_contexts[MAX_LOADED_LEVELS];
 global_variable Context *editor_context = NULL;
 i32 current_editor_context_index = 0;
 i32 last_loaded_editor_context_index = 0;
@@ -2457,10 +2457,10 @@ void init_game() {
     init_context(&copied_entities_context);
     
     for (i32 i = 0; i < MAX_LOADED_LEVELS; i++) {
-        str_copy(loaded_levels_contexts[i].name, tprintf("editor_context_%d", i));
-        init_context(&loaded_levels_contexts[i]);
+        str_copy(loaded_editor_contexts[i].name, tprintf("editor_context_%d", i));
+        init_context(&loaded_editor_contexts[i]);
     }
-    editor_context = &loaded_levels_contexts[0];
+    editor_context = &loaded_editor_contexts[0];
     
     // player_data = &real_player_data;
     
@@ -5318,13 +5318,13 @@ void update_editor() {
             current_editor_context_index += 1;    
             current_editor_context_index %= MAX_LOADED_LEVELS;    
             
-            Context *next_context = &loaded_levels_contexts[current_editor_context_index];
+            Context *next_context = &loaded_editor_contexts[current_editor_context_index];
             // i32 cycled = 0;
             // while (cycled <= MAX_LOADED_LEVELS && next_context->level_name.count == 0) {
             //     cycled += 1;
             //     current_editor_context_index += 1;    
             //     current_editor_context_index %= MAX_LOADED_LEVELS;    
-            //     next_context = &loaded_levels_contexts[current_editor_context_index];
+            //     next_context = &loaded_editor_contexts[current_editor_context_index];
             // }
             
             if (next_context->level_name.count > 0) {

@@ -701,7 +701,7 @@ b32 load_level(String name) {
         last_loaded_editor_context_index += 1;    
         last_loaded_editor_context_index %= MAX_LOADED_LEVELS;    
     } while (last_loaded_editor_context_index == current_editor_context_index);
-    editor_context = &loaded_levels_contexts[last_loaded_editor_context_index];
+    editor_context = &loaded_editor_contexts[last_loaded_editor_context_index];
     current_editor_context_index = last_loaded_editor_context_index;
     clear_context(editor_context);
     copy_context(editor_context, &loaded_context, true);
