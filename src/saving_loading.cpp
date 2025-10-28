@@ -17,13 +17,13 @@ void save_level(String level_name) {
     { // First of all making file with level info
         String_Builder level_info_builder = make_string_builder(256, temp);
         
-        String spawn_point = tstring("player_spawn_point {%f, %f}\n ", current_level_context->player_spawn_point.x, current_level_context->player_spawn_point.y);
+        String spawn_point = tstring("player_spawn_point {%f, %f}\n ", current_context->player_spawn_point.x, current_context->player_spawn_point.y);
         builder_append(&level_info_builder, spawn_point);
         
         String_Builder lightmaps_builder = make_string_builder(128, temp);
         builder_append(&lightmaps_builder, tstring("lightmaps [ "));
-        for (i32 i = 0; i < current_level_context->lightmaps.count; i++) {
-            Lightmap_Data* l = current_level_context->lightmaps.get(i);
+        for (i32 i = 0; i < current_context->lightmaps.count; i++) {
+            Lightmap_Data* l = current_context->lightmaps.get(i);
             builder_append(&lightmaps_builder, tstring("{ lightmap_position {%f, %f}, lightmap_size {%f, %f}}; ", l->position.x, l->position.y, l->game_size.x, l->game_size.y));
         }
         builder_append(&lightmaps_builder, tstring("];\n ")); 
@@ -34,8 +34,8 @@ void save_level(String level_name) {
     }
     
     // Now saving all entities. Each entity in separate file.
-    for_chunk_array(entity_index, (&current_level_context->entities)) {
-        Entity *e = current_level_context->entities.get(entity_index);
+    for_chunk_array(entity_index, (&current_context->entities)) {
+        Entity *e = current_context->entities.get(entity_index);
         
         if (e->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) {
             continue;
@@ -62,7 +62,7 @@ void save_level(String level_name) {
         builder_append(&builder, tstring("spawn_enemy_when_no_ammo %d \n ", e->spawn_enemy_when_no_ammo));
         
         if (e->lights.count > 0) {
-            Light *light = current_level_context->lights.get(e->lights.get_value(0));
+            Light *light = current_context->lights.get(e->lights.get_value(0));
             builder_append(&builder, tstring("light_shadows_size_flag %d \n ",     light->shadows_size_flags));
             builder_append(&builder, tstring("light_backshadows_size_flag %d \n ", light->backshadows_size_flags));
             builder_append(&builder, tstring("light_make_shadows %d \n ",          light->make_shadows));
@@ -222,8 +222,8 @@ void save_level(String level_name) {
         
         if (e->flags & NOTE) {
             assert(e->note_index != -1);
-            builder_append(&builder, tstring("note_content \" %s \" \n ", current_level_context->notes.get(e->note_index)->content));
-            builder_append(&builder, tstring("note_draw_in_game %d \n ", current_level_context->notes.get(e->note_index)->draw_in_game));
+            builder_append(&builder, tstring("note_content \" %s \" \n ", current_context->notes.get(e->note_index)->content));
+            builder_append(&builder, tstring("note_draw_in_game %d \n ", current_context->notes.get(e->note_index)->draw_in_game));
         }
         
         write_entire_file(tstring("%s/Entity_%s_%d.txt", c_str(level_directory_name), c_str(*e->name), e->id), &builder);
@@ -279,7 +279,7 @@ void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted,
         i = size_index + 2;
         
         if (file_exists(lightmap_name(lightmaps->count))) {
-            lightmap.lightmap_texture = LoadTexture(c_str(lightmap_name(current_level_context->lightmaps.count)));
+            lightmap.lightmap_texture = LoadTexture(c_str(lightmap_name(current_context->lightmaps.count)));
             lightmap.has_loaded_texture = true;
         }
         
@@ -355,10 +355,10 @@ void create_level(String name) {
     }
     
     clean_up_scene();
-    // switch_current_level_context(&loaded_level_context);
-    // clear_level_context(&loaded_level_context);
-    clear_level_context(editor_level_context);
-    editor_level_context->level_name = copy_string(name, &editor_level_context->memory_arena);
+    // switch_current_context(&loaded_context);
+    // clear_context(&loaded_context);
+    clear_context(editor_context);
+    editor_context->level_name = copy_string(name, &editor_context->memory_arena);
     
     // save_level(name);
     editor_enter_editor_state();
@@ -384,14 +384,14 @@ b32 load_level(String name) {
     }
     
     clean_up_scene();
-    switch_current_level_context(&loaded_level_context, true);
-    clear_level_context(&loaded_level_context);
+    switch_current_context(&loaded_context, true);
+    clear_context(&loaded_context);
     
-    if (!(current_level_context->level_name == name)) {
-        session_context.previous_level_name = copy_string(current_level_context->level_name, &current_level_context->memory_arena);
+    if (!(current_context->level_name == name)) {
+        session_context.previous_level_name = copy_string(current_context->level_name, &current_context->memory_arena);
     }
     
-    current_level_context->level_name = copy_string(name, &current_level_context->memory_arena);
+    current_context->level_name = copy_string(name, &current_context->memory_arena);
     
     setup_particles();
     
@@ -422,11 +422,11 @@ b32 load_level(String name) {
         split_string(&splitted, level_info, separators);
         
         i32 spawn_point_index = splitted.find(tstring("player_spawn_point"));
-        if (spawn_point_index >= 0) current_level_context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
+        if (spawn_point_index >= 0) current_context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
         
         i32 lightmaps_index = splitted.find(tstring("lightmaps"));
         if (lightmaps_index > 0) {
-            parse_lightmaps(&current_level_context->lightmaps, &splitted, lightmaps_index + 1);
+            parse_lightmaps(&current_context->lightmaps, &splitted, lightmaps_index + 1);
         }
     }
     
@@ -460,7 +460,7 @@ b32 load_level(String name) {
             
             IF_FIND("flags") dummy_entity.flags = to_u64(splitted.get_value(i+1));
             
-            entity = copy_and_add_entity(&dummy_entity, &loaded_level_context, id);
+            entity = copy_and_add_entity(&dummy_entity, &loaded_context, id);
             
             if (entity->flags & LIGHT) {        
                 // We're adding empty ligh just because on loading we're gonna fill this empty light.
@@ -601,7 +601,7 @@ b32 load_level(String name) {
             // Light loading.
             if (entity->flags & LIGHT) {
                 assert(entity->lights.count > 0);
-                Light *light = current_level_context->lights.get(entity->lights.get_value(0));
+                Light *light = current_context->lights.get(entity->lights.get_value(0));
                 
                 IF_FIND("light_shadows_size_flag")     light->shadows_size_flags = to_i32(splitted.get_value(i+1));
                 IF_FIND("light_backshadows_size_flag") light->backshadows_size_flags = to_i32(splitted.get_value(i+1));
@@ -621,7 +621,7 @@ b32 load_level(String name) {
                 i32 note_content_index = string_find(entity_info, tstring("note_content"));
                 String note_string = parse_string(entity_info, note_content_index, temp);
                 
-                Note *note = current_level_context->notes.get(entity->note_index);
+                Note *note = current_context->notes.get(entity->note_index);
                 str_copy(note->content, c_str(note_string));
                 
                 IF_FIND("note_draw_in_game") note->draw_in_game = to_i32(splitted.get_value(i+1));
@@ -631,7 +631,7 @@ b32 load_level(String name) {
             // depend on exact data that we filled on loading.
             init_entity(entity);
             
-            // Entity *loaded = loaded_entities.insert(*entity, entity->level_context->entities.get_total_occupied_count() - 1);
+            // Entity *loaded = loaded_entities.insert(*entity, entity->context->entities.get_total_occupied_count() - 1);
             // loaded->id = old_id;
         } // End of a entity file scope.
     } // End of a files for loop.
@@ -689,34 +689,34 @@ b32 load_level(String name) {
     //     }
     // }
     
-    setup_context_cam(current_level_context);
-    current_level_context->cam.cam2D.zoom = 0.35f;
+    setup_context_cam(current_context);
+    current_context->cam.cam2D.zoom = 0.35f;
     
     // We do that so editor has latest level in it.
-    // switch_current_level_context(editor_level-cont)e
-    clear_level_context(&game_level_context);
+    // switch_current_context(editor_level-cont)e
+    clear_context(&game_context);
     
     // This shit so that we don't overwrite level that we currently on.
     do {
-        last_loaded_editor_level_context_index += 1;    
-        last_loaded_editor_level_context_index %= MAX_LOADED_LEVELS;    
-    } while (last_loaded_editor_level_context_index == current_editor_level_context_index);
-    editor_level_context = &loaded_levels_contexts[last_loaded_editor_level_context_index];
-    current_editor_level_context_index = last_loaded_editor_level_context_index;
-    clear_level_context(editor_level_context);
-    copy_level_context(editor_level_context, &loaded_level_context, true);
+        last_loaded_editor_context_index += 1;    
+        last_loaded_editor_context_index %= MAX_LOADED_LEVELS;    
+    } while (last_loaded_editor_context_index == current_editor_context_index);
+    editor_context = &loaded_levels_contexts[last_loaded_editor_context_index];
+    current_editor_context_index = last_loaded_editor_context_index;
+    clear_context(editor_context);
+    copy_context(editor_context, &loaded_context, true);
     
-    // log_short(editor_level_context->centipede_segments.first_chunk->occupied_count);
+    // log_short(editor_context->centipede_segments.first_chunk->occupied_count);
     
     editor_enter_editor_state();
     
     // if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
-    //     // enter_and_reload_game_state(&loaded_level_context, true);
+    //     // enter_and_reload_game_state(&loaded_context, true);
         
     //     if (enter_game_state_on_new_level) {
-    //         // current_level_context->player_data->blood_amount = last_player_data.blood_amount;
-    //         // current_level_context->player_data->blood_progress = last_player_data.blood_progress;
-    //         // current_level_context->player_data->ammo_count = last_player_data.ammo_count;
+    //         // current_context->player_data->blood_amount = last_player_data.blood_amount;
+    //         // current_context->player_data->blood_progress = last_player_data.blood_progress;
+    //         // current_context->player_data->ammo_count = last_player_data.ammo_count;
     //     }
         
     //     enter_game_state_on_new_level = false;
@@ -724,8 +724,8 @@ b32 load_level(String name) {
     //     editor_enter_editor_state();
     // }
     
-    current_level_context->cam.position = current_level_context->player_spawn_point;
-    current_level_context->cam.target = current_level_context->player_spawn_point;
+    current_context->cam.position = current_context->player_spawn_point;
+    current_context->cam.target = current_context->player_spawn_point;
     
     clear_allocator(temp);
     

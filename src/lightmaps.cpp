@@ -4,7 +4,7 @@
 f32 pixel_per_unit = 2;
 
 inline String lightmap_name(i32 index){
-    String s = tstring("resources/lightmaps/%s_%d_lightmap.png", c_str(current_level_context->level_name), index);
+    String s = tstring("resources/lightmaps/%s_%d_lightmap.png", c_str(current_context->level_name), index);
     return s;
 }
 
@@ -14,21 +14,21 @@ inline Vector2 get_lightmap_pixel_size(Lightmap_Data* l){
 }
 
 void save_lightmap_to_file(i32 index){
-    Image lightmap_image = LoadImageFromTexture(current_level_context->lightmaps.get_value(index).global_illumination_rt.texture);
+    Image lightmap_image = LoadImageFromTexture(current_context->lightmaps.get_value(index).global_illumination_rt.texture);
     ImageFlipVertical(&lightmap_image); // Flipping becauase render textures in the raylib appears mirrored for some reason.
     ExportImage(lightmap_image, c_str(lightmap_name(index)));
     UnloadImage(lightmap_image);
 }
 
 void save_lightmaps_to_file(){
-    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+    for (i32 i = 0; i < current_context->lightmaps.count; i++){
         save_lightmap_to_file(i);
     }
 }
 
 void load_lightmap_render_textures(i32 index){
-    assert(index < current_level_context->lightmaps.count);
-    Lightmap_Data* l = current_level_context->lightmaps.get(index);
+    assert(index < current_context->lightmaps.count);
+    Lightmap_Data* l = current_context->lightmaps.get(index);
     
     Vector2 pixel_size = get_lightmap_pixel_size(l);
     
@@ -42,33 +42,33 @@ void load_lightmap_render_textures(i32 index){
 }
 
 void load_lightmaps(){
-    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
-        Lightmap_Data* l = current_level_context->lightmaps.get(i);
+    for (i32 i = 0; i < current_context->lightmaps.count; i++){
+        Lightmap_Data* l = current_context->lightmaps.get(i);
         
         load_lightmap_render_textures(i);
 
         // Doing it in cycle so it become true only if there was at least one.
-        current_level_context->lightmaps_render_textures_loaded = true;
+        current_context->lightmaps_render_textures_loaded = true;
     }
 }
 
 inline void unload_lightmap_render_textures(i32 index){
-    assert(index < current_level_context->lightmaps.count);
+    assert(index < current_context->lightmaps.count);
 
-    UnloadRenderTexture(current_level_context->lightmaps.get(index)->global_illumination_rt);
-    UnloadRenderTexture(current_level_context->lightmaps.get(index)->emitters_occluders_rt);
-    UnloadRenderTexture(current_level_context->lightmaps.get(index)->distance_field_rt);
-    UnloadRenderTexture(current_level_context->lightmaps.get(index)->normal_rt);
-    UnloadRenderTexture(current_level_context->lightmaps.get(index)->static_textures_rt);
-    UnloadRenderTexture(current_level_context->lightmaps.get(index)->voronoi_seed_rt);
-    UnloadRenderTexture(current_level_context->lightmaps.get(index)->jump_flood_rt);
+    UnloadRenderTexture(current_context->lightmaps.get(index)->global_illumination_rt);
+    UnloadRenderTexture(current_context->lightmaps.get(index)->emitters_occluders_rt);
+    UnloadRenderTexture(current_context->lightmaps.get(index)->distance_field_rt);
+    UnloadRenderTexture(current_context->lightmaps.get(index)->normal_rt);
+    UnloadRenderTexture(current_context->lightmaps.get(index)->static_textures_rt);
+    UnloadRenderTexture(current_context->lightmaps.get(index)->voronoi_seed_rt);
+    UnloadRenderTexture(current_context->lightmaps.get(index)->jump_flood_rt);
 }
 
 void unload_lightmaps(){
-    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+    for (i32 i = 0; i < current_context->lightmaps.count; i++){
         unload_lightmap_render_textures(i);
     }
-    current_level_context->lightmaps_render_textures_loaded = false;
+    current_context->lightmaps_render_textures_loaded = false;
 }
 
 struct Bake_Settings{
@@ -95,21 +95,21 @@ void bake_lightmaps_if_need(){
         assign_selected_entity(NULL);
     
         currently_baking_index += 1;
-        if (currently_baking_index >= current_level_context->lightmaps.count){
+        if (currently_baking_index >= current_context->lightmaps.count){
             currently_baking_index = -1;
         }
         
         // All unloading of previous textures should happen here.
         if (bake_only_one_index > -1){
             currently_baking_index = bake_only_one_index;
-            Lightmap_Data* l = current_level_context->lightmaps.get(bake_only_one_index);
+            Lightmap_Data* l = current_context->lightmaps.get(bake_only_one_index);
             if (l->has_loaded_texture){
                 UnloadTexture(l->lightmap_texture);
                 l->has_loaded_texture = false;
             }
         } else{
-            for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
-                Lightmap_Data* l = current_level_context->lightmaps.get(i);
+            for (i32 i = 0; i < current_context->lightmaps.count; i++){
+                Lightmap_Data* l = current_context->lightmaps.get(i);
                 if (l->has_loaded_texture){
                     UnloadTexture(l->lightmap_texture);
                     l->has_loaded_texture = false;
@@ -135,7 +135,7 @@ void bake_lightmaps_if_need(){
     
     // We do this calculations only on very first bake progress, right after button press.
     // Because here we're drawing all the emitters/occlusions/normal_maps that will be used for calculating GI.
-    for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.capacity && need_to_bake; lightmap_index++){
+    for (i32 lightmap_index = 0; lightmap_index < current_context->lightmaps.capacity && need_to_bake; lightmap_index++){
         if (lightmap_index != currently_baking_index){
             continue;
         }
@@ -145,7 +145,7 @@ void bake_lightmaps_if_need(){
             continue;
         }
     
-        Lightmap_Data* lightmap_data = current_level_context->lightmaps.get(lightmap_index);
+        Lightmap_Data* lightmap_data = current_context->lightmaps.get(lightmap_index);
         RenderTexture* emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture* distance_field_rt = &lightmap_data->distance_field_rt;
         RenderTexture* normal_rt = &lightmap_data->normal_rt;
@@ -157,13 +157,13 @@ void bake_lightmaps_if_need(){
         
         Vector2 pixel_size = get_lightmap_pixel_size(lightmap_data);
         
-        current_level_context->cam = get_cam_for_resolution(pixel_size.x, pixel_size.y);
-        current_level_context->cam.position = lightmap_data->position;
-        current_level_context->cam.view_position = lightmap_data->position;
-        current_level_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
+        current_context->cam = get_cam_for_resolution(pixel_size.x, pixel_size.y);
+        current_context->cam.position = lightmap_data->position;
+        current_context->cam.view_position = lightmap_data->position;
+        current_context->cam.cam2D.zoom = get_light_zoom(lightmap_data->game_size.x);
         
         BeginTextureMode(*normal_rt);{
-            BeginMode2D(current_level_context->cam.cam2D);{
+            BeginMode2D(current_context->cam.cam2D);{
             ClearBackground(Fade(BLACK, 0));
             
             ForEntities(texture_entity, TEXTURE){
@@ -179,7 +179,7 @@ void bake_lightmaps_if_need(){
         } EndTextureMode();
         
         BeginTextureMode(*static_textures_rt);{
-            BeginMode2D(current_level_context->cam.cam2D);{
+            BeginMode2D(current_context->cam.cam2D);{
             ClearBackground(Fade(BLACK, 0));
             
             ForEntities(texture_entity, TEXTURE){
@@ -191,7 +191,7 @@ void bake_lightmaps_if_need(){
         } EndTextureMode();
         
         BeginTextureMode(*emitters_occluders_rt);{
-        BeginMode2D(current_level_context->cam.cam2D);
+        BeginMode2D(current_context->cam.cam2D);
         ClearBackground(Fade(BLACK, 0.0f));
         BeginBlendMode(BLEND_ALPHA);
             ForEntities(entity2, GROUND){   
@@ -209,7 +209,7 @@ void bake_lightmaps_if_need(){
             ForEntities(entity, LIGHT){   
                 if (entity->flags & LIGHT){
                     assert(entity->lights.count > 0);
-                    Light *light = current_level_context->lights.get(entity->lights.get_value(0));
+                    Light *light = current_context->lights.get(entity->lights.get_value(0));
                     if (light->bake_shadows){
                         if (entity->flags & TEXTURE){
                             draw_game_texture(entity->texture, entity->position, entity->scale, entity->pivot, entity->rotation, Fade(light->color, light->opacity));
@@ -223,7 +223,7 @@ void bake_lightmaps_if_need(){
         EndMode2D();
         } EndTextureMode();
         
-        current_level_context->cam = with_shake_cam;
+        current_context->cam = with_shake_cam;
         
         BeginTextureMode(*voronoi_rt);{
             ClearBackground({0, 0, 0, 0});
@@ -288,7 +288,7 @@ void bake_lightmaps_if_need(){
     // At this point we computed emitters/occluders and distnace fields for every lightmap.
     // Now we do real global illumination work and we will need this info for calculating neighbours.
     // (we're not calculating neighbours anymore).
-    for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.capacity; lightmap_index++){
+    for (i32 lightmap_index = 0; lightmap_index < current_context->lightmaps.capacity; lightmap_index++){
         // Baking one at the time to see that something is happening.
         // if (lightmap_index != currently_baking_index){
         //     continue;
@@ -300,7 +300,7 @@ void bake_lightmaps_if_need(){
         
         bake_progress += 0.05f;
     
-        Lightmap_Data *lightmap_data         = current_level_context->lightmaps.get(lightmap_index);
+        Lightmap_Data *lightmap_data         = current_context->lightmaps.get(lightmap_index);
         RenderTexture *gi_rt                 = &lightmap_data->global_illumination_rt;
         RenderTexture *emitters_occluders_rt = &lightmap_data->emitters_occluders_rt;
         RenderTexture *distance_field_rt     = &lightmap_data->distance_field_rt;
@@ -356,20 +356,20 @@ void bake_lightmaps_if_need(){
     }
     
     if (bake_progress >= 1){
-        assert(currently_baking_index > -1 && currently_baking_index < current_level_context->lightmaps.count);
+        assert(currently_baking_index > -1 && currently_baking_index < current_context->lightmaps.count);
         
         save_lightmap_to_file(currently_baking_index);
         
         unload_lightmap_render_textures(currently_baking_index);
         
         // We unloaded this when started.
-        assert(current_level_context->lightmaps.get(currently_baking_index)->has_loaded_texture == false);
-        current_level_context->lightmaps.get(currently_baking_index)->lightmap_texture = LoadTexture(c_str(lightmap_name(currently_baking_index)));
-        current_level_context->lightmaps.get(currently_baking_index)->has_loaded_texture = true;
+        assert(current_context->lightmaps.get(currently_baking_index)->has_loaded_texture == false);
+        current_context->lightmaps.get(currently_baking_index)->lightmap_texture = LoadTexture(c_str(lightmap_name(currently_baking_index)));
+        current_context->lightmaps.get(currently_baking_index)->has_loaded_texture = true;
         
         currently_baking_index += 1;
         
-        if (currently_baking_index >= current_level_context->lightmaps.count){
+        if (currently_baking_index >= current_context->lightmaps.count){
             currently_baking_index = -1;
         }
         
@@ -402,10 +402,10 @@ void make_lightmap_settings_panel(){
 
     Old::begin_panel({5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.4f}, Fade(SKYBLUE, 0.4f), "lightmap_settings_panel");
         
-    Old::make_panel_text(tprintf("Lightmaps count: %d", current_level_context->lightmaps.count), "lightmap_count_panel_text");
+    Old::make_panel_text(tprintf("Lightmaps count: %d", current_context->lightmaps.count), "lightmap_count_panel_text");
     
     if (Old::make_panel_button("Add lightmap", "add_lightmap_button")){
-        current_level_context->lightmaps.append({});
+        current_context->lightmaps.append({});
     }
     
     local_persist i32 lightmap_level = 0;
@@ -436,7 +436,7 @@ void make_lightmap_settings_panel(){
     
     i32 hovered_index = -1;
     
-    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
+    for (i32 i = 0; i < current_context->lightmaps.count; i++){
         Old::make_panel_text(tprintf("Lightmap: %d", i+1), tprintf("lightmap_text_%d", i+1));
         Old::panel_indent();
         
@@ -474,7 +474,7 @@ void make_lightmap_settings_panel(){
         if (Old::make_panel_button(tprintf("Remove lightmap %d", i+1), tprintf("remove_lightmap_%d", i+1))){
             unload_lightmap_render_textures(i);
             
-            current_level_context->lightmaps.remove(i);
+            current_context->lightmaps.remove(i);
             editor.editing_lightmap = false;
         }
         
@@ -487,16 +487,16 @@ void make_lightmap_settings_panel(){
     
     if (editor.picking_lightmap_position && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !clicked_ui){
         assert(editor.editing_lightmap_index != -1);
-        assert(editor.editing_lightmap_index < current_level_context->lightmaps.count);
-        current_level_context->lightmaps.get(editor.editing_lightmap_index)->position = round_to_factor(input.mouse_position, CELL_SIZE);
+        assert(editor.editing_lightmap_index < current_context->lightmaps.count);
+        current_context->lightmaps.get(editor.editing_lightmap_index)->position = round_to_factor(input.mouse_position, CELL_SIZE);
     }
     
     // Making size choosing panel.
     if (editor.editing_lightmap){
         Old::begin_panel({screen_width * 0.15f + 5, screen_height * 0.2f}, {screen_width * 0.15f, screen_height * 0.3f}, Fade(GREEN, 0.4f), "lightam_editing_panel");
         
-        assert(editor.editing_lightmap_index > -1 && editor.editing_lightmap_index < current_level_context->lightmaps.count);
-        Lightmap_Data* l = current_level_context->lightmaps.get(editor.editing_lightmap_index);
+        assert(editor.editing_lightmap_index > -1 && editor.editing_lightmap_index < current_context->lightmaps.count);
+        Lightmap_Data* l = current_context->lightmaps.get(editor.editing_lightmap_index);
         Old::make_panel_text(tprintf("Position : {%.0f, %.0f}", l->position.x, l->position.y), "editing_lightmap_position");
         Old::make_panel_text(tprintf("Game size: {%.0f, %.0f}", l->game_size.x, l->game_size.y), "editing_lightmap_gamesize");
         
@@ -540,10 +540,10 @@ inline void draw_game_lightmap_editing(){
         assert(hovered_edit_button_index > -1);
         index = hovered_edit_button_index;
     }
-    assert(index < current_level_context->lightmaps.count);
+    assert(index < current_context->lightmaps.count);
     
-    for (i32 i = 0; i < current_level_context->lightmaps.count; i++){
-        Lightmap_Data* l = current_level_context->lightmaps.get(i);
+    for (i32 i = 0; i < current_context->lightmaps.count; i++){
+        Lightmap_Data* l = current_context->lightmaps.get(i);
         f32 fade_progress = ((sinf(core.time.app_time * 2) + 1) * 0.5f + 0.2f) * 0.4f;
         
         // Index is lightmap that we currently editing, but we want to see others aswell.

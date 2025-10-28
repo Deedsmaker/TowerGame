@@ -21,16 +21,16 @@ global_variable Drawing_State drawing_state = CAMERA_DRAWING;
 
 inline void add_rect_vertices(Static_Array<Vector2, MAX_VERTICES> *vertices, Vector2 pivot);
 
-void switch_current_level_context(Level_Context *target, b32 clear_stuff = false);
-void clear_level_context(Level_Context *level_context);
-void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init_entities);
+void switch_current_context(Context *target, b32 clear_stuff = false);
+void clear_context(Context *context);
+void copy_context(Context *dest, Context *src, b32 should_init_entities);
 void clean_up_scene();
-// void enter_and_reload_game_state(Level_Context *from_level_context, b32 should_init_entities);
-void editor_enter_game_state(Level_Context *from_level_context);
+// void enter_and_reload_game_state(Context *from_context, b32 should_init_entities);
+void editor_enter_game_state(Context *from_context);
 void enter_planning_state();
 void enter_gaming_state();
 
-void editor_enter_game_state(Level_Context *from_level_context);
+void editor_enter_game_state(Context *from_context);
 void editor_enter_editor_state();
 
 void bird_clear_formation(Bird_Enemy *bird);
@@ -44,7 +44,7 @@ void assign_selected_entity(Entity *new_selected);
 
 void close_create_box();
 
-inline void check_entities_that_should_be_destroyed(Level_Context *level_context);
+inline void check_entities_that_should_be_destroyed(Context *context);
 
 // void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
@@ -54,13 +54,13 @@ Bounds get_cam_bounds(Cam cam, f32 zoom);
 Cam get_cam_for_resolution(i32 width, i32 height);
 inline f32 get_light_zoom(f32 radius);
 
-void setup_context_cam(Level_Context *level_context);
+void setup_context_cam(Context *context);
 
-inline Light *get_light(i32 index, Level_Context *level_context = NULL);
-inline Entity *get_entity(i32 id, Level_Context *level_context = NULL);
+inline Light *get_light(i32 index, Context *context = NULL);
+inline Entity *get_entity(i32 id, Context *context = NULL);
 inline String temp_entity_name(Entity *entity);
 String get_entity_name(Entity *entity, Allocator *allocator);
-inline Entity *maybe_get_entity(i32 id, Level_Context *level_context = NULL);
+inline Entity *maybe_get_entity(i32 id, Context *context = NULL);
 
 Vector2 get_entity_velocity(Entity *entity);
 
@@ -169,7 +169,7 @@ b32 check_col_circles(Circle a, Circle b);
 void print_to_console(const char *text);
 void print_hotkeys_to_console();
 
-inline int next_entity_avaliable(Level_Context *level_context, int index, Entity **entity, FLAGS flags);
+inline int next_entity_avaliable(Context *context, int index, Entity **entity, FLAGS flags);
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale);
 
@@ -240,9 +240,9 @@ void add_rifle_projectile(Vector2 start_position, Vector2 velocity);
 
 void check_avaliable_ids_and_set_if_found(i32 *id);
 
-Entity *add_player_entity(Level_Context *level_context, Player *data);
+Entity *add_player_entity(Context *context, Player *data);
 
-Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 id_to_insert = 0);
+Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32 id_to_insert = 0);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags);

@@ -18,7 +18,7 @@ global_variable Array <Collision> collisions_buffer; // Should probably reserve 
 
 // #define ForEntities(entityext_avaliable(table, 0);  xx < table.capacity; xx = table_next_avaliable(table, xx+0))
 
-#define ForEntities(entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(current_level_context, 0, &entity, flags); index < current_level_context->entities.chunks_count * current_level_context->entities.chunk_size && entity; index = next_entity_avaliable(current_level_context, index+1, &entity, flags)) 
+#define ForEntities(entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(current_context, 0, &entity, flags); index < current_context->entities.chunks_count * current_context->entities.chunk_size && entity; index = next_entity_avaliable(current_context, index+1, &entity, flags)) 
 
 #define ForEntitiesInContext(context, entity, flags) Entity *entity = NULL; for (i32 index = next_entity_avaliable(context, 0, &entity, flags); index < context->entities.chunks_count * context->entities.chunk_size && entity; index = next_entity_avaliable(context, index+1, &entity, flags)) 
 
@@ -28,23 +28,23 @@ global_variable Array <Collision> collisions_buffer; // Should probably reserve 
 
 global_variable Input input = {0};
 global_variable Input replay_input = {0};
-// global_variable Level_Context editor_level_context = {0};
+// global_variable Context editor_context = {0};
 
 #define CELL_SIZE 5
 
 #define MAX_LOADED_LEVELS 2
-global_variable Level_Context loaded_levels_contexts[MAX_LOADED_LEVELS];
-global_variable Level_Context *editor_level_context = NULL;
-i32 current_editor_level_context_index = 0;
-i32 last_loaded_editor_level_context_index = 0;
+global_variable Context loaded_levels_contexts[MAX_LOADED_LEVELS];
+global_variable Context *editor_context = NULL;
+i32 current_editor_context_index = 0;
+i32 last_loaded_editor_context_index = 0;
 
-global_variable Level_Context game_level_context = {0};
-global_variable Level_Context planning_level_context = {0};
-global_variable Level_Context checkpoint_level_context = {0};
-global_variable Level_Context loaded_level_context = {0};
-global_variable Level_Context undo_level_context = {0};
-global_variable Level_Context copied_entities_level_context = {0};
-global_variable Level_Context *current_level_context = NULL;
+global_variable Context game_context = {0};
+global_variable Context planning_context = {0};
+global_variable Context checkpoint_context = {0};
+global_variable Context loaded_context = {0};
+global_variable Context undo_context = {0};
+global_variable Context copied_entities_context = {0};
+global_variable Context *current_context = NULL;
 global_variable State_Context state_context = {0};
 global_variable Session_Context session_context = {0};
 
@@ -164,24 +164,24 @@ inline void log_short(Vector2 value) {
 #include "undo.cpp"
 #include "saving_loading.cpp"
 
-void setup_context_cam(Level_Context *level_context) {
-    level_context->cam.width = global_cam_data.width;
-    level_context->cam.height = global_cam_data.height;
-    level_context->cam.unit_size = global_cam_data.width / SCREEN_WORLD_SIZE; 
-    level_context->cam.cam2D.target = cast(Vector2) { global_cam_data.width/2.0f, global_cam_data.height/2.0f };
-    level_context->cam.cam2D.offset = cast(Vector2) { global_cam_data.width/2.0f, global_cam_data.height/2.0f };
-    // level_context->cam = global_cam_data;
+void setup_context_cam(Context *context) {
+    context->cam.width = global_cam_data.width;
+    context->cam.height = global_cam_data.height;
+    context->cam.unit_size = global_cam_data.width / SCREEN_WORLD_SIZE; 
+    context->cam.cam2D.target = cast(Vector2) { global_cam_data.width/2.0f, global_cam_data.height/2.0f };
+    context->cam.cam2D.offset = cast(Vector2) { global_cam_data.width/2.0f, global_cam_data.height/2.0f };
+    // context->cam = global_cam_data;
 }
 
-void switch_current_level_context(Level_Context *target, b32 clear_stuff) {
+void switch_current_context(Context *target, b32 clear_stuff) {
     if (clear_stuff) {
         clear_multiselected_entities();
     }
 
-    current_level_context = target;
-    setup_context_cam(current_level_context);
+    current_context = target;
+    setup_context_cam(current_context);
     
-    player_data = &current_level_context->player_data;
+    player_data = &current_context->player_data;
 }
 
 inline Color color_fade(Color color, f32 alpha_multiplier) {
@@ -223,7 +223,7 @@ void free_entity(Entity *e) {
             e->trigger->cam_rails_points.free_data();
         }
         
-        e->level_context->triggers.remove(e->trigger->index);
+        e->context->triggers.remove(e->trigger->index);
         e->propeller = NULL;
     }
     
@@ -233,7 +233,7 @@ void free_entity(Entity *e) {
         
         e->move_sequence->points.free_data();
         
-        e->level_context->move_sequences.remove(e->move_sequence->index);
+        e->context->move_sequences.remove(e->move_sequence->index);
         e->move_sequence = NULL;
     }
     
@@ -241,21 +241,21 @@ void free_entity(Entity *e) {
     if (e->flags & STICKY_TEXTURE) {
         assert(e->sticky_texture && e->sticky_texture->index > -1);
         
-        e->level_context->sticky_textures.remove(e->sticky_texture->index);
+        e->context->sticky_textures.remove(e->sticky_texture->index);
         e->sticky_texture = NULL;
     }
     
     // free propeller.
     if (e->flags & PROPELLER) {
         assert(e->propeller && e->propeller->index >= 0);
-        e->level_context->propellers.remove(e->propeller->index);
+        e->context->propellers.remove(e->propeller->index);
         e->propeller = NULL;
     }
     
     // free turret->
     if (e->flags & TURRET) {
         assert(e->turret && e->turret->index >= 0);
-        e->level_context->turrets.remove(e->turret->index);
+        e->context->turrets.remove(e->turret->index);
         e->turret = NULL;
     }
     
@@ -265,7 +265,7 @@ void free_entity(Entity *e) {
     
         bird_clear_formation(e->bird_enemy);
         
-        e->level_context->bird_enemies.remove(e->bird_enemy->index);
+        e->context->bird_enemies.remove(e->bird_enemy->index);
         e->bird_enemy = NULL;
     }
     
@@ -275,7 +275,7 @@ void free_entity(Entity *e) {
     
         e->kill_switch->connected.free_data();    
         
-        e->level_context->kill_switches.remove(e->kill_switch->index);
+        e->context->kill_switches.remove(e->kill_switch->index);
         e->kill_switch = NULL;
     }
     
@@ -283,7 +283,7 @@ void free_entity(Entity *e) {
     if (e->flags & CENTIPEDE_SEGMENT) {
         assert(e->centipede_segment && e->centipede_segment->index >= 0);
         
-        e->level_context->centipede_segments.remove(e->centipede_segment->index);
+        e->context->centipede_segments.remove(e->centipede_segment->index);
         e->centipede_segment = NULL;
     }
     
@@ -297,7 +297,7 @@ void free_entity(Entity *e) {
         
         e->centipede->segments.free_data();
         
-        e->level_context->centipedes.remove(e->centipede->index);
+        e->context->centipedes.remove(e->centipede->index);
         e->centipede = NULL;
     }
     
@@ -305,7 +305,7 @@ void free_entity(Entity *e) {
     if (e->flags & JUMP_SHOOTER) {
         e->jump_shooter->move_points.free_data();
         
-        e->level_context->jump_shooters.remove(e->jump_shooter->index);
+        e->context->jump_shooters.remove(e->jump_shooter->index);
         e->jump_shooter = NULL;
     }
     
@@ -322,7 +322,7 @@ void free_entity(Entity *e) {
         
         assert(e->union_enemy->index >= 0);
         
-        e->level_context->just_enemies.remove(e->union_enemy->index);
+        e->context->just_enemies.remove(e->union_enemy->index);
         e->union_enemy = NULL;
     }
     
@@ -330,7 +330,7 @@ void free_entity(Entity *e) {
     if (e->flags & PROJECTILE && e->projectile) {
         assert(e->projectile->index >= 0);
         
-        e->level_context->projectiles.remove(e->projectile->index);
+        e->context->projectiles.remove(e->projectile->index);
         e->projectile = NULL;
     }
     
@@ -338,7 +338,7 @@ void free_entity(Entity *e) {
     
     free_entity_particle_emitters(e);
     
-    e->level_context->entities.remove(e->id - 1);
+    e->context->entities.remove(e->id - 1);
 } // Free entity end.
 
 inline void add_rect_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
@@ -424,7 +424,7 @@ Entity make_entity(Vector2 _pos) {
     change_scale(&e, {1, 1});
     setup_color_changer(&e);
     
-    e.level_context = current_level_context;
+    e.context = current_context;
     
     return e;
 }
@@ -442,7 +442,7 @@ Entity make_entity(Vector2 _pos, Vector2 _scale) {
     change_scale(&e, _scale);
     setup_color_changer(&e);
     
-    e.level_context = current_level_context;
+    e.context = current_context;
     
     return e;
 }
@@ -458,7 +458,7 @@ Entity make_entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags) {
     change_scale(&e, _scale);
     setup_color_changer(&e);
     
-    e.level_context = current_level_context;
+    e.context = current_context;
     
     return e;
 }
@@ -479,7 +479,7 @@ Entity make_entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, 
     change_scale(&e, _scale);
     setup_color_changer(&e);
     
-    e.level_context = current_level_context;
+    e.context = current_context;
     
     return e;
 }
@@ -503,7 +503,7 @@ Entity make_entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, 
     change_scale(&e, _scale);
     setup_color_changer(&e);
     
-    e.level_context = current_level_context;
+    e.context = current_context;
     
     return e;
 }
@@ -558,7 +558,7 @@ i32 add_particle_emitter(Particle_Emitter *copy, i32 entity_id) {
     i32 emitter_index = -1;  
     i32 occupied_count = 0;
     for (i32 i = start_index; i < max_index; i++) {
-        Particle_Emitter *emitter = current_level_context->particle_emitters.get(i);
+        Particle_Emitter *emitter = current_context->particle_emitters.get(i);
         if (!emitter->occupied) {
             *emitter = *copy;
             emitter->occupied = true;
@@ -606,12 +606,12 @@ inline i32 add_and_enable_entity_particle_emitter(Entity *entity, Particle_Emitt
 }
 
 Particle_Emitter *get_particle_emitter(i32 index) {
-    if (index < 0 || index >= current_level_context->particle_emitters.capacity) {
+    if (index < 0 || index >= current_context->particle_emitters.capacity) {
         printf("WARNING: Tried to get particle emitter with bad index: %d\n", index);
         return NULL;
     }
     
-    Particle_Emitter *emitter = current_level_context->particle_emitters.get(index);
+    Particle_Emitter *emitter = current_context->particle_emitters.get(index);
     if (!emitter->occupied) {
         print("WARNING: In get_particle_emitter we just took un-occupied emitter. Don't think that should happen");
     }
@@ -621,10 +621,10 @@ Particle_Emitter *get_particle_emitter(i32 index) {
 
 i32 add_note(const char *content) {
     i32 note_index = -1;
-    for (i32 i = 0; i < current_level_context->notes.capacity; i++) {
-        if (!current_level_context->notes.get(i)->occupied) {
-            current_level_context->notes.get(i)->occupied = true;
-            str_copy(current_level_context->notes.get(i)->content, content);
+    for (i32 i = 0; i < current_context->notes.capacity; i++) {
+        if (!current_context->notes.get(i)->occupied) {
+            current_context->notes.get(i)->occupied = true;
+            str_copy(current_context->notes.get(i)->content, content);
             note_index = i;
             break;
         }
@@ -637,10 +637,10 @@ i32 add_note(const char *content) {
     return note_index;
 }
 
-void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init_entities) {
+void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     // *dest = *src;
-    Level_Context *original_level_context = current_level_context;
-    switch_current_level_context(dest);
+    Context *original_context = current_context;
+    switch_current_context(dest);
     
     // Editor_State original_game_state = editor_state;
     // editor_state = EDITOR;
@@ -654,7 +654,7 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         // So when se init entities - we clear particle emitters, because they will be added again. 
         // When we don't init entities - we copy emitters (and entity indexes are staying the same).
         
-        ArrayOfStructsToDefaultValues(current_level_context->particle_emitters);       
+        ArrayOfStructsToDefaultValues(current_context->particle_emitters);       
     }
     
     for (i32 i = 0; i < src->particle_emitters.capacity; i++) {
@@ -703,82 +703,82 @@ void copy_level_context(Level_Context *dest, Level_Context *src, b32 should_init
         dest->lightmaps.append(src->lightmaps.get_value(i));
     }
     
-    switch_current_level_context(original_level_context);
+    switch_current_context(original_context);
     // editor_state = original_game_state;
 }
 
-void clear_level_context(Level_Context *level_context) {
+void clear_context(Context *context) {
     // Remember that currently we init level context only in very beginnning, so nobody should set inited to false.
-    assert(level_context->inited);
+    assert(context->inited);
 
-    Level_Context *original_level_context = current_level_context;
-    switch_current_level_context(level_context);
+    Context *original_context = current_context;
+    switch_current_context(context);
     ForEntities(entity, 0) {
         free_entity(entity);
         *entity = {0};
     }
     
-    level_context->initially_simulated = false;
+    context->initially_simulated = false;
     
-    level_context->player = NULL;
-    level_context->player_data = {0};
+    context->player = NULL;
+    context->player_data = {0};
     
-    level_context->entities.clear();
+    context->entities.clear();
     
-    level_context->propellers.clear();
-    level_context->triggers.clear();
-    level_context->sticky_textures.clear();
-    level_context->move_sequences.clear();
-    level_context->bird_enemies.clear();
-    level_context->jump_shooters.clear();
-    level_context->kill_switches.clear();
-    level_context->turrets.clear();
+    context->propellers.clear();
+    context->triggers.clear();
+    context->sticky_textures.clear();
+    context->move_sequences.clear();
+    context->bird_enemies.clear();
+    context->jump_shooters.clear();
+    context->kill_switches.clear();
+    context->turrets.clear();
     
-    level_context->projectiles.clear();
+    context->projectiles.clear();
     
-    level_context->just_enemies.clear();
+    context->just_enemies.clear();
     
-    level_context->centipedes.clear();
-    level_context->centipede_segments.clear();
+    context->centipedes.clear();
+    context->centipede_segments.clear();
     
-    level_context->level_name.free_data();
-    level_context->level_name = {0};
+    context->level_name.free_data();
+    context->level_name = {0};
     
     // Id 0 is invalid for good reasons, so we're adding it here.
     // Entity dummy_entity = {0};
-    // copy_and_add_entity(&dummy_entity, level_context);
+    // copy_and_add_entity(&dummy_entity, context);
     
-    // level_context->particles.clear();
-    // level_context->emitters.clear();
+    // context->particles.clear();
+    // context->emitters.clear();
     
     // We do that instead of clearing because this things are using it's full capacity and not count. Count should be equal
     // to capactiy for them. That probably should change some time.
-    ArrayOfStructsToDefaultValues(level_context->particle_emitters);
-    ArrayOfStructsToDefaultValues(level_context->particles);
-    ArrayOfStructsToDefaultValues(level_context->notes);
+    ArrayOfStructsToDefaultValues(context->particle_emitters);
+    ArrayOfStructsToDefaultValues(context->particles);
+    ArrayOfStructsToDefaultValues(context->notes);
     
-    for_chunk_array(i, &level_context->lights) {
-        free_light(get_light(i, level_context), i, level_context);
+    for_chunk_array(i, &context->lights) {
+        free_light(get_light(i, context), i, context);
     }
-    level_context->lights.clear();
+    context->lights.clear();
     
-    // for (i32 i = 0; i < level_context->lights.capacity; i++) {
-    //     level_context->lights.get(i)->exists = false;
+    // for (i32 i = 0; i < context->lights.capacity; i++) {
+    //     context->lights.get(i)->exists = false;
     //     if (i >= session_context.entity_lights_start_index) {
-    //         free_light(level_context->lights.get(i));       
-    //         *(level_context->lights.get(i)) = {0};
+    //         free_light(context->lights.get(i));       
+    //         *(context->lights.get(i)) = {0};
     //     } else { // So we in temp lights section
     //     }
     // }
     
-    current_level_context->lightmaps.clear();
+    current_context->lightmaps.clear();
     
-    // level_context->we_got_a_winner = false;
+    // context->we_got_a_winner = false;
     // player_data = {0};
     
-    clear_allocator(&level_context->memory_arena);
+    clear_allocator(&context->memory_arena);
     
-    switch_current_level_context(original_level_context);
+    switch_current_context(original_context);
 }
 
 
@@ -803,11 +803,11 @@ inline b32 set_next_collision_stuff(i32 current_index, Collision *col, Entity **
 // It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_affected_collision_cells).
 global_variable Array <Collision_Grid_Cell*> collision_cells_buffer = {0};
 
-Entity *spawn_object_by_name(const char* name, Vector2 position, Level_Context *level_context) {
+Entity *spawn_object_by_name(const char* name, Vector2 position, Context *context) {
     for (i32 i = 0; i < spawn_objects.count; i++) {
         Spawn_Object *obj = spawn_objects.get(i);
         if (str_equal(obj->name, name)) {
-            Entity *e = copy_and_add_entity(&obj->entity, level_context);
+            Entity *e = copy_and_add_entity(&obj->entity, context);
             e->position = position;
             return e;
         }
@@ -819,24 +819,24 @@ Entity *spawn_object_by_name(const char* name, Vector2 position, Level_Context *
 
 void bird_clear_formation(Bird_Enemy *bird) {
     if (bird->slot_index != -1) {
-        current_level_context->bird_slots[bird->slot_index].occupied = false;
+        current_context->bird_slots[bird->slot_index].occupied = false;
         bird->slot_index = -1;
     }
 }
 
 inline void free_particle_emitter(i32 index) {
-    assert(index >= 0 && index < current_level_context->particle_emitters.capacity);
+    assert(index >= 0 && index < current_context->particle_emitters.capacity);
     
     Particle_Emitter *emitter = get_particle_emitter(index);
     if (emitter) {
         for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++) {
-            current_level_context->particles.get(i)->enabled = false;
+            current_context->particles.get(i)->enabled = false;
         }
     } else {
         printf("L_WARNING: No emitter existing on free_particle_emitter. Index is %d\n", index);
     }
     
-    *current_level_context->particle_emitters.get(index) = {0};
+    *current_context->particle_emitters.get(index) = {0};
 }
 
 inline void free_particle_emitters(i32 *start_ptr, i32 count) {
@@ -1280,20 +1280,20 @@ void print_to_console(const char *text) {
     builder_append(&console.content_builder, tstring("\t>%s\n", text));
 }
 
-inline i32 next_entity_avaliable(Level_Context *level_context, i32 start_index, Entity **entity, FLAGS flags) {
-    // for (i32 i = start_index; i < level_context->entities.capacity; i++) {
-    //     if (level_context->entities.has_index(i) && (flags == 0 || level_context->entities.get(i)->flags & flags)) {
-    //         *entity = level_context->entities.get(i);
+inline i32 next_entity_avaliable(Context *context, i32 start_index, Entity **entity, FLAGS flags) {
+    // for (i32 i = start_index; i < context->entities.capacity; i++) {
+    //     if (context->entities.has_index(i) && (flags == 0 || context->entities.get(i)->flags & flags)) {
+    //         *entity = context->entities.get(i);
     //         return i;
     //     }
     // }
     
     // *entity = NULL;
-    // return level_context->entities.capacity;
-    start_index = level_context->entities.next_occupied_value(start_index, entity);
+    // return context->entities.capacity;
+    start_index = context->entities.next_occupied_value(start_index, entity);
     // That cycle here only because we need to check flags and skip entities that does not match.
     while (*entity && (!((*entity)->flags & flags) && flags != 0)) {
-        start_index = level_context->entities.next_occupied_value(start_index + 1, entity);
+        start_index = context->entities.next_occupied_value(start_index + 1, entity);
     }
     
     return start_index;
@@ -1358,8 +1358,8 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     // That's because other entities or context or lights might want to get entity by it's id and it will fail if it's just 
     // entity that we created localy.
     
-    assert(entity->level_context);
-    assert(entity->id > 0 && get_entity(entity->id, entity->level_context)->id > 0);
+    assert(entity->context);
+    assert(entity->id > 0 && get_entity(entity->id, entity->context)->id > 0);
 
     entity->color = entity->color_changer.start_color;
 
@@ -1372,7 +1372,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & MOVE_SEQUENCE) {
         if (!entity->move_sequence || ignore_existing_types) {
             i32 index = -1;
-            entity->move_sequence = entity->level_context->move_sequences.append({0}, &index);
+            entity->move_sequence = entity->context->move_sequences.append({0}, &index);
             entity->move_sequence->index = index;
         }
         
@@ -1399,7 +1399,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
         if (!entity->bird_enemy || ignore_existing_types) {
             i32 index = -1;
-            entity->bird_enemy = entity->level_context->bird_enemies.append({0}, &index);
+            entity->bird_enemy = entity->context->bird_enemies.append({0}, &index);
             entity->bird_enemy->index = index;
         }
     
@@ -1410,7 +1410,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     } else if (entity->flags & KILL_SWITCH) { // init kill switch
         if (!entity->kill_switch || ignore_existing_types) {
             i32 index = -1;
-            entity->kill_switch = entity->level_context->kill_switches.append({0}, &index);
+            entity->kill_switch = entity->context->kill_switches.append({0}, &index);
             entity->kill_switch->index = index;
         }
     
@@ -1418,7 +1418,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     } else if (entity->flags & TURRET) {  // init turret
         if (!entity->turret || ignore_existing_types) {
             i32 index = -1;
-            entity->turret = entity->level_context->turrets.append({0}, &index);
+            entity->turret = entity->context->turrets.append({0}, &index);
             Turret *turret = entity->turret;
             
             // We don't want to set things that could be changed in editor (like shoot_every_tick) every time we init enity,
@@ -1444,7 +1444,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     } else if (entity->flags & CENTIPEDE) { // init centipede
         if (!entity->centipede || ignore_existing_types) {        
             i32 index = -1;
-            entity->centipede = entity->level_context->centipedes.append({0}, &index);
+            entity->centipede = entity->context->centipedes.append({0}, &index);
             entity->centipede->index = index;
         }
         
@@ -1458,7 +1458,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         centipede->segments.clear();
         for (i32 i = 0; i < centipede->segments_to_spawn; i++) {
-            Entity* segment = spawn_object_by_name("centipede_segment", entity->position, entity->level_context);
+            Entity* segment = spawn_object_by_name("centipede_segment", entity->position, entity->context);
             
             segment->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
             
@@ -1500,13 +1500,13 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         assert(!(entity->flags & CENTIPEDE));
         if (!entity->centipede_segment || ignore_existing_types) {
             i32 index = -1;
-            entity->centipede_segment = entity->level_context->centipede_segments.append({0}, &index);
+            entity->centipede_segment = entity->context->centipede_segments.append({0}, &index);
             entity->centipede_segment->index = index;
         }
     } else if (entity->flags & JUMP_SHOOTER) { // init jump shooter
         if (!entity->jump_shooter || ignore_existing_types) {
             i32 index = -1;
-            entity->jump_shooter = entity->level_context->jump_shooters.append({0}, &index);
+            entity->jump_shooter = entity->context->jump_shooters.append({0}, &index);
             entity->jump_shooter->index = index;
         }
         
@@ -1533,7 +1533,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             // without separate type and array.
                      
             i32 index = -1;
-            entity->union_enemy = entity->level_context->just_enemies.append({0}, &index);
+            entity->union_enemy = entity->context->just_enemies.append({0}, &index);
             entity->union_enemy->index = index;
         }
     }
@@ -1577,7 +1577,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         if (!entity->propeller || ignore_existing_types) {
             i32 index = -1;
-            entity->propeller = entity->level_context->propellers.append({0}, &index);
+            entity->propeller = entity->context->propellers.append({0}, &index);
             entity->propeller->index = index;
         }
         assert(entity->propeller && entity->propeller->index >= 0);
@@ -1600,7 +1600,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & TRIGGER) {
         if (!entity->trigger || ignore_existing_types) {
             i32 index = -1;
-            entity->trigger = entity->level_context->triggers.append({0}, &index);
+            entity->trigger = entity->context->triggers.append({0}, &index);
             entity->trigger->index = index;
         }
     
@@ -1626,7 +1626,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & STICKY_TEXTURE) { 
         if (!entity->sticky_texture || ignore_existing_types) {
             i32 index = -1;
-            entity->sticky_texture = entity->level_context->sticky_textures.append({0}, &index);
+            entity->sticky_texture = entity->context->sticky_textures.append({0}, &index);
             entity->sticky_texture->index = index;
         }
     }
@@ -1747,7 +1747,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & PROJECTILE) {
         if (!entity->projectile || ignore_existing_types) {
             i32 index = -1;
-            entity->projectile = entity->level_context->projectiles.append({0}, &index);
+            entity->projectile = entity->context->projectiles.append({0}, &index);
             entity->projectile->index = index;
         }
     }
@@ -1755,7 +1755,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     // Init player.
     if (entity->flags & PLAYER) { 
         if (!entity->player_data || ignore_existing_types) {
-            entity->player_data = &entity->level_context->player_data;
+            entity->player_data = &entity->context->player_data;
         }
     }
     
@@ -1766,14 +1766,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
 } // end init entity
 
 inline void save_current_level() {
-    save_level(current_level_context->level_name);
+    save_level(current_context->level_name);
 }
 
 inline void autosave_level() {
     i32 max_autosaves = 5;
     i32 autosave_index = -1;    
     for (i32 i = 0; i < max_autosaves; i++) {
-        String path = tstring("levels/autosaves/AUTOSAVE_%d_%s.level", i, c_str(current_level_context->level_name));
+        String path = tstring("levels/autosaves/AUTOSAVE_%d_%s.level", i, c_str(current_context->level_name));
         if (!directory_exists(path)) {
             autosave_index = i;
             break;
@@ -1785,7 +1785,7 @@ inline void autosave_level() {
         i64 oldest_time = -1;
         
         for (i32 i = 0; i < max_autosaves; i++) {
-            String path = tstring("levels/autosaves/AUTOSAVE_%d_%s.level", i, c_str(current_level_context->level_name));
+            String path = tstring("levels/autosaves/AUTOSAVE_%d_%s.level", i, c_str(current_context->level_name));
             u64 modification_time = get_file_modification_time(path);
             if (oldest_time == -1 || modification_time < oldest_time) {
                 oldest_time = modification_time;
@@ -1796,7 +1796,7 @@ inline void autosave_level() {
     
     assert(autosave_index != -1);
     
-    save_level(tstring("autosaves/AUTOSAVE_%d_%s", autosave_index, c_str(current_level_context->level_name)));
+    save_level(tstring("autosaves/AUTOSAVE_%d_%s", autosave_index, c_str(current_context->level_name)));
 }
 
 void load_level_by_name(const char *name) {
@@ -1840,7 +1840,7 @@ void try_load_previous_level() {
 }
 
 void reload_level() {
-    load_level(current_level_context->level_name);       
+    load_level(current_context->level_name);       
 }
 
 Console_Command make_console_command(const char *name, void (func)() = NULL, void (func_arg)(const char*) = NULL) {
@@ -1852,7 +1852,7 @@ Console_Command make_console_command(const char *name, void (func)() = NULL, voi
 }
 
 inline void print_current_level() {
-    print_to_console(c_str(current_level_context->level_name));
+    print_to_console(c_str(current_context->level_name));
 }
 
 void print_create_level_hint() {
@@ -2015,12 +2015,12 @@ void save_replay(const char *replay_name) {
 }
 
 void save_temp_replay() {
-    save_replay(tprintf("TEMP_%s", get_substring_before_symbol(c_str(current_level_context->level_name), '.')));
+    save_replay(tprintf("TEMP_%s", get_substring_before_symbol(c_str(current_context->level_name), '.')));
 }
 
 void play_loaded_replay() {
     session_context.playing_replay = true;
-    Entity *replay_player_entity = add_player_entity(current_level_context, &replay_player_data);
+    Entity *replay_player_entity = add_player_entity(current_context, &replay_player_data);
     replay_player_entity->flags |= REPLAY_PLAYER;
 }
 
@@ -2041,7 +2041,7 @@ void load_replay(const char *replay_name) {
     if (read_result != -1) {
         // session_context.playing_replay = true;
         // editor_enter_editor_state();
-        // enter_and_reload_game_state(current_level_context, true);
+        // enter_and_reload_game_state(current_context, true);
         play_loaded_replay();
     
         builder_append(&console.content_builder, tstring("\t>Replay named %s is loaded\n", name));
@@ -2049,7 +2049,7 @@ void load_replay(const char *replay_name) {
 }
 
 void load_temp_replay() {
-    load_replay(tprintf("TEMP_%s", get_substring_before_symbol(c_str(current_level_context->level_name), '.')));
+    load_replay(tprintf("TEMP_%s", get_substring_before_symbol(c_str(current_context->level_name), '.')));
 }
 
 
@@ -2057,7 +2057,7 @@ void debug_toggle_play_replay() {
     session_context.playing_replay = !session_context.playing_replay;
         
     // if (session_context.playing_replay) {
-    //     enter_and_reload_game_state(editor_level_context, true);
+    //     enter_and_reload_game_state(editor_context, true);
     //     play_loaded_replay();
     // }
     
@@ -2069,7 +2069,7 @@ void restart_game() {
     // editor_enter_editor_state();
     
     if (editor_state == EDITOR) {
-        editor_enter_game_state(current_level_context);
+        editor_enter_game_state(current_context);
     } else {
         enter_planning_state();
     }
@@ -2082,7 +2082,7 @@ void begin_level_speedrun() {
     if (!session_context.speedrun_timer.level_timer_active) {
         reload_level();
         // editor_enter_editor_state();
-        // enter_and_reload_game_state(current_level_context, true);
+        // enter_and_reload_game_state(current_context, true);
         
         session_context.speedrun_timer.level_timer_active = true;        
         session_context.speedrun_timer.game_timer_active  = false;        
@@ -2102,7 +2102,7 @@ void begin_game_speedrun() {
     if (!session_context.speedrun_timer.game_timer_active) {
         restart_game();
         editor_enter_editor_state();
-        // enter_and_reload_game_state(current_level_context, true);
+        // enter_and_reload_game_state(current_context, true);
         
         session_context.speedrun_timer.level_timer_active = false;        
         session_context.speedrun_timer.game_timer_active  = true;        
@@ -2113,7 +2113,7 @@ void begin_game_speedrun() {
 }
 
 void debug_add_100_ammo() {
-    if (current_level_context->player) {
+    if (current_context->player) {
         add_player_ammo(100);
     }    
 }
@@ -2272,7 +2272,7 @@ void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier 
     handler->current_index = (handler->current_index + 1) % handler->buffer.capacity;
     
     //check vector to camera for volume and pan
-    Vector2 to_position = position - current_level_context->cam.position;
+    Vector2 to_position = position - current_context->cam.position;
     f32 len = magnitude(to_position);
     f32 max_len = 250;
     
@@ -2317,47 +2317,47 @@ void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1, f
 }
 
 inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f) {
-    play_sound(name, current_level_context->cam.position, volume_multiplier, base_pitch, pitch_variation);
+    play_sound(name, current_context->cam.position, volume_multiplier, base_pitch, pitch_variation);
 }
 
 // #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
 // #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
 
-void init_level_context(Level_Context *level_context) {
-    assert(!level_context->inited);
+void init_context(Context *context) {
+    assert(!context->inited);
 
-    current_level_context = level_context;
+    current_context = context;
     
-    init_allocator(&current_level_context->memory_arena, Megabytes(4));
+    init_allocator(&current_context->memory_arena, Megabytes(4));
 
-    init_array(&level_context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
-    init_array(&level_context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
+    init_array(&context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
+    init_array(&context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
     
-    init_array(&level_context->notes, 64, HEAP_ALLOCATOR);
+    init_array(&context->notes, 64, HEAP_ALLOCATOR);
     
-    init_chunk_array(&level_context->entities, 512, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->propellers, 16, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->triggers, 32, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->sticky_textures, 128, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->move_sequences, 128, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->bird_enemies, 64, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->jump_shooters, 8, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->kill_switches, 8, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->turrets, 32, HEAP_ALLOCATOR);
+    init_chunk_array(&context->entities, 512, HEAP_ALLOCATOR);
+    init_chunk_array(&context->propellers, 16, HEAP_ALLOCATOR);
+    init_chunk_array(&context->triggers, 32, HEAP_ALLOCATOR);
+    init_chunk_array(&context->sticky_textures, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&context->move_sequences, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&context->bird_enemies, 64, HEAP_ALLOCATOR);
+    init_chunk_array(&context->jump_shooters, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&context->kill_switches, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&context->turrets, 32, HEAP_ALLOCATOR);
     
-    init_chunk_array(&level_context->projectiles, 256, HEAP_ALLOCATOR);
+    init_chunk_array(&context->projectiles, 256, HEAP_ALLOCATOR);
     
-    init_chunk_array(&level_context->just_enemies, 64, HEAP_ALLOCATOR);
+    init_chunk_array(&context->just_enemies, 64, HEAP_ALLOCATOR);
     
-    init_chunk_array(&level_context->centipedes, 8, HEAP_ALLOCATOR);
-    init_chunk_array(&level_context->centipede_segments, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&context->centipedes, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&context->centipede_segments, 128, HEAP_ALLOCATOR);
     
     
-    init_chunk_array(&level_context->lights, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&context->lights, 128, HEAP_ALLOCATOR);
 
     //init context
-    // for (i32 i = 0; i < level_context->lights.capacity; i++) {
-    //     Light *light = level_context->lights.append({0});
+    // for (i32 i = 0; i < context->lights.capacity; i++) {
+    //     Light *light = context->lights.append({0});
     //     // *(light) = {0};
         
     //     if (i < session_context.temp_lights_count) {
@@ -2385,37 +2385,37 @@ void init_level_context(Level_Context *level_context) {
     //     }
     // }
     
-    for (i32 i = 0; i < level_context->particles.capacity; i++) {
-        level_context->particles.append({0});
+    for (i32 i = 0; i < context->particles.capacity; i++) {
+        context->particles.append({0});
     }
-    for (i32 i = 0; i < level_context->particle_emitters.capacity; i++) {
-        level_context->particle_emitters.append({0});
+    for (i32 i = 0; i < context->particle_emitters.capacity; i++) {
+        context->particle_emitters.append({0});
     }
-    for (i32 i = 0; i < level_context->line_trails.capacity; i++) {
-        level_context->line_trails.append({0});
+    for (i32 i = 0; i < context->line_trails.capacity; i++) {
+        context->line_trails.append({0});
     }
-    for (i32 i = 0; i < level_context->notes.capacity; i++) {
-        level_context->notes.append({0});
+    for (i32 i = 0; i < context->notes.capacity; i++) {
+        context->notes.append({0});
     }
     
     // Init collison grid.
-    i32 cells_columns = (i32)(current_level_context->collision_grid.size.x / current_level_context->collision_grid.cell_size.x);
-    i32 cells_rows    = (i32)(current_level_context->collision_grid.size.y / current_level_context->collision_grid.cell_size.y);
+    i32 cells_columns = (i32)(current_context->collision_grid.size.x / current_context->collision_grid.cell_size.x);
+    i32 cells_rows    = (i32)(current_context->collision_grid.size.y / current_context->collision_grid.cell_size.y);
     size_t cells_count = cells_columns * cells_rows;
     
-    init_array(&current_level_context->collision_grid.cells, cells_count, HEAP_ALLOCATOR);
+    init_array(&current_context->collision_grid.cells, cells_count, HEAP_ALLOCATOR);
     
     for (i32 i = 0; i < cells_count; i++) {
-        current_level_context->collision_grid.cells.append({0});
+        current_context->collision_grid.cells.append({0});
     }
     
-    level_context->inited = true;
+    context->inited = true;
     
     // We're clearing level context right after initialization becase init happens only at the very beginning and next
     // level context is ready for new work right after clearing, so that's saves us some duplicate initialization 
     // and guarantees for that level context is the same as it will be in the middle of program execution
     // when it  will be just cleared and used again.
-    clear_level_context(level_context);
+    clear_context(context);
 }
 
 Shader load_shader(const char *vertex, const char *fragment) {
@@ -2440,31 +2440,31 @@ void init_game() {
     // init arenas.
     init_allocator(temp, Megabytes(16));
     
-    str_copy(loaded_level_context.name, "loaded_level_context");
-    // str_copy(editor_level_context.name, "editor_level_context");
-    str_copy(game_level_context.name, "game_level_context");
-    str_copy(planning_level_context.name, "planning_level_context");
-    str_copy(checkpoint_level_context.name, "checkpoint_level_context");
-    str_copy(undo_level_context.name, "undo_level_context");
-    str_copy(copied_entities_level_context.name, "copied_entities_level_context");
+    str_copy(loaded_context.name, "loaded_context");
+    // str_copy(editor_context.name, "editor_context");
+    str_copy(game_context.name, "game_context");
+    str_copy(planning_context.name, "planning_context");
+    str_copy(checkpoint_context.name, "checkpoint_context");
+    str_copy(undo_context.name, "undo_context");
+    str_copy(copied_entities_context.name, "copied_entities_context");
     
     // Now we need to init all level contexts once 
-    init_level_context(&loaded_level_context);
-    init_level_context(&game_level_context);
-    init_level_context(&planning_level_context);
-    init_level_context(&checkpoint_level_context);
-    init_level_context(&undo_level_context);
-    init_level_context(&copied_entities_level_context);
+    init_context(&loaded_context);
+    init_context(&game_context);
+    init_context(&planning_context);
+    init_context(&checkpoint_context);
+    init_context(&undo_context);
+    init_context(&copied_entities_context);
     
     for (i32 i = 0; i < MAX_LOADED_LEVELS; i++) {
-        str_copy(loaded_levels_contexts[i].name, tprintf("editor_level_context_%d", i));
-        init_level_context(&loaded_levels_contexts[i]);
+        str_copy(loaded_levels_contexts[i].name, tprintf("editor_context_%d", i));
+        init_context(&loaded_levels_contexts[i]);
     }
-    editor_level_context = &loaded_levels_contexts[0];
+    editor_context = &loaded_levels_contexts[0];
     
     // player_data = &real_player_data;
     
-    switch_current_level_context(&loaded_level_context);
+    switch_current_context(&loaded_context);
 
     editor_state = EDITOR;
 
@@ -2519,28 +2519,28 @@ void init_game() {
 } // end init game end
 
 void destroy_player() {
-    if (!current_level_context->player) {
+    if (!current_context->player) {
         printf("Destroy player was called when there's no player_entity is present. That should not happen.\n");
         return;
     }
 
-    mark_entity_destroyed(current_level_context->player);
-    current_level_context->player->enabled   = false;
+    mark_entity_destroyed(current_context->player);
+    current_context->player->enabled   = false;
     
-    mark_entity_destroyed(get_entity(current_level_context->player_data.connected_entities_ids.ground_checker_id));
-    mark_entity_destroyed(get_entity(current_level_context->player_data.connected_entities_ids.sword_entity_id));
+    mark_entity_destroyed(get_entity(current_context->player_data.connected_entities_ids.ground_checker_id));
+    mark_entity_destroyed(get_entity(current_context->player_data.connected_entities_ids.sword_entity_id));
     
-    current_level_context->player = NULL;
+    current_context->player = NULL;
 }
 
 void clean_up_scene() {
-    if (current_level_context) {
+    if (current_context) {
         // ForEntities(entity, 0) {
         //     // entity->color = entity->color_changer.start_color;
         // }
         
         for (i32 i = 0; i < MAX_BIRD_POSITIONS; i++) {
-            current_level_context->bird_slots[i].occupied = false;
+            current_context->bird_slots[i].occupied = false;
         }
     }
 
@@ -2559,11 +2559,11 @@ void clean_up_scene() {
     close_create_box();
 }
 
-Entity *add_player_entity(Level_Context *level_context, Player *data) {
-    Level_Context *original_level_context = current_level_context;
-    switch_current_level_context(level_context);
+Entity *add_player_entity(Context *context, Player *data) {
+    Context *original_context = current_context;
+    switch_current_context(context);
 
-    Entity *new_player_entity = add_entity(current_level_context->player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
+    Entity *new_player_entity = add_entity(current_context->player_spawn_point, {1.0f, 2.0f}, {0.5f, 0.5f}, 0, RED, PLAYER | PARTICLE_EMITTER);
     new_player_entity->collision_flags = GROUND | ENEMY;
     new_player_entity->draw_order = 30;
     
@@ -2582,7 +2582,7 @@ Entity *add_player_entity(Level_Context *level_context, Player *data) {
     right_wall_checker->color = Fade(PURPLE, 0.8f);
     right_wall_checker->draw_order = 31;
     
-    Entity *sword_entity = add_entity(current_level_context->player_spawn_point, data->sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
+    Entity *sword_entity = add_entity(current_context->player_spawn_point, data->sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
     sword_entity->collision_flags = ENEMY;
     sword_entity->color   = GRAY + RED * 0.1f;
     sword_entity->draw_order = 25;
@@ -2613,35 +2613,35 @@ Entity *add_player_entity(Level_Context *level_context, Player *data) {
     
     data->ammo_count = last_player_data.ammo_count;
     
-    current_level_context->player = new_player_entity;
+    current_context->player = new_player_entity;
     
-    switch_current_level_context(original_level_context);
+    switch_current_context(original_context);
     
     return new_player_entity;
 }
 
 void game_setup_collisions() { 
-    Vector2 grid_target_pos = current_level_context->player_spawn_point;
-    current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
+    Vector2 grid_target_pos = current_context->player_spawn_point;
+    current_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_context->collision_grid.cell_size.y))};
     
     b32 update_static_collision_cells = true;
     update_all_collision_cells(update_static_collision_cells);
 }
 
 void enter_gaming_state() {
-    copy_level_context(&game_level_context, current_level_context, true);
+    copy_context(&game_context, current_context, true);
     
-    switch_current_level_context(&game_level_context);
+    switch_current_context(&game_context);
     game_state = GAMING;
     
-    if (!current_level_context->player) {
-        current_level_context->player_data = {0};
-        add_player_entity(current_level_context, &current_level_context->player_data);
+    if (!current_context->player) {
+        current_context->player_data = {0};
+        add_player_entity(current_context, &current_context->player_data);
     }
     
     game_setup_collisions();
     
-    current_level_context->original_win_blocks_count = 0;
+    current_context->original_win_blocks_count = 0;
     
     ForEntities(entity, 0) {
         // if (should_init_entities) {
@@ -2653,49 +2653,49 @@ void enter_gaming_state() {
         // }
         
         if (entity->flags & WIN_BLOCK) {
-            current_level_context->original_win_blocks_count += 1;
+            current_context->original_win_blocks_count += 1;
         }
     }
     
-    current_level_context->current_win_blocks_count = current_level_context->original_win_blocks_count;
+    current_context->current_win_blocks_count = current_context->original_win_blocks_count;
     
-    current_level_context->cam.cam2D.zoom = 0.35f;
-    current_level_context->cam.target_zoom = 0.35f;
-    current_level_context->cam.position = current_level_context->player_spawn_point;
+    current_context->cam.cam2D.zoom = 0.35f;
+    current_context->cam.target_zoom = 0.35f;
+    current_context->cam.position = current_context->player_spawn_point;
 }
 
 void enter_planning_state() {
     assert(editor_state == GAME);
     game_state = GAME_PLANNING;
     
-    clear_level_context(&game_level_context);
+    clear_context(&game_context);
     
     clean_up_scene();
-    switch_current_level_context(&planning_level_context);
+    switch_current_context(&planning_context);
     
     game_setup_collisions();
     
-    if (!current_level_context->player) { 
-        planning_level_context.player_data = {0};
-        add_player_entity(current_level_context, &current_level_context->player_data);
+    if (!current_context->player) { 
+        planning_context.player_data = {0};
+        add_player_entity(current_context, &current_context->player_data);
     }
     
-    current_level_context->cam.cam2D.zoom = 0.35f;
-    current_level_context->cam.target_zoom = 0.35f;
-    current_level_context->cam.position = current_level_context->player_spawn_point;
+    current_context->cam.cam2D.zoom = 0.35f;
+    current_context->cam.target_zoom = 0.35f;
+    current_context->cam.position = current_context->player_spawn_point;
     
-    if (!current_level_context->initially_simulated) {
+    if (!current_context->initially_simulated) {
         // Simulating game world for 2 seconds before the start.
         input = {0};
         for (i32 i = 0; i < FIXED_FPS * 2; i++) { 
             update_entities(TARGET_FRAME_TIME);
         }
         
-        current_level_context->initially_simulated = true;
+        current_context->initially_simulated = true;
     }
 }
 
-void editor_enter_game_state(Level_Context *from_level_context) {
+void editor_enter_game_state(Context *from_context) {
     state_context = {0};
     session_context.just_entered_game_state = true;
     core.time.game_time = 0;
@@ -2707,20 +2707,20 @@ void editor_enter_game_state(Level_Context *from_level_context) {
     
     editor_state = GAME;
     
-    clear_level_context(&planning_level_context);
-    copy_level_context(&planning_level_context, from_level_context, true);
+    clear_context(&planning_context);
+    copy_context(&planning_context, from_context, true);
     
     reset_planning_data();
     enter_planning_state();    
 }
 
 void kill_player() {
-    Player *player_data = &current_level_context->player_data;
+    Player *player_data = &current_context->player_data;
     if (debug.god_mode && !state_context.we_got_a_winner || !player_data || player_data->dead_man || debug.dragging_player) { 
         return;
     }
     
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
     
     death_player_data = *player_data;
 
@@ -2739,7 +2739,7 @@ void editor_enter_editor_state() {
     
     session_context.playing_replay = false;
     
-    current_level_context->player_data.dead_man = false; 
+    current_context->player_data.dead_man = false; 
     
     // We want to enable cursor when user hits escape key.
     HideCursor();
@@ -2747,7 +2747,7 @@ void editor_enter_editor_state() {
     
     clean_up_scene();
     
-    switch_current_level_context(editor_level_context);
+    switch_current_context(editor_context);
     core.time.game_time = 0;
     core.time.hitstop = 0;
     core.time.previous_dt = 0;
@@ -2759,15 +2759,15 @@ void editor_enter_editor_state() {
 }
 
 Vector2 screen_to_world(Vector2 pos) {
-    f32 zoom = current_level_context->cam.cam2D.zoom;
+    f32 zoom = current_context->cam.cam2D.zoom;
 
-    f32 width = current_level_context->cam.width   ;
-    f32 height = current_level_context->cam.height ;
+    f32 width = current_context->cam.width   ;
+    f32 height = current_context->cam.height ;
 
     Vector2 screen_pos = pos;
-    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / current_level_context->cam.unit_size, (height * 0.5f - screen_pos.y) / current_level_context->cam.unit_size};
+    Vector2 world_pos = {(screen_pos.x - width * 0.5f) / current_context->cam.unit_size, (height * 0.5f - screen_pos.y) / current_context->cam.unit_size};
     world_pos /= zoom;
-    world_pos = world_pos + current_level_context->cam.position;
+    world_pos = world_pos + current_context->cam.position;
     
     return world_pos;
 }
@@ -2792,9 +2792,9 @@ inline b32 maybe_destroy_entity(Entity *entity) {
     return false;
 }
 
-inline void check_entities_that_should_be_destroyed(Level_Context *level_context) {
-    for_chunk_array(i, &level_context->entities) {
-        maybe_destroy_entity(level_context->entities.get(i));
+inline void check_entities_that_should_be_destroyed(Context *context) {
+    for_chunk_array(i, &context->entities) {
+        maybe_destroy_entity(context->entities.get(i));
     }
 }
 
@@ -2802,8 +2802,8 @@ void fixed_game_update(f32 dt) {
     frame_rnd = perlin_noise3(core.time.game_time, core.time.app_time, 5) * 2 - 1.0f;
     frame_on_circle_rnd = get_perlin_in_circle(1.0f);
     
-    Entity *player_entity = current_level_context->player;
-    Player *player_data = &current_level_context->player_data;
+    Entity *player_entity = current_context->player;
+    Player *player_data = &current_context->player_data;
 
     if (editor_state == GAME && !state_context.in_pause_editor) {
         if (!session_context.playing_replay) {
@@ -2843,7 +2843,7 @@ void fixed_game_update(f32 dt) {
         } else {
             // update_entities(-1);
         }
-            check_entities_that_should_be_destroyed(current_level_context);
+            check_entities_that_should_be_destroyed(current_context);
     } else if (game_state == GAMING) {
         update_entities(dt);
     }
@@ -2853,7 +2853,7 @@ void fixed_game_update(f32 dt) {
     // Update camera.
     if (0) {
     } else if (editor_state == GAME && game_state == GAME_PLANNING) {
-        current_level_context->cam.position += input.direction * dt * 250;
+        current_context->cam.position += input.direction * dt * 250;
     } else if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())) {
         f32 time_since_death_instinct_stop = core.time.app_time - state_context.death_instinct.stop_time;
         
@@ -2956,9 +2956,9 @@ void fixed_game_update(f32 dt) {
                         continue;
                     }
                     
-                    Vector2 addition = dir_to_enemy * (((60.0f * 0.35f) / current_level_context->cam.cam2D.zoom) / enemies_count);
+                    Vector2 addition = dir_to_enemy * (((60.0f * 0.35f) / current_context->cam.cam2D.zoom) / enemies_count);
                     // If enemy really close or to far we want to reduce amount of displacement
-                    f32 min_threshold = (SCREEN_WORLD_SIZE / current_level_context->cam.cam2D.zoom);
+                    f32 min_threshold = (SCREEN_WORLD_SIZE / current_context->cam.cam2D.zoom);
                     f32 max_threshold = (min_threshold * 2);
                     if (distance_to_enemy <= min_threshold) { 
                         addition *= (distance_to_enemy / min_threshold);
@@ -2973,8 +2973,8 @@ void fixed_game_update(f32 dt) {
                     
                     additional_position += addition;
                     
-                    f32 max_x = (SCREEN_WORLD_SIZE / current_level_context->cam.cam2D.zoom) * 0.25f;
-                    f32 max_y = (SCREEN_WORLD_SIZE / aspect_ratio / current_level_context->cam.cam2D.zoom) * 0.2f;
+                    f32 max_x = (SCREEN_WORLD_SIZE / current_context->cam.cam2D.zoom) * 0.25f;
+                    f32 max_y = (SCREEN_WORLD_SIZE / aspect_ratio / current_context->cam.cam2D.zoom) * 0.2f;
                     clamp(&additional_position.x, -max_x, max_x);
                     clamp(&additional_position.y, -max_y, max_y);
                 }
@@ -2990,8 +2990,8 @@ void fixed_game_update(f32 dt) {
                 }
             } 
             
-            Vector2 vec_to_target = target_position - current_level_context->cam.target;
-            Vector2 vec_to_player = player_entity->position - current_level_context->cam.target;
+            Vector2 vec_to_target = target_position - current_context->cam.target;
+            Vector2 vec_to_player = player_entity->position - current_context->cam.target;
             
             f32 target_dot = dot(vec_to_target, vec_to_player);
             
@@ -3000,17 +3000,17 @@ void fixed_game_update(f32 dt) {
             f32 target_speed = lerp(3, 10, speed_t * speed_t);
             target_speed *= target_speed_multiplier;
             
-            current_level_context->cam.target = lerp(current_level_context->cam.target, target_position, clamp01(dt * target_speed));
+            current_context->cam.target = lerp(current_context->cam.target, target_position, clamp01(dt * target_speed));
             
             f32 cam_speed = lerp(10.0f, 100.0f, speed_t * speed_t);
             
-            current_level_context->cam.position = lerp(current_level_context->cam.position, current_level_context->cam.target, clamp01(dt * cam_speed * locked_speed_multiplier));
+            current_context->cam.position = lerp(current_context->cam.position, current_context->cam.target, clamp01(dt * cam_speed * locked_speed_multiplier));
             
         // Locked camera
         } else if ((!is_in_death_instinct() || !is_death_instinct_threat_active()) || state_context.free_cam) {
-            current_level_context->cam.position = lerp(current_level_context->cam.position, current_level_context->cam.target, clamp01(dt * 4 * locked_speed_multiplier));
-            if (magnitude(current_level_context->cam.target - current_level_context->cam.position) <= EPSILON) {
-                current_level_context->cam.position = current_level_context->cam.target;
+            current_context->cam.position = lerp(current_context->cam.position, current_context->cam.target, clamp01(dt * 4 * locked_speed_multiplier));
+            if (magnitude(current_context->cam.target - current_context->cam.position) <= EPSILON) {
+                current_context->cam.position = current_context->cam.target;
             }
         }
     }
@@ -3022,7 +3022,7 @@ void fixed_game_update(f32 dt) {
 
     if (!is_in_death_instinct() || !is_death_instinct_threat_active()) {
         f32 zoom_speed = editor_state == GAME ? 3 : 10;
-        Cam *cam = &current_level_context->cam;
+        Cam *cam = &current_context->cam;
         
         f32 target_zoom = cam->target_zoom;
         if (editor_state == GAME && player_data->in_slowmo) {
@@ -3035,8 +3035,8 @@ void fixed_game_update(f32 dt) {
         }
     }
     
-    if (abs(current_level_context->cam.cam2D.zoom - current_level_context->cam.target_zoom) <= EPSILON) {
-        current_level_context->cam.cam2D.zoom = current_level_context->cam.target_zoom;
+    if (abs(current_context->cam.cam2D.zoom - current_context->cam.target_zoom) <= EPSILON) {
+        current_context->cam.cam2D.zoom = current_context->cam.target_zoom;
     }
 
     input.press_flags = 0;
@@ -3159,7 +3159,7 @@ void update_console() {
 }
 
 Cam get_cam_for_resolution(i32 width, i32 height) {
-    Cam cam = current_level_context->cam;
+    Cam cam = current_context->cam;
     cam.unit_size = width / SCREEN_WORLD_SIZE; 
     cam.cam2D.target = cast(Vector2) { width/2.0f, height/2.0f };
     cam.cam2D.offset = cast(Vector2) { width/2.0f, height/2.0f };
@@ -3313,12 +3313,12 @@ void update_game() {
             light_geometry_rt = LoadRenderTexture(screen_width, screen_height);
         }
         
-        setup_context_cam(current_level_context);
+        setup_context_cam(current_context);
     }
     
     if (IsKeyDown(KEY_LEFT_CONTROL) && IsKeyDown(KEY_LEFT_SHIFT) && IsKeyPressed(KEY_SPACE)) {
         if (editor_state == EDITOR) {
-            editor_enter_game_state(editor_level_context);
+            editor_enter_game_state(editor_context);
         } else if (editor_state == GAME) {
             editor_enter_editor_state();
         }
@@ -3333,7 +3333,7 @@ void update_game() {
         }
     }
     
-    Player *player_data = &current_level_context->player_data;
+    Player *player_data = &current_context->player_data;
     
     // In game level restart.
     if (editor_state == GAME && !console.is_open) {
@@ -3343,15 +3343,15 @@ void update_game() {
                 session_context.speedrun_timer.time = 0;
             } else if (session_context.speedrun_timer.level_timer_active) {
                 // editor_enter_editor_state();
-                // enter_and_reload_game_state(editor_level_context, true);
+                // enter_and_reload_game_state(editor_context, true);
                 session_context.speedrun_timer.time = 0;
             } else {
                 b32 is_have_checkpoint = checkpoint_trigger_id > 0;
                 session_context.playing_replay = false;            
                 // editor_enter_editor_state();
                 if (is_have_checkpoint) {
-                    // enter_and_reload_game_state(&checkpoint_level_context, false);
-                    current_level_context->player = checkpoint_player_entity;
+                    // enter_and_reload_game_state(&checkpoint_context, false);
+                    current_context->player = checkpoint_player_entity;
                     // real_player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
                     state_context = checkpoint_state_context;
@@ -3359,7 +3359,7 @@ void update_game() {
                     player_data->velocity = Vector2_zero;
                     session_context.speedrun_timer.time = 0;
                 } else {
-                    // enter_and_reload_game_state(editor_level_context, true);
+                    // enter_and_reload_game_state(editor_context, true);
                     enter_planning_state();
                 }
             }
@@ -3369,7 +3369,7 @@ void update_game() {
     core.time.app_time += GetFrameTime();
     core.time.real_dt = GetFrameTime();
     
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
     
     // Update death instinct.
     if (is_in_death_instinct() && is_death_instinct_threat_active() && editor_state == GAME) {
@@ -3383,17 +3383,17 @@ void update_game() {
             
             f32 t = EaseOutQuint(distance_t);
             core.time.target_time_scale = lerp(0.6f, 0.02f, t * t);
-            current_level_context->cam.position        = lerp(current_level_context->cam.position, lerp(current_level_context->cam.target, cam_position, t * t), core.time.real_dt * t * 5);
-            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t * t), core.time.real_dt * t * 5);
+            current_context->cam.position        = lerp(current_context->cam.position, lerp(current_context->cam.target, cam_position, t * t), core.time.real_dt * t * 5);
+            current_context->cam.cam2D.zoom      = lerp(current_context->cam.cam2D.zoom, lerp(current_context->cam.target_zoom, 0.55f, t * t), core.time.real_dt * t * 5);
         } else if (state_context.death_instinct.last_reason == SWORD_WILL_EXPLODE) {
             f32 distance_t = (1.0f - clamp01(state_context.death_instinct.angle_till_explode / 150.0f));
             f32 t = EaseOutQuint(distance_t);
             core.time.target_time_scale = lerp(0.6f, 0.015f, t);
-            current_level_context->cam.position        = lerp(current_level_context->cam.position, lerp(current_level_context->cam.target, cam_position, t), core.time.real_dt * t * 5);
-            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, lerp(current_level_context->cam.target_zoom, 0.55f, t), core.time.real_dt * t * 5);
+            current_context->cam.position        = lerp(current_context->cam.position, lerp(current_context->cam.target, cam_position, t), core.time.real_dt * t * 5);
+            current_context->cam.cam2D.zoom      = lerp(current_context->cam.cam2D.zoom, lerp(current_context->cam.target_zoom, 0.55f, t), core.time.real_dt * t * 5);
         } else {
-            current_level_context->cam.position        = lerp(current_level_context->cam.position, cam_position, clamp01(core.time.real_dt * 5));
-            current_level_context->cam.cam2D.zoom      = lerp(current_level_context->cam.cam2D.zoom, 0.55f, clamp01(core.time.real_dt * 5));
+            current_context->cam.position        = lerp(current_context->cam.position, cam_position, clamp01(core.time.real_dt * 5));
+            current_context->cam.cam2D.zoom      = lerp(current_context->cam.cam2D.zoom, 0.55f, clamp01(core.time.real_dt * 5));
             core.time.target_time_scale = lerp(core.time.target_time_scale, 0.03f, clamp01(core.time.real_dt * 10));
         }
         
@@ -3504,16 +3504,16 @@ void update_game() {
             session_context.speedrun_timer.time += core.time.dt;
         }
         
-        const char *title_and_time = tprintf("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? c_str(current_level_context->level_name) : "Game speedrun", session_context.speedrun_timer.time);
+        const char *title_and_time = tprintf("%s\n%.4f", session_context.speedrun_timer.level_timer_active ? c_str(current_context->level_name) : "Game speedrun", session_context.speedrun_timer.time);
         Old::make_ui_text(title_and_time, {screen_width * 0.46f, 5}, "speedrun_timer", color, 22);
     }
     
     if (IsKeyPressed(KEY_PAGE_UP)) {
         state_context.free_cam = !state_context.free_cam;
         if (!state_context.free_cam) {
-            current_level_context->cam.target_zoom = debug.last_zoom;
+            current_context->cam.target_zoom = debug.last_zoom;
         } else {
-            debug.last_zoom = current_level_context->cam.target_zoom;
+            debug.last_zoom = current_context->cam.target_zoom;
         }
     }
     
@@ -3523,24 +3523,24 @@ void update_game() {
     
     if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor) {
     } else {
-        f32 zoom = current_level_context->cam.target_zoom;
+        f32 zoom = current_context->cam.target_zoom;
 
         // update editor camera
         if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
-            current_level_context->cam.position += (cast(Vector2) {-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (current_level_context->cam.unit_size);
+            current_context->cam.position += (cast(Vector2) {-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (current_context->cam.unit_size);
         }
         if (input.mouse_wheel != 0 && !console.is_open && !editor.create_box_active) {
             f32 max_zoom = 5;
             f32 min_zoom = 0.03f;
             if (input.mouse_wheel > 0 || input.mouse_wheel < 0) {
-                current_level_context->cam.target_zoom += input.mouse_wheel * 0.05f;
-                clamp(&current_level_context->cam.target_zoom, min_zoom, max_zoom);
+                current_context->cam.target_zoom += input.mouse_wheel * 0.05f;
+                clamp(&current_context->cam.target_zoom, min_zoom, max_zoom);
             }
         }
     }
     
     if (editor.update_cam_view_position) {
-        current_level_context->cam.view_position = current_level_context->cam.position;
+        current_context->cam.view_position = current_context->cam.position;
     }
     
     draw_game();
@@ -3772,7 +3772,7 @@ void resolve_collision(Entity *entity, Collision col) {
 }
 
 Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
-    Collision_Grid *grid = &current_level_context->collision_grid;    
+    Collision_Grid *grid = &current_context->collision_grid;    
     
     Vector2 origin_to_pos = position - grid->origin;
     
@@ -3793,7 +3793,7 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
 
 void fill_affected_collision_cells(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array <Collision_Grid_Cell*> *out_cells) {
     out_cells->clear();
-    Collision_Grid grid = current_level_context->collision_grid;
+    Collision_Grid grid = current_context->collision_grid;
     Vector2 center = position + bounds.offset;
     center += {(0.5f - pivot.x) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
     
@@ -3912,33 +3912,33 @@ void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array 
     fill_collisions(position, vertices, bounds, pivot, result, include_flags);   
 }
 
-inline Light *get_light(i32 index, Level_Context *level_context) {        
-    if (!level_context) level_context = current_level_context;
+inline Light *get_light(i32 index, Context *context) {        
+    if (!context) context = current_context;
     assert(index > -1);
     
-    return level_context->lights.get(index);
+    return context->lights.get(index);
 }
 
-inline Entity *get_entity(i32 id, Level_Context *level_context) {
+inline Entity *get_entity(i32 id, Context *context) {
     assert(id > 0 && "Invalid entity id!");
-    if (!level_context) level_context = current_level_context;
+    if (!context) context = current_context;
     
     // We're always assuming that given id is valid and there will be real entity, because otherwise some entity just forgot 
     // to detect that some connected entity will be destroyed.
     
     // Entity ids are index + 1, so 0 is always invalid.
-    return level_context->entities.get(id - 1);
+    return context->entities.get(id - 1);
 }
 
-inline Entity *maybe_get_entity(i32 id, Level_Context *level_context) {
+inline Entity *maybe_get_entity(i32 id, Context *context) {
     assert(id > 0 && "Invalid entity id!");
-    if (!level_context) level_context = current_level_context;
+    if (!context) context = current_context;
     
-    if (current_level_context->entities.is_index_avaliable_for_new_value(id - 1)) {
+    if (current_context->entities.is_index_avaliable_for_new_value(id - 1)) {
         return NULL;
     }
     
-    return get_entity(id, level_context);
+    return get_entity(id, context);
 }
 
 inline b32 entity_array_contains_id(Entity **arr, i32 count, i32 id) {
@@ -4063,7 +4063,7 @@ void assign_selected_entity(Entity *new_selected) {
     if (new_selected) {
         new_selected->color_changer.changing = 1;
         
-        editor.selected_unchanged_copy = copy_and_add_entity(new_selected, &undo_level_context);
+        editor.selected_unchanged_copy = copy_and_add_entity(new_selected, &undo_context);
     }
     
     editor.selected = new_selected;
@@ -4418,7 +4418,7 @@ void update_editor_ui() {
         
         if (selected->flags & NOTE) {
             f32 h_pos = 15;
-            Note *note = current_level_context->notes.get(selected->note_index);
+            Note *note = current_context->notes.get(selected->note_index);
             INSPECTOR_UI_TOGGLE("NOTE draw in game: ", "note_draw_in_game", note->draw_in_game, );
         }
         
@@ -4861,7 +4861,7 @@ void update_editor_ui() {
             
             if (Old::make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))) {
                 obj.entity.position = editor.create_box_open_mouse_position; // So that on init_entity it has real position.
-                Entity *entity = copy_and_add_entity(&obj.entity, current_level_context);
+                Entity *entity = copy_and_add_entity(&obj.entity, current_context);
                 need_close_create_box = true;
                 
                 editor.just_spawned_ids.append(entity->id);
@@ -4941,7 +4941,7 @@ Entity *get_cursor_entity() {
 }
 
 Entity *editor_spawn_entity(const char *name, Vector2 position) {
-    Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5), current_level_context);
+    Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5), current_context);
     
     if (entity) {
         editor.just_spawned_ids.append(entity->id);
@@ -4958,9 +4958,9 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
     Vector2 closest_vertex_global = Vector2_zero;
     f32 distance_to_closest_vertex = INFINITY;
 
-    // for (i32 i = 0; i < current_level_context->entities.capacity; i++) {        
-    for_chunk_array(i, (&current_level_context->entities)) {
-        Entity *e = current_level_context->entities.get(i);
+    // for (i32 i = 0; i < current_context->entities.capacity; i++) {        
+    for_chunk_array(i, (&current_context->entities)) {
+        Entity *e = current_context->entities.get(i);
         
         if (!e->enabled) {
             continue;
@@ -5000,7 +5000,7 @@ b32 snap_vertex_to_closest(Entity *entity, Vector2 *entity_vertex, i32 vertex_in
 }
 
 inline b32 is_vertex_on_mouse(Vector2 vertex_global) {
-    return check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / current_level_context->cam.cam2D.zoom)});
+    return check_col_circles({input.mouse_position, 1}, {vertex_global, 0.5f * (0.4f / current_context->cam.cam2D.zoom)});
 }
 
 void editor_move_entity_points(Entity *entity, Vector2 displacement) {
@@ -5017,8 +5017,8 @@ void editor_move_entity_points(Entity *entity, Vector2 displacement) {
 }
 
 inline Vector2 get_editor_mouse_move() {
-    f32 zoom = current_level_context->cam.cam2D.zoom;
-    return cast(Vector2) {input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom} / (current_level_context->cam.unit_size);
+    f32 zoom = current_context->cam.cam2D.zoom;
+    return cast(Vector2) {input.mouse_delta.x / zoom, -input.mouse_delta.y / zoom} / (current_context->cam.unit_size);
 }
 
 inline f32 round_to_factor(f32 number, f32 quantization_factor) {
@@ -5064,7 +5064,7 @@ void editor_mouse_move_entity(Entity *entity) {
 //         // @TODO: Here we actually would like to 
 //         Entity *deleted_entity = action->deleted_entities.get_value(i);
         
-//         Entity *restored_entity = copy_and_add_entity(deleted_entity, current_level_context, deleted_entity->id);
+//         Entity *restored_entity = copy_and_add_entity(deleted_entity, current_context, deleted_entity->id);
 //         restored_entity->id = deleted_entity_id;
         
 //         if (action->changed_entities.count > 1) {
@@ -5080,7 +5080,7 @@ inline void add_to_multiselection(i32 id) {
     if (!editor.multiselection.entities.contains(id)) {
         editor.multiselection.entities.append(id);
         
-        editor.multiselection.unchanged_copies.append(copy_and_add_entity(get_entity(id), &undo_level_context));
+        editor.multiselection.unchanged_copies.append(copy_and_add_entity(get_entity(id), &undo_context));
     }
 }
 
@@ -5131,7 +5131,7 @@ b32 clicked_on_entity_edge(f32 rotation, Vector2 edge_center, b32 is_horizontal,
 
     Static_Array <Vector2, MAX_VERTICES> edge_vertices = Static_Array <Vector2, MAX_VERTICES>();
     add_rect_vertices(&edge_vertices, {0.5f, 0.5f});
-    f32 selection_radius = fmaxf(3.0f, 1.5f / current_level_context->cam.cam2D.zoom) * radius_multiplier;
+    f32 selection_radius = fmaxf(3.0f, 1.5f / current_context->cam.cam2D.zoom) * radius_multiplier;
     for (i32 i = 0; i < edge_vertices.count; i++) {
         if (is_horizontal) {
             edge_vertices.get(i)->x *= selection_radius;
@@ -5315,39 +5315,39 @@ void update_editor() {
     // levels switching context stitch
     if (editor_state == EDITOR) {
         if (IsKeyPressed(KEY_ONE) && IsKeyDown(KEY_LEFT_CONTROL) && !console.is_open) {
-            current_editor_level_context_index += 1;    
-            current_editor_level_context_index %= MAX_LOADED_LEVELS;    
+            current_editor_context_index += 1;    
+            current_editor_context_index %= MAX_LOADED_LEVELS;    
             
-            Level_Context *next_context = &loaded_levels_contexts[current_editor_level_context_index];
+            Context *next_context = &loaded_levels_contexts[current_editor_context_index];
             // i32 cycled = 0;
             // while (cycled <= MAX_LOADED_LEVELS && next_context->level_name.count == 0) {
             //     cycled += 1;
-            //     current_editor_level_context_index += 1;    
-            //     current_editor_level_context_index %= MAX_LOADED_LEVELS;    
-            //     next_context = &loaded_levels_contexts[current_editor_level_context_index];
+            //     current_editor_context_index += 1;    
+            //     current_editor_context_index %= MAX_LOADED_LEVELS;    
+            //     next_context = &loaded_levels_contexts[current_editor_context_index];
             // }
             
             if (next_context->level_name.count > 0) {
-                editor_level_context = next_context;
-                switch_current_level_context(editor_level_context, true);
+                editor_context = next_context;
+                switch_current_context(editor_context, true);
             }
             
-            // setup_context_cam(current_level_context);
+            // setup_context_cam(current_context);
         }
     
         // We need grid to be at camera center because levels could be quite big and even our mouse collision detection does not work
         // without grid at that place. 
         // BUT i've recently (08.03.2025 currently) made that origin is on player spawn point in editor. Don't remember why. 
         // There's could be other scary reason.
-        // Vector2 grid_target_pos = current_level_context->player_spawn_point;
+        // Vector2 grid_target_pos = current_context->player_spawn_point;
         
         // We're changing grid origin in editor just because right now we have static size grid and we want to be able to 
         // click on entities that far away from {zero, zero}.
         //
         // NOTE that we can do this in editor beacuse we're recalculating static entities collision cells every frame, whereas
         // in game mode we're not doing that and grid origin in game mode should stay at where we've put it in beginning.
-        Vector2 grid_target_pos = current_level_context->cam.position;
-        current_level_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_level_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_level_context->collision_grid.cell_size.y))};
+        Vector2 grid_target_pos = current_context->cam.position;
+        current_context->collision_grid.origin = {(f32)((i32)grid_target_pos.x - ((i32)grid_target_pos.x % (i32)current_context->collision_grid.cell_size.x)), (f32)((i32)grid_target_pos.y - ((i32)grid_target_pos.y % (i32)current_context->collision_grid.cell_size.y))};
     }
     // Undo_Action undo_action;
     // b32 something_in_undo = false;
@@ -5364,7 +5364,7 @@ void update_editor() {
     
     b32 moving_editor_cam = false;
     
-    f32 zoom = current_level_context->cam.target_zoom;
+    f32 zoom = current_context->cam.target_zoom;
 
     
     if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
@@ -5404,8 +5404,8 @@ void update_editor() {
     update_entities(core.time.real_dt);
     
     // Editor entities loop.
-    for_chunk_array(i, (&current_level_context->entities)) {
-        Entity *e = current_level_context->entities.get(i);
+    for_chunk_array(i, (&current_context->entities)) {
+        Entity *e = current_context->entities.get(i);
         
         if (!e->enabled) {
             continue;
@@ -5450,7 +5450,7 @@ void update_editor() {
         b32 cannot_move_points = editor.selected && ((editor.selected->flags & MOVE_SEQUENCE || (editor.selected->flags & TRIGGER && editor.selected->trigger->cam_rails_points.count > 0)) && editor.selected->id != e->id);
         for (i32 p = 0; e->flags & MOVE_SEQUENCE && IsKeyDown(KEY_LEFT_ALT) && p < e->move_sequence->points.count && !cannot_move_points; p++) {
             Vector2 *point = e->move_sequence->points.get(p);
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_context->cam.cam2D.zoom})) {
                 *point = input.mouse_position;
             }
         }
@@ -5458,7 +5458,7 @@ void update_editor() {
         //editor move cam rails points        
         for (i32 p = 0; e->flags & TRIGGER && (e->trigger->settings & (START_CAM_RAILS_HORIZONTAL | START_CAM_RAILS_VERTICAL)) && IsKeyDown(KEY_LEFT_ALT) && p < e->trigger->cam_rails_points.count && !cannot_move_points; p++) {
             Vector2 *point = e->trigger->cam_rails_points.get(p);
-            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_level_context->cam.cam2D.zoom})) {
+            if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && check_col_circles({input.mouse_position, 1}, {*point, 0.5f / current_context->cam.cam2D.zoom})) {
                 *point = input.mouse_position;
             }
         }
@@ -5591,12 +5591,12 @@ void update_editor() {
             
             if (!multiselection->excluding) {
                 other->color_changer.frame_changing = true;
-                make_rect_lines(other->position + other->bounds.offset, other->bounds.size, other->pivot, 2.0f / current_level_context->cam.cam2D.zoom, BLUE); 
+                make_rect_lines(other->position + other->bounds.offset, other->bounds.size, other->pivot, 2.0f / current_context->cam.cam2D.zoom, BLUE); 
             }
         }
         
         Color color = multiselection->excluding ? RED : BLUE;
-        make_rect_lines(multiselection->start_point, scale, pivot, 2.0f / (current_level_context->cam.cam2D.zoom), color);
+        make_rect_lines(multiselection->start_point, scale, pivot, 2.0f / (current_context->cam.cam2D.zoom), color);
     }
     
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT) && multiselection->selecting) {
@@ -5685,7 +5685,7 @@ void update_editor() {
             }
             
             entity->color_changer.frame_changing = true;
-            make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / current_level_context->cam.cam2D.zoom, BLUE); 
+            make_rect_lines(entity->position + entity->bounds.offset, entity->bounds.size, entity->pivot, 2.0f / current_context->cam.cam2D.zoom, BLUE); 
             
             if (entity_index == 0) {
                 most_right_entity_position = entity->position;
@@ -5764,8 +5764,8 @@ void update_editor() {
     
     //editor copy
     if ((editor.selected || multiselection->entities.count > 0) && IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_C)) {
-        Level_Context *original_level_context = current_level_context;
-        switch_current_level_context(&copied_entities_level_context);
+        Context *original_context = current_context;
+        switch_current_context(&copied_entities_context);
         
         // Do not forgetting to free every entity that was previously copied and added to copied entities level context.
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
@@ -5775,22 +5775,22 @@ void update_editor() {
         
         if (multiselection->entities.count > 0) {
             for (i32 i = 0; i < multiselection->entities.count; i++) {
-                Entity *entity_to_copy = get_entity(multiselection->entities.get_value(i), original_level_context);   
+                Entity *entity_to_copy = get_entity(multiselection->entities.get_value(i), original_context);   
                 // We keep id here so later we could verify different connected entities by ids. 
                 // @LEAK: Check that we're actually freeing copied entities.
-                editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context, entity_to_copy->id));
+                editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_context, entity_to_copy->id));
             }
             editor.copied_entities_center = multiselection->center;
         } else {
-            Entity *entity_to_copy = get_entity(editor.selected->id, original_level_context);   
-            editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_level_context, entity_to_copy->id));
+            Entity *entity_to_copy = get_entity(editor.selected->id, original_context);   
+            editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_context, entity_to_copy->id));
             // copy_entity(&editor.copied_entity, editor.selected);
             editor.copied_entities_center = entity_to_copy->position;
         }
         
-        switch_current_level_context(original_level_context);
+        switch_current_context(original_context);
         
-        editor.level_context_on_last_copy = original_level_context;
+        editor.context_on_last_copy = original_context;
         
         editor.is_copied = true;
     }
@@ -5806,7 +5806,7 @@ void update_editor() {
         clear_multiselected_entities();
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
             Entity *to_spawn = editor.copied_entities.get_value(i);
-            Entity *spawned = copy_and_add_entity(to_spawn, current_level_context);
+            Entity *spawned = copy_and_add_entity(to_spawn, current_context);
             spawned_ids.append(spawned->id);
             spawned->position += paste_position - editor.copied_entities_center;
             editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
@@ -5882,9 +5882,9 @@ void update_editor() {
             // (10 is just arbitrary number).
             //
             // And we do all that only for copying pasting in the same level context.
-            if (spawned_ids.count < 10 && str_equal(spawned->level_context->name, editor.level_context_on_last_copy->name)) {
-                for_chunk_array(j, &current_level_context->triggers) {
-                    Trigger *trigger = current_level_context->triggers.get(j);
+            if (spawned_ids.count < 10 && str_equal(spawned->context->name, editor.context_on_last_copy->name)) {
+                for_chunk_array(j, &current_context->triggers) {
+                    Trigger *trigger = current_context->triggers.get(j);
                     
                     if (trigger->connected.contains(copied->id)) {
                         assert(!trigger->connected.contains(spawned->id));
@@ -5895,8 +5895,8 @@ void update_editor() {
                         trigger->tracking.append(spawned->id);
                     }
                 }
-                for_chunk_array(j, &current_level_context->kill_switches) {
-                    Kill_Switch *kill_switch = current_level_context->kill_switches.get(j);
+                for_chunk_array(j, &current_context->kill_switches) {
+                    Kill_Switch *kill_switch = current_context->kill_switches.get(j);
                     
                     if (kill_switch->connected.contains(copied->id)) {
                         assert(!kill_switch->connected.contains(spawned->id));
@@ -5932,7 +5932,7 @@ void update_editor() {
     if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.dragging_entity) {
         editor.dragging_entity->position = input.mouse_position;
     } else if (can_control_with_single_button && IsKeyPressed(KEY_F) && editor.selected) {
-        current_level_context->cam.position = editor.selected->position;
+        current_context->cam.position = editor.selected->position;
     }
     
     //editor free entity rotation
@@ -6138,7 +6138,7 @@ void update_editor() {
                 for (i32 i = 0; i < selected->trigger->cam_rails_points.count; i++) {
                     Vector2 point = selected->trigger->cam_rails_points.get_value(i);   
                     
-                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})) {       
+                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_context->cam.cam2D.zoom)})) {       
                         selected->trigger->cam_rails_points.remove(i);
                         break;
                     }
@@ -6236,7 +6236,7 @@ void update_editor() {
                 for (i32 i = 0; i < selected->move_sequence->points.count; i++) {
                     Vector2 point = selected->move_sequence->points.get_value(i);   
                     
-                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_level_context->cam.cam2D.zoom)})) {       
+                    if (check_col_circles({input.mouse_position, 1}, {point, 0.5f  * (0.4f / current_context->cam.cam2D.zoom)})) {       
                         selected->move_sequence->points.remove(i);
                         break;
                     }
@@ -6301,7 +6301,7 @@ void update_editor() {
     }
     
     if (can_control_with_single_button && IsKeyPressed(KEY_P) && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL)) {
-        current_level_context->player_spawn_point = input.mouse_position;
+        current_context->player_spawn_point = input.mouse_position;
     }
 
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
@@ -6588,7 +6588,7 @@ inline void add_player_ammo(i32 amount) {
 
 inline b32 is_sword_can_damage() {
     f32 threshold = player_data->is_sword_accelerating ? 0.01f : 0.5f;
-    return !is_player_in_stun(current_level_context->player) && player_data->sword_spin_progress >= threshold;
+    return !is_player_in_stun(current_context->player) && player_data->sword_spin_progress >= threshold;
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity) {
@@ -6620,7 +6620,7 @@ inline b32 can_sword_damage_enemy(Entity *enemy_entity) {
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
     assert(enemy_entity->union_enemy);
 
-    Player *player_data = &current_level_context->player_data;
+    Player *player_data = &current_context->player_data;
 
     Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
@@ -6654,8 +6654,8 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
     }
     assert(enemy_entity->union_enemy);
     
-    Entity *player_entity = current_level_context->player;
-    Player *player_data = &current_level_context->player_data;
+    Entity *player_entity = current_context->player;
+    Player *player_data = &current_context->player_data;
 
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !is_player_in_stun(player_entity) && is_enemy_can_take_damage(enemy_entity)) {
@@ -6713,12 +6713,12 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
                 sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter->velocity);
             } else if (enemy_entity->flags & WIN_BLOCK) {
-                assert(current_level_context->current_win_blocks_count > 0);
-                current_level_context->current_win_blocks_count -= 1;
+                assert(current_context->current_win_blocks_count > 0);
+                current_context->current_win_blocks_count -= 1;
                 
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, 1.0f);
                 
-                if (current_level_context->current_win_blocks_count <= 0) {
+                if (current_context->current_win_blocks_count <= 0) {
                     win_level();
                 }
             } else {
@@ -6837,7 +6837,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
 }
 
 void push_player_up(f32 power) {
-    Player *player_data = &current_level_context->player_data;
+    Player *player_data = &current_context->player_data;
     if (player_data->velocity.y < 0) {
         player_data->velocity.y = 0;
     }
@@ -6848,7 +6848,7 @@ void push_player_up(f32 power) {
 }
 
 void push_or_set_player_up(f32 power) {
-    Player *player_data = &current_level_context->player_data;
+    Player *player_data = &current_context->player_data;
     if (player_data->velocity.y > power) {
         power *= 0.25f;
     }
@@ -7831,7 +7831,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     assert(entity->flags & ENEMY);
     assert(entity->bird_enemy);
     
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
     Player *player_data = player_entity->player_data;
     
     Bird_Enemy *bird = entity->bird_enemy;
@@ -7962,7 +7962,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
             Vector2 target_position = player_entity->position + Vector2_up * 120;        
             if (bird->slot_index == -1) {
                 for (i32 i = 0; i < MAX_BIRD_POSITIONS; i++) {
-                    Bird_Slot *slot = &current_level_context->bird_slots[i];
+                    Bird_Slot *slot = &current_context->bird_slots[i];
                     
                     if (!slot->occupied) {
                         slot->occupied = true;
@@ -8128,7 +8128,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             
             i32 light_size_flag = SMALL_LIGHT;
             // @VISUAL: Probably will consider that when I'll return dynamic shadows.
-            // if (enemy_entity->light_index != -1) light_size_flag = current_level_context->lights.get_value(enemy_entity->light_index).shadows_size_flags;
+            // if (enemy_entity->light_index != -1) light_size_flag = current_context->lights.get_value(enemy_entity->light_index).shadows_size_flags;
             add_explosion_light(enemy_entity->position, explosion_radius * rnd(3.0f, 6.0f), 0.15f, fminf(enemy->explosive_radius_multiplier, 3.0f), ColorBrightness(ORANGE, 0.3f), light_size_flag);
             
             f32 explosion_add_speed = 80;
@@ -8175,7 +8175,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     cut_rope(other_entity);
                 }
                 
-                if (other_entity->flags & PLAYER && !current_level_context->player_data.dead_man && distance_to_other < explosion_radius * 0.75f) {
+                if (other_entity->flags & PLAYER && !current_context->player_data.dead_man && distance_to_other < explosion_radius * 0.75f) {
                     kill_player();
                 }
             }
@@ -8329,7 +8329,7 @@ void add_rifle_projectile(Vector2 start_position, Vector2 velocity) {
 }
 
 inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale) {
-    Vector2 real_scale = {(f32)texture.width / current_level_context->cam.unit_size, (f32)texture.height / current_level_context->cam.unit_size};
+    Vector2 real_scale = {(f32)texture.width / current_context->cam.unit_size, (f32)texture.height / current_context->cam.unit_size};
     
     return {wish_scale.x / real_scale.x, wish_scale.y / real_scale.y};
 }
@@ -8370,7 +8370,7 @@ inline b32 compare_difference(f32 first, f32 second, f32 allowed_difference = EP
 }
 
 inline f32 get_death_instinct_radius(Vector2 threat_scale) {
-    // return fmaxf(fminf((18.0f / current_level_context->cam.cam2D.zoom), 60), 40) * fmaxf(magnitude(velocity) / 200.0f, 1.0f);
+    // return fmaxf(fminf((18.0f / current_context->cam.cam2D.zoom), 60), 40) * fmaxf(magnitude(velocity) / 200.0f, 1.0f);
     return 40 + (threat_scale.x + threat_scale.y) - 8.0f;
 }
 
@@ -8386,7 +8386,7 @@ b32 is_death_instinct_threat_active() {
     if (entity_alive) {
         switch (state_context.death_instinct.last_reason) {
             case ENEMY_ATTACKING:{
-                Vector2 vec_to_player = current_level_context->player->position - threat_entity->position;
+                Vector2 vec_to_player = current_context->player->position - threat_entity->position;
                 Vector2 dir_to_player = normalized(vec_to_player);
                 f32 distance_to_player = magnitude(vec_to_player);
                 
@@ -8396,7 +8396,7 @@ b32 is_death_instinct_threat_active() {
                 return is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), dir_to_player, distance_to_player, check_for_flying_towards);
             } break;
             case SWORD_WILL_EXPLODE:{
-                return current_level_context->player_data.is_sword_will_hit_explosive;     
+                return current_context->player_data.is_sword_will_hit_explosive;     
             } break;
             default: return true;
         }
@@ -8477,7 +8477,7 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
 }
 
 b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
-    if (is_in_death_instinct() || is_death_instinct_in_cooldown() || current_level_context->player_data.dead_man) {
+    if (is_in_death_instinct() || is_death_instinct_in_cooldown() || current_context->player_data.dead_man) {
         return false;
     }
     
@@ -8490,7 +8490,7 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
 void calculate_projectile_collisions(Entity *entity) {
     Projectile *projectile = entity->projectile;
     
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
     
     // Player projectile collisions.
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
@@ -8661,7 +8661,7 @@ void calculate_projectile_collisions(Entity *entity) {
                 emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
             }
             
-            if (other->flags & PLAYER && !current_level_context->player_data.dead_man && !enemy->dead_man) {
+            if (other->flags & PLAYER && !current_context->player_data.dead_man && !enemy->dead_man) {
                 // It's a good thing that we don't kill player when projectile is blocker or explosive, 
                 // but of course we need to better tell player what exactly will kill him on touch. 
                 // While projectiles are flying - they're leave particle trail and all flying projectiles 
@@ -8688,7 +8688,7 @@ void calculate_projectile_collisions(Entity *entity) {
             Entity *other = col.other_entity;
             
             if (other->flags & PLAYER) {
-                b32 should_kill_player = !current_level_context->player_data.dead_man && !enemy->dead_man && !(entity->flags & EXPLOSIVE);
+                b32 should_kill_player = !current_context->player_data.dead_man && !enemy->dead_man && !(entity->flags & EXPLOSIVE);
                 if (should_kill_player) {
                     kill_player();
                     kill_enemy(entity, col.point, col.normal);
@@ -8708,7 +8708,7 @@ void update_projectile(Entity *entity, f32 dt) {
     Projectile *projectile = entity->projectile;
     f32 lifetime = core.time.game_time - projectile->birth_time;
     
-    Vector2 player_position = current_level_context->player ? current_level_context->player->position : Vector2_zero;
+    Vector2 player_position = current_context->player ? current_context->player->position : Vector2_zero;
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
         if (entity->flags & ENEMY) {
@@ -8735,7 +8735,7 @@ void update_projectile(Entity *entity, f32 dt) {
                 projectile->dying = true;
                 
                 clamp_magnitude(&projectile->velocity, 60);
-                projectile->velocity.y -= current_level_context->player_data.gravity * dt;
+                projectile->velocity.y -= current_context->player_data.gravity * dt;
             }
         }
     }
@@ -9039,8 +9039,8 @@ i32 update_trigger(Entity *e) {
         trigger_now = true;
     }
     
-    Player *player_data = &current_level_context->player_data;
-    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && current_level_context->player && check_entities_collision(e, current_level_context->player).collided) {
+    Player *player_data = &current_context->player_data;
+    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && current_context->player && check_entities_collision(e, current_context->player).collided) {
         if (trigger->settings & FORBID_PLAYER_SHOOT) {
             player_data->can_shoot = false;
         }
@@ -9049,9 +9049,9 @@ i32 update_trigger(Entity *e) {
         }
     
         if (str_contains(temp_entity_name(e).data, "checkpoint") && checkpoint_trigger_id != e->id) {
-            clear_level_context(&checkpoint_level_context);
-            copy_level_context(&checkpoint_level_context, current_level_context, false);
-            checkpoint_player_entity = current_level_context->player;
+            clear_context(&checkpoint_context);
+            copy_context(&checkpoint_context, current_context, false);
+            checkpoint_player_entity = current_context->player;
             checkpoint_player_data = *player_data;
             checkpoint_time = core.time;
             checkpoint_state_context = state_context;
@@ -9109,7 +9109,7 @@ i32 update_trigger(Entity *e) {
             // 21:9 it's 2.333333 aspect_ratio
             f32 target_zoom = trigger->zoom_value;
             target_zoom /= (aspect_ratio / 1.77777f);
-            current_level_context->cam.target_zoom = target_zoom;
+            current_context->cam.target_zoom = target_zoom;
         }
         
         if (trigger->settings & UNLOCK_CAMERA) {
@@ -9120,7 +9120,7 @@ i32 update_trigger(Entity *e) {
             state_context.cam_state.locked = true;
             state_context.cam_state.on_rails_horizontal = false;
             state_context.cam_state.on_rails_vertical = false;
-            current_level_context->cam.target = trigger->locked_camera_position;
+            current_context->cam.target = trigger->locked_camera_position;
         }
     
         if (e->flags & DOOR) {
@@ -9224,7 +9224,7 @@ void update_move_sequence(Entity *entity, f32 dt) {
     f32 speed = sequence->speed;
     
     if (sequence->speed_related_player_distance && editor_state == GAME) {
-        f32 distance_to_player = magnitude(current_level_context->player->position - entity->position);
+        f32 distance_to_player = magnitude(current_context->player->position - entity->position);
         f32 distance_t = clamp01((distance_to_player + sequence->min_distance) / sequence->max_distance);
         speed = lerp(sequence->speed, sequence->max_distance_speed, distance_t * distance_t);
     }
@@ -9271,12 +9271,12 @@ void update_move_sequence(Entity *entity, f32 dt) {
 }
 
 void update_all_collision_cells(b32 update_cells_for_static_entities) {
-    for (i32 i = 0; i < current_level_context->collision_grid.cells.count; i++) {        
-        current_level_context->collision_grid.cells.get(i)->dynamic_entities.clear();
+    for (i32 i = 0; i < current_context->collision_grid.cells.count; i++) {        
+        current_context->collision_grid.cells.get(i)->dynamic_entities.clear();
     }
     if (update_cells_for_static_entities) {
-        for (i32 i = 0; i < current_level_context->collision_grid.cells.count; i++) {        
-            current_level_context->collision_grid.cells.get(i)->static_entities.clear();
+        for (i32 i = 0; i < current_context->collision_grid.cells.count; i++) {        
+            current_context->collision_grid.cells.get(i)->static_entities.clear();
         }
     }
     
@@ -9333,7 +9333,7 @@ inline void update_turret(Entity *entity, f32 dt) {
     Projectile_Type projectile_type = TURRET_DIRECT_PROJECTILE;
     Color projectile_color = ColorBrightness(RED, 0.5f);
     
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
     
     b32 player_in_range = true;
     b32 player_in_angle_range = true;
@@ -9408,7 +9408,7 @@ inline void update_turret(Entity *entity, f32 dt) {
 inline b32 update_entity(Entity *e, f32 dt) {
     update_color_changer(e, dt);            
     
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
     
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT) {
@@ -9905,7 +9905,7 @@ void update_entities(f32 dt) {
         state_context.turret_state.ticked_this_frame = true;
     }
 
-    Chunk_Array <Entity> *entities = &current_level_context->entities;
+    Chunk_Array <Entity> *entities = &current_context->entities;
     
     b32 update_static_entities_collision_cells = editor_state == EDITOR || state_context.in_pause_editor;
     update_all_collision_cells(update_static_entities_collision_cells);        
@@ -9926,8 +9926,8 @@ void update_entities(f32 dt) {
             continue;
         }
                 
-        if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_level_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
-            Entity *spawned = spawn_object_by_name("ammo_pack", e->position, current_level_context);
+        if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
+            Entity *spawned = spawn_object_by_name("ammo_pack", e->position, current_context);
             e->spawned_enemy_id = spawned->id;
         }
         
@@ -10039,12 +10039,12 @@ inline void draw_rifle(Entity *entity) {
 }
 
 inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len) {
-    if (!current_level_context->player) {
+    if (!current_context->player) {
         print("WARNING: Tried to get ray collision to player, but player is not present");
         return {0};     
     }
     
-    Vector2 vec_to_player = current_level_context->player->position - entity->position;
+    Vector2 vec_to_player = current_context->player->position - entity->position;
     Vector2 dir = normalized(vec_to_player);
     f32 len = magnitude(vec_to_player);
     return raycast(entity->position, dir, len - reduced_len, collision_flags, 6, entity->id);
@@ -10080,7 +10080,7 @@ Bounds get_cam_bounds(Cam cam, f32 zoom) {
     Bounds cam_bounds;
     cam_bounds.size = {(f32)screen_width, (f32)screen_height};
     cam_bounds.size /= zoom;
-    cam_bounds.size /= current_level_context->cam.unit_size;
+    cam_bounds.size /= current_context->cam.unit_size;
     
     cam_bounds.offset = {0, 0};
     
@@ -10107,7 +10107,7 @@ inline f32 get_turret_charge_progress(Turret *turret) {
 void fill_entities_draw_queue() {
     session_context.entities_draw_queue.clear();
     
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
     
     // That also acts entities loop on draw update call. For example we use it for some immediate stuff that should
     // work on occluded entities.
@@ -10202,8 +10202,8 @@ void fill_entities_draw_queue() {
                 Color color = editor.selected && editor.selected->id == entity->id ? ColorBrightness(GREEN, 0.2f) : Fade(BLUE, 0.2f);
                 
                 if (IsKeyDown(KEY_LEFT_ALT)) {
-                    draw_game_circle(point, 1  * (0.4f / current_level_context->cam.cam2D.zoom), SKYBLUE);
-                    draw_game_text(point - Vector2_up, tprintf("%d", ii), 18 / current_level_context->cam.cam2D.zoom, RED);
+                    draw_game_circle(point, 1  * (0.4f / current_context->cam.cam2D.zoom), SKYBLUE);
+                    draw_game_text(point - Vector2_up, tprintf("%d", ii), 18 / current_context->cam.cam2D.zoom, RED);
                     
                     if (entity->flags & JUMP_SHOOTER) {
                         Collision nearest_ground = get_nearest_ground_collision(point, 20);
@@ -10213,7 +10213,7 @@ void fill_entities_draw_queue() {
                                 make_line(ray_collision.point, ray_collision.point + ray_collision.normal * 5, GREEN);
                             }
                         } else {
-                            draw_game_circle(point, 1 * (0.4f / current_level_context->cam.cam2D.zoom), RED);
+                            draw_game_circle(point, 1 * (0.4f / current_context->cam.cam2D.zoom), RED);
                         }
                     }
                 }
@@ -10238,7 +10238,7 @@ void fill_entities_draw_queue() {
             if (should_draw_editor_hints()) {
                 // draw cam zoom trigger draw trigger zoom draw trigger cam
                 if (trigger->settings & CHANGE_ZOOM) {
-                    Bounds cam_bounds = get_cam_bounds(current_level_context->cam, trigger->zoom_value);
+                    Bounds cam_bounds = get_cam_bounds(current_context->cam, trigger->zoom_value);
                     Vector2 position = entity->position;
                     draw_game_circle(trigger->locked_camera_position, 2, PINK);
                     
@@ -10247,8 +10247,8 @@ void fill_entities_draw_queue() {
                         cam_border_color = Fade(ColorBrightness(PINK, 0.3f), 0.45f);
                     }
                     position = trigger->locked_camera_position;
-                    make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (current_level_context->cam.cam2D.zoom), cam_border_color);
-                    draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, tprintf("%.2f", trigger->zoom_value), 18.0f / current_level_context->cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
+                    make_rect_lines(position + cam_bounds.offset, cam_bounds.size, {0.5f, 0.5f}, 2.0f / (current_context->cam.cam2D.zoom), cam_border_color);
+                    draw_game_text((position + cam_bounds.offset) - cam_bounds.size * 0.5f, tprintf("%.2f", trigger->zoom_value), 18.0f / current_context->cam.cam2D.zoom, ColorBrightness(color_fade(cam_border_color, 1.5f), 0.5f));
                 }
                 
                 if (trigger->settings & (START_CAM_RAILS_HORIZONTAL | START_CAM_RAILS_VERTICAL)) {
@@ -10258,8 +10258,8 @@ void fill_entities_draw_queue() {
                         Color color = editor.selected && editor.selected->id == entity->id ? ColorBrightness(WHITE, 0.2f) : ColorBrightness(Fade(WHITE, 0.1f), 0.05f);
                         
                         if (IsKeyDown(KEY_LEFT_ALT)) {
-                            draw_game_circle(point, 1  * (0.4f / current_level_context->cam.cam2D.zoom), SKYBLUE);
-                            draw_game_text(point - Vector2_up, tprintf("%d", ii), 18 / current_level_context->cam.cam2D.zoom, RED);
+                            draw_game_circle(point, 1  * (0.4f / current_context->cam.cam2D.zoom), SKYBLUE);
+                            draw_game_text(point - Vector2_up, tprintf("%d", ii), 18 / current_context->cam.cam2D.zoom, RED);
                         }
                         if (ii < trigger->cam_rails_points.count - 1) {
                             make_line(point, trigger->cam_rails_points.get_value(ii+1), color);
@@ -10378,7 +10378,7 @@ void fill_entities_draw_queue() {
         }
         
         // This checks for occlusion.
-        if (should_not_draw_entity(entity, current_level_context->cam)) {
+        if (should_not_draw_entity(entity, current_context->cam)) {
             entity->visible = false;
             continue;
         } else {
@@ -10453,7 +10453,7 @@ void draw_entity(Entity *e) {
             // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE) {
                 if (e->sticky_texture->should_draw_texture) {
-                    change_scale(e, (e->sticky_texture->base_size) / fminf(current_level_context->cam.cam2D.zoom, 0.35f)); 
+                    change_scale(e, (e->sticky_texture->base_size) / fminf(current_context->cam.cam2D.zoom, 0.35f)); 
                     make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture->alpha));
                 }
             } else {
@@ -10484,7 +10484,7 @@ void draw_entity(Entity *e) {
     // draw note
     if (e->flags & NOTE) {
         assert(e->note_index != -1);
-        Note *note = current_level_context->notes.get(e->note_index);
+        Note *note = current_context->notes.get(e->note_index);
         if (editor_state == EDITOR || state_context.in_pause_editor) {
             make_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
             // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
@@ -10675,7 +10675,7 @@ void draw_entity(Entity *e) {
                 draw_game_triangle_lines(triangle1, triangle2, triangle3, WHITE);
             } else {
                 Vector2 scale = {3, 3};
-                scale /= current_level_context->cam.cam2D.zoom;
+                scale /= current_context->cam.cam2D.zoom;
                 Texture blocker_texture = e->jump_shooter->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
                 make_texture(blocker_texture, bullet_hint_position + e->up * scale.y * 0.65f, scale, {0.5f, 0.5f}, 0, WHITE);
             }
@@ -10838,7 +10838,7 @@ void draw_entity(Entity *e) {
 void draw_entities() {
     fill_entities_draw_queue();
 
-    //Hash_Table_Int<Entity> *entities = &current_level_context->entities;
+    //Hash_Table_Int<Entity> *entities = &current_context->entities;
     Array <Entity> *entities = &session_context.entities_draw_queue;
     
     for (i32 entity_index = 0; entity_index < entities->count; entity_index++) {
@@ -10893,7 +10893,7 @@ void draw_entities() {
 }
 
 void draw_game_space_editor() {
-    Chunk_Array <Entity> *entities = &current_level_context->entities;
+    Chunk_Array <Entity> *entities = &current_context->entities;
 
     // for (i32 i = 0; i < entities->capacity; i++) {
     for_chunk_array(i, entities) {
@@ -10903,7 +10903,7 @@ void draw_game_space_editor() {
             continue;
         }
         
-        draw_game_circle(current_level_context->player_spawn_point, 3, BLUE);
+        draw_game_circle(current_context->player_spawn_point, 3, BLUE);
         
         b32 draw_circles_on_vertices = IsKeyDown(KEY_LEFT_ALT);
         // draw vertices
@@ -10912,9 +10912,9 @@ void draw_game_space_editor() {
                 Vector2 global_vertex_position = global_position(e, e->vertices.get_value(v));
                 if (editor.selected && editor.selected->id == e->id) {
                     const char *text = v == 0 ? "T" : (v == 1 ? "Y" : (v == 2 ? "F" : "G"));
-                    draw_game_text(global_vertex_position, text, 22.0f / current_level_context->cam.cam2D.zoom, YELLOW);
+                    draw_game_text(global_vertex_position, text, 22.0f / current_context->cam.cam2D.zoom, YELLOW);
                 }
-                draw_game_circle(global_vertex_position, 1.0f * (0.4f / current_level_context->cam.cam2D.zoom), PINK);
+                draw_game_circle(global_vertex_position, 1.0f * (0.4f / current_context->cam.cam2D.zoom), PINK);
                 //draw unscaled vertices
                 if (IsKeyDown(KEY_LEFT_SHIFT)) {    
                     draw_game_circle(global_position(e, e->unscaled_vertices.get_value(v)), 1.0f * 0.4f, PURPLE);
@@ -10959,7 +10959,7 @@ void draw_game_space_editor() {
         }
         
         if (debug.draw_bounds || editor.selected && (editor_state == EDITOR || state_context.in_pause_editor) && e->id == editor.selected->id) {
-            make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / current_level_context->cam.cam2D.zoom, GREEN);
+            make_rect_lines(e->position + e->bounds.offset, e->bounds.size, e->pivot, 1.0f / current_context->cam.cam2D.zoom, GREEN);
         }
     }
     
@@ -10969,8 +10969,8 @@ void draw_game_space_editor() {
         Vector2 vec_to_mouse = input.mouse_position - editor.ruler_start_position;
         f32 length = magnitude(vec_to_mouse);
         
-        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), tprintf("%.2f", length), 24.0f / current_level_context->cam.cam2D.zoom, RED);
-        draw_game_text(input.mouse_position + Vector2_up, tprintf("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26.0f / current_level_context->cam.cam2D.zoom, GREEN); 
+        draw_game_text(editor.ruler_start_position + (vec_to_mouse * 0.5f), tprintf("%.2f", length), 24.0f / current_context->cam.cam2D.zoom, RED);
+        draw_game_text(input.mouse_position + Vector2_up, tprintf("{%.2f, %.2f}", input.mouse_position.x, input.mouse_position.y), 26.0f / current_context->cam.cam2D.zoom, GREEN); 
         
     }
     
@@ -10979,15 +10979,15 @@ void draw_game_space_editor() {
 
 void draw_particles() {
     //@TODO: When we'll start considering particles draw order we'll want this to work with entity drawing.
-    for (int emitter_index = 0; emitter_index < current_level_context->particle_emitters.capacity; emitter_index++) {
-        Particle_Emitter *emitter = current_level_context->particle_emitters.get(emitter_index);
+    for (int emitter_index = 0; emitter_index < current_context->particle_emitters.capacity; emitter_index++) {
+        Particle_Emitter *emitter = current_context->particle_emitters.get(emitter_index);
         //@OPTIMIZATION: Make emitter occlusion culling.
         if (!emitter->occupied/* || !emitter.visible*/) {
             continue;              
         }
         
         for (i32 emitter_index = emitter->particles_start_index; emitter_index < emitter->particles_max_index; emitter_index++) {
-            Particle particle = current_level_context->particles.get_value(emitter_index);
+            Particle particle = current_context->particles.get_value(emitter_index);
             if (!particle.enabled) {
                 continue;   
             }
@@ -11322,20 +11322,20 @@ void apply_shake() {
     f32 x_offset = perlin_noise3(core.time.game_time * x_shake_speed, 0, 1) * x_shake_power;
     f32 y_offset = perlin_noise3(0, core.time.game_time * y_shake_speed, 2) * y_shake_power;
     
-    current_level_context->cam.position += (cast(Vector2) {x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
+    current_context->cam.position += (cast(Vector2) {x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
 }
 
 void new_render() {
-    Entity *player_entity = current_level_context->player;
+    Entity *player_entity = current_context->player;
 
     bake_lightmaps_if_need();
 
     // Drawing baked lightmaps on camera plane.
     BeginTextureMode(global_illumination_rt); {
-    BeginMode2D(current_level_context->cam.cam2D); {
+    BeginMode2D(current_context->cam.cam2D); {
         ClearBackground(BLACK);
-        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.count; lightmap_index++) {
-            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get(lightmap_index);
+        for (i32 lightmap_index = 0; lightmap_index < current_context->lightmaps.count; lightmap_index++) {
+            Lightmap_Data *lightmap_data = current_context->lightmaps.get(lightmap_index);
             Texture lightmap_texture = lightmap_data->lightmap_texture;
             
             if (!lightmap_data->has_loaded_texture) {
@@ -11355,7 +11355,7 @@ void new_render() {
     }
     
     BeginTextureMode(render.main_render_texture); {
-    BeginMode2D(current_level_context->cam.cam2D); {
+    BeginMode2D(current_context->cam.cam2D); {
         Color base_background_color = debug.full_light ? ColorBrightness(GRAY, 0.1f) : Fade(WHITE, 0);
         
         ClearBackground(is_explosion_trauma_active() ? (player_data->dead_man ? RED : WHITE) : base_background_color);
@@ -11375,15 +11375,15 @@ void new_render() {
         
         if (debug.draw_collision_grid) {
             // draw collision grid
-            Collision_Grid grid = current_level_context->collision_grid;
-            Vector2 player_position = player_entity ? player_entity->position : current_level_context->player_spawn_point;
+            Collision_Grid grid = current_context->collision_grid;
+            Vector2 player_position = player_entity ? player_entity->position : current_context->player_spawn_point;
             
             // update_entity_collision_cells(&mouse_entity);
             for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y) {
                 for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x) {
                     Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
                     
-                    draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_level_context->cam.cam2D.zoom, (cell && (cell->dynamic_entities.count > 0 || cell->static_entities.count > 0)) ? GREEN : RED);
+                    draw_game_rect_lines({column, row}, grid.cell_size, {0, 1}, 0.5f / current_context->cam.cam2D.zoom, (cell && (cell->dynamic_entities.count > 0 || cell->static_entities.count > 0)) ? GREEN : RED);
                 }
             }
         }
@@ -11392,13 +11392,13 @@ void new_render() {
     
     drawing_state = CAMERA_DRAWING;
     if (debug.view_only_lightmaps) {
-        BeginMode2D(current_level_context->cam.cam2D);
-        for (i32 lightmap_index = 0; lightmap_index < current_level_context->lightmaps.count; lightmap_index++) {
-            Lightmap_Data *lightmap_data = current_level_context->lightmaps.get(lightmap_index);
+        BeginMode2D(current_context->cam.cam2D);
+        for (i32 lightmap_index = 0; lightmap_index < current_context->lightmaps.count; lightmap_index++) {
+            Lightmap_Data *lightmap_data = current_context->lightmaps.get(lightmap_index);
             
             Texture lightmap_texture = lightmap_data->lightmap_texture;
             
-            if (current_level_context->lightmaps_render_textures_loaded) {
+            if (current_context->lightmaps_render_textures_loaded) {
                 lightmap_texture = lightmap_data->global_illumination_rt.texture;
             }
             
@@ -11422,18 +11422,18 @@ void new_render() {
 } // new render end
 
 void draw_game() {
-    saved_cam = current_level_context->cam;
+    saved_cam = current_context->cam;
 
     apply_shake();
     
-    with_shake_cam = current_level_context->cam;
+    with_shake_cam = current_context->cam;
     BeginDrawing();
 
     new_render();
     
     update_input_field();
     
-    BeginMode2D(current_level_context->cam.cam2D); {
+    BeginMode2D(current_context->cam.cam2D); {
         if (editor_state == EDITOR || state_context.in_pause_editor) {
             draw_game_space_editor();
         }
@@ -11455,7 +11455,7 @@ void draw_game() {
     
     draw_ui("");
     
-    current_level_context->cam = saved_cam;
+    current_context->cam = saved_cam;
     
     if (editor_state == EDITOR || state_context.in_pause_editor) {
         make_lightmap_settings_panel();
@@ -11468,7 +11468,7 @@ void draw_game() {
         v_pos += font_size;
     }
     
-    if (editor_state == GAME && current_level_context->player) {
+    if (editor_state == GAME && current_context->player) {
         if (debug.info_spin_progress) {
             draw_text(tprintf("Spin progress: %.2f", player_data->sword_spin_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;
@@ -11537,7 +11537,7 @@ void setup_color_changer(Entity *entity) {
     entity->color_changer.target_color = Fade(ColorBrightness(entity->color, 0.5f), 0.5f);
 }
 
-Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_deep_copy, i32 id_to_insert) {
+Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32 id_to_insert) {
     // On calling copy_entity we're always doing a deep copy and adding entity to the entities array because we're cannot 
     // init entity without it being inside a entity array because other entities might want to refer to it. And it's don't 
     // really makes sense to have dummy entity that creating things on level context.
@@ -11549,10 +11549,10 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     i32 id_to_set = 0;
     Entity *e = NULL;
     if (id_to_insert > 0) {
-        e = level_context_for_deep_copy->entities.insert({0}, id_to_insert - 1);
+        e = context_for_deep_copy->entities.insert({0}, id_to_insert - 1);
         id_to_set = id_to_insert;
     } else {
-        e = level_context_for_deep_copy->entities.append({0}, &id_to_set);
+        e = context_for_deep_copy->entities.append({0}, &id_to_set);
         // Because append gives us index and entity id is index + 1 so id 0 is invalid.
         id_to_set += 1;
     }
@@ -11562,11 +11562,11 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     e->color = to_copy->color_changer.start_color;
     e->id = id_to_set;
     
-    e->level_context = level_context_for_deep_copy;        
+    e->context = context_for_deep_copy;        
     
     if (e->id <= 0) return e;
     
-    assert(level_context_for_deep_copy && "Forgot to specify level context for deep copy.");      
+    assert(context_for_deep_copy && "Forgot to specify level context for deep copy.");      
                    
     if (e->flags & TEXTURE) {
         str_copy(e->texture_name, to_copy->texture_name);
@@ -11577,7 +11577,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
     if (e->flags & NOTE) {
         e->note_index = add_note("");
         if (e->note_index != -1 && to_copy->note_index != -1) {
-            *level_context_for_deep_copy->notes.get(e->note_index) = *to_copy->level_context->notes.get(to_copy->note_index);
+            *context_for_deep_copy->notes.get(e->note_index) = *to_copy->context->notes.get(to_copy->note_index);
         }
     }
     
@@ -11591,7 +11591,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
         e->lights = copy_array(&to_copy->lights);
         e->lights.clear();
         for_array(i, &to_copy->lights) {
-            Light *copy_light = to_copy->level_context->lights.get(to_copy->lights.get_value(i));  
+            Light *copy_light = to_copy->context->lights.get(to_copy->lights.get_value(i));  
             copy_and_add_light_to_entity(e, copy_light);
         }
     }
@@ -11733,13 +11733,13 @@ Entity *copy_and_add_entity(Entity *to_copy, Level_Context *level_context_for_de
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     i32 id = 0;
-    Entity *e = current_level_context->entities.append({0}, &id);
+    Entity *e = current_context->entities.append({0}, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
     id += 1;
     *e = make_entity(pos, scale, pivot, rotation, flags);    
     e->id = id;
     
-    e->level_context = current_level_context;
+    e->context = current_context;
     
     init_entity(e);
     return e;
@@ -11747,12 +11747,12 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
 
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags) {
     i32 id = 0;
-    Entity *e = current_level_context->entities.append({0}, &id);
+    Entity *e = current_context->entities.append({0}, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
     id += 1;
     *e = make_entity(pos, scale, pivot, rotation, texture, flags);    
     e->id = id;
-    e->level_context = current_level_context;
+    e->context = current_context;
     
     init_entity(e);
     return e;
@@ -11778,16 +11778,16 @@ inline Vector2 local_position(Entity *e, Vector2 global_pos) {
 }
 
 inline Vector2 world_to_screen(Vector2 position) {
-    Vector2 cam_pos = current_level_context->cam.position;
+    Vector2 cam_pos = current_context->cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
-    Vector2 pixels   = multiply(with_cam, current_level_context->cam.unit_size);
+    Vector2 pixels   = multiply(with_cam, current_context->cam.unit_size);
     
     //Horizontal center and vertical bottom
     f32 width_add, height_add;
     
-    width_add = current_level_context->cam.width * 0.5f;    
-    height_add = current_level_context->cam.height * 0.5f;    
+    width_add = current_context->cam.width * 0.5f;    
+    height_add = current_context->cam.height * 0.5f;    
     Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
 
     return to_center;
@@ -11795,16 +11795,16 @@ inline Vector2 world_to_screen(Vector2 position) {
 
 //This gives us real screen pixel position
 inline Vector2 world_to_screen_with_zoom(Vector2 position) {
-    Vector2 cam_pos = current_level_context->cam.position;
+    Vector2 cam_pos = current_context->cam.position;
 
     Vector2 with_cam = subtract(position, cam_pos);
-    Vector2 pixels   = multiply(with_cam, current_level_context->cam.unit_size * current_level_context->cam.cam2D.zoom);
+    Vector2 pixels   = multiply(with_cam, current_context->cam.unit_size * current_context->cam.cam2D.zoom);
     //Horizontal center and vertical bottom
     
     f32 width_add, height_add;
     
-    width_add = current_level_context->cam.width * 0.5f;    
-    height_add = current_level_context->cam.height * 0.5f;    
+    width_add = current_context->cam.width * 0.5f;    
+    height_add = current_context->cam.height * 0.5f;    
     Vector2 to_center = {pixels.x + width_add, height_add - pixels.y};
 
     return to_center;
@@ -11812,7 +11812,7 @@ inline Vector2 world_to_screen_with_zoom(Vector2 position) {
 
 inline Vector2 get_texture_pixels_size(Texture texture, Vector2 game_scale) {
     Vector2 screen_texture_size_multiplier = transform_texture_scale(texture, game_scale);
-    return multiply({(f32)texture.width, (f32)texture.height}, screen_texture_size_multiplier) * current_level_context->cam.cam2D.zoom;
+    return multiply({(f32)texture.width, (f32)texture.height}, screen_texture_size_multiplier) * current_context->cam.cam2D.zoom;
 }
 
 inline Vector2 get_left_down_texture_screen_position(Texture texture, Vector2 world_position, Vector2 game_scale) {
@@ -11838,22 +11838,22 @@ inline void draw_game_triangle(Vector2 a, Vector2 b, Vector2 c, Color color) {
 
 inline void draw_game_circle(Vector2 position, f32 radius, Color color) {
     Vector2 screen_pos = world_to_screen(position);
-    draw_circle(screen_pos, radius * current_level_context->cam.unit_size, color);
+    draw_circle(screen_pos, radius * current_context->cam.unit_size, color);
 }
 
 inline void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, Color color) {
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect(screen_pos, multiply(scale, current_level_context->cam.unit_size), color);
+    draw_rect(screen_pos, multiply(scale, current_context->cam.unit_size), color);
 }
 
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, Color color) {
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect_lines(screen_pos, scale * current_level_context->cam.unit_size, thick, color);
+    draw_rect_lines(screen_pos, scale * current_context->cam.unit_size, thick, color);
 }
 
 inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color) {
     Vector2 screen_pos = rect_screen_pos(position, scale, pivot);
-    draw_rect_lines(screen_pos, scale * current_level_context->cam.unit_size, color);
+    draw_rect_lines(screen_pos, scale * current_context->cam.unit_size, color);
 }
 
 Static_Array <Vector2, 2048> screen_positions_buffer = Static_Array <Vector2, 2048>();
@@ -11908,7 +11908,7 @@ inline void draw_game_triangle_strip(Entity *entity) {
 
 inline void draw_game_rect(Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color) {
     Vector2 screen_pos = rect_screen_pos(position, scale, {0, 0});
-    draw_rect(screen_pos, multiply(scale, current_level_context->cam.unit_size), pivot, rotation, color);
+    draw_rect(screen_pos, multiply(scale, current_context->cam.unit_size), pivot, rotation, color);
 }
 
 inline void draw_game_text(Vector2 position, const char *text, f32 size, Color color) {
@@ -11922,7 +11922,7 @@ inline void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vect
 }
 
 inline void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color) {
-    draw_line(world_to_screen(start), world_to_screen(end), thick * current_level_context->cam.unit_size, color);
+    draw_line(world_to_screen(start), world_to_screen(end), thick * current_context->cam.unit_size, color);
 }
 
 inline void draw_game_line(Vector2 start, Vector2 end, Color color) {
@@ -11930,7 +11930,7 @@ inline void draw_game_line(Vector2 start, Vector2 end, Color color) {
 }
 
 inline void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle, f32 end_angle) {
-    draw_ring_lines(world_to_screen(center), inner_radius * current_level_context->cam.unit_size, outer_radius * current_level_context->cam.unit_size, segments, color);
+    draw_ring_lines(world_to_screen(center), inner_radius * current_context->cam.unit_size, outer_radius * current_context->cam.unit_size, segments, color);
 }
 
 inline void draw_game_triangle_lines(Vector2 v1, Vector2 v2, Vector2 v3, Color color) {

@@ -10,8 +10,8 @@ inline void undo_mark_entity_changed(Entity *entity) {
 void add_changes_to_undo(Array <Entity_Undo_Change> *changes) {
     if (changes->count == 0) return;
 
-    current_level_context->undo_actions.append(*changes);
-    current_level_context->max_undos_added = current_level_context->undo_actions.count;
+    current_context->undo_actions.append(*changes);
+    current_context->max_undos_added = current_context->undo_actions.count;
 }
 
 Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *changed, Array <i32> *original) { 
@@ -57,7 +57,7 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
         changes.append({
             .entity_id = changed->id,
             .change_type = ENTITY_DESTROYED,
-            .destroyed_entity_copy = copy_and_add_entity(original, &undo_level_context) // changed would have will_be_destroyed runtime flag set, whereas for original we've unset it.
+            .destroyed_entity_copy = copy_and_add_entity(original, &undo_context) // changed would have will_be_destroyed runtime flag set, whereas for original we've unset it.
         });
     }
 
@@ -129,7 +129,7 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
 
 inline void update_undo_logic() {
     // First of all detecting changed entities to add them to undo actions.
-    check_entities_that_should_be_destroyed(&undo_level_context);
+    check_entities_that_should_be_destroyed(&undo_context);
     
     if (editor.just_deleted_entity) {
         editor.just_deleted_entity = false;
@@ -141,10 +141,10 @@ inline void update_undo_logic() {
         
         Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
         
-        for_chunk_array(i, &current_level_context->entities) {
-            Entity *entity = current_level_context->entities.get(i);
+        for_chunk_array(i, &current_context->entities) {
+            Entity *entity = current_context->entities.get(i);
             if (entity->will_be_destroyed) found_one_that_will_be_destroyed = true;
-            Entity *unchanged_entity = copy_and_add_entity(entity, &undo_level_context);
+            Entity *unchanged_entity = copy_and_add_entity(entity, &undo_context);
             if (!unchanged_entity) continue; // Could happen because of SHOULD_NOT_SAVE_OR_COPY runtime flag.
             
             // On verifying trigger and kill switch will detect if someone will be destroyed -> will remive
@@ -175,15 +175,15 @@ inline void update_undo_logic() {
             changes.append({
                 .entity_id = spawned->id,
                 .change_type = ENTITY_SPAWNED,
-                .spawned_entity_copy = copy_and_add_entity(spawned, &undo_level_context)
+                .spawned_entity_copy = copy_and_add_entity(spawned, &undo_context)
             });
         }
         
         // Like in case of registering entity destroy undo - here we want to go through all entities aswell to look for 
         // entities that started referring to newly created entity right after birth. (One that example is if we copying 
         // entity that is connected to a trigger - after paste new entity will be automatically connected to same trigger).
-        for_chunk_array(i, &current_level_context->entities) {
-            Entity *entity = current_level_context->entities.get(i);
+        for_chunk_array(i, &current_context->entities) {
+            Entity *entity = current_context->entities.get(i);
             
             if (editor.just_spawned_ids.contains(entity->id)) continue; // Just in case.
             
@@ -249,7 +249,7 @@ inline void update_undo_logic() {
                 changes.append_another_array(&entity_changes);
                 free_entity(unchanged);
                 
-                editor.multiselection.unchanged_copies.insert(copy_and_add_entity(entity, &undo_level_context), i);               
+                editor.multiselection.unchanged_copies.insert(copy_and_add_entity(entity, &undo_context), i);               
             }
             
             // assert(changes.count > 0);
@@ -267,7 +267,7 @@ inline void update_undo_logic() {
         
         // Here we're updating unchanged copy of selected entity because we've stored all the information that we wanted.
         free_entity(editor.selected_unchanged_copy);
-        editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
+        editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_context);
     }
 
     // A little hack for simple fix of a problem where undo being queued after redo if first button released was shift.
@@ -283,8 +283,8 @@ inline void update_undo_logic() {
     // Undo logic.
     // b32 undo_required_helper_keys_down = !IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
     // b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
-    if (undo_queued && current_level_context->undo_actions.count > 0) {
-        Array <Entity_Undo_Change> *changes = current_level_context->undo_actions.last();
+    if (undo_queued && current_context->undo_actions.count > 0) {
+        Array <Entity_Undo_Change> *changes = current_context->undo_actions.last();
         for_array(i, changes) {
             Entity_Undo_Change *change = changes->get(i);
             // Entity *changed_entity = get_entity(change->entity_id);
@@ -306,7 +306,7 @@ inline void update_undo_logic() {
                     rotate(get_entity(change->entity_id), change->float_change * -1);
                 } break;
                 case ENTITY_DESTROYED: {
-                    Entity *restored_entity = copy_and_add_entity(change->destroyed_entity_copy, current_level_context, change->entity_id);
+                    Entity *restored_entity = copy_and_add_entity(change->destroyed_entity_copy, current_context, change->entity_id);
                 } break;
                 case ENTITY_SPAWNED: {
                     Entity *to_destroy = get_entity(change->entity_id);
@@ -344,11 +344,11 @@ inline void update_undo_logic() {
             // because we're updated this only on adding undo action.
             if (editor.selected) {
                 free_entity(editor.selected_unchanged_copy);   
-                editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
+                editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_context);
             }
         }
         
-        current_level_context->undo_actions.just_decrease_count();
+        current_context->undo_actions.just_decrease_count();
     }
     
     // Redo logic.
@@ -363,9 +363,9 @@ inline void update_undo_logic() {
     
     // b32 redo_required_helper_keys_down = IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_CONTROL);
     // b32 redo_pressed = redo_required_helper_keys_down && IsKeyPressed(KEY_Z);
-    b32 can_make_redo = current_level_context->max_undos_added > current_level_context->undo_actions.count;
+    b32 can_make_redo = current_context->max_undos_added > current_context->undo_actions.count;
     if (redo_queued && can_make_redo) {
-        Array <Entity_Undo_Change> *changes = current_level_context->undo_actions.increase_count_and_get_last();
+        Array <Entity_Undo_Change> *changes = current_context->undo_actions.increase_count_and_get_last();
         for_array(i, changes) {
             Entity_Undo_Change *change = changes->get(i);
             
@@ -390,7 +390,7 @@ inline void update_undo_logic() {
                     mark_entity_destroyed(to_destroy);
                 } break;
                 case ENTITY_SPAWNED: {
-                    Entity *restored_entity = copy_and_add_entity(change->spawned_entity_copy, current_level_context, change->entity_id);
+                    Entity *restored_entity = copy_and_add_entity(change->spawned_entity_copy, current_context, change->entity_id);
                 } break;
                 case ARRAY_APPENDED: {
                     Entity *entity = get_entity(change->entity_id);  
@@ -415,7 +415,7 @@ inline void update_undo_logic() {
             // Explained above in undo.
             if (editor.selected) {
                 free_entity(editor.selected_unchanged_copy);   
-                editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_level_context);
+                editor.selected_unchanged_copy = copy_and_add_entity(editor.selected, &undo_context);
             }
         }
     }

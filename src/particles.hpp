@@ -63,8 +63,8 @@ void add_line_trail_position(Line_Trail *line_trail, Vector2 point){
 }
 
 i32 add_line_trail(Vector2 start_position){
-    for (i32 i = 0; i < current_level_context->line_trails.capacity; i++){
-        Line_Trail *line_trail = current_level_context->line_trails.get(i);
+    for (i32 i = 0; i < current_context->line_trails.capacity; i++){
+        Line_Trail *line_trail = current_context->line_trails.get(i);
         if (!line_trail->occupied){
             line_trail->occupied = true;            
             // line_trail->positions.append(start_position);
@@ -83,7 +83,7 @@ inline Line_Trail *get_line_trail(i32 index){
         return NULL;
     }
     
-    Line_Trail *line_trail = current_level_context->line_trails.get(index);
+    Line_Trail *line_trail = current_context->line_trails.get(index);
     if (!line_trail->occupied){
         printf("WARNING: Trying to get line trail that wasn't occupied with index %d\n", index);
         line_trail = NULL;
@@ -212,13 +212,13 @@ inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 
         particle.line_trail_index = add_line_trail(position);
     }
     
-    if (!current_level_context->particles.get_value(emitter->last_added_index).enabled){
+    if (!current_context->particles.get_value(emitter->last_added_index).enabled){
         enabled_particles_count++;
     }
     
-    *current_level_context->particles.get(emitter->last_added_index) = particle;
+    *current_context->particles.get(emitter->last_added_index) = particle;
     
-    // emitter->last_added_index = (last_added_index + 1) % current_level_context->particles.capacity;
+    // emitter->last_added_index = (last_added_index + 1) % current_context->particles.capacity;
     emitter->last_added_index += 1;
     if (emitter->last_added_index >= emitter->particles_max_index){
         emitter->last_added_index = emitter->particles_start_index;
@@ -329,11 +329,11 @@ inline void disable_particle(Particle *particle){
 internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt){
     emitter->alive_particles_count = 0;
     for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
-        if (!current_level_context->particles.get_value(i).enabled){
+        if (!current_context->particles.get_value(i).enabled){
             continue;
         }
     
-        Particle *particle = current_level_context->particles.get(i);
+        Particle *particle = current_context->particles.get(i);
         // dt = game_state == EDITOR ? core.time.real_dt : dt;
         
         if (particle->lifetime <= 0.2f && editor_state == GAME){
@@ -444,8 +444,8 @@ inline void update_emitter(Particle_Emitter *emitter, f32 dt){
 
 void update_particle_emitters(f32 dt){
     i32 emitters_count = 0;
-    for (int i = 0; i < current_level_context->particle_emitters.capacity; i++){
-        Particle_Emitter *emitter = current_level_context->particle_emitters.get(i);
+    for (int i = 0; i < current_context->particle_emitters.capacity; i++){
+        Particle_Emitter *emitter = current_context->particle_emitters.get(i);
         if (!emitter->occupied){
             continue;              
         }

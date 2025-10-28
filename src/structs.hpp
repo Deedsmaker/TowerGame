@@ -10,7 +10,7 @@ typedef u64 FLAGS;
 #define GRAVITY 100
 #define PLAYER_MASS 10
 
-struct Level_Context;
+struct Context;
 
 #define LINE_TRAIL_MAX_POINTS 128
 
@@ -831,7 +831,7 @@ struct Entity {
     b32 visible = true;
     b32 hidden = false;
     
-    Level_Context *level_context = NULL;
+    Context *context = NULL;
     
     String *name = NULL;
 
@@ -922,7 +922,7 @@ struct Light {
     // b32 exists = false;
     Vector2 position = Vector2_zero;
 
-    Level_Context *level_context = NULL;
+    Context *context = NULL;
 
     i32 connected_entity_id = -1;
     
@@ -1120,7 +1120,7 @@ struct Entity_Undo_Change {
     };
 };
 
-struct Level_Context {
+struct Context {
     char name[64] = {0};
     Allocator memory_arena = {0};
 
@@ -1470,7 +1470,7 @@ struct Editor {
     Array <i32> multiselected_entities = {0};
     
     Vector2 copied_entities_center = Vector2_zero;
-    Level_Context *level_context_on_last_copy = NULL;
+    Context *context_on_last_copy = NULL;
     Array <Entity *> copied_entities = {0};
     
     b32 is_copied;

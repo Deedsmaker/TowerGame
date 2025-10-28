@@ -17,7 +17,7 @@ void reset_planning_data() {
 }
 
 void planning_start_holding_entity(Entity *entity_to_drag) {
-    planning.dragged_entity = copy_and_add_entity(entity_to_drag, current_level_context);
+    planning.dragged_entity = copy_and_add_entity(entity_to_drag, current_context);
     planning.dragged_entity->position = input.mouse_position;
 }
 
