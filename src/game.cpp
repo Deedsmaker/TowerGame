@@ -8105,7 +8105,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             enemy_entity->move_sequence->moving = false;
         }
         
-        // explosive kill explosive
+        // Explosion.
         if (enemy_entity->flags & EXPLOSIVE) {
             assert(enemy_entity->union_enemy);
         
@@ -8128,7 +8128,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             f32 explosion_add_speed = 80;
             i32 spawned_particles_count = 0;
             ForEntities(other_entity, 0) {
-                if (other_entity->flags & TURRET || other_entity->flags & WIN_BLOCK) {
+                if (other_entity->flags & TURRET || other_entity->flags & WIN_BLOCK || other_entity->flags & CENTIPEDE) {
                     continue;
                 }
             
@@ -8177,7 +8177,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             add_hitstop(0.1f * fmaxf(1.0f, enemy->explosive_radius_multiplier * 0.5f), true);
             shake_camera(0.5f * fmaxf(1.0f, enemy->explosive_radius_multiplier * 0.5f));
             
-            // centipede explode segments
+            // Centipede explode segments.
             if (enemy_entity->flags & CENTIPEDE_SEGMENT) {
                 // If we don't explode all segments at once then weird things occur when some segments in ground.
                 Centipede *head = enemy_entity->centipede_segment->head->centipede;
@@ -8193,7 +8193,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     }
                 }
             }
-        } // kill explosive end
+        } // Kill explosive end.
     }
 }
 
