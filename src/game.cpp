@@ -5072,6 +5072,9 @@ void editor_mouse_move_entity(Entity *entity) {
 
 inline void add_to_multiselection(i32 id) {
     if (!editor.multiselection.entities.contains(id)) {
+        Entity *entity = get_entity(id);
+        if (entity->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) return;
+    
         editor.multiselection.entities.append(id);
         
         editor.multiselection.unchanged_copies.append(copy_and_add_entity(get_entity(id), &undo_context));
@@ -5324,6 +5327,7 @@ void update_editor() {
             if (next_context->level_name.count > 0) {
                 editor_context = next_context;
                 switch_current_context(editor_context, true);
+                log_short("this");
             }
             
             // setup_context_cam(current_context);
@@ -10058,14 +10062,9 @@ Bounds get_cam_bounds(Cam cam, f32 zoom) {
     return cam_bounds;
 }
 
-// inline b32 should_draw_entity_anyway(Entity *e) {
-//     b32 is_should_draw_anyway = e->flags & TRIGGER || (e->flags & MOVE_SEQUENCE && editor_state != GAME);
-//     return is_should_draw_anyway;
-// }
-
 inline b32 should_not_draw_entity(Entity *e, Cam cam) {
     Bounds cam_bounds = get_cam_bounds(cam, cam.cam2D.zoom);
-    return /*!should_draw_entity_anyway(e) && */(!check_bounds_collision(cam.view_position, cam_bounds, e) || !e->enabled);
+    return e->will_be_destroyed || !check_bounds_collision(cam.view_position, cam_bounds, e) || !e->enabled;
 }
 
 inline f32 get_turret_charge_progress(Turret *turret) {

@@ -706,23 +706,7 @@ b32 load_level(String name) {
     clear_context(editor_context);
     copy_context(editor_context, &loaded_context, true);
     
-    // log_short(editor_context->centipede_segments.first_chunk->occupied_count);
-    
     editor_enter_editor_state();
-    
-    // if (enter_game_state_on_new_level || editor_state == GAME || (0 && initing_game && RELEASE_BUILD)) {
-    //     // enter_and_reload_game_state(&loaded_context, true);
-        
-    //     if (enter_game_state_on_new_level) {
-    //         // current_context->player_data->blood_amount = last_player_data.blood_amount;
-    //         // current_context->player_data->blood_progress = last_player_data.blood_progress;
-    //         // current_context->player_data->ammo_count = last_player_data.ammo_count;
-    //     }
-        
-    //     enter_game_state_on_new_level = false;
-    // } else {
-    //     editor_enter_editor_state();
-    // }
     
     current_context->cam.position = current_context->player_spawn_point;
     current_context->cam.target = current_context->player_spawn_point;
