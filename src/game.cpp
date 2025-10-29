@@ -9501,12 +9501,10 @@ inline b32 update_entity(Entity *e, f32 dt) {
         
         for_array(i, &centipede->segments) {
             Entity *segment = centipede->segments.get_value(i);
-            // Centipede and segments pivots should be close to {0.5f, 0.0f}.
             
             Entity *previous = segment->centipede_segment->previous;
             Vector2 previous_bottom = previous->position - previous->up * previous->scale.y * (1.0f - previous->pivot.y);
             
-            // Check:
             Vector2 vec = previous_bottom - segment->position;
             f32 length = magnitude(vec);
             f32 half_segment_height = segment->scale.y * 0.5f;
@@ -9514,39 +9512,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 Vector2 dir = vec / length;
                 change_up(segment, dir);
                 segment->position = previous_bottom - dir * half_segment_height;
-                // vec = previous_bottom - segment->position;
-                // length = magnitude(vec);
-                // if (length > EPSILON) {
-                    // dir = vec / length;
-                    // segment->position += dir * length;
-                // }
-                
-                
-                // segment->position += dir * length;
-                // goto Check;
-                // f32 vec_dot = dot(vec, segment->up);
-                // if (vec_dot > EPSILON) { // So we move segment furgther
-                //     Vector2 dir = vec / length;
-                //     change_up(segment, dir);
-                //     segment->position += segment->up * length;
-                    
-                // } else if (vec_dot < EPSILON) { // Moving segment back
-                //     Vector2 dir = vec / length;
-                //     segment->position -= dir * length * 1.5f;
-                //     // goto Check;
-                // } else {
-                //     // change_up(segment, previous->up);
-                //     // segment->position = previous_bottom;
-                //     // log_short("here");
-                // }
-            } else {
-                // log_short(length);
-            }
-            
-            if (abs(vec.x) > EPSILON && abs(vec.y) > EPSILON) {
-                // if (length > EPSILON) {
-            } else {
-            }
+            } 
         }
         
         // @SPEED: We could make this faster by just not checking every segment every frame and just let segments tell centipede
