@@ -613,7 +613,7 @@ Particle_Emitter *get_particle_emitter(i32 index) {
     
     Particle_Emitter *emitter = current_context->particle_emitters.get(index);
     if (!emitter->occupied) {
-        print("WARNING: In get_particle_emitter we just took un-occupied emitter. Don't think that should happen");
+        // print("WARNING: In get_particle_emitter we just took un-occupied emitter. Don't think that should happen");
     }
     
     return emitter;
@@ -1100,7 +1100,7 @@ void init_spawn_objects() {
     str_copy(enemy_trigger_object.name, "enemy_trigger");
     spawn_objects.append(enemy_trigger_object);
     
-    Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.0f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
+    Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
     centipede_entity.color = ColorBrightness(RED, 0.6f);
     setup_color_changer(&centipede_entity);
     
@@ -1109,7 +1109,7 @@ void init_spawn_objects() {
     str_copy(centipede_object.name, "centipede");
     spawn_objects.append(centipede_object);
     
-    Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.0f}, 0, ENEMY | CENTIPEDE_SEGMENT);
+    Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT);
     centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
     setup_color_changer(&centipede_segment_entity);
     
@@ -1334,9 +1334,7 @@ inline Vector2 get_centipede_segment_start_position(Entity *segment, Entity *cen
     
     Entity *previous = segment->centipede_segment->previous;
     
-    f32 pivot_add = (1.0f - previous->pivot.y);
-    // if (segment_index == 0) pivot_add = 0;
-    Vector2 result = previous->position - previous->up * previous->scale.y * pivot_add;
+    Vector2 result = previous->position - previous->up * previous->scale.y * (1.0f - previous->pivot.y) - previous->up * segment->scale.y * (1.0f - segment->pivot.y);
     
     return result;
 }
@@ -1447,8 +1445,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->centipede = entity->context->centipedes.append({0}, &index);
             entity->centipede->index = index;
         }
-        
-        entity->pivot = {0.5f, 0.0f};
         
         assert(entity->centipede);     
         Centipede *centipede = entity->centipede;
@@ -9509,7 +9505,48 @@ inline b32 update_entity(Entity *e, f32 dt) {
             
             Entity *previous = segment->centipede_segment->previous;
             Vector2 previous_bottom = previous->position - previous->up * previous->scale.y * (1.0f - previous->pivot.y);
-            segment->position = previous_bottom;
+            
+            // Check:
+            Vector2 vec = previous_bottom - segment->position;
+            f32 length = magnitude(vec);
+            f32 half_segment_height = segment->scale.y * 0.5f;
+            if (length > half_segment_height) {
+                Vector2 dir = vec / length;
+                change_up(segment, dir);
+                segment->position = previous_bottom - dir * half_segment_height;
+                // vec = previous_bottom - segment->position;
+                // length = magnitude(vec);
+                // if (length > EPSILON) {
+                    // dir = vec / length;
+                    // segment->position += dir * length;
+                // }
+                
+                
+                // segment->position += dir * length;
+                // goto Check;
+                // f32 vec_dot = dot(vec, segment->up);
+                // if (vec_dot > EPSILON) { // So we move segment furgther
+                //     Vector2 dir = vec / length;
+                //     change_up(segment, dir);
+                //     segment->position += segment->up * length;
+                    
+                // } else if (vec_dot < EPSILON) { // Moving segment back
+                //     Vector2 dir = vec / length;
+                //     segment->position -= dir * length * 1.5f;
+                //     // goto Check;
+                // } else {
+                //     // change_up(segment, previous->up);
+                //     // segment->position = previous_bottom;
+                //     // log_short("here");
+                // }
+            } else {
+                // log_short(length);
+            }
+            
+            if (abs(vec.x) > EPSILON && abs(vec.y) > EPSILON) {
+                // if (length > EPSILON) {
+            } else {
+            }
         }
         
         // @SPEED: We could make this faster by just not checking every segment every frame and just let segments tell centipede

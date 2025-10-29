@@ -242,6 +242,7 @@ f32 dot(Vector2 v1, Vector2 v2){
 }
 
 inline f32 fangle(Vector2 v1, Vector2 v2){
+    if (v1.x == 0 && v1.y == 0 || v2.x == 0 && v2.y == 0) return 0;
     return (acosf(dot(v1, v2) / (magnitude(v1) *  magnitude(v2)))) * RAD2DEG;
 }
 
