@@ -145,6 +145,11 @@ void log_short(const char *str) {
     str_copy(new_log->data, str);
     new_log->birth_time = core.time.app_time;
 }
+void log_short(String string) {
+    Log_Message *new_log = debug.log_messages_short.append({0});
+    str_copy(new_log->data, c_str(string));
+    new_log->birth_time = core.time.app_time;
+}
 
 inline void log_short(f32 value) {
     log_short(tprintf("%f", value));
@@ -643,7 +648,7 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     // Editor_State original_game_state = editor_state;
     // editor_state = EDITOR;
     
-    dest->level_name = copy_string(src->level_name, src->level_name.allocator);
+    dest->level_name = copy_string(src->level_name, &dest->memory_arena);
     dest->player_spawn_point = src->player_spawn_point;
     dest->cam = src->cam;
     
@@ -831,7 +836,7 @@ inline void free_particle_emitter(i32 index) {
             current_context->particles.get(i)->enabled = false;
         }
     } else {
-        printf("L_WARNING: No emitter existing on free_particle_emitter. Index is %d\n", index);
+        // printf("L_WARNING: No emitter existing on free_particle_emitter. Index is %d\n", index);
     }
     
     *current_context->particle_emitters.get(index) = {0};
@@ -3164,7 +3169,6 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    // printf("%zu\n", sizeof(Entity));
     clear_allocator(temp);
 
     frame_rnd = rnd01();
