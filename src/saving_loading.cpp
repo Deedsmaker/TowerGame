@@ -37,7 +37,7 @@ void save_level(String level_name) {
     for_chunk_array(entity_index, (&current_context->entities)) {
         Entity *e = current_context->entities.get(entity_index);
         
-        if (e->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) {
+        if (e->runtime_only_flags & SHOULD_NOT_SAVE) {
             continue;
         }
         

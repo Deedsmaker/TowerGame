@@ -880,6 +880,8 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
         return make_string(allocator, "Ground");  
     } else if (entity->flags & BIRD_ENEMY) {
         return make_string(allocator, "Bird_enemy");  
+    } else if (entity->flags & STICKY_TEXTURE) {
+        return make_string(allocator, "Sticky_texture");  
     } else if (entity->flags & CENTIPEDE) {
         return make_string(allocator, "Centipede");  
     } else if (entity->flags & CENTIPEDE_SEGMENT) {
@@ -899,6 +901,8 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
             return make_string(allocator, "Light");  
         }
         return make_string(allocator, "Dummy");  
+    } else if (entity->flags & TEXTURE) {
+        return make_string(allocator, tprintf("Texture_%s", entity->texture_name));  
     } 
         
     return make_string(allocator, "No_name");
@@ -1459,7 +1463,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         for (i32 i = 0; i < centipede->segments_to_spawn; i++) {
             Entity* segment = spawn_object_by_name("centipede_segment", entity->position, entity->context);
             
-            segment->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
+            segment->runtime_only_flags |= SHOULD_NOT_SAVE | SHOULD_NOT_COPY;
             
             assert(segment->centipede_segment);
             segment->centipede_segment->head = entity;
@@ -1694,7 +1698,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             Texture texture = entity->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
             Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
             // str_copy(sticky_entity->name, "blocker_attack_mark");
-            sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
+            sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE;
             //sticky_entity->texture = texture;
             sticky_entity->draw_order = 1;
             sticky_entity->sticky_texture->max_lifetime   = 0;
@@ -1729,7 +1733,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         
         // str_copy(sticky_entity->name, "sword_size_attack_mark");
-        sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
+        sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE;
         //sticky_entity->texture = texture;
         sticky_entity->draw_order = 1;
         sticky_entity->sticky_texture->max_lifetime   = 0;
@@ -2628,7 +2632,8 @@ void game_setup_collisions() {
 }
 
 void enter_gaming_state() {
-    copy_context(&game_context, current_context, true);
+    b32 should_init_entities = false;
+    copy_context(&game_context, current_context, should_init_entities);
     
     switch_current_context(&game_context);
     game_state = GAMING;
@@ -4044,7 +4049,7 @@ void editor_destroy_entity(i32 entity_id) {
 void assign_selected_entity(Entity *new_selected) {
     // We're just not allowing copying things for that flag so it could not be unchanged copy. Maybe will try to work around
     // it eventually, but probably will leave it as constrained as it is.
-    if (new_selected && new_selected->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) {
+    if (new_selected && new_selected->runtime_only_flags & SHOULD_NOT_COPY) {
         return;
     }
     
@@ -5077,7 +5082,7 @@ void editor_mouse_move_entity(Entity *entity) {
 inline void add_to_multiselection(i32 id) {
     if (!editor.multiselection.entities.contains(id)) {
         Entity *entity = get_entity(id);
-        if (entity->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) return;
+        if (entity->runtime_only_flags & SHOULD_NOT_COPY) return;
     
         editor.multiselection.entities.append(id);
         
@@ -8338,7 +8343,7 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale) {
 
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color tint) {
     Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
-    hitmark->runtime_only_flags |= SHOULD_NOT_SAVE_OR_COPY;
+    hitmark->runtime_only_flags |= SHOULD_NOT_SAVE;
     change_color(hitmark, tint);
     hitmark->draw_order = 1;
     
@@ -11516,7 +11521,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
     // init entity without it being inside a entity array because other entities might want to refer to it. And it's don't 
     // really makes sense to have dummy entity that creating things on level context.
     
-    if (to_copy->runtime_only_flags & SHOULD_NOT_SAVE_OR_COPY) {
+    if (to_copy->runtime_only_flags & SHOULD_NOT_COPY) {
         return NULL;
     }
   

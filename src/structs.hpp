@@ -822,8 +822,9 @@ struct Centipede_Segment : Enemy {
 };
 
 enum Runtime_Flags : FLAGS {
-    EDITOR_CHANGED          = 0x1,  
-    SHOULD_NOT_SAVE_OR_COPY = 0x2,
+    EDITOR_CHANGED  = 0x1,  
+    SHOULD_NOT_SAVE = 0x2,
+    SHOULD_NOT_COPY = 0x4,
 };
 
 struct Entity {
