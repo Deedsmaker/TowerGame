@@ -143,8 +143,6 @@ void make_thing() {
         }
         
         Image image = ImageCopy(background);
-        
-        
     }
 }
 
@@ -157,7 +155,7 @@ int main(){
 
     SetTraceLogLevel(LOG_WARNING);
 
-    InitWindow(screen_width, screen_height, "Pure Action");
+    InitWindow(screen_width, screen_height, "(Not that) Pure (of a) Action");
     SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_ALWAYS_RUN);
     InitAudioDevice();
     SetMasterVolume(0.3f);

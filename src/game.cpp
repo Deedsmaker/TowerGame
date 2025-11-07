@@ -736,6 +736,7 @@ void clear_context(Context *context) {
     context->jump_shooters.clear();
     context->kill_switches.clear();
     context->turrets.clear();
+    context->win_blocks.clear();
     
     context->projectiles.clear();
     
@@ -1003,7 +1004,7 @@ void init_spawn_objects() {
     str_copy(enemy_bird_object.name, "bird_enemy");
     spawn_objects.append(enemy_bird_object);
     
-    Entity win_block_entity = make_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | MULTIPLE_HITS | NO_MOVE_BLOCK);
+    Entity win_block_entity = make_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY);
     win_block_entity.color_changer.start_color = win_block_entity.color;
     win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
     setup_color_changer(&win_block_entity);
@@ -1395,6 +1396,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     // It's all in the else-if statements so that we could know for sure if some enemy entity should be put in 
     // just_enemies array, where stored enemies that just use base Enemy struct (for now that's a AMMO_PACK for one, which 
     // don't need separate data besides basic Enemy.
+    // Init enemies.
     if (0) {
     } else if (entity->flags & BIRD_ENEMY) { // init bird enemy 
         entity->collision_flags = (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
@@ -1530,6 +1532,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         
         entity->jump_shooter->sword_kill_speed_modifier = 10;
+    } else if (entity->flags & WIN_BLOCK) { // Init win block.
+        if (!entity->win_block || ignore_existing_types) {
+            i32 index = -1;
+            entity->win_block = entity->context->win_blocks.append({0}, &index);
+            entity->win_block->index = index;
+        }
+    
+        entity->win_block->max_hits_taken = 5;
     } else if (entity->flags & ENEMY) { // init enemy
         if (!entity->union_enemy || ignore_existing_types) {
             // We'll be here if entity is makred as enemy but was not previously inited, which means that it's just a enemy
@@ -1676,14 +1686,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             new_light->color = Fade(ColorBrightness(ORANGE, 0.2f), 1.0f);
             new_light->power = 1.0f;
         }
-    }
-    
-    // init win block
-    if (entity->flags & WIN_BLOCK) {
-        assert(entity->union_enemy);
-    
-        // That's for projectile to reflect, but projectiles do not damage win block.
-        entity->union_enemy->max_hits_taken = 5;
     }
     
     // init blocker
@@ -2347,6 +2349,7 @@ void init_context(Context *context) {
     init_chunk_array(&context->jump_shooters, 8, HEAP_ALLOCATOR);
     init_chunk_array(&context->kill_switches, 8, HEAP_ALLOCATOR);
     init_chunk_array(&context->turrets, 32, HEAP_ALLOCATOR);
+    init_chunk_array(&context->win_blocks, 8, HEAP_ALLOCATOR);
     
     init_chunk_array(&context->projectiles, 256, HEAP_ALLOCATOR);
     
@@ -2645,8 +2648,6 @@ void enter_gaming_state() {
     
     game_setup_collisions();
     
-    current_context->original_win_blocks_count = 0;
-    
     ForEntities(entity, 0) {
         // if (should_init_entities) {
             update_editor_entity(entity);
@@ -2655,13 +2656,9 @@ void enter_gaming_state() {
             init_entity(entity);
             // update_entity_collision_cells(entity, true);
         // }
-        
-        if (entity->flags & WIN_BLOCK) {
-            current_context->original_win_blocks_count += 1;
-        }
     }
     
-    current_context->current_win_blocks_count = current_context->original_win_blocks_count;
+    current_context->active_win_blocks_count = current_context->win_blocks.get_occupied_count();
     
     current_context->cam.cam2D.zoom = 0.35f;
     current_context->cam.target_zoom = 0.35f;
@@ -6720,12 +6717,12 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
                 sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter->velocity);
             } else if (enemy_entity->flags & WIN_BLOCK) {
-                assert(current_context->current_win_blocks_count > 0);
-                current_context->current_win_blocks_count -= 1;
+                assert(current_context->active_win_blocks_count > 0);
+                current_context->active_win_blocks_count -= 1;
                 
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, 1.0f);
                 
-                if (current_context->current_win_blocks_count <= 0) {
+                if (current_context->active_win_blocks_count <= 0) {
                     win_level();
                 }
             } else {
@@ -10690,7 +10687,7 @@ void draw_entity(Entity *e) {
     } else if (e->flags & WIN_BLOCK) {
         // draw win block  
         draw_game_triangle_strip(e, ColorBrightness(GREEN, -0.2f));
-    } else if (e->flags & ENEMY) { // draw enemy
+    } else if (e->flags & ENEMY) { // Draw enemy.
         draw_game_triangle_strip(e);
     }
     
@@ -10740,14 +10737,11 @@ void draw_entity(Entity *e) {
         
         line_strip_points.append(start_position - e->up * e->scale.y);
         
-        b32 move = false;
         for (f32 ii = 0; ii <= len - frequency * 0.8f; ii += frequency * 0.8f) {
             line_strip_points.append(start_position + dir * ii);
             line_strip_points.append(start_position + dir * (ii + frequency * 0.8f));
             line_strip_points.append(start_position + dir * (ii + frequency * 0.9f) + vertical_removal);
             line_strip_points.append(start_position + dir * (ii + frequency));
-        
-            move = !move;
             
             ii += frequency * 0.2f;
         }
@@ -10874,7 +10868,6 @@ void draw_entities() {
 void draw_game_space_editor() {
     Chunk_Array <Entity> *entities = &current_context->entities;
 
-    // for (i32 i = 0; i < entities->capacity; i++) {
     for_chunk_array(i, entities) {
         Entity *e = entities->get(i);
         

@@ -452,6 +452,12 @@ struct Move_Sequence {
     Vector2 moved_last_frame = Vector2_zero;
 };
 
+struct Win_Block : Enemy {
+    f32 touch_timer = 0;    
+    inline static const f32 delay_before_timer_go_down = 1.0f;
+    inline static const f32 touch_time_to_win = 3.0f;
+};
+
 struct Door {
     Vector2 closed_position = Vector2_zero;
     Vector2 open_position   = Vector2_zero;
@@ -894,6 +900,7 @@ struct Entity {
         Jump_Shooter *jump_shooter;
         Kill_Switch *kill_switch;
         Turret *turret;
+        Win_Block *win_block;
         
         Player *player_data;
     };
@@ -1136,8 +1143,7 @@ struct Context {
     Vector2 player_spawn_point = Vector2_zero;
     String level_name = {0};
 
-    i32 original_win_blocks_count = 0;
-    i32 current_win_blocks_count = 0;
+    i32 active_win_blocks_count = 0;
 
     Chunk_Array <Entity> entities = {0};
     
@@ -1149,6 +1155,7 @@ struct Context {
     Chunk_Array <Bird_Enemy> bird_enemies = {0};
     Chunk_Array <Jump_Shooter> jump_shooters = {0};
     Chunk_Array <Turret> turrets = {0};
+    Chunk_Array <Win_Block> win_blocks = {0};
     
     Chunk_Array <Projectile> projectiles = {0};
     

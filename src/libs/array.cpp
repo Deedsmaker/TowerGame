@@ -670,7 +670,7 @@ struct Chunk_Array {
             current = next;
         }
         
-        // Should we tell that chunks count is zero and actually nullify all of chunks?
+        // Should we tell that chunks count is zero and actually nullify all of the chunks?
     }
     
     inline void init_chunk(Chunk **chunk) {
@@ -678,7 +678,7 @@ struct Chunk_Array {
         (*chunk)->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
     }
     
-    inline i32 get_total_occupied_count() {
+    inline i32 get_occupied_count() {
         Chunk *chunk = first_chunk;
         i32 result = 0;
         while (chunk) {
