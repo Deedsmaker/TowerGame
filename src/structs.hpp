@@ -55,18 +55,18 @@ struct Lightmap_Data {
     Vector2 position = {0, 0};
     Vector2 game_size = {2000.0f, 2000.0f};
 
-    RenderTexture global_illumination_rt = {}; 
-    RenderTexture emitters_occluders_rt  = {};
-    RenderTexture distance_field_rt      = {};
-    RenderTexture normal_rt              = {};
-    RenderTexture static_textures_rt     = {};
-    RenderTexture voronoi_seed_rt        = {};
-    RenderTexture jump_flood_rt          = {};
+    RenderTexture global_illumination_rt = {0}; 
+    RenderTexture emitters_occluders_rt  = {0};
+    RenderTexture distance_field_rt      = {0};
+    RenderTexture normal_rt              = {0};
+    RenderTexture static_textures_rt     = {0};
+    RenderTexture voronoi_seed_rt        = {0};
+    RenderTexture jump_flood_rt          = {0};
     
     b32 has_loaded_texture = false;
     // b32 render_textures_loaded = false;
     
-    Texture lightmap_texture = {};
+    Texture lightmap_texture = {0};
     
     i32 distance_texture_loc = -1;
     i32 emitters_occluders_loc = -1;
@@ -131,7 +131,7 @@ struct Particle_Emitter {
     
     b32 should_extinct = false;
     
-    Texture texture = {};
+    Texture texture = {0};
     f32 line_length_multiplier = 1.0f;
     f32 line_width = 1.0f;
     
@@ -212,7 +212,7 @@ struct Particle_Emitter {
 
 struct Texture_Data {
     char name[64] = "\0";  
-    Texture texture = {};
+    Texture texture = {0};
 };
 
 #define MAX_SINGLE_SOUND 16
@@ -234,7 +234,7 @@ constexpr f32 HIT_BOOSTER_BOOST_TIME = 0.2f;
 
 enum Flags : FLAGS {
     GROUND              = 1 << 0,
-    
+    CONNECTED_TO_PLAYER = 1 << 1,
     PLAYER              = 1 << 2,
     ENEMY               = 1 << 3,
     SWORD               = 1 << 4,
@@ -267,7 +267,7 @@ enum Flags : FLAGS {
     LONG_SPIN              = (static_cast<u64>(1) << 32),
     NO_MOVE_BLOCK          = (static_cast<u64>(1) << 33),
     HIT_BOOSTER            = (static_cast<u64>(1) << 34),
-    MULTIPLE_HITS          = (static_cast<u64>(1) << 35),
+    PLAYER_TOUCH_TIMER     = (static_cast<u64>(1) << 35),
     GIVES_BIG_SWORD_CHARGE = (static_cast<u64>(1) << 36),
     AMMO_PACK              = (static_cast<u64>(1) << 37),
     TURRET                 = (static_cast<u64>(1) << 38),
@@ -287,11 +287,11 @@ struct Hit_Booster {
     f32 boost = 175;  
 };
 
-struct Multiple_Hits {
-    i32 made_hits = 0;
-    i32 required_hits = 40;
-    f32 seconds_to_regen = 1.0f;
-    f32 timer = 0;
+struct Player_Touch_Timer {
+    inline static const f32 seconds_until_death = 4.0f;
+    inline static const f32 seconds_until_regen = 1.0f;
+    f32 touched_timer = 0;
+    f32 regen_timer = 0;
 };
 
 struct Projectile_Settings {
@@ -355,8 +355,8 @@ struct Enemy {
     
     i32 alarm_emitter_index = -1;
     
-    Hit_Booster hit_booster = {};
-    Multiple_Hits multiple_hits = {};
+    Hit_Booster hit_booster = {0};
+    Player_Touch_Timer player_touch_timer = {0};
 };
 
 struct Turret : Enemy {
@@ -372,7 +372,7 @@ struct Turret : Enemy {
     f32 shoot_width  = 400;
     f32 shoot_height = 400;
     
-    Projectile_Settings projectile_settings = {};
+    Projectile_Settings projectile_settings = {0};
 };
 
 struct Kill_Switch : Enemy {
@@ -400,7 +400,7 @@ struct Jump_Shooter : Enemy {
         b32 picking_point = false;
         b32 flying_to_point = false;
     };
-    shooter_states states = {};
+    shooter_states states = {0};
     
     i32 standing_on_physics_object_id = -1;
     
@@ -453,9 +453,6 @@ struct Move_Sequence {
 };
 
 struct Win_Block : Enemy {
-    f32 touch_timer = 0;    
-    inline static const f32 delay_before_timer_go_down = 1.0f;
-    inline static const f32 touch_time_to_win = 3.0f;
 };
 
 struct Door {
@@ -683,7 +680,7 @@ struct Player {
     
     b32 in_slowmo = false;
     
-    Timers timers = {};
+    Timers timers = {0};
     
     b32 can_shoot = true;
     
@@ -743,7 +740,7 @@ struct Player {
         i32 right_wall_checker_id = -1;
         i32 sword_entity_id = -1;
     };
-    Connected_Entities_Ids connected_entities_ids = {};
+    Connected_Entities_Ids connected_entities_ids = {0};
     
     Vector2 velocity = {0, 0};
     
@@ -844,11 +841,11 @@ struct Entity {
 
     b32 enabled = 12;
     
-    Texture texture = {};
+    Texture texture = {0};
     char texture_name[64];
     
     b32 have_normal_map = false;
-    Texture normal_map_texture = {};
+    Texture normal_map_texture = {0};
     
     b32 destroyed = false;
     b32 will_be_destroyed = false;
@@ -998,7 +995,7 @@ struct Cam {
     f32 unit_size;
     
     //Shake
-    Camera2D cam2D = {};
+    Camera2D cam2D = {0};
 };
 
 //definition in particles.hpp
@@ -1134,7 +1131,7 @@ struct Context {
 
     Array <Array<Entity_Undo_Change>> undo_actions = {0};
     i32 max_undos_added = 0;
-    Cam cam = {};
+    Cam cam = {0};
 
     b32 inited = false;
     
@@ -1204,7 +1201,7 @@ struct State_Context { // @TODO: How can we rename this?
         f32 last_explosion_app_time = -12;
         f32 last_shoot_stoper_failed_shot_app_time = -12;
     };
-    Timers timers = {};
+    Timers timers = {0};
     
     struct Death_Instinct {
         f32 allowed_duration_without_cooldown = 0.5f;
@@ -1224,7 +1221,7 @@ struct State_Context { // @TODO: How can we rename this?
         
         Death_Instinct_Reason last_reason = ENEMY_ATTACKING;
     };
-    Death_Instinct death_instinct = {};
+    Death_Instinct death_instinct = {0};
     
     struct Cam_State {
         f32 trauma = 0;
@@ -1235,9 +1232,9 @@ struct State_Context { // @TODO: How can we rename this?
         i32 rails_trigger_id    = -1;
     };
     
-    Turret_State turret_state = {};
+    Turret_State turret_state = {0};
     
-    Cam_State cam_state = {};
+    Cam_State cam_state = {0};
       
     b32 we_got_a_winner = false;
     
@@ -1277,9 +1274,9 @@ struct Global_Data{
     char old_previous_level_name[256] = "\0";
     String previous_level_name = {0};
     
-    // Cam cam = {};
+    // Cam cam = {0};
     
-    Speedrun_Timer speedrun_timer = {};
+    Speedrun_Timer speedrun_timer = {0};
 };
 
 struct Line {
@@ -1306,7 +1303,7 @@ struct Rect_Lines {
 };
 
 struct Immediate_Texture {
-    Texture texture = {};
+    Texture texture = {0};
     Vector2 position = Vector2_zero;
     Vector2 scale = Vector2_one;
     Vector2 pivot = {0.5f, 0.5f};
@@ -1378,8 +1375,8 @@ struct Input {
 
 #define MAX_INPUT_RECORDS (FIXED_FPS * 60)
 struct Replay_Frame_Data {
-    Input frame_input = {};  
-    // Time frame_time_data = {};
+    Input frame_input = {0};  
+    // Time frame_time_data = {0};
 };
 
 struct Level_Replay {

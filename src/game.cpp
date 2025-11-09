@@ -211,7 +211,7 @@ inline void mark_entity_destroyed(Entity *entity) {
 }
 
 void free_entity(Entity *e) {
-    // free trigger
+    // Free trigger.
     if (e->flags & TRIGGER) {
         assert(e->trigger && e->trigger->index > -1);
     
@@ -230,7 +230,7 @@ void free_entity(Entity *e) {
         e->propeller = NULL;
     }
     
-    // free move sequence
+    // Free move sequence.
     if (e->flags & MOVE_SEQUENCE) {
         assert(e->move_sequence && e->move_sequence->index >= 0);
         
@@ -240,7 +240,7 @@ void free_entity(Entity *e) {
         e->move_sequence = NULL;
     }
     
-    // free sticky texture
+    // Free sticky texture.
     if (e->flags & STICKY_TEXTURE) {
         assert(e->sticky_texture && e->sticky_texture->index > -1);
         
@@ -248,21 +248,21 @@ void free_entity(Entity *e) {
         e->sticky_texture = NULL;
     }
     
-    // free propeller.
+    // Free propeller.
     if (e->flags & PROPELLER) {
         assert(e->propeller && e->propeller->index >= 0);
         e->context->propellers.remove(e->propeller->index);
         e->propeller = NULL;
     }
     
-    // free turret->
+    // Free turret->.
     if (e->flags & TURRET) {
         assert(e->turret && e->turret->index >= 0);
         e->context->turrets.remove(e->turret->index);
         e->turret = NULL;
     }
     
-    // free bird enemy
+    // Free bird enemy.
     if (e->flags & BIRD_ENEMY) {
         assert(e->bird_enemy && e->bird_enemy->index >= 0);
     
@@ -272,7 +272,7 @@ void free_entity(Entity *e) {
         e->bird_enemy = NULL;
     }
     
-    // free kill switch
+    // Free kill switch.
     if (e->flags & KILL_SWITCH) {
         assert(e->kill_switch && e->kill_switch->index >= 0);
     
@@ -282,7 +282,7 @@ void free_entity(Entity *e) {
         e->kill_switch = NULL;
     }
     
-    // free centipede segment
+    // Free centipede segment.
     if (e->flags & CENTIPEDE_SEGMENT) {
         assert(e->centipede_segment && e->centipede_segment->index >= 0);
         
@@ -304,7 +304,7 @@ void free_entity(Entity *e) {
         e->centipede = NULL;
     }
     
-    // free jump shooter
+    // Free jump shooter.
     if (e->flags & JUMP_SHOOTER) {
         e->jump_shooter->move_points.free_data();
         
@@ -318,15 +318,15 @@ void free_entity(Entity *e) {
         e->win_block = NULL;
     }
     
-    // free light
+    // Free light.
     if (e->lights.count > 0) {
         free_lights_connected_to_entity(e);
         e->lights.free_data();
     }
     
-    // free enemy    
+    // Free enemy    .
     if (e->flags & ENEMY && e->union_enemy) { 
-        // We'll be here if entity is marked as enemy and it was not previously freed, which could mean that all of his data        
+        // We'll be here if entity is marked as enemy and it was not previously freed, which should mean that all of his data        
         // is contained in base Enemy struct.
         
         assert(e->union_enemy->index >= 0);
@@ -335,7 +335,7 @@ void free_entity(Entity *e) {
         e->union_enemy = NULL;
     }
     
-    // free projectile 
+    // Free projectile .
     if (e->flags & PROJECTILE && e->projectile) {
         assert(e->projectile->index >= 0);
         
@@ -857,7 +857,7 @@ inline void free_particle_emitters(i32 *start_ptr, i32 count) {
 
 inline void free_entity_particle_emitters(Entity *entity) {
     Static_Array <i32, MAX_ENTITY_EMITTERS> *emitters_indexes = &entity->particle_emitters_indexes;
-    // free_particle_emitters(emitters_indexes->data, emitters_indexes->count);
+    // Free_particle_emitters(emitters_indexes->data, emitters_indexes->count);.
     for (i32 i = 0; i < emitters_indexes->count; i++) {    
         Particle_Emitter *emitter = get_particle_emitter(emitters_indexes->get_value(i));
         if (emitter) {
@@ -1010,7 +1010,7 @@ void init_spawn_objects() {
     str_copy(enemy_bird_object.name, "bird_enemy");
     spawn_objects.append(enemy_bird_object);
     
-    Entity win_block_entity = make_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY);
+    Entity win_block_entity = make_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | PLAYER_TOUCH_TIMER);
     win_block_entity.color_changer.start_color = win_block_entity.color;
     win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
     setup_color_changer(&win_block_entity);
@@ -1067,7 +1067,7 @@ void init_spawn_objects() {
     str_copy(kill_switch_object.name, "kill_switch");
     spawn_objects.append(kill_switch_object);
     
-    Entity enemy_barrier_entity = make_entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | MULTIPLE_HITS);
+    Entity enemy_barrier_entity = make_entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | PLAYER_TOUCH_TIMER);
     enemy_barrier_entity.color = ColorBrightness(GRAY, 0.2f);
     setup_color_changer(&enemy_barrier_entity);
     
@@ -1380,7 +1380,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->texture = get_texture("Prop");
     }
 
-    // init move sequence
+    // Init move sequence.
     if (entity->flags & MOVE_SEQUENCE) {
         if (!entity->move_sequence || ignore_existing_types) {
             i32 index = -1;
@@ -1404,7 +1404,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     // don't need separate data besides basic Enemy.
     // Init enemies.
     if (0) {
-    } else if (entity->flags & BIRD_ENEMY) { // init bird enemy 
+    } else if (entity->flags & BIRD_ENEMY) { // Init bird enemy.
         entity->collision_flags = (GROUND | PLAYER | BIRD_ENEMY | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
         change_color(entity, entity->flags & EXPLOSIVE ? ORANGE * 0.9f : YELLOW * 0.9f);
         
@@ -1420,7 +1420,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->bird_enemy->sword_kill_speed_modifier = 4;
         
         init_bird_emitters(entity);
-    } else if (entity->flags & KILL_SWITCH) { // init kill switch
+    } else if (entity->flags & KILL_SWITCH) { // Init kill switch.
         if (!entity->kill_switch || ignore_existing_types) {
             i32 index = -1;
             entity->kill_switch = entity->context->kill_switches.append({0}, &index);
@@ -1428,7 +1428,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     
         entity->kill_switch->max_hits_taken = 1;
-    } else if (entity->flags & TURRET) {  // init turret
+    } else if (entity->flags & TURRET) {  // Init turret.
         if (!entity->turret || ignore_existing_types) {
             i32 index = -1;
             entity->turret = entity->context->turrets.append({0}, &index);
@@ -1454,7 +1454,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
         entity->turret->player_cannot_kill = true;
         
-    } else if (entity->flags & CENTIPEDE) { // init centipede
+    } else if (entity->flags & CENTIPEDE) { // Init centipede.
         if (!entity->centipede || ignore_existing_types) {        
             i32 index = -1;
             entity->centipede = entity->context->centipedes.append({0}, &index);
@@ -1514,7 +1514,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->centipede_segment = entity->context->centipede_segments.append({0}, &index);
             entity->centipede_segment->index = index;
         }
-    } else if (entity->flags & JUMP_SHOOTER) { // init jump shooter
+    } else if (entity->flags & JUMP_SHOOTER) { // Init jump shooter.
         if (!entity->jump_shooter || ignore_existing_types) {
             i32 index = -1;
             entity->jump_shooter = entity->context->jump_shooters.append({0}, &index);
@@ -1546,7 +1546,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     
         entity->win_block->max_hits_taken = 5;
-    } else if (entity->flags & ENEMY) { // init enemy
+    } else if (entity->flags & ENEMY) { // Init enemy.
         if (!entity->union_enemy || ignore_existing_types) {
             // We'll be here if entity is makred as enemy but was not previously inited, which means that it's just a enemy
             // without separate type and array.
@@ -1580,7 +1580,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }
 
-    // init no move block
+    // Init no move block.
     if (entity->flags & NO_MOVE_BLOCK) {
         Light light = {0};
         light.color = entity->color;
@@ -1590,7 +1590,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         Light *new_light = copy_and_add_light_to_entity(entity, &light, true);
     }
     
-    // init propeller
+    // Init propeller.
     if (entity->flags & PROPELLER) {
         free_entity_particle_emitters(entity);
         
@@ -1615,7 +1615,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->flags |= TRIGGER;
     }
     
-    // init trigger 
+    // Init trigger.
     if (entity->flags & TRIGGER) {
         if (!entity->trigger || ignore_existing_types) {
             i32 index = -1;
@@ -1641,7 +1641,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->trigger->entity = entity;
     }
     
-    // init sticky texture
+    // Init sticky texture.
     if (entity->flags & STICKY_TEXTURE) { 
         if (!entity->sticky_texture || ignore_existing_types) {
             i32 index = -1;
@@ -1650,20 +1650,20 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }
     
-    // init hit booster
+    // Init hit booster.
     if (entity->flags & HIT_BOOSTER) {
         assert(entity->union_enemy);
         entity->union_enemy->max_hits_taken = -1;
     }
     
-    // init enemy barrier
+    // Init enemy barrier.
     if (entity->flags & ENEMY_BARRIER) {
         assert(entity->union_enemy);
     
         entity->union_enemy->max_hits_taken = 20; // We don't really want enemy barrier to be killed by the bullets.
     }
     
-    // init explosive
+    // Init explosive.
     if (entity->flags & EXPLOSIVE) {
         assert(entity->union_enemy);
     
@@ -1694,7 +1694,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }
     
-    // init blocker
+    // Init blocker.
     if (entity->flags & BLOCKER && editor_state == GAME) {
         assert(entity->union_enemy);
     
@@ -1721,7 +1721,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
     }
     
-    // init sword size required
+    // Init sword size required.
     if (entity->flags & SWORD_SIZE_REQUIRED && editor_state == GAME) {
         assert(entity->union_enemy);
     
@@ -1754,7 +1754,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         entity->union_enemy->sword_required_sticky_id = sticky_entity->id;
     }
     
-    // init projectile
+    // Init projectile.
     if (entity->flags & PROJECTILE) {
         if (!entity->projectile || ignore_existing_types) {
             i32 index = -1;
@@ -2449,7 +2449,7 @@ void load_render() {
 void init_game() {
     initing_game = true;
     
-    // init arenas.
+    // Init arenas..
     init_allocator(temp, Megabytes(16));
     
     str_copy(loaded_context.name, "loaded_context");
@@ -2579,17 +2579,17 @@ Entity *add_player_entity(Context *context, Player *data) {
     new_player_entity->collision_flags = GROUND | ENEMY;
     new_player_entity->draw_order = 30;
     
-    Entity *ground_checker = add_entity(new_player_entity->position - new_player_entity->up * new_player_entity->scale.y * 0.5f, {new_player_entity->scale.x * 0.9f, new_player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, 0); 
+    Entity *ground_checker = add_entity(new_player_entity->position - new_player_entity->up * new_player_entity->scale.y * 0.5f, {new_player_entity->scale.x * 0.9f, new_player_entity->scale.y * 1.5f}, {0.5f, 0.5f}, 0, CONNECTED_TO_PLAYER); 
     ground_checker->collision_flags = GROUND;
     ground_checker->color = Fade(PURPLE, 0.8f);
     ground_checker->draw_order = 31;
     
-    Entity *left_wall_checker = add_entity(new_player_entity->position - new_player_entity->right * new_player_entity->scale.x * 0.5f + Vector2_up * new_player_entity->scale.y * 0.65f, {new_player_entity->scale.x * 0.6f, new_player_entity->scale.y * 0.1f}, {0.5f, 0.5f}, 0, 0); 
+    Entity *left_wall_checker = add_entity(new_player_entity->position - new_player_entity->right * new_player_entity->scale.x * 0.5f + Vector2_up * new_player_entity->scale.y * 0.65f, {new_player_entity->scale.x * 0.6f, new_player_entity->scale.y * 0.1f}, {0.5f, 0.5f}, 0, CONNECTED_TO_PLAYER); 
     left_wall_checker->collision_flags = GROUND;
     left_wall_checker->color = Fade(PURPLE, 0.8f);
     left_wall_checker->draw_order = 31;
     
-    Entity *right_wall_checker = add_entity(new_player_entity->position + new_player_entity->right * new_player_entity->scale.x * 0.5f + Vector2_up * new_player_entity->scale.y * 0.65f, {new_player_entity->scale.x * 0.6f, new_player_entity->scale.y * 0.1f}, {0.5f, 0.5f}, 0, 0); 
+    Entity *right_wall_checker = add_entity(new_player_entity->position + new_player_entity->right * new_player_entity->scale.x * 0.5f + Vector2_up * new_player_entity->scale.y * 0.65f, {new_player_entity->scale.x * 0.6f, new_player_entity->scale.y * 0.1f}, {0.5f, 0.5f}, 0, CONNECTED_TO_PLAYER); 
     right_wall_checker->collision_flags = GROUND;
     right_wall_checker->color = Fade(PURPLE, 0.8f);
     right_wall_checker->draw_order = 31;
@@ -2660,7 +2660,7 @@ void enter_gaming_state() {
             // Initing it again because some entities (like centipede) wanna init things only in game state. 
             // Need to change that.
             init_entity(entity);
-            // update_entity_collision_cells(entity, true);
+            // Update_entity_collision_cells(entity, true);.
         // }
     }
     
@@ -2848,14 +2848,14 @@ void fixed_game_update(f32 dt) {
         if (input.press_flags & ENTER_GAMING_STATE) {
             enter_gaming_state();
         } else {
-            // update_entities(-1);
+            // Update_entities(-1);.
         }
             check_entities_that_should_be_destroyed(current_context);
     } else if (game_state == GAMING) {
         update_entities(dt);
     }
     update_particle_emitters(dt);
-    // update_particles(dt);
+    // Update_particles(dt);.
     
     // Update camera.
     if (0) {
@@ -3495,7 +3495,7 @@ void update_game() {
         fixed_game_update(core.time.real_dt);
     }
     
-    // update speedrun timer
+    // Update speedrun timer.
     if (editor_state == GAME && (global_data.speedrun_timer.level_timer_active || global_data.speedrun_timer.game_timer_active)) {
         Color color = WHITE;
         if (state_context.we_got_a_winner) {
@@ -3531,7 +3531,7 @@ void update_game() {
     } else {
         f32 zoom = current_context->cam.target_zoom;
 
-        // update editor camera
+        // Update editor camera.
         if (IsMouseButtonDown(MOUSE_BUTTON_MIDDLE)) {
             current_context->cam.position += (cast(Vector2) {-input.mouse_delta.x / zoom, input.mouse_delta.y / zoom}) / (current_context->cam.unit_size);
         }
@@ -3568,7 +3568,7 @@ void update_game() {
     global_data.baked_shadows_this_frame = false;
     
     global_data.app_frame_count += 1;
-} // update game end
+} // Update game end.
 
 void update_color_changer(Entity *entity, f32 dt) {
     Color_Changer *changer = &entity->color_changer;
@@ -4657,7 +4657,7 @@ void update_editor_ui() {
                     h_pos = 5;
                 }
                 
-                INSPECTOR_UI_TOGGLE_FLAGS("Multiple hits: ", "enemy_multiple_hits", selected->flags, MULTIPLE_HITS, init_entity(selected)); 
+                INSPECTOR_UI_TOGGLE_FLAGS("Multiple hits: ", "enemy_multiple_hits", selected->flags, PLAYER_TOUCH_TIMER, init_entity(selected)); 
             }
         
             Old::make_ui_text(tprintf("Ctrl+O/P Sword kill speed: %.1f", selected->union_enemy->sword_kill_speed_modifier), {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "sword_kill_speed_modifier_change");
@@ -5615,7 +5615,7 @@ void update_editor() {
         add_to_multiselection(&multiselection->selection_entities);
     }
     
-    // update multiselected
+    // Update multiselected.
     if (multiselection->entities.count > 0) {
         for_array_backwards(i, &multiselection->entities) {
             i32 id = multiselection->entities.get_value(i);
@@ -6317,7 +6317,7 @@ void update_editor() {
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
         clicked_ui = false;
     }
-} // update editor end
+} // Update editor end.
 
 void change_color(Entity *entity, Color new_color) {
     entity->color = new_color;
@@ -6698,16 +6698,6 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         
         b32 can_kill = true;
         
-        if (enemy_entity->flags & MULTIPLE_HITS) {
-            Multiple_Hits *mod = &enemy->multiple_hits;
-            mod->made_hits += 1;
-            // So he do not regen immediately after hit.
-            mod->timer = 0;
-            
-            if (mod->made_hits < mod->required_hits) {
-                can_kill = false;
-            }
-        }
         if (enemy->max_hits_taken <= -1) {
             can_kill = false;
         }
@@ -6723,14 +6713,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
                 sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter->velocity);
             } else if (enemy_entity->flags & WIN_BLOCK) {
-                assert(current_context->active_win_blocks_count > 0);
-                current_context->active_win_blocks_count -= 1;
-                
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, 1.0f);
-                
-                if (current_context->active_win_blocks_count <= 0) {
-                    win_level();
-                }
             } else {
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
             }
@@ -6830,10 +6813,6 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
         if (other->flags & ENEMY) {
             try_sword_damage_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y);
         }
-        
-        // if (other->flags & WIN_BLOCK && !is_player_in_stun(player_entity)) {
-        //     win_level();
-        // }
         
         if (other->flags & BLOCK_ROPE && player_data->sword_spin_progress >= 0.7f) {
             // cut rope
@@ -7378,8 +7357,8 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     Vector2 last_collision_normal = Vector2_one;
     
     b32 moving_object_detected = false;
-    // player ground checker
-    FLAGS player_ground_collision_flags = GROUND | ENEMY_BARRIER | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK;
+    // Player ground checker.
+    FLAGS player_ground_collision_flags = GROUND | ENEMY_BARRIER | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK | PLAYER_TOUCH_TIMER;
     fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
     b32 is_ground_huge_collision_speed = false;
     b32 found_no_move_block = false;
@@ -7508,8 +7487,8 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         SetMusicVolume(tires_theme, tires_volume);
     }
     
-    // player body collision
-    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET);
+    // Player body collision.
+    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER);
     
     b32 is_body_huge_collision_speed = false;
     b32 on_propeller = false;
@@ -7518,17 +7497,14 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         Entity *other = col.other_entity;
         assert(col.collided);
         
-        //now we don't want to stand on projectiles
-        if ((other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE) {
-            continue;
-        }
-        
-        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal) {
+        b32 should_not_collide = (other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE
+                              || (other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal;
+        if (should_not_collide) {
             continue;
         }
         
         if (other->flags & PROPELLER) {
-            // update propeller
+            // Update propeller
             
             // We're keeping propellers to push player and keeping him in claws for now, because that
             // gives us some room for some things to *make* player do and if player can just leave propeller - this thing literally 
@@ -7571,7 +7547,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             } else {
                 Vector2 side = other->centipede_segment->head->centipede->spikes_on_right ? other->right : (other->right * -1.0f);
                 f32 side_dot = dot(side, player_entity->position - other->position);
-                // so we on side of the centipede segments where are SPIKES
+                // So we on side of the centipede segments where are SPIKES.
                 if (side_dot > 0) {
                     kill_player();
                     return;
@@ -7604,7 +7580,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         
         player_data->velocity -= col.normal * dot(player_data->velocity, col.normal) * collision_force_multiplier;
         
-        //heavy collision
+        // Heavy collision.
         if (before_speed > 200 && magnitude(player_data->velocity) < 100) {
             player_data->heavy_collision_time = core.time.game_time;
             player_data->heavy_collision_velocity = player_data->velocity;
@@ -7612,7 +7588,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
             shake_camera(0.7f);
             play_sound("HeavyLanding", col.point, 1.5f);
         }
-    } // end player body collisions
+    } // End player body collisions.
     
     player_data->on_propeller = on_propeller;
     
@@ -7666,7 +7642,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     SetMusicVolume(wind_theme, lerp(0.0f, 1.0f, wind_t * wind_t));
     
     update_player_connected_entities_positions(player_entity);
-} // update player end
+} // Update player end.
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity) {
     fill_collisions(entity, &collisions_buffer, entity->collision_flags);
@@ -8076,7 +8052,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     assert(enemy_entity->union_enemy);
     
     Enemy *enemy = enemy_entity->union_enemy;
-    if (1 || !enemy->dead_man) {
+    if (!enemy->dead_man) {
         if (can_wait) {
             if (enemy_entity->flags & EXPLOSIVE && core.time.app_time - state_context.timers.last_explosion_app_time < 0.01f) {
                 enemy->should_explode = true;
@@ -8089,8 +8065,8 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     
         enemy->dead_man = true;
         enemy->died_time = core.time.game_time;
-        b32 should_not_be_destroyed = (enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT));
-        if (!should_not_be_destroyed) {
+        b32 should_be_destroyed = !(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT));
+        if (should_be_destroyed) {
             enemy_entity->enabled = false;
             mark_entity_destroyed(enemy_entity);
     
@@ -8104,7 +8080,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             }
         }
         
-        // kill switch death
+        // Kill kill switch death.
         if (enemy_entity->flags & KILL_SWITCH) {
             Kill_Switch *kill_switch = enemy_entity->kill_switch;
             for (i32 i = 0; i < kill_switch->connected.count; i++) {
@@ -8114,6 +8090,16 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
                 
                 kill_enemy(connected, connected->position, connected->up);
+            }
+        }
+        
+        // Kill win block.
+        if (enemy_entity->flags & WIN_BLOCK) {
+            assert(current_context->active_win_blocks_count > 0);
+            
+            current_context->active_win_blocks_count -= 1;
+            if (current_context->active_win_blocks_count <= 0) {
+                win_level();
             }
         }
         
@@ -8237,7 +8223,7 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
     }
     
     f32 immune_time = 0.2f;
-    if (enemy_entity->flags & MULTIPLE_HITS) {
+    if (enemy_entity->flags & PLAYER_TOUCH_TIMER) {
         immune_time = 0.078f;
     }
     
@@ -8924,7 +8910,7 @@ void update_editor_entity(Entity *e) {
         e->door.open_position   = e->door.is_open ? e->position : e->position + e->up * e->scale.y;
     }
     
-    // update turret editor
+    // Update turret editor.
     if (e->flags & TURRET) {
         e->turret->original_up = e->up;
     }
@@ -9427,7 +9413,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         }
     }
     
-    // update player
+    // Update player.
     if (e->flags & PLAYER && !debug.dragging_player) {
         if (e->flags & REPLAY_PLAYER) {
             if (!global_data.playing_replay) {
@@ -9445,7 +9431,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         }
     }
       
-    // update explosive
+    // Update explosive.
     if (e->flags & EXPLOSIVE) {
         if (e->union_enemy->should_explode && !e->union_enemy->dead_man) {
             if (core.time.app_time - state_context.timers.last_explosion_app_time >= 0.01f) {    
@@ -9454,7 +9440,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         }
     }
         
-    // update bird enemy
+    // Update bird enemy.
     if (e->flags & BIRD_ENEMY && debug.enemy_ai) {
         update_bird_enemy(e, dt);
     }
@@ -9463,22 +9449,29 @@ inline b32 update_entity(Entity *e, f32 dt) {
         update_turret(e, dt);
     }
     
-    // update multiple hits
-    if (e->flags & MULTIPLE_HITS) {
-        Multiple_Hits *mod = &e->union_enemy->multiple_hits;
-        assert(mod->made_hits <= mod->required_hits && mod->made_hits >= 0);
-        if (mod->made_hits > 0 && mod->seconds_to_regen > 0) {    
-            mod->timer += dt;
-            if (mod->timer >= mod->seconds_to_regen) {
-                mod->timer -= mod->seconds_to_regen;              
-                mod->made_hits -= 1;
+    // Update player touch timer.
+    if (e->flags & PLAYER_TOUCH_TIMER && e->context->player) {
+        Player_Touch_Timer *touch = &e->union_enemy->player_touch_timer;
+        // Collision player_collision = check_entities_collision(e, e->context->player);
+        auto player_collisions = get_tcollisions(e, PLAYER | CONNECTED_TO_PLAYER);
+        
+        if (player_collisions.count > 0) {
+            touch->regen_timer = 0;
+            touch->touched_timer += dt;
+            
+            if (touch->touched_timer >= touch->seconds_until_death) {
+                kill_enemy(e, e->position, e->up, false, 1);
             }
         } else {
-            mod->timer = 0;
+            touch->regen_timer += dt;
+            if (touch->regen_timer >= touch->seconds_until_regen && touch->touched_timer > 0) {
+                touch->touched_timer -= dt;
+                clamp(&touch->touched_timer, 0, touch->seconds_until_death);
+            }
         }
     }
     
-    // update projectile
+    // Update projectile.
     if (e->flags & PROJECTILE) {
         update_projectile(e, dt);
     }
@@ -9491,12 +9484,12 @@ inline b32 update_entity(Entity *e, f32 dt) {
         // update_emitter(e->emitters.get(em), dt);
     }
     
-    // update sticky texture
+    // Update sticky texture.
     if (e->flags & STICKY_TEXTURE) {
         update_sticky_texture(e, dt);
     }
     
-    // update trigger
+    // Update trigger.
     if (e->flags & TRIGGER) {
         i32 trigger_action_flags = update_trigger(e);
         if (trigger_action_flags & TRIGGER_LEVEL_LOAD) {
@@ -9504,7 +9497,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         }
     }
     
-    // update move sequence
+    // Update move sequence.
     if (e->flags & MOVE_SEQUENCE) {
         update_move_sequence(e, dt);
     }
@@ -9543,7 +9536,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     }
 
     if (e->flags & JUMP_SHOOTER && debug.enemy_ai) {
-        // update jump shooter
+        // Update jump shooter.
         Jump_Shooter *shooter = e->jump_shooter;
         
         if (!shooter->in_agro) {
@@ -9882,7 +9875,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
 } //update entity end
 
 void update_entities(f32 dt) {
-    // update turrets ticks
+    // Update turrets ticks.
     state_context.turret_state.ticked_this_frame = false;
     state_context.turret_state.tick_countdown -= dt;
     if (state_context.turret_state.tick_countdown <= 0) {
@@ -9937,11 +9930,11 @@ void update_entities(f32 dt) {
             continue;
         }
     
-        // update_entity_collision_cells(e);
+        // Update_entity_collision_cells(e);.
         if (!update_entity(e, dt)) {
             break;
         }
-    } // update entities end
+    } // Update entities end.
 }
 
 void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt) {
@@ -10712,14 +10705,15 @@ void draw_entity(Entity *e) {
         draw_game_line(e->position + e->up * h * 0.35f - e->right * w * 0.25f, e->position - e->up * h * 0.35f - e->right * w * 0.25f, 0.5f, ColorBrightness(BLUE, 0.2f));
     }
     
-    // draw multiple hits
-    if (e->flags & MULTIPLE_HITS) {
+    // draw player touch timer
+    if (e->flags & PLAYER_TOUCH_TIMER) {
         f32 width = fmaxf(e->scale.x * 0.5f, 10.0f);
         f32 height = 5;
         Vector2 position = e->position - Vector2_up * 5 - Vector2_right * width * 0.5f;
         draw_game_rect(position, {width, height}, {0, 0}, 0, Fade(BROWN, 0.9f));
         
-        f32 progress = (f32)e->union_enemy->multiple_hits.made_hits / (f32)e->union_enemy->multiple_hits.required_hits;
+        auto touch = &e->union_enemy->player_touch_timer;
+        f32 progress = touch->touched_timer / touch->seconds_until_death;
         width *= progress;
         draw_game_rect(position, {width, height}, {0, 0}, 0, PINK);
     }
@@ -10836,7 +10830,7 @@ void draw_entities() {
             // It will be simpler if we just put these checks in functions that do something outside scope of entity.
             // Like when we call play_sound we'll check in there that it's not real guys.
             //
-            // update_entity(e, core.time.not_updated_accumulated_dt);
+            // Update_entity(e, core.time.not_updated_accumulated_dt);.
             e->position += get_entity_velocity(e) * core.time.not_updated_accumulated_dt;
             if (e->flags & SWORD) {
                 rotate(e, player_data->sword_angular_velocity * core.time.not_updated_accumulated_dt);
@@ -11356,7 +11350,7 @@ void new_render() {
             Collision_Grid grid = current_context->collision_grid;
             Vector2 player_position = player_entity ? player_entity->position : current_context->player_spawn_point;
             
-            // update_entity_collision_cells(&mouse_entity);
+            // Update_entity_collision_cells(&mouse_entity);.
             for (f32 row = -grid.size.y * 0.5f + grid.origin.y; row <= grid.size.y * 0.5f + grid.origin.y; row += grid.cell_size.y) {
                 for (f32 column = -grid.size.x * 0.5f + grid.origin.x; column <= grid.size.x * 0.5f + grid.origin.x; column += grid.cell_size.x) {
                     Collision_Grid_Cell *cell = get_collision_cell_from_position({column, row});
@@ -11517,7 +11511,7 @@ void setup_color_changer(Entity *entity) {
 
 Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32 id_to_insert) {
     // On calling copy_entity we're always doing a deep copy and adding entity to the entities array because we're cannot 
-    // init entity without it being inside a entity array because other entities might want to refer to it. And it's don't 
+    // Init entity without it being inside a entity array because other entities might want to refer to it. And it's don't .
     // really makes sense to have dummy entity that creating things on level context.
     
     if (to_copy->runtime_only_flags & SHOULD_NOT_COPY) {
