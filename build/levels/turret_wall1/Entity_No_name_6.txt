@@ -1,24 +1,15 @@
 name No_name 
  id 6 
- position { -106.188248,  138.068512} 
+ position { -102.385361,  139.689133} 
  scale { 50.000000,  15.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 
  color { 255,  255,  255,  255} 
- flags 42949673480 
+ flags 34359738888 
  draw_order 100 
  vertices [ { 25.707108,  8.207107} { -25.707108,  8.207107} { 25.707108,  -8.207107} { -25.707108,  -8.207107} ] 
  unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
  hidden 0 
  spawn_enemy_when_no_ammo 0 
- light_shadows_size_flag 2 
- light_backshadows_size_flag 2 
- light_make_shadows 0 
- light_make_backshadows 0 
- light_bake_shadows 1 
- light_radius 150.000000 
- light_opacity 0.500000 
- light_power 1.000000 
- light_color { 255,  255,  255,  255} 
  enemy_gives_ammo 0 
  

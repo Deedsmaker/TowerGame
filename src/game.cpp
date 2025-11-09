@@ -8379,7 +8379,7 @@ void calculate_projectile_collisions(Entity *entity) {
             Entity *other = col.other_entity;
             
             if (other->flags & PLAYER) {
-                b32 should_kill_player = !current_context->player_data.dead_man && !enemy->dead_man && !(entity->flags & EXPLOSIVE);
+                b32 should_kill_player = !entity->context->player_data.dead_man && !enemy->dead_man;
                 if (should_kill_player) {
                     kill_player();
                     kill_enemy(entity, col.point, col.normal);
