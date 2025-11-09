@@ -312,6 +312,12 @@ void free_entity(Entity *e) {
         e->jump_shooter = NULL;
     }
     
+    // Free win block.
+    if (e->flags & WIN_BLOCK) {
+        e->context->win_blocks.remove(e->win_block->index);
+        e->win_block = NULL;
+    }
+    
     // free light
     if (e->lights.count > 0) {
         free_lights_connected_to_entity(e);
