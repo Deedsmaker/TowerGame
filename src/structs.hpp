@@ -288,7 +288,7 @@ struct Hit_Booster {
 };
 
 struct Player_Touch_Timer {
-    inline static const f32 seconds_until_death = 4.0f;
+    inline static const f32 seconds_until_death = 2.5f;
     inline static const f32 seconds_until_regen = 1.0f;
     f32 touched_timer = 0;
     f32 regen_timer = 0;
