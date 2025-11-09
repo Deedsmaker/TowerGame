@@ -5035,7 +5035,6 @@ void update_editor() {
             if (next_context->level_name.count > 0) {
                 editor_context = next_context;
                 switch_current_context(editor_context, true);
-                log_short("this");
             }
             
             // setup_context_cam(current_context);
@@ -9077,8 +9076,8 @@ inline void update_turret(Entity *entity, f32 dt) {
     Turret_State *state = &state_context.turret_state;
     
     // We apply delay only for first shot ever, because next it will just work as intended because of last_shot_tick.
-    i32 tick_delay = turret->last_shot_tick == 0 ? turret->start_tick_delay : 0;
-    // b32 is_my_tick = state->ticked_this_frame && (state->current_tick - turret->last_shot_tick - tick_delay) >= turret->shoot_every_tick;
+    i32 seconds_between_ticks = turret->last_shot_tick == 0 ? turret->start_tick_delay : 0;
+    // b32 is_my_tick = state->ticked_this_frame && (state->current_tick - turret->last_shot_tick - seconds_between_ticks) >= turret->shoot_every_tick;
     b32 is_my_tick = state->ticked_this_frame && ((state->current_tick - turret->start_tick_delay) % turret->shoot_every_tick) == 0 && turret->last_shot_tick != state->current_tick;
     
     // We don't set last shot tick on real shot because homing turrets will not always see player when tick happens, so 
@@ -9770,8 +9769,8 @@ inline b32 should_not_draw_entity(Entity *e, Cam cam) {
 
 inline f32 get_turret_charge_progress(Turret *turret) {
     Turret_State *state = &state_context.turret_state;
-    f32 between_tick_time       = (f32)(turret->shoot_every_tick) * state->tick_delay;
-    f32 from_previous_tick_time = (f32)(state->current_tick - turret->last_shot_tick) * state->tick_delay + (state->tick_delay - state->tick_countdown);
+    f32 between_tick_time       = (f32)(turret->shoot_every_tick) * state->seconds_between_ticks;
+    f32 from_previous_tick_time = (f32)(state->current_tick - turret->last_shot_tick) * state->seconds_between_ticks + (state->seconds_between_ticks - state->tick_countdown);
     return clamp01(from_previous_tick_time / between_tick_time);
 }
 
@@ -9840,7 +9839,7 @@ void fill_entities_draw_queue() {
             }
         }
         
-        // always draw turret
+        // Always draw turret.
         if (entity->flags & TURRET) {
             Turret *turret = entity->turret;
             if (turret->homing && turret->see_player) {

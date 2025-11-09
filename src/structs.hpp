@@ -16,7 +16,7 @@ struct Context;
 
 struct Line_Trail {
     b32 occupied = false;
-    Static_Array <Vector2, LINE_TRAIL_MAX_POINTS> positions = {0};
+    Static_Array <Vector2, LINE_TRAIL_MAX_POINTS> positions = {};
     Vector2 last_added_position = Vector2_zero;
     i32 start_index = 0;
 };
@@ -55,18 +55,18 @@ struct Lightmap_Data {
     Vector2 position = {0, 0};
     Vector2 game_size = {2000.0f, 2000.0f};
 
-    RenderTexture global_illumination_rt = {0}; 
-    RenderTexture emitters_occluders_rt  = {0};
-    RenderTexture distance_field_rt      = {0};
-    RenderTexture normal_rt              = {0};
-    RenderTexture static_textures_rt     = {0};
-    RenderTexture voronoi_seed_rt        = {0};
-    RenderTexture jump_flood_rt          = {0};
+    RenderTexture global_illumination_rt = {}; 
+    RenderTexture emitters_occluders_rt  = {};
+    RenderTexture distance_field_rt      = {};
+    RenderTexture normal_rt              = {};
+    RenderTexture static_textures_rt     = {};
+    RenderTexture voronoi_seed_rt        = {};
+    RenderTexture jump_flood_rt          = {};
     
     b32 has_loaded_texture = false;
     // b32 render_textures_loaded = false;
     
-    Texture lightmap_texture = {0};
+    Texture lightmap_texture = {};
     
     i32 distance_texture_loc = -1;
     i32 emitters_occluders_loc = -1;
@@ -119,7 +119,7 @@ struct Particle_Emitter {
     char tag_16[16] = "Untagged";    
 
     // These just 'copy' emitters.
-    Static_Array <Particle_Emitter*, 6> additional_emitters = {0};
+    Static_Array <Particle_Emitter*, 6> additional_emitters = {};
     Particle_Emitter *particle_trail_emitter = NULL;
 
     i32 connected_entity_id = -1;
@@ -131,7 +131,7 @@ struct Particle_Emitter {
     
     b32 should_extinct = false;
     
-    Texture texture = {0};
+    Texture texture = {};
     f32 line_length_multiplier = 1.0f;
     f32 line_width = 1.0f;
     
@@ -212,14 +212,14 @@ struct Particle_Emitter {
 
 struct Texture_Data {
     char name[64] = "\0";  
-    Texture texture = {0};
+    Texture texture = {};
 };
 
 #define MAX_SINGLE_SOUND 16
 
 struct Sound_Handler {
     char name[64] = "\0";
-    Static_Array <Sound, MAX_SINGLE_SOUND> buffer = {0};
+    Static_Array <Sound, MAX_SINGLE_SOUND> buffer = {};
     
     i32 current_index = 0;
     
@@ -355,8 +355,8 @@ struct Enemy {
     
     i32 alarm_emitter_index = -1;
     
-    Hit_Booster hit_booster = {0};
-    Player_Touch_Timer player_touch_timer = {0};
+    Hit_Booster hit_booster = {};
+    Player_Touch_Timer player_touch_timer = {};
 };
 
 struct Turret : Enemy {
@@ -372,11 +372,11 @@ struct Turret : Enemy {
     f32 shoot_width  = 400;
     f32 shoot_height = 400;
     
-    Projectile_Settings projectile_settings = {0};
+    Projectile_Settings projectile_settings = {};
 };
 
 struct Kill_Switch : Enemy {
-    Array <i32> connected = {0};   
+    Array <i32> connected = {};   
 };
 
 struct Jump_Shooter : Enemy {
@@ -400,7 +400,7 @@ struct Jump_Shooter : Enemy {
         b32 picking_point = false;
         b32 flying_to_point = false;
     };
-    shooter_states states = {0};
+    shooter_states states = {};
     
     i32 standing_on_physics_object_id = -1;
     
@@ -423,7 +423,7 @@ struct Jump_Shooter : Enemy {
     
     b32 shoot_bullet_blockers = false;
     
-    Array <Move_Point> move_points = {0};
+    Array <Move_Point> move_points = {};
     
     i32 trail_emitter_index = -1;
     i32 flying_emitter_index = -1;
@@ -432,7 +432,7 @@ struct Jump_Shooter : Enemy {
 struct Move_Sequence {
     i32 index = -1;
 
-    Array <Vector2> points = {0};  
+    Array <Vector2> points = {};  
     b32 moving = false;
     f32 speed = 100;
     Vector2 velocity = Vector2_zero;
@@ -502,12 +502,12 @@ struct Trigger {
 
     FLAGS settings = SHOWS_ENTITIES | PLAYER_TOUCH | OPEN_DOORS | AGRO_ENEMIES | STARTS_MOVING_SEQUENCE;
 
-    Array <i32> connected = {0};
-    Array <i32> tracking = {0};
+    Array <i32> connected = {};
+    Array <i32> tracking = {};
     
     i32 start_tracking_count = 0;
     
-    Array <Vector2> cam_rails_points = {0};
+    Array <Vector2> cam_rails_points = {};
     
     f32 zoom_value = 0.35f;
     
@@ -593,7 +593,7 @@ struct Entity;
 // Even though Centipede itself currently can't take damage it still counts as enemy beacuse with that we can 
 // make a settings and inspector and because centipede segment acutually inherit this settings.
 struct Centipede : Enemy {
-    Array <Entity *> segments = {0};
+    Array <Entity *> segments = {};
     
     i32 segments_to_spawn = 32;
     b32 spikes_on_right = false;
@@ -659,7 +659,7 @@ enum Sword_Mode {
 };
 
 struct Player {
-    // Static_Array <Collision, MAX_COLLISIONS> collisions = {0};
+    // Static_Array <Collision, MAX_COLLISIONS> collisions = {};
     i32 stun_emitter_index = -1;
     
     struct Timers{
@@ -680,7 +680,7 @@ struct Player {
     
     b32 in_slowmo = false;
     
-    Timers timers = {0};
+    Timers timers = {};
     
     b32 can_shoot = true;
     
@@ -740,7 +740,7 @@ struct Player {
         i32 right_wall_checker_id = -1;
         i32 sword_entity_id = -1;
     };
-    Connected_Entities_Ids connected_entities_ids = {0};
+    Connected_Entities_Ids connected_entities_ids = {};
     
     Vector2 velocity = {0, 0};
     
@@ -786,7 +786,7 @@ struct Projectile {
     
     i32 trail_emitter_index = -1;
     
-    // Static_Array <i32, 16> already_hit_ids = {0};
+    // Static_Array <i32, 16> already_hit_ids = {};
     i32 last_hit_id = 0;
     i32 hits_count = 0;
     f32 last_light_spawn_time = -112;
@@ -807,8 +807,8 @@ struct Projectile {
 #define MAX_COLLISION_CELL_OBJECTS 256
 
 struct Collision_Grid_Cell {
-    Array <i32> dynamic_entities = {0};
-    Array <i32> static_entities = {0};
+    Array <i32> dynamic_entities = {};
+    Array <i32> static_entities = {};
 };
 // @SPEED: This thing needs a closer look. It's a place for a lot of cache missses. But it's may be fine because we're actually 
 // do not go through all of cells ever. Need to look at that later.
@@ -816,7 +816,7 @@ struct Collision_Grid {
     Vector2 origin = Vector2_zero;
     Vector2 size = {10000, 6000};
     Vector2 cell_size = {80, 80};
-    Array <Collision_Grid_Cell> cells = {0};
+    Array <Collision_Grid_Cell> cells = {};
 };
 
 struct Centipede_Segment : Enemy {
@@ -841,17 +841,17 @@ struct Entity {
 
     b32 enabled = 12;
     
-    Texture texture = {0};
+    Texture texture = {};
     char texture_name[64];
     
     b32 have_normal_map = false;
-    Texture normal_map_texture = {0};
+    Texture normal_map_texture = {};
     
     b32 destroyed = false;
     b32 will_be_destroyed = false;
     
-    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {0};
-    Static_Array <Vector2, MAX_VERTICES> vertices = {0};
+    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices = {};
+    Static_Array <Vector2, MAX_VERTICES> vertices = {};
     
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
@@ -904,10 +904,10 @@ struct Entity {
     
     Door door;
     
-    Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {0};
+    Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {};
     i32 note_index = -1;
     
-    Array <i32> lights = {0};
+    Array <i32> lights = {};
 };
 
 enum Light_Size_Flags {
@@ -975,7 +975,7 @@ enum Spawn_Object_Flags : FLAGS {
 
 struct Spawn_Object {
     char name[64];
-    Entity entity = {0};
+    Entity entity = {};
     FLAGS flags = 0;
 };
 
@@ -995,7 +995,7 @@ struct Cam {
     f32 unit_size;
     
     //Shake
-    Camera2D cam2D = {0};
+    Camera2D cam2D = {};
 };
 
 //definition in particles.hpp
@@ -1056,20 +1056,20 @@ enum Death_Instinct_Reason{
 //     b32 removed_from_multiselection = false;
 
 //     // Entity deleted_entity;
-//     Array <Entity *> deleted_entities = {0};
+//     Array <Entity *> deleted_entities = {};
 //     b32    entity_was_deleted = false;
     
-//     Entity *spawned_entity = {0};
+//     Entity *spawned_entity = {};
 //     b32    entity_was_spawned = false;
     
-//     Array <i32> changed_entities = {0};
+//     Array <i32> changed_entities = {};
     
 //     b32 moved_entity_points = false;
     
 //     Vector2 position_change = {0, 0};  
 //     Vector2 scale_change = {0, 0};
-//     Static_Array <Vector2, MAX_VERTICES> vertices_change = {0};
-//     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_change = {0};
+//     Static_Array <Vector2, MAX_VERTICES> vertices_change = {};
+//     Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_change = {};
 //     f32 rotation_change = 0;
 //     i32 draw_order_change = 0;
 // };
@@ -1126,64 +1126,64 @@ struct Entity_Undo_Change {
 };
 
 struct Context {
-    char name[64] = {0};
-    Allocator memory_arena = {0};
+    char name[64] = {};
+    Allocator memory_arena = {};
 
-    Array <Array<Entity_Undo_Change>> undo_actions = {0};
+    Array <Array<Entity_Undo_Change>> undo_actions = {};
     i32 max_undos_added = 0;
-    Cam cam = {0};
+    Cam cam = {};
 
     b32 inited = false;
     
     b32 initially_simulated = true;
     
     Vector2 player_spawn_point = Vector2_zero;
-    String level_name = {0};
+    String level_name = {};
 
     i32 active_win_blocks_count = 0;
 
-    Chunk_Array <Entity> entities = {0};
+    Chunk_Array <Entity> entities = {};
     
-    Chunk_Array <Propeller> propellers = {0};
-    Chunk_Array <Trigger> triggers = {0};
-    Chunk_Array <Kill_Switch> kill_switches = {0};
-    Chunk_Array <Sticky_Texture> sticky_textures = {0};
-    Chunk_Array <Move_Sequence> move_sequences = {0};
-    Chunk_Array <Bird_Enemy> bird_enemies = {0};
-    Chunk_Array <Jump_Shooter> jump_shooters = {0};
-    Chunk_Array <Turret> turrets = {0};
-    Chunk_Array <Win_Block> win_blocks = {0};
+    Chunk_Array <Propeller> propellers = {};
+    Chunk_Array <Trigger> triggers = {};
+    Chunk_Array <Kill_Switch> kill_switches = {};
+    Chunk_Array <Sticky_Texture> sticky_textures = {};
+    Chunk_Array <Move_Sequence> move_sequences = {};
+    Chunk_Array <Bird_Enemy> bird_enemies = {};
+    Chunk_Array <Jump_Shooter> jump_shooters = {};
+    Chunk_Array <Turret> turrets = {};
+    Chunk_Array <Win_Block> win_blocks = {};
     
-    Chunk_Array <Projectile> projectiles = {0};
+    Chunk_Array <Projectile> projectiles = {};
     
-    Chunk_Array <Enemy> just_enemies = {0};
+    Chunk_Array <Enemy> just_enemies = {};
     
-    Chunk_Array <Centipede> centipedes = {0};
-    Chunk_Array <Centipede_Segment> centipede_segments = {0};
+    Chunk_Array <Centipede> centipedes = {};
+    Chunk_Array <Centipede_Segment> centipede_segments = {};
     
     Entity *player = NULL;
-    Player player_data = {0};  
+    Player player_data = {};  
       
-    Array <Particle>         particles = {0};
-    Array <Particle_Emitter> particle_emitters  = {0};
-    Array <Line_Trail> line_trails = {0};
+    Array <Particle>         particles = {};
+    Array <Particle_Emitter> particle_emitters  = {};
+    Array <Line_Trail> line_trails = {};
     
-    Array <Note> notes = {0};
+    Array <Note> notes = {};
     
     Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
     
-    Collision_Grid collision_grid = {0};
+    Collision_Grid collision_grid = {};
     
-    Chunk_Array <Light> lights = {0};
-    // Chunk_Array <Light> medium_temp_lights = {0};
-    // Chunk_Array <Light> big_temp_lights = {0};
+    Chunk_Array <Light> lights = {};
+    // Chunk_Array <Light> medium_temp_lights = {};
+    // Chunk_Array <Light> big_temp_lights = {};
     
-    Array <Lightmap_Data> lightmaps = {0};
+    Array <Lightmap_Data> lightmaps = {};
     b32 lightmaps_render_textures_loaded = false;
 };
 
 struct Turret_State {
-    f32 tick_delay = 0.2f;
+    inline static const f32 seconds_between_ticks = 0.2f;
     b32 ticked_this_frame = false;
     i32 current_tick = 0;
     f32 tick_countdown = 0.2f;
@@ -1201,7 +1201,7 @@ struct State_Context { // @TODO: How can we rename this?
         f32 last_explosion_app_time = -12;
         f32 last_shoot_stoper_failed_shot_app_time = -12;
     };
-    Timers timers = {0};
+    Timers timers = {};
     
     struct Death_Instinct {
         f32 allowed_duration_without_cooldown = 0.5f;
@@ -1221,7 +1221,7 @@ struct State_Context { // @TODO: How can we rename this?
         
         Death_Instinct_Reason last_reason = ENEMY_ATTACKING;
     };
-    Death_Instinct death_instinct = {0};
+    Death_Instinct death_instinct = {};
     
     struct Cam_State {
         f32 trauma = 0;
@@ -1232,9 +1232,9 @@ struct State_Context { // @TODO: How can we rename this?
         i32 rails_trigger_id    = -1;
     };
     
-    Turret_State turret_state = {0};
+    Turret_State turret_state = {};
     
-    Cam_State cam_state = {0};
+    Cam_State cam_state = {};
       
     b32 we_got_a_winner = false;
     
@@ -1248,9 +1248,9 @@ struct State_Context { // @TODO: How can we rename this?
 };
 
 struct Global_Data{
-    Array <Entity> entities_draw_queue = {0};
+    Array <Entity> entities_draw_queue = {};
     
-    // Array <Light> temp_lights = {0};
+    // Array <Light> temp_lights = {};
     
     i32 temp_lights_count = 512;
     //big lights are also in temp lights, it's first N 
@@ -1272,11 +1272,11 @@ struct Global_Data{
     
     // char current_level_name[256] = "\0";
     char old_previous_level_name[256] = "\0";
-    String previous_level_name = {0};
+    String previous_level_name = {};
     
-    // Cam cam = {0};
+    // Cam cam = {};
     
-    Speedrun_Timer speedrun_timer = {0};
+    Speedrun_Timer speedrun_timer = {};
 };
 
 struct Line {
@@ -1303,7 +1303,7 @@ struct Rect_Lines {
 };
 
 struct Immediate_Texture {
-    Texture texture = {0};
+    Texture texture = {};
     Vector2 position = Vector2_zero;
     Vector2 scale = Vector2_one;
     Vector2 pivot = {0.5f, 0.5f};
@@ -1313,18 +1313,18 @@ struct Immediate_Texture {
 
 struct Outline {
     Vector2 position = Vector2_zero;
-    Static_Array <Vector2, MAX_VERTICES> vertices = {0};
+    Static_Array <Vector2, MAX_VERTICES> vertices = {};
     Color color = PINK;
 };
 
 struct Render {
-    Array <Line> lines_to_draw                   = {0};
-    Array <Ring_Lines> ring_lines_to_draw        = {0};
-    Array <Rect_Lines> rect_lines_to_draw        = {0};
-    Array <Immediate_Texture> textures_to_draw   = {0};
-    Array <Outline> outlines_to_draw             = {0};
+    Array <Line> lines_to_draw                   = {};
+    Array <Ring_Lines> ring_lines_to_draw        = {};
+    Array <Rect_Lines> rect_lines_to_draw        = {};
+    Array <Immediate_Texture> textures_to_draw   = {};
+    Array <Outline> outlines_to_draw             = {};
     
-    Array <Light> lights_draw_queue = {0};
+    Array <Light> lights_draw_queue = {};
 
     Shader lights_shader;
     Shader test_shader;
@@ -1375,13 +1375,13 @@ struct Input {
 
 #define MAX_INPUT_RECORDS (FIXED_FPS * 60)
 struct Replay_Frame_Data {
-    Input frame_input = {0};  
-    // Time frame_time_data = {0};
+    Input frame_input = {};  
+    // Time frame_time_data = {};
 };
 
 struct Level_Replay {
     i32 start_frame = 0;    
-    Array <Replay_Frame_Data> input_record = {0};
+    Array <Replay_Frame_Data> input_record = {};
 };
 
 // struct Level{
@@ -1406,9 +1406,9 @@ struct Multiselection {
     b32 selecting = false;
     
     Vector2 start_point;
-    Array <i32> selection_entities = {0};
-    Array <i32> entities = {0};
-    Array <Entity *> unchanged_copies = {0};
+    Array <i32> selection_entities = {};
+    Array <i32> entities = {};
+    Array <Entity *> unchanged_copies = {};
     Vector2 center;
     Vector2 total_displacement_for_undo;
 };
@@ -1416,12 +1416,12 @@ struct Multiselection {
 struct Editor {
     f32 in_editor_time = 0;
 
-    Array <Entity *> place_cursor_entities = {0};
+    Array <Entity *> place_cursor_entities = {};
     
-    // Static_Array <Undo_Action, MAX_UNDOS> undo_actions = {0};
+    // Static_Array <Undo_Action, MAX_UNDOS> undo_actions = {};
     
     b32 just_deleted_entity = false;
-    Array <i32> just_spawned_ids = {0};
+    Array <i32> just_spawned_ids = {};
     
     b32 update_cam_view_position = true;
 
@@ -1445,8 +1445,8 @@ struct Editor {
     Vector2 dragging_start_entity_position = Vector2_zero;
     Vector2 scaling_start;
     f32     rotating_start;
-    Static_Array <Vector2, MAX_VERTICES> vertices_start = {0};
-    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_start = {0};
+    Static_Array <Vector2, MAX_VERTICES> vertices_start = {};
+    Static_Array <Vector2, MAX_VERTICES> unscaled_vertices_start = {};
     
     b32 is_scaling_entity = false;
     b32 is_rotating_entity = false;
@@ -1465,18 +1465,18 @@ struct Editor {
     Vector2 moving_edge_start_entity_position = Vector2_zero;
     Vector2 moving_edge_start_entity_scale = Vector2_zero;
     
-    Multiselection multiselection = {0};
+    Multiselection multiselection = {};
     b32 excluding_multiselection = false;
     b32 multiselecting = false;
     Vector2 multiselect_start_point = Vector2_zero;
     // This first one for when we actually currently selecting, so we can un-select if rect is not on entity anymore.
-    Array <i32> selection_multiselected_entities = {0};
+    Array <i32> selection_multiselected_entities = {};
     // And this one is actual multiselected.
-    Array <i32> multiselected_entities = {0};
+    Array <i32> multiselected_entities = {};
     
     Vector2 copied_entities_center = Vector2_zero;
     Context *context_on_last_copy = NULL;
-    Array <Entity *> copied_entities = {0};
+    Array <Entity *> copied_entities = {};
     
     b32 is_copied;
     
@@ -1549,7 +1549,7 @@ struct Debug {
     
     b32 dragging_player = false;
     
-    Array <Log_Message> log_messages_short = {0};
+    Array <Log_Message> log_messages_short = {};
 };
 
 struct Console_Command {
@@ -1560,15 +1560,15 @@ struct Console_Command {
 
 struct Console {   
     b32 is_open = false;
-    Array <Console_Command> commands = {0};
-    Array <String> args = {0};
+    Array <Console_Command> commands = {};
+    Array <String> args = {};
     
-    Array <String> level_names = {0};
+    Array <String> level_names = {};
     
-    Array <Medium_Str> history = {0};
+    Array <Medium_Str> history = {};
     int history_max = 0;
     
-    String_Builder content_builder = {0};
+    String_Builder content_builder = {};
     
     f32 closed_time = -12;
     f32 opened_time = -12;
