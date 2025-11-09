@@ -367,6 +367,8 @@ void create_level(String name) {
     // save_level(name);
     editor_enter_editor_state();
     print_to_console("Level successfuly created");
+    
+    reload_level_names();
 }
 
 b32 load_level(String name) {

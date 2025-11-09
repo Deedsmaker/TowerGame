@@ -1,6 +1,6 @@
 name Trigger 
- id 10 
- position { -340.000000,  140.000000} 
+ id 7 
+ position { -342.500000,  142.500000} 
  scale { 20.000000,  20.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 
@@ -11,7 +11,7 @@ name Trigger
  unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
  hidden 0 
  spawn_enemy_when_no_ammo 0 
- trigger_settings 1150089 
- trigger_locked_camera_position { -207.318649,  227.748306} 
+ trigger_settings 1117321 
+ trigger_locked_camera_position { -207.318649,  227.748199} 
  trigger_zoom_value 0.350000 
  

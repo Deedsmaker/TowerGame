@@ -2158,8 +2158,11 @@ void rename_current_level(const char *new_name_str) {
     String old_name = editor_context->level_name;
     
     save_level(new_name);
+    load_level(new_name);
     
     delete_directory(level_name_to_path(old_name));
+    
+    reload_level_names();
 }
 
 void init_console() {
@@ -10059,7 +10062,26 @@ void fill_entities_draw_queue() {
             Vector2 v1 = entity->position + entity->up * entity->scale.y * entity->pivot.y;
             Vector2 v2 = v1 + entity->up * 100;
             
-            draw_game_line(v1, v2, 0.1f, color_fade(YELLOW, 0.28f));
+            make_line(v1, v2, 0.1f, color_fade(YELLOW, 0.28f));
+        }
+        
+        // Always draw kill switch.
+        if (entity->flags & KILL_SWITCH) {
+            Kill_Switch *kill_switch = entity->kill_switch;
+            for (i32 i = 0; i < kill_switch->connected.count; i++) {
+                Entity *connected = get_entity(kill_switch->connected.get_value(i));                
+                if (!connected) {
+                    continue;
+                }
+                
+                f32 width = 3.0f;
+                Vector2 first = entity->position;
+                Vector2 second = {connected->position.x, entity->position.y};
+                Vector2 third = connected->position;
+                Color color = Fade(YELLOW, 0.7f);
+                make_line(first, second, width, color);
+                make_line(second, third, width, color);
+            }
         }
         
         // This checks for occlusion.
@@ -10552,26 +10574,6 @@ void draw_entities() {
         }
         
         draw_entity(e);
-        
-        // Always draw on top.
-        // Always draw kill switch on top.
-        if (e->flags & KILL_SWITCH) {
-            Kill_Switch *kill_switch = e->kill_switch;
-            for (i32 i = 0; i < kill_switch->connected.count; i++) {
-                Entity *connected = get_entity(kill_switch->connected.get_value(i));                
-                if (!connected) {
-                    continue;
-                }
-                
-                f32 width = 3.0f;
-                Vector2 first = e->position;
-                Vector2 second = {connected->position.x, e->position.y};
-                Vector2 third = connected->position;
-                Color color = Fade(YELLOW, 0.7f);
-                draw_game_line(first, second, width, color);
-                draw_game_line(second, third, width, color);
-            }
-        }
     }
 }
 
