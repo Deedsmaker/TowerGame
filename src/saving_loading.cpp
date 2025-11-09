@@ -4,8 +4,12 @@
 #include "array.cpp"
 #include "Allocator.cpp"
 
+String level_name_to_path(String name) {
+    return tstring("levels/%s", c_str(name));
+}
+
 void save_level(String level_name) {
-    String level_directory_name = tstring("levels/%s", c_str(level_name));
+    String level_directory_name = level_name_to_path(level_name);
 
     String old_directory_name = tstring("%s_old", c_str(level_directory_name));
     
@@ -348,7 +352,7 @@ String parse_string(String whole_data, i32 index, Allocator *allocator) {
 #define IF_FIND(str) if ((i = splitted.find(tstring(str))) >= 0)
 
 void create_level(String name) {
-    String path = tstring("levels/%s", c_str(name));
+    String path = level_name_to_path(name);
     
     if (directory_exists(path)) {
         return;
@@ -375,7 +379,7 @@ b32 load_level(String name) {
     // editor_state = EDITOR; // @TODO: Do we really need this? Edit: Right now yes, for convinience.
     
     global_data.playing_replay = false;
-    String level_path = tstring("levels/%s", c_str(name));
+    String level_path = level_name_to_path(name);
     
     if (!directory_exists(level_path)) {
         builder_append(&console.content_builder, tstring("Level does not exists! Will create new"));

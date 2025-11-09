@@ -2148,6 +2148,20 @@ void editor_print_select_entity_by_id_hint() {
     print_to_console("Provide a id!");
 }
 
+void rename_current_level(const char *new_name_str) {
+    String new_name = tstring(new_name_str);
+    if (new_name.count < 2) {
+        print_to_console("Level name too short. That could be a misslick. We're not renaming level.");
+        return;
+    }
+    
+    String old_name = editor_context->level_name;
+    
+    save_level(new_name);
+    
+    delete_directory(level_name_to_path(old_name));
+}
+
 void init_console() {
     init_array(&console.args, 8, HEAP_ALLOCATOR);
     init_array(&console.commands, 128, HEAP_ALLOCATOR);
@@ -2179,6 +2193,7 @@ void init_console() {
     console.commands.append(make_console_command("load",     NULL, load_level_by_name));
     console.commands.append(make_console_command("level",    print_current_level, load_level_by_name));
     console.commands.append(make_console_command("l",    print_current_level, load_level_by_name));
+    console.commands.append(make_console_command("rename_current_level",    NULL, rename_current_level));
     console.commands.append(make_console_command("next",     try_load_next_level, NULL));
     console.commands.append(make_console_command("previous", try_load_previous_level, NULL));
     console.commands.append(make_console_command("reload",   reload_level, NULL));
