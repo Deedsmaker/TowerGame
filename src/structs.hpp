@@ -1574,3 +1574,5 @@ struct Console {
     f32 opened_time = -12;
     f32 open_progress = 0;
 };
+
+global_variable Console console = {0};

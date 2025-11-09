@@ -60,7 +60,6 @@ global_variable Player replay_player_data = {0};
 
 global_variable Level_Replay level_replay = {0};
 global_variable Render render = {0};
-global_variable Console console = {0};
 global_variable Editor editor  = {0}; 
 global_variable Debug  debug  = {0};
 
@@ -160,7 +159,6 @@ inline void log_short(Vector2 value) {
 
 #include "random.hpp"
 #include "particles.hpp"
-#include "text_input.hpp"
 #include "old_ui.hpp"
 #include "immediate_ui.cpp"
 #include "lightmaps.cpp"
@@ -169,6 +167,7 @@ inline void log_short(Vector2 value) {
 #include "undo.cpp"
 #include "saving_loading.cpp"
 #include "collisions.cpp"
+#include "text_input.hpp"
 #include "console.cpp"
 
 void setup_context_cam(Context *context) {
