@@ -2311,7 +2311,8 @@ void editor_enter_game_state(Context *from_context) {
 
 void kill_player() {
     Player *player_data = &current_context->player_data;
-    if (debug.god_mode && !state_context.we_got_a_winner || !player_data || player_data->dead_man || debug.dragging_player) { 
+    b32 is_player_invincible = debug.god_mode || player_data->state_flags & PLAYER_INVINCIBLE;
+    if (is_player_invincible && !state_context.we_got_a_winner || !player_data || player_data->dead_man || debug.dragging_player) { 
         return;
     }
     
@@ -5833,6 +5834,27 @@ b32 is_type(Entity *entity, FLAGS flags) {
     return entity->flags & flags;
 }
 
+void player_start_killing_centipede(Entity *segment_entity, Player *player_data) {
+    assert(segment_entity->flags & CENTIPEDE_SEGMENT);
+    
+    // That would mean that we've hit the top segment, so no need to going in PLAYER_KILLING_CENTIPEDE state.
+    if (segment_entity->centipede_segment->previous->flags & CENTIPEDE) { 
+        return;
+    }
+    
+    player_data->state_flags |= PLAYER_KILLING_CENTIPEDE;
+    player_data->state_flags |= PLAYER_INVINCIBLE;
+    player_data->last_segment_kill_time = core.time.game_time;
+    player_data->last_killed_segment = segment_entity;
+}
+
+void player_stop_killing_centipede(Player *player_data) {
+    assert(player_data->state_flags & PLAYER_KILLING_CENTIPEDE);
+    
+    remove_flag(&player_data->state_flags, PLAYER_KILLING_CENTIPEDE);
+    remove_flag(&player_data->state_flags, PLAYER_INVINCIBLE);
+}
+
 b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
     if (!can_sword_damage_enemy(enemy_entity)) {
         return false;
@@ -5840,7 +5862,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
     assert(enemy_entity->union_enemy);
     
     Entity *player_entity = current_context->player;
-    Player *player_data = &current_context->player_data;
+    Player *player_data = &enemy_entity->context->player_data;
 
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !is_player_in_stun(player_entity) && is_enemy_can_take_damage(enemy_entity)) {
@@ -5869,6 +5891,13 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         
         if (enemy->max_hits_taken <= -1) {
             can_kill = false;
+        }
+        
+        // Sword centipede kill.
+        if (enemy_entity->flags & CENTIPEDE_SEGMENT && !(player_data->state_flags & PLAYER_KILLING_CENTIPEDE)) {
+            enemy_entity->context->player->position = enemy_entity->position;
+            
+            player_start_killing_centipede(enemy_entity, player_data);
         }
         
         if (can_kill) {
@@ -6432,6 +6461,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         push_player_up(player_data->jump_force);
     }
     
+    
     Vector2 next_pos = {player_entity->position.x + player_data->velocity.x * dt, player_entity->position.y + player_data->velocity.y * dt};
     
     player_entity->position = next_pos;
@@ -6452,6 +6482,31 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     
     local_persist f32 timer_since_on_wall = 0;
     f32 allowed_time_on_wall_without_pushing_back = 0.5f;
+    
+    if (player_data->state_flags & PLAYER_KILLING_CENTIPEDE) {
+        assert(player_data->last_killed_segment);
+        
+        player_data->sword_spin_progress = 1;
+        Entity *current = player_data->last_killed_segment;
+        if (current->centipede_segment->head->will_be_destroyed) {
+            player_stop_killing_centipede(player_data);
+            player_data->velocity = Vector2_up * 50;
+        } else {
+            f32 time_since_last_kill = core.time.game_time - player_data->last_segment_kill_time;
+            
+            if (time_since_last_kill >= player_data->SEGMENTS_KILL_DELAY) {
+                player_data->last_segment_kill_time += player_data->SEGMENTS_KILL_DELAY;
+                
+                Entity *next    = current->centipede_segment->previous;
+                
+                try_sword_damage_enemy(next, next->position);
+                player_data->last_killed_segment = next;
+            }
+            
+            player_entity->position = player_data->last_killed_segment->position;
+            player_data->velocity = Vector2_zero;
+        }
+    }
     
     // We're giving a vertical boost on entering wall collision for nicer movement. 
     // After some time on wall we're starting to push player away from wall because with current movement player could just climb

@@ -658,6 +658,11 @@ enum Sword_Mode {
     AIR_MODE
 };
 
+enum Player_States : FLAGS {
+    PLAYER_KILLING_CENTIPEDE = 0x1,
+    PLAYER_INVINCIBLE        = 0x2,
+};
+
 struct Player {
     // Static_Array <Collision, MAX_COLLISIONS> collisions = {};
     i32 stun_emitter_index = -1;
@@ -677,6 +682,12 @@ struct Player {
         f32 hit_booster_time = -12;
         f32 slowmo_timer = 0;
     };
+    
+    FLAGS state_flags = 0;
+    
+    inline static const f32 SEGMENTS_KILL_DELAY = 0.05f;
+    f32 last_segment_kill_time = -12;
+    Entity *last_killed_segment = NULL;
     
     b32 in_slowmo = false;
     

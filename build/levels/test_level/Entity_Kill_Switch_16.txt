@@ -11,6 +11,5 @@ name Kill_Switch
  unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
  hidden 0 
  spawn_enemy_when_no_ammo 0 
- kill_switch_connected [   15 ] 
  enemy_gives_ammo 0 
  
