@@ -5853,6 +5853,8 @@ void player_stop_killing_centipede(Player *player_data) {
     
     remove_flag(&player_data->state_flags, PLAYER_KILLING_CENTIPEDE);
     remove_flag(&player_data->state_flags, PLAYER_INVINCIBLE);
+    
+    player_data->velocity = Vector2_up * 50;
 }
 
 b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
@@ -6077,6 +6079,17 @@ inline b32 is_player_in_stun(Entity *entity) {
     return (in_weak_stun_time <= max_weak_stun_time);
 }
 
+void change_sword_spin_progress(Player *player_data, i32 direction, f32 progress) {
+    direction = clamp(direction, -1, 1);
+
+    player_data->sword_spin_progress = progress;
+    player_data->sword_angular_velocity = direction * progress * player_data->SWORD_SPIN_SPEED;
+    
+    player_data->is_sword_accelerating = direction != 0;
+    player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
+    assert(player_data->sword_spin_direction == direction);
+}
+
 void update_player_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (player_data->dead_man) {
         return;
@@ -6119,8 +6132,15 @@ void update_player_sword(Entity *entity, Player *player_data, Input input, f32 d
     
     Vector2 input_direction = input.sum_direction;
     
-    // Sword spin.
-    if (player_data->sword_mode != RIFLE_MODE) {
+    // Calculating required spin.
+    b32 calculated_spin = false; // @CLEANUP: This should be better. Right now we using this to tell if we really need to spin sword.
+    if (0) {
+    } else if (player_data->state_flags & PLAYER_KILLING_CENTIPEDE) {
+        calculated_spin = true;
+        change_scale(sword, lerp(sword->scale, player_data->sword_ground_mode_scale, dt * 15));
+        change_sword_spin_progress(player_data, -1, 1);
+    } else if (player_data->sword_mode != RIFLE_MODE) {
+        calculated_spin = true;
         f32 sword_max_spin_speed = player_data->sword_mode == AIR_MODE ? player_data->SWORD_SPIN_SPEED : player_data->SWORD_SPIN_SPEED;
         
         b32 can_sword_spin = !is_player_in_stun(entity);
@@ -6143,7 +6163,9 @@ void update_player_sword(Entity *entity, Player *player_data, Input input, f32 d
         
         player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
         player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
+    } // Sword spin end.
     
+    if (calculated_spin) {
         f32 total_rotation_amount_required = player_data->sword_angular_velocity * dt;
         static const f32 MAX_ONE_TIME_ROTATION_AMOUNT = 5;
     
@@ -6161,8 +6183,7 @@ void update_player_sword(Entity *entity, Player *player_data, Input input, f32 d
         }
         rotate(sword, total_rotation_amount_required);
         calculate_sword_collisions(sword, entity);
-
-    } // Sword spin end.
+    }
     
     // Sword effects.
     {
@@ -6376,7 +6397,6 @@ void update_player_movement(Entity *entity, Player *player_data, Input input, f3
         Entity *current = player_data->last_killed_segment;
         if (current->centipede_segment->head->will_be_destroyed) {
             player_stop_killing_centipede(player_data);
-            player_data->velocity = Vector2_up * 50;
         } else {
             f32 time_since_last_kill = core.time.game_time - player_data->last_segment_kill_time;
             
@@ -6384,9 +6404,21 @@ void update_player_movement(Entity *entity, Player *player_data, Input input, f3
                 player_data->last_segment_kill_time += player_data->SEGMENTS_KILL_DELAY;
                 
                 Entity *next    = current->centipede_segment->previous;
+                while (next->centipede_segment->dead_man) {
+                    next = next->centipede_segment->previous;
+                    if (next->flags & CENTIPEDE) {
+                        next = NULL;
+                        player_stop_killing_centipede(player_data);
+                        break;
+                    }
+                    player_data->last_segment_kill_time -= player_data->SEGMENTS_KILL_DELAY * 0.2f; // That's for giving player more time to notice that he's skipped some segments.
+                }
                 
-                try_sword_damage_enemy(next, next->position);
-                player_data->last_killed_segment = next;
+                if (next) {
+                    try_sword_damage_enemy(next, next->position);
+                    add_hitstop(0.01f);
+                    player_data->last_killed_segment = next;
+                }
             }
             
             entity->position = player_data->last_killed_segment->position;

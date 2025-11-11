@@ -685,7 +685,7 @@ struct Player {
     
     FLAGS state_flags = 0;
     
-    inline static const f32 SEGMENTS_KILL_DELAY = 0.05f;
+    inline static const f32 SEGMENTS_KILL_DELAY = 0.2f;
     f32 last_segment_kill_time = -12;
     Entity *last_killed_segment = NULL;
     
