@@ -5861,12 +5861,6 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             particles_direction = get_particle_emitter(sword_tip_ground_emitter_index)->direction;
         }
         
-        if (enemy_entity->flags & HIT_BOOSTER) {
-            player_entity->position = enemy_entity->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
-            player_data->velocity = enemy_entity->up * enemy->hit_booster.boost;
-            player_data->timers.hit_booster_time = core.time.game_time;
-        }
-        
         // We also set this last hit variable in kill_enemy and stun_enemy, but as we see now we don't want to kill or stun 
         // every enemy that take hit, so it have sense to set it where actual hit is delivered.
         enemy->last_hit_time = core.time.game_time;
@@ -6663,7 +6657,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
     }
     
     // Player body collision.
-    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER);
+    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER | HIT_BOOSTER);
     
     b32 is_body_huge_collision_speed = false;
     b32 on_propeller = false;
@@ -6712,6 +6706,14 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                 continue;
             }
         }
+        
+        if (other->flags & HIT_BOOSTER) {
+            player_entity->position = other->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
+            player_data->velocity = other->up * other->union_enemy->hit_booster.boost;
+            player_data->timers.hit_booster_time = core.time.game_time;
+            continue; // Only detecting collision. Don't want to actually physically collide with it.
+        }
+
         
         if (other->flags & CENTIPEDE_SEGMENT) {
             if (other->centipede_segment->head->centipede->spikes_on_right && other->centipede_segment->head->centipede->spikes_on_left) {
