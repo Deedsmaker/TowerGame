@@ -6051,7 +6051,7 @@ inline void update_player_connected_entities_positions(Entity *player_entity) {
     Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
     Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
     Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
-    Entity *sword              = get_entity(player_data->connected_entities_ids.sword_entity_id);
+    Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
     
     ground_checker->position     = player_entity->position - player_entity->up * player_entity->scale.y * 0.5f;
     left_wall_checker->position  = player_entity->position - player_entity->right * player_entity->scale.x * 1.0f + Vector2_up * player_entity->scale.y * 0.3f;
@@ -6077,178 +6077,53 @@ inline b32 is_player_in_stun(Entity *entity) {
     return (in_weak_stun_time <= max_weak_stun_time);
 }
 
-void update_player(Entity *player_entity, f32 dt, Input input) {
-    assert(player_entity->flags & PLAYER);
-    
-    Player *player_data = player_entity->player_data;
-
+void update_player_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (player_data->dead_man) {
         return;
     }
     
-    Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
-    Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
-    Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
-    Entity *sword              = get_entity(player_data->connected_entities_ids.sword_entity_id);
+    Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
     
-    update_player_connected_entities_positions(player_entity);    
-    
-    f32 since_sword_mode_change = core.time.game_time - player_data->sword_mode_change_time;
-    
-    f32 big_sword_max_time = 1.4f;
-    
-    // big sword
-    if (since_sword_mode_change > big_sword_max_time) {
-        if (input.press_flags & SPIN && player_data->current_big_sword_charges > 0) {
-            player_data->sword_mode_change_time = core.time.game_time;    
-            // player_data->max_speed_multiplier = 2.0f;
-            player_data->sword_mode = AIR_MODE;
-            
-            play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
-            
-            assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
-            player_data->current_big_sword_charges -= 1;
-        } else {
-            // player_data->max_speed_multiplier = 1.0f;
-            if (player_data->sword_mode != RIFLE_MODE ) {
-                play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
+    // Sword changing mode and size.
+    {
+        f32 since_sword_mode_change = core.time.game_time - player_data->sword_mode_change_time;
+        f32 big_sword_max_time = 1.4f;
+        
+        // big sword
+        if (since_sword_mode_change > big_sword_max_time) {
+            if (input.press_flags & SPIN && player_data->current_big_sword_charges > 0) {
+                player_data->sword_mode_change_time = core.time.game_time;    
+                // player_data->max_speed_multiplier = 2.0f;
+                player_data->sword_mode = AIR_MODE;
+                
+                play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
+                
+                assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
+                player_data->current_big_sword_charges -= 1;
+            } else {
+                // player_data->max_speed_multiplier = 1.0f;
+                if (player_data->sword_mode != RIFLE_MODE ) {
+                    play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
+                }
+                player_data->sword_mode = RIFLE_MODE;
             }
-            player_data->sword_mode = RIFLE_MODE;
         }
-    }
-    
-    Vector2 sword_target_scale = player_data->sword_start_scale;
-    if      (player_data->sword_mode == GROUND_MODE) sword_target_scale = player_data->sword_ground_mode_scale;
-    else if (player_data->sword_mode == AIR_MODE)    sword_target_scale = player_data->sword_air_mode_scale;
-    
-    change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
-    
-    Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
-    
-    Particle_Emitter *chainsaw_emitter = get_particle_emitter(chainsaw_emitter_index);
-    
-    if (input.press_flags & SPIN) {
-        chainsaw_emitter->position = input.mouse_position;
-        chainsaw_emitter->last_emitted_position = input.mouse_position;
-        chainsaw_emitter->enabled = true;
-    }
-    if (input.press_flags & SPIN_RELEASED) {
-        chainsaw_emitter->enabled = false;
-    }
-    
-    f32 max_big_sword_speed = 4500;
-    f32 max_small_sword_speed = 2200;
+        
+        Vector2 sword_target_scale = player_data->sword_start_scale;
+        if      (player_data->sword_mode == GROUND_MODE) sword_target_scale = player_data->sword_ground_mode_scale;
+        else if (player_data->sword_mode == AIR_MODE)    sword_target_scale = player_data->sword_air_mode_scale;
+        
+        change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
+        change_color(sword, player_data->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
+    } // End sword changing mode and size.
     
     Vector2 input_direction = input.sum_direction;
     
-    b32 rifle_failed_hard = false;
-    
-    Particle_Emitter *rifle_trail_emitter = get_particle_emitter(player_data->rifle_trail_emitter_index);
-    if (rifle_trail_emitter) {
-        rifle_trail_emitter->position = sword_tip;
-        rifle_trail_emitter->direction = sword->up;
-    }
-    
-    // sword->color_changer.progress = can_activate_rifle ? 1 : 0;
-    change_color(sword, player_data->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
-    
-    Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
-    if (sword_tip_emitter) {
-        enable_emitter(sword_tip_emitter);
-        sword_tip_emitter->position = sword_tip;
-    }
-    Particle_Emitter *sword_tip_ground_emitter = get_particle_emitter(sword_tip_ground_emitter_index);
-    if (sword_tip_ground_emitter) {
-        sword_tip_ground_emitter->position = sword_tip;
-    }
-    if (chainsaw_emitter) {
-        chainsaw_emitter->position = input.mouse_position;
-    }
-    
-    f32 blood_t = player_data->blood_progress;
-    f32 spin_t = player_data->sword_spin_progress;
-    {
-        chainsaw_emitter->lifetime_multiplier = 1.0f + spin_t * spin_t * 2; 
-        chainsaw_emitter->speed_multiplier    = 1.0f + spin_t * spin_t * 2; 
-        
-        chainsaw_emitter->count_multiplier = player_data->sword_mode == AIR_MODE ? 0.1f : 1;
-        chainsaw_emitter->size_multiplier  = player_data->sword_mode == AIR_MODE ? 5 : 1;
-        chainsaw_emitter->color            = player_data->sword_mode == AIR_MODE ? ColorBrightness(ORANGE, 0.2f) : YELLOW;
-        
-        // sword_tip_emitter->lifetime_multiplier = 1.0f + blood_t * blood_t * 3.0f;
-        sword_tip_emitter->speed_multiplier    = 1.0f + blood_t * blood_t * 5.0f;
-        sword_tip_emitter->count_multiplier    = blood_t * blood_t * 2.0f;
-              
-        f32 blood_decease = 25;
-              
-        add_blood_amount(player_data, -blood_decease * dt);
-    }
-    
-    f32 sword_min_rotation_amount = 5;
-    f32 need_to_rotate = player_data->sword_angular_velocity * dt;
-    
-    if (sword->rotation + need_to_rotate >= 360 || sword->rotation + need_to_rotate < 0) {
-        // emit_particles(sword_tip_emitter, player_entity->position, sword->up);
-        //@SOUND sound on swing could be nice, but we should not depend on actual spin and instead find a proper looping sound.
-        // local_persist f32 volume = 0.1f;
-        // volume = lerp(volume, 0.1f + player_data->sword_spin_progress * 0.1f + player_data->sword_mode == AIR_MODE ? 0.4f : 0.0f, dt * 10);
-        // play_sound("SwordSwing", volume, lerp(0.4f, player_data->sword_mode == AIR_MODE ? 1.0f : 1.5f, player_data->sword_spin_progress), 0.1f);
-    }
-    
-        // @DO REdo this machinegun shit when we'll know for sure how we think this should work.
-    i32 shoots_queued = 0;
-    local_persist f32 shoot_press_time = -12;
-    local_persist f32 rifle_in_machinegun_mode = false;
-    if (input.press_flags & SHOOT) {
-        shoot_press_time = core.time.game_time;
-        shoots_queued += 1;
-    }
-    
-    if (input.hold_flags & SHOOT_DOWN && shoot_press_time > 0) {
-        f32 hold_time = core.time.game_time - shoot_press_time;
-        
-        if (!rifle_in_machinegun_mode && hold_time >= 0.2f) {
-            rifle_in_machinegun_mode = true;
-            shoots_queued += 1;
-            shoot_press_time = core.time.game_time;
-            hold_time -= 0.2f;
-        }
-        
-        f32 machinegun_shoots_delay = 0.03f;
-        if (rifle_in_machinegun_mode) {
-            while (hold_time >= machinegun_shoots_delay) {
-                hold_time -= machinegun_shoots_delay;
-                shoots_queued += 1;
-                shoot_press_time = core.time.game_time;
-            }
-        }
-    }
-    
-    if (input.press_flags & SHOOT_RELEASED) {
-        shoot_press_time = -12;
-        rifle_in_machinegun_mode = false;
-    }
-    
-    if (player_data->ammo_count == 0 && core.time.game_time - player_data->timers.last_bullet_shot_time >= 3.0f) {
-        add_player_ammo(1);
-    }
-    
-    if (input.press_flags & SHOOT) {
-        if ((player_data->ammo_count <= 0 && !debug.infinite_ammo)) {
-            play_sound("FailedRifleActivation", 0.4f);
-        }
-        
-        player_data->timers.rifle_shake_start_time = core.time.game_time;
-        emit_particles(&gunpowder_emitter, sword_tip, sword->up);
-    }
-    
-    player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
-    
     // Sword spin.
     if (player_data->sword_mode != RIFLE_MODE) {
-        f32 sword_max_spin_speed = player_data->sword_mode == AIR_MODE ? max_big_sword_speed : max_small_sword_speed;
+        f32 sword_max_spin_speed = player_data->sword_mode == AIR_MODE ? player_data->SWORD_SPIN_SPEED : player_data->SWORD_SPIN_SPEED;
         
-        b32 can_sword_spin = !is_player_in_stun(player_entity);
+        b32 can_sword_spin = !is_player_in_stun(entity);
         if (can_sword_spin) {
             f32 sword_spin_sense = player_data->sword_mode == AIR_MODE ? 40 : 10; 
             
@@ -6267,22 +6142,108 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
         player_data->is_sword_accelerating = input_direction.x != 0;
         
         player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
+        player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
+    
+        f32 total_rotation_amount_required = player_data->sword_angular_velocity * dt;
+        static const f32 MAX_ONE_TIME_ROTATION_AMOUNT = 5;
     
         // Someone could enter sword on previous frame after this update so we'll check for that.
-        rotate(sword, -1.0f * 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
-        calculate_sword_collisions(sword, player_entity);
+        rotate(sword, -1.0f * 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
+        calculate_sword_collisions(sword, entity);
         
-        rotate(sword, 0.5f * sword_min_rotation_amount * player_data->sword_spin_direction);         
-        calculate_sword_collisions(sword, player_entity);
+        rotate(sword, 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
+        calculate_sword_collisions(sword, entity);
         
-        while(need_to_rotate > sword_min_rotation_amount) {
-            rotate(sword, sword_min_rotation_amount * player_data->sword_spin_direction);
-            calculate_sword_collisions(sword, player_entity);
-            need_to_rotate -= sword_min_rotation_amount;
+        while(total_rotation_amount_required > MAX_ONE_TIME_ROTATION_AMOUNT) {
+            rotate(sword, MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);
+            calculate_sword_collisions(sword, entity);
+            total_rotation_amount_required -= MAX_ONE_TIME_ROTATION_AMOUNT;
         }
-        rotate(sword, need_to_rotate);
-        calculate_sword_collisions(sword, player_entity);
-    } else { // Player rifle mode. Sword is not spinning.
+        rotate(sword, total_rotation_amount_required);
+        calculate_sword_collisions(sword, entity);
+
+    } // Sword spin end.
+    
+    // Sword effects.
+    {
+        Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
+    
+        Particle_Emitter *sword_tip_emitter       = get_particle_emitter(blood_trail_emitter_index);
+        if (sword_tip_emitter) {
+            enable_emitter(sword_tip_emitter);
+            sword_tip_emitter->position = sword_tip;
+        }
+        Particle_Emitter *sword_tip_ground_emitter = get_particle_emitter(sword_tip_ground_emitter_index);
+        if (sword_tip_ground_emitter) {
+            sword_tip_ground_emitter->position = sword_tip;
+        }
+        
+        if (player_data->sword_hit_ground) {
+            player_data->sword_hit_ground = false;
+            enable_emitter(sword_tip_ground_emitter);
+            f32 t = 0.6f;
+            sword_tip_ground_emitter->speed_multiplier = lerp(0.7f, 4.0f, t * t * t);
+            sword_tip_ground_emitter->count_multiplier = lerp(0.45f, 1.0f, t * t * t);
+        } else {
+            sword_tip_ground_emitter->enabled = false;
+        }
+
+    } // End sword effects.
+} // End update player sword.
+
+void update_player_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
+    if (player_data->dead_man) {
+        return;
+    }
+    
+    Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
+    
+    Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
+    
+    // Rifle shoot.
+    if (player_data->sword_mode == RIFLE_MODE) {
+        i32 shoots_queued = 0;
+        local_persist f32 shoot_press_time = -12;
+        local_persist b32 rifle_in_machinegun_mode = false;
+        if (input.press_flags & SHOOT) {
+            shoot_press_time = core.time.game_time;
+            shoots_queued += 1;
+        }
+        
+        if (input.hold_flags & SHOOT_DOWN && shoot_press_time > 0) {
+            f32 hold_time = core.time.game_time - shoot_press_time;
+            
+            if (!rifle_in_machinegun_mode && hold_time >= 0.2f) {
+                rifle_in_machinegun_mode = true;
+                shoots_queued += 1;
+                shoot_press_time = core.time.game_time;
+                hold_time -= 0.2f;
+            }
+            
+            f32 machinegun_shoots_delay = 0.03f;
+            if (rifle_in_machinegun_mode) {
+                while (hold_time >= machinegun_shoots_delay) {
+                    hold_time -= machinegun_shoots_delay;
+                    shoots_queued += 1;
+                    shoot_press_time = core.time.game_time;
+                }
+            }
+        }
+        
+        if (input.press_flags & SHOOT_RELEASED) {
+            shoot_press_time = -12;
+            rifle_in_machinegun_mode = false;
+        }
+        
+        if (input.press_flags & SHOOT) {
+            if ((player_data->ammo_count <= 0 && !debug.infinite_ammo)) {
+                play_sound("FailedRifleActivation", 0.4f);
+            }
+            
+            player_data->timers.rifle_shake_start_time = core.time.game_time;
+            emit_particles(&gunpowder_emitter, sword_tip, sword->up);
+        }
+        
         player_data->sword_angular_velocity = 0;
         player_data->is_sword_accelerating = 0;
         player_data->sword_spin_progress = 0;
@@ -6349,7 +6310,7 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                             assert(entity->union_enemy);
                             if (entity->union_enemy->in_agro) {
                             
-                                Entity *sticky_line = add_entity(player_entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
+                                Entity *sticky_line = add_entity(entity->position, {1,1}, {0.5f,0.5f}, 0, STICKY_TEXTURE);
                                 sticky_line->sticky_texture->draw_line = true;
                                 sticky_line->sticky_texture->line_color = ColorBrightness(VIOLET, 0.1f);
                                 sticky_line->sticky_texture->line_width = contiguous_failed_shots_count * 0.5f;
@@ -6368,122 +6329,47 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                 }
             }
             shoots_queued -= 1;
+        } // Shots queued loop end.
+        
+        f32 time_since_shoot = core.time.game_time - player_data->timers.rifle_shoot_time;
+        if (time_since_shoot >= 0.5f && core.time.game_time > 1) {
+            disable_emitter(player_data->rifle_trail_emitter_index);
+        } else {
         }
+
+    } // Rifle shoot end.
+    
+    // Rifle effects.
+    {
+        Particle_Emitter *rifle_trail_emitter = get_particle_emitter(player_data->rifle_trail_emitter_index);
+        if (rifle_trail_emitter) {
+            rifle_trail_emitter->position = sword_tip;
+            rifle_trail_emitter->direction = sword->up;
+        }
+    } // Rifle effects end.
+} // End update player rifle.
+
+void update_player_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
+    if (player_data->dead_man) {
+        return;
     }
     
-    f32 time_since_shoot = core.time.game_time - player_data->timers.rifle_shoot_time;
+    Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
+    Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
+    Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
     
-    if (time_since_shoot >= 0.5f && core.time.game_time > 1) {
-        disable_emitter(player_data->rifle_trail_emitter_index);
-    } else {
-    }
-    
-    player_data->timers.since_jump_timer += dt;
-    
-    if (!is_player_in_stun(player_entity)) {
-        disable_emitter(player_data->stun_emitter_index);
-    } else {
-        enable_emitter(player_data->stun_emitter_index);
-    }
+    update_player_connected_entities_positions(entity);    
     
     f32 since_hit_booster = core.time.game_time - player_data->timers.hit_booster_time;
+    b32 player_in_hit_booster = since_hit_booster <= HIT_BOOSTER_BOOST_TIME;
     
-    //player movement
-    if (since_hit_booster <= HIT_BOOSTER_BOOST_TIME) {
-        
-    } else if (player_data->grounded && !is_player_in_stun(player_entity) && !player_data->on_propeller) {
-        player_ground_move(player_entity, dt);
-        
-        player_snap_to_plane(player_entity, player_data->ground_normal);
-        
-        player_entity->position.y -= dt;
-        player_data->velocity -= player_data->ground_normal * dt;
-        
-        player_data->timers.since_airborn_timer = 0;
-    } else/* if (!in_climbing_state)*/{
-        f32 max_downwards_speed = -150;
+    Vector2 input_direction = input.sum_direction;
     
-        if (player_data->velocity.y > 10/* && player_data->timers.since_jump_timer <= 0.3f*/) { //so we make jump gravity
-            f32 t = player_data->velocity.y / 100.0f;
-            player_data->gravity_mult = lerp(1.0f, 3.0f, sqrtf(t));
-        } else {
-            if (input.sum_direction.y < 0 && !is_player_in_stun(player_entity)) {
-                player_data->gravity_mult = 6;
-                max_downwards_speed = -150;
-            } else {
-                // player_data->gravity_mult = lerp(1.0f, 0.5f, player_data->sword_spin_progress * player_data->sword_spin_progress);
-                player_data->gravity_mult = 3;
-                if (player_data->velocity.y > 0) {
-                    f32 up_velocity_t = clamp01(player_data->velocity.y / 200.0f);
-                    f32 additional_gravity = lerp(0.0f, 2.0f, up_velocity_t * up_velocity_t);
-                    player_data->gravity_mult += additional_gravity;
-                }
-            }
-        }
-        
-        if (!is_player_in_stun(player_entity)) {
-            player_air_move(player_entity, dt);
-        }
-        
-        // In air and in big sword mode we keeping velocity mostly horizontal for more control.
-        // This on wall check needs so that our wall boost system worked nice.
-        if (player_data->sword_mode == AIR_MODE && !player_data->on_wall) {
-            player_data->velocity.y = lerp(player_data->velocity.y, 0.0f, dt * 10);            
-        } else {
-            player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
-        }
-        
-        if (player_data->velocity.y < max_downwards_speed) {
-            player_data->velocity.y = lerp(player_data->velocity.y, max_downwards_speed, 30 * dt);
-        }
-         
-        player_data->timers.since_airborn_timer += dt;
-    }
-    
-    if (input.press_flags & JUMP) {
-        // This thing tells about button press time, not about real act of jumping.
-        player_data->timers.jump_press_time = core.time.game_time;
-        
-        if (!player_data->grounded) {
-            player_data->timers.air_jump_press_time = core.time.game_time;
-        }
-    }
-    
-    f32 time_since_jump_press = core.time.game_time - player_data->timers.jump_press_time;
-    f32 time_since_air_jump_press = core.time.game_time - player_data->timers.air_jump_press_time;
-    
-    b32 need_jump = (input.press_flags & JUMP && player_data->grounded)
-                 || (player_data->grounded && time_since_air_jump_press <= player_data->jump_buffer_time) 
-                 || (input.press_flags & JUMP && player_data->timers.since_airborn_timer <= player_data->coyote_time && player_data->timers.since_jump_timer > player_data->coyote_time);
-    
-    // Player jump.
-    if (need_jump) {
-        push_player_up(player_data->jump_force);
-    }
-    
-    
-    Vector2 next_pos = {player_entity->position.x + player_data->velocity.x * dt, player_entity->position.y + player_data->velocity.y * dt};
-    
-    player_entity->position = next_pos;
-    
-    f32 found_ground = false;
-    f32 just_grounded = false;
-    
-    f32 wall_acceleration = 400;
-    
-    // player collisions
-    f32 time_since_wall_jump = core.time.game_time - player_data->timers.wall_jump_time;
-    f32 player_speed = magnitude(player_data->velocity);
-    
-    f32 time_since_wall_vertical_boost = core.time.game_time - player_data->timers.wall_enter_vertical_boost_time;
-    b32 hit_a_wall = false;
-    
-    f32 wall_vertical_boost = 100;
-    
-    local_persist f32 timer_since_on_wall = 0;
-    f32 allowed_time_on_wall_without_pushing_back = 0.5f;
-    
-    if (player_data->state_flags & PLAYER_KILLING_CENTIPEDE) {
+    // Player moving calculations.
+    if (0) {
+    } else if (player_in_hit_booster) {
+          
+    } else if (player_data->state_flags & PLAYER_KILLING_CENTIPEDE) {
         assert(player_data->last_killed_segment);
         
         player_data->sword_spin_progress = 1;
@@ -6503,378 +6389,488 @@ void update_player(Entity *player_entity, f32 dt, Input input) {
                 player_data->last_killed_segment = next;
             }
             
-            player_entity->position = player_data->last_killed_segment->position;
+            entity->position = player_data->last_killed_segment->position;
             player_data->velocity = Vector2_zero;
         }
-    }
+    } else if (player_data->grounded && !is_player_in_stun(entity) && !player_data->on_propeller) {
+        // Player ground move.
+        player_ground_move(entity, dt);
+        
+        player_snap_to_plane(entity, player_data->ground_normal);
+        
+        entity->position.y -= dt;
+        player_data->velocity -= player_data->ground_normal * dt;
+        
+        player_data->timers.since_airborn_timer = 0;
+
+    } else {
+        // Player air move.
+        f32 max_downwards_speed = -150;
     
-    // We're giving a vertical boost on entering wall collision for nicer movement. 
-    // After some time on wall we're starting to push player away from wall because with current movement player could just climb
-    // any inclined wall without that.
-    
-    // player left wall
-    fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(player_entity); i++) {
-        Collision col = collisions_buffer.get_value(i);
-        
-        if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
-            player_data->velocity.y = wall_vertical_boost;
-            player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
-        } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
-            // Here 90 is straight wall.
-            f32 wall_angle = fangle(col.normal, Vector2_up);
-            // That's looks a bit complicated so here's explanation.
-            // Angles that we might consider "wall" is 45..90, so part with "-0.5f" and "* 2" is for 
-            // remaping angle to 0..1, where 1 will be straight wall. Next we do "1 - x", so now angle 45 will be maximum power
-            // and 90 is no additional down power at all.
-            // Then there's sqrtf for more rapid increase in power and "* 5" for max down power when angle is 45.
-            f32 push_down_power = sqrtf(1.0f - clamp01((((wall_angle / 90.0f) - 0.5f) * 2))) * 5;
-            player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, 1)) * push_down_power;
-        }
-        hit_a_wall = true;
-        
-        if (col.other_entity->flags & CENTIPEDE_SEGMENT && input_direction.x < 0) {
-            Vector2 climb_plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -120);
-            f32 max_wall_speed = 150;
-            f32 wall_acceleration = 400;
-            if (dot(player_data->velocity, climb_plane) < max_wall_speed) {
-                player_data->velocity += climb_plane * wall_acceleration * dt;
-            }
-        }
-        break;
-    }
-    
-    // player right wall
-    fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
-    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(player_entity); i++) {
-        Collision col = collisions_buffer.get_value(i);
-        
-        if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
-            player_data->velocity.y = wall_vertical_boost;
-            player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
-        } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
-            // Here 90 is straight wall.
-            f32 wall_angle = fangle(col.normal, Vector2_up);
-            // Explanation of this "formula" is on left wall collision code.
-            f32 push_down_power = sqrtf(1.0f - clamp01((((wall_angle / 90.0f) - 0.5f) * 2))) * 5;
-            player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, -1)) * push_down_power;
-        }
-        hit_a_wall = true;
-        
-        if (col.other_entity->flags & CENTIPEDE_SEGMENT && input_direction.x > 0) {
-            Vector2 climb_plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -120);
-            f32 max_wall_speed = 150;
-            f32 wall_acceleration = 400;
-            if (dot(player_data->velocity, climb_plane) < max_wall_speed) {
-                player_data->velocity += climb_plane * wall_acceleration * dt;
-            }
-        }
-        break;
-    }
-    
-    player_data->on_wall = hit_a_wall;
-    
-    f32 wall_timer_modifier = hit_a_wall ? 1 : -1;
-    timer_since_on_wall = clamp(timer_since_on_wall + dt * wall_timer_modifier, 0.0f, allowed_time_on_wall_without_pushing_back);
-    
-    Vector2 last_collision_point = Vector2_zero;
-    Vector2 last_collision_normal = Vector2_one;
-    
-    b32 moving_object_detected = false;
-    // Player ground checker.
-    FLAGS player_ground_collision_flags = GROUND | ENEMY_BARRIER | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK | PLAYER_TOUCH_TIMER;
-    fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
-    b32 is_ground_huge_collision_speed = false;
-    b32 found_no_move_block = false;
-    for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(player_entity); i++) {
-        Collision col = collisions_buffer.get_value(i);
-        Entity *other = col.other_entity;
-        assert(col.collided);
-        
-        f32 dot_velocity = dot(col.normal, player_data->velocity);
-        if (dot_velocity >= 0) {
-            continue;
-        }
-        
-        if (other->flags & PLATFORM && dot(player_entity->position - other->position, other->up) < 0) {
-            continue;
-        }
-        
-        //now we don't want to stand on projectiles
-        if ((other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE) {
-            continue;
-        }
-        
-        if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal) {
-            continue;
-        }
-        
-        if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)) {
-            if (try_sword_damage_enemy(other, col.point)) {
-                continue;
-            }
-        }
-        
-        if (other->flags & NO_MOVE_BLOCK) {
-            found_no_move_block = true;
-        }
-        
-        if (other->flags & CENTIPEDE_SEGMENT) {
-            if (other->centipede_segment->head->centipede->spikes_on_right && other->centipede_segment->head->centipede->spikes_on_left) {
-                kill_player();
-                return;
-            } else if (!other->centipede_segment->head->centipede->spikes_on_right && !other->centipede_segment->head->centipede->spikes_on_left) {
-                
+        if (player_data->velocity.y > 10/* && player_data->timers.since_jump_timer <= 0.3f*/) { //so we make jump gravity
+            f32 t = player_data->velocity.y / 100.0f;
+            player_data->gravity_mult = lerp(1.0f, 3.0f, sqrtf(t));
+        } else {
+            if (input.sum_direction.y < 0 && !is_player_in_stun(entity)) {
+                player_data->gravity_mult = 6;
+                max_downwards_speed = -150;
             } else {
-                Vector2 side = other->centipede_segment->head->centipede->spikes_on_right ? other->right : (other->right * -1.0f);
-                f32 side_dot = dot(side, player_entity->position - other->position);
-                // so we on side of the centipede segments where are SPIKES
-                if (side_dot > 0.1f) {
-                    kill_player();
-                    return;
+                // player_data->gravity_mult = lerp(1.0f, 0.5f, player_data->sword_spin_progress * player_data->sword_spin_progress);
+                player_data->gravity_mult = 3;
+                if (player_data->velocity.y > 0) {
+                    f32 up_velocity_t = clamp01(player_data->velocity.y / 200.0f);
+                    f32 additional_gravity = lerp(0.0f, 2.0f, up_velocity_t * up_velocity_t);
+                    player_data->gravity_mult += additional_gravity;
                 }
             }
         }
         
-        last_collision_point = col.point;
-        last_collision_normal = col.normal;
+        if (!is_player_in_stun(entity)) {
+            player_air_move(entity, dt);
+        }
         
-        Vector2 velocity_direction = normalized(player_data->velocity);
-        f32 before_speed = magnitude(player_data->velocity);
+        // In air and in big sword mode we keeping velocity mostly horizontal for more control.
+        // This on wall check needs so that our wall boost system worked nice.
+        if (player_data->sword_mode == AIR_MODE && !player_data->on_wall) {
+            player_data->velocity.y = lerp(player_data->velocity.y, 0.0f, dt * 10);            
+        } else {
+            player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
+        }
         
-        if (before_speed > 200) {
-            is_ground_huge_collision_speed = true;
-        } 
+        if (player_data->velocity.y < max_downwards_speed) {
+            player_data->velocity.y = lerp(player_data->velocity.y, max_downwards_speed, 30 * dt);
+        }
+         
+        player_data->timers.since_airborn_timer += dt;
+    }
     
-        f32 collision_force_multiplier = 1;
+    // Player jump.
+    {
+        if (input.press_flags & JUMP) {
         
-        if (dot((cast(Vector2) {0, 1}), col.normal) > 0.5f) {
-            player_data->velocity -= col.normal * dot(player_data->velocity, col.normal);
+        // This thing tells about button press time, not about real act of jumping.
+        player_data->timers.jump_press_time = core.time.game_time;
+            
+        if (!player_data->grounded) {
+                player_data->timers.air_jump_press_time = core.time.game_time;
+            }
         }
         
-        if (other->flags & MOVE_SEQUENCE && other->move_sequence->moving) {
-            player_entity->position += other->move_sequence->moved_last_frame;
+        f32 time_since_jump_press = core.time.game_time - player_data->timers.jump_press_time;
+        f32 time_since_air_jump_press = core.time.game_time - player_data->timers.air_jump_press_time;
+        
+        player_data->timers.since_jump_timer += dt;
+        
+        b32 need_jump = (input.press_flags & JUMP && player_data->grounded)
+                     || (player_data->grounded && time_since_air_jump_press <= player_data->jump_buffer_time) 
+                     || (input.press_flags & JUMP && player_data->timers.since_airborn_timer <= player_data->coyote_time && player_data->timers.since_jump_timer > player_data->coyote_time);
+        
+        // Player jump.
+        if (need_jump) {
+            push_player_up(player_data->jump_force);
+        }
+
+    } // End player jump.
+    
+    // Actually moving player.
+    Vector2 next_pos = {entity->position.x + player_data->velocity.x * dt, entity->position.y + player_data->velocity.y * dt};
+    
+    entity->position = next_pos;
+    
+    // Player collisions.
+    {
+        f32 found_ground = false;
+        f32 just_grounded = false;
+        
+        f32 wall_acceleration = 400;
+        
+        f32 time_since_wall_jump = core.time.game_time - player_data->timers.wall_jump_time;
+        f32 player_speed = magnitude(player_data->velocity);
+        
+        f32 time_since_wall_vertical_boost = core.time.game_time - player_data->timers.wall_enter_vertical_boost_time;
+        b32 hit_a_wall = false;
+        
+        f32 wall_vertical_boost = 100;
+        
+        local_persist f32 timer_since_on_wall = 0;
+        f32 allowed_time_on_wall_without_pushing_back = 0.5f;
+        
+        // We're giving a vertical boost on entering wall collision for nicer movement. 
+        // After some time on wall we're starting to push player away from wall because with current movement player could just climb
+        // any inclined wall without that.
+        
+        // player left wall
+        fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+        for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
+            Collision col = collisions_buffer.get_value(i);
+            
+            if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
+                player_data->velocity.y = wall_vertical_boost;
+                player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
+            } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
+                // Here 90 is straight wall.
+                f32 wall_angle = fangle(col.normal, Vector2_up);
+                // That's looks a bit complicated so here's explanation.
+                // Angles that we might consider "wall" is 45..90, so part with "-0.5f" and "* 2" is for 
+                // remaping angle to 0..1, where 1 will be straight wall. Next we do "1 - x", so now angle 45 will be maximum power
+                // and 90 is no additional down power at all.
+                // Then there's sqrtf for more rapid increase in power and "* 5" for max down power when angle is 45.
+                f32 push_down_power = sqrtf(1.0f - clamp01((((wall_angle / 90.0f) - 0.5f) * 2))) * 5;
+                player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, 1)) * push_down_power;
+            }
+            hit_a_wall = true;
+            
+            if (col.other_entity->flags & CENTIPEDE_SEGMENT && input_direction.x < 0) {
+                Vector2 climb_plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -120);
+                f32 max_wall_speed = 150;
+                f32 wall_acceleration = 400;
+                if (dot(player_data->velocity, climb_plane) < max_wall_speed) {
+                    player_data->velocity += climb_plane * wall_acceleration * dt;
+                }
+            }
+            break;
         }
         
-        f32 angle = fangle(col.normal, player_entity->up);
+        // player right wall
+        fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+        for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
+            Collision col = collisions_buffer.get_value(i);
+            
+            if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
+                player_data->velocity.y = wall_vertical_boost;
+                player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
+            } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
+                // Here 90 is straight wall.
+                f32 wall_angle = fangle(col.normal, Vector2_up);
+                // Explanation of this "formula" is on left wall collision code.
+                f32 push_down_power = sqrtf(1.0f - clamp01((((wall_angle / 90.0f) - 0.5f) * 2))) * 5;
+                player_data->velocity += (col.normal - get_rotated_vector_90(col.normal, -1)) * push_down_power;
+            }
+            hit_a_wall = true;
+            
+            if (col.other_entity->flags & CENTIPEDE_SEGMENT && input_direction.x > 0) {
+                Vector2 climb_plane = get_rotated_vector(col.normal, -player_data->sword_spin_direction * -120);
+                f32 max_wall_speed = 150;
+                f32 wall_acceleration = 400;
+                if (dot(player_data->velocity, climb_plane) < max_wall_speed) {
+                    player_data->velocity += climb_plane * wall_acceleration * dt;
+                }
+            }
+            break;
+        }
         
-        if (angle <= player_data->max_ground_angle) {
-            b32 ceiling_too_close = raycast(player_entity->position + Vector2_up * player_entity->scale.y * 0.5f, Vector2_up, 2.0f, GROUND, 2.0f, player_entity->id).collided;
-            if (!ceiling_too_close) {
-                player_entity->position.y += col.overlap;
-            } 
+        player_data->on_wall = hit_a_wall;
+        
+        f32 wall_timer_modifier = hit_a_wall ? 1 : -1;
+        timer_since_on_wall = clamp(timer_since_on_wall + dt * wall_timer_modifier, 0.0f, allowed_time_on_wall_without_pushing_back);
+        
+        Vector2 last_collision_point = Vector2_zero;
+        Vector2 last_collision_normal = Vector2_one;
+        
+        b32 moving_object_detected = false;
+        // Player ground checker.
+        FLAGS player_ground_collision_flags = GROUND | ENEMY_BARRIER | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK | PLAYER_TOUCH_TIMER;
+        fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
+        b32 is_ground_huge_collision_speed = false;
+        b32 found_no_move_block = false;
+        for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
+            Collision col = collisions_buffer.get_value(i);
+            Entity *other = col.other_entity;
+            assert(col.collided);
             
-            found_ground = true;
-            player_data->ground_normal = col.normal;
-            player_data->ground_point = col.point;
+            f32 dot_velocity = dot(col.normal, player_data->velocity);
+            if (dot_velocity >= 0) {
+                continue;
+            }
             
-            if (!player_data->grounded && !just_grounded) {
-                player_snap_to_plane(player_entity, player_data->ground_normal);
-                // player_data->velocity_plane = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
-                // player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
-                just_grounded = true;
-                
-                //heavy landing
-                if (before_speed > 200 && magnitude(player_data->velocity) < 100) {
-                    player_data->heavy_collision_time = core.time.game_time;
-                    player_data->heavy_collision_velocity = player_data->velocity;
-                    emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 1.5f);
-                    shake_camera(0.7f);
+            if (other->flags & PLATFORM && dot(entity->position - other->position, other->up) < 0) {
+                continue;
+            }
+            
+            //now we don't want to stand on projectiles
+            if ((other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE) {
+                continue;
+            }
+            
+            if ((other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal) {
+                continue;
+            }
+            
+            if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)) {
+                if (try_sword_damage_enemy(other, col.point)) {
+                    continue;
+                }
+            }
+            
+            if (other->flags & NO_MOVE_BLOCK) {
+                found_no_move_block = true;
+            }
+            
+            if (other->flags & CENTIPEDE_SEGMENT) {
+                if (other->centipede_segment->head->centipede->spikes_on_right && other->centipede_segment->head->centipede->spikes_on_left) {
+                    kill_player();
+                    return;
+                } else if (!other->centipede_segment->head->centipede->spikes_on_right && !other->centipede_segment->head->centipede->spikes_on_left) {
                     
-                    play_sound("HeavyLanding", col.point, 1.5f);
+                } else {
+                    Vector2 side = other->centipede_segment->head->centipede->spikes_on_right ? other->right : (other->right * -1.0f);
+                    f32 side_dot = dot(side, entity->position - other->position);
+                    // so we on side of the centipede segments where are SPIKES
+                    if (side_dot > 0.1f) {
+                        kill_player();
+                        return;
+                    }
                 }
             }
-        } else { // If ground angle is too high.
-            // We move player in this case separately because could happen that even though we've stepped on too steap of a ground,
-            // but our wall detectors did not noticed that. But we could think of a better way than that.
-            // I think that eventually we'll rewwrite movement compeltely to be a lot less physics-based.
-            player_data->velocity.y -= 800 * dt;
-        }
-    } // player ground checker end
-    
-    player_data->on_no_move_block = found_no_move_block;
-    
-    if (!moving_object_detected && player_data->on_moving_object) {
-        if (dot(player_data->moving_object_velocity, player_data->velocity) > magnitude(player_data->velocity)) {
-        } else if (dot(player_data->moving_object_velocity, player_data->velocity) > 0) {
-            player_data->velocity += player_data->moving_object_velocity;   
-        }
-        player_data->on_moving_object = false;
-    }
-    
-    Particle_Emitter *tires_emitter = get_particle_emitter(player_data->tires_emitter_index);
-    if (is_ground_huge_collision_speed) {
-        tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 6.0f);
-        SetMusicVolume(tires_theme, tires_volume);
-    } else {
-        tires_volume = lerp(tires_volume, 0.0f, core.time.real_dt * 15.0f);
-        SetMusicVolume(tires_theme, tires_volume);
-    }
-    
-    // Player body collision.
-    fill_collisions(player_entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER | HIT_BOOSTER);
-    
-    b32 is_body_huge_collision_speed = false;
-    b32 on_propeller = false;
-    for (i32 i = 0; i < collisions_buffer.count; i++) {
-        Collision col = collisions_buffer.get_value(i);
-        Entity *other = col.other_entity;
-        assert(col.collided);
-        
-        b32 should_not_collide = (other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE
-                              || (other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal;
-        if (should_not_collide) {
-            continue;
-        }
-        
-        if (other->flags & PROPELLER) {
-            // Update propeller
             
-            // We're keeping propellers to push player and keeping him in claws for now, because that
-            // gives us some room for some things to *make* player do and if player can just leave propeller - this thing literally 
-            // don't do anything interesting.
-            on_propeller = true;
-            Vector2 acceleration_dir = other->up;
-            Vector2 deceleration_plane = other->right;
+            last_collision_point = col.point;
+            last_collision_normal = col.normal;
             
-            Vector2 to_player = player_entity->position - other->position;
+            Vector2 velocity_direction = normalized(player_data->velocity);
+            f32 before_speed = magnitude(player_data->velocity);
             
-            f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
+            if (before_speed > 200) {
+                is_ground_huge_collision_speed = true;
+            } 
+        
+            f32 collision_force_multiplier = 1;
             
-            player_data->velocity = lerp(player_data->velocity, (other->up + deceleration_plane * deceleration_sign * 0.1f) * other->propeller->power, dt * 40);
-            continue; 
-        }
-
+            if (dot((cast(Vector2) {0, 1}), col.normal) > 0.5f) {
+                player_data->velocity -= col.normal * dot(player_data->velocity, col.normal);
+            }
+            
+            if (other->flags & MOVE_SEQUENCE && other->move_sequence->moving) {
+                entity->position += other->move_sequence->moved_last_frame;
+            }
+            
+            f32 angle = fangle(col.normal, entity->up);
+            
+            if (angle <= player_data->max_ground_angle) {
+                b32 ceiling_too_close = raycast(entity->position + Vector2_up * entity->scale.y * 0.5f, Vector2_up, 2.0f, GROUND, 2.0f, entity->id).collided;
+                if (!ceiling_too_close) {
+                    entity->position.y += col.overlap;
+                } 
+                
+                found_ground = true;
+                player_data->ground_normal = col.normal;
+                player_data->ground_point = col.point;
+                
+                if (!player_data->grounded && !just_grounded) {
+                    player_snap_to_plane(entity, player_data->ground_normal);
+                    // player_data->velocity_plane = get_rotated_vector_90(player_data->ground_normal, -normalized(player_data->velocity.x));
+                    // player_data->velocity = player_data->velocity_plane * magnitude(player_data->velocity);
+                    just_grounded = true;
+                    
+                    //heavy landing
+                    if (before_speed > 200 && magnitude(player_data->velocity) < 100) {
+                        player_data->heavy_collision_time = core.time.game_time;
+                        player_data->heavy_collision_velocity = player_data->velocity;
+                        emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 1.5f);
+                        shake_camera(0.7f);
+                        
+                        play_sound("HeavyLanding", col.point, 1.5f);
+                    }
+                }
+            } else { // If ground angle is too high.
+                // We move player in this case separately because could happen that even though we've stepped on too steap of a ground,
+                // but our wall detectors did not noticed that. But we could think of a better way than that.
+                // I think that eventually we'll rewwrite movement compeltely to be a lot less physics-based.
+                player_data->velocity.y -= 800 * dt;
+            }
+        } // player ground checker end
         
-        f32 dot_velocity = dot(col.normal, player_data->velocity);
-        if (dot_velocity >= 0) {
-            continue;
+        player_data->on_no_move_block = found_no_move_block;
+        
+        if (!moving_object_detected && player_data->on_moving_object) {
+            if (dot(player_data->moving_object_velocity, player_data->velocity) > magnitude(player_data->velocity)) {
+            } else if (dot(player_data->moving_object_velocity, player_data->velocity) > 0) {
+                player_data->velocity += player_data->moving_object_velocity;   
+            }
+            player_data->on_moving_object = false;
         }
         
-        if (other->flags & PLATFORM && dot(player_data->velocity, other->up) > 0) {
-            continue;
+        Particle_Emitter *tires_emitter = get_particle_emitter(player_data->tires_emitter_index);
+        if (is_ground_huge_collision_speed) {
+            tires_volume = lerp(tires_volume, 0.5f, core.time.real_dt * 6.0f);
+            SetMusicVolume(tires_theme, tires_volume);
+        } else {
+            tires_volume = lerp(tires_volume, 0.0f, core.time.real_dt * 15.0f);
+            SetMusicVolume(tires_theme, tires_volume);
         }
         
-        if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)) {
-            if (try_sword_damage_enemy(other, col.point))
-            {
+        // Player body collision.
+        fill_collisions(entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER | HIT_BOOSTER);
+        
+        b32 is_body_huge_collision_speed = false;
+        b32 on_propeller = false;
+        for (i32 i = 0; i < collisions_buffer.count; i++) {
+            Collision col = collisions_buffer.get_value(i);
+            Entity *other = col.other_entity;
+            assert(col.collided);
+            
+            b32 should_not_collide = (other->flags & BLOCKER | SHOOT_BLOCKER) && other->flags & PROJECTILE
+                                  || (other->flags & SHOOT_BLOCKER) && !(other->flags & BLOCKER) && !other->union_enemy->shoot_blocker_immortal;
+            if (should_not_collide) {
                 continue;
             }
-        }
-        
-        if (other->flags & HIT_BOOSTER) {
-            player_entity->position = other->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
-            player_data->velocity = other->up * other->union_enemy->hit_booster.boost;
-            player_data->timers.hit_booster_time = core.time.game_time;
-            continue; // Only detecting collision. Don't want to actually physically collide with it.
-        }
-
-        
-        if (other->flags & CENTIPEDE_SEGMENT) {
-            if (other->centipede_segment->head->centipede->spikes_on_right && other->centipede_segment->head->centipede->spikes_on_left) {
-                kill_player();
-                return;
-            } else if (!other->centipede_segment->head->centipede->spikes_on_right && !other->centipede_segment->head->centipede->spikes_on_left) {
+            
+            if (other->flags & PROPELLER) {
+                // Update propeller
                 
-            } else {
-                Vector2 side = other->centipede_segment->head->centipede->spikes_on_right ? other->right : (other->right * -1.0f);
-                f32 side_dot = dot(side, player_entity->position - other->position);
-                // So we on side of the centipede segments where are SPIKES.
-                if (side_dot > 0) {
+                // We're keeping propellers to push player and keeping him in claws for now, because that
+                // gives us some room for some things to *make* player do and if player can just leave propeller - this thing literally 
+                // don't do anything interesting.
+                on_propeller = true;
+                Vector2 acceleration_dir = other->up;
+                Vector2 deceleration_plane = other->right;
+                
+                Vector2 to_player = entity->position - other->position;
+                
+                f32 deceleration_sign = dot(to_player, deceleration_plane) > 0 ? -1 : 1;
+                
+                player_data->velocity = lerp(player_data->velocity, (other->up + deceleration_plane * deceleration_sign * 0.1f) * other->propeller->power, dt * 40);
+                continue; 
+            }
+    
+            
+            f32 dot_velocity = dot(col.normal, player_data->velocity);
+            if (dot_velocity >= 0) {
+                continue;
+            }
+            
+            if (other->flags & PLATFORM && dot(player_data->velocity, other->up) > 0) {
+                continue;
+            }
+            
+            if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)) {
+                if (try_sword_damage_enemy(other, col.point))
+                {
+                    continue;
+                }
+            }
+            
+            if (other->flags & HIT_BOOSTER) {
+                entity->position = other->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
+                player_data->velocity = other->up * other->union_enemy->hit_booster.boost;
+                player_data->timers.hit_booster_time = core.time.game_time;
+                continue; // Only detecting collision. Don't want to actually physically collide with it.
+            }
+    
+            
+            if (other->flags & CENTIPEDE_SEGMENT) {
+                if (other->centipede_segment->head->centipede->spikes_on_right && other->centipede_segment->head->centipede->spikes_on_left) {
                     kill_player();
                     return;
+                } else if (!other->centipede_segment->head->centipede->spikes_on_right && !other->centipede_segment->head->centipede->spikes_on_left) {
+                    
+                } else {
+                    Vector2 side = other->centipede_segment->head->centipede->spikes_on_right ? other->right : (other->right * -1.0f);
+                    f32 side_dot = dot(side, entity->position - other->position);
+                    // So we on side of the centipede segments where are SPIKES.
+                    if (side_dot > 0) {
+                        kill_player();
+                        return;
+                    }
                 }
             }
+            
+            resolve_collision(entity, col);
+            
+            Vector2 velocity_direction = normalized(player_data->velocity);
+            
+            f32 before_speed = magnitude(player_data->velocity);
+            
+            if (before_speed > 200) {
+                is_body_huge_collision_speed = true;
+            }
+            
+            last_collision_point = col.point;
+            last_collision_normal = col.normal;
+            
+            if (is_player_in_stun(entity)) {
+                player_data->velocity = reflected_vector(player_data->velocity * 0.5f, col.normal);
+                shake_camera(0.2f);
+                continue;
+            }
+    
+            f32 collision_force_multiplier = 1;
+            
+            clamp(&collision_force_multiplier, 0, 1.0f);
+            
+            player_data->velocity -= col.normal * dot(player_data->velocity, col.normal) * collision_force_multiplier;
+            
+            // Heavy collision.
+            if (before_speed > 200 && magnitude(player_data->velocity) < 100) {
+                player_data->heavy_collision_time = core.time.game_time;
+                player_data->heavy_collision_velocity = player_data->velocity;
+                emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 1.5f);
+                shake_camera(0.7f);
+                play_sound("HeavyLanding", col.point, 1.5f);
+            }
+        } // End player body collisions.
+        
+        player_data->on_propeller = on_propeller;
+        
+        if (is_body_huge_collision_speed || is_ground_huge_collision_speed) {
+            if (tires_emitter) {
+                tires_emitter->position = last_collision_point;
+                tires_emitter->direction = last_collision_normal;
+                tires_emitter->count_multiplier = 0.2f;
+                enable_emitter(tires_emitter);
+            }
+        } else {
+            disable_emitter(tires_emitter);
         }
         
-        resolve_collision(player_entity, col);
-        
-        Vector2 velocity_direction = normalized(player_data->velocity);
-        
-        f32 before_speed = magnitude(player_data->velocity);
-        
-        if (before_speed > 200) {
-            is_body_huge_collision_speed = true;
+        b32 just_lost_ground_below_my_feet = player_data->grounded && !found_ground && player_data->timers.since_jump_timer >= 0.5f;
+        if (just_lost_ground_below_my_feet && !on_propeller) {
+            Collision col = raycast(entity->position + normalized(player_data->velocity), Vector2_up * -1, 10, player_ground_collision_flags, 0.2f, entity->id);
+            // That situation for snapping to surface while moving on different normal ground.
+            if (col.collided) {
+                Vector2 next_velocity_plane = get_move_plane(col.normal, player_data->velocity.x);
+                f32 angle_difference = fangle(col.normal, player_data->ground_normal);
+                if (col.normal != player_data->ground_normal && angle_difference < 35) {
+                    found_ground = true;
+                    player_snap_to_plane(entity, col.normal);
+                    
+                    // This thing just kills player in centipede case, but we're probably should first of all think of a better way
+                    // for centipede walking and secondly make better centipede segments collision.
+                    if (!(col.other_entity->flags & CENTIPEDE_SEGMENT)) {
+                        entity->position -= col.normal;
+                    }
+                }
+            } else if (input_direction.x == 0 && abs(player_data->velocity.x) < player_data->ground_walk_speed * 0.4f) {
+                // That for stopping and not falling when on edge and player not holding key forward.
+                player_data->velocity = player_data->velocity * -0.8f;;
+            }
+        }
+        player_data->grounded = found_ground;
+    } // End player collisions.
+    
+    update_player_connected_entities_positions(entity);
+    
+    // Player effects.
+    {
+        if (!is_player_in_stun(entity)) {
+            disable_emitter(player_data->stun_emitter_index);
+        } else {
+            enable_emitter(player_data->stun_emitter_index);
         }
         
-        last_collision_point = col.point;
-        last_collision_normal = col.normal;
-        
-        if (is_player_in_stun(player_entity)) {
-            player_data->velocity = reflected_vector(player_data->velocity * 0.5f, col.normal);
-            shake_camera(0.2f);
-            continue;
-        }
+        f32 wind_t = clamp01(magnitude(player_data->velocity) / 300.0f);
+        SetMusicVolume(wind_theme, lerp(0.0f, 1.0f, wind_t * wind_t));
+    } // End player effects.
+    
+    
+} // End update player movement.
 
-        f32 collision_force_multiplier = 1;
-        
-        clamp(&collision_force_multiplier, 0, 1.0f);
-        
-        player_data->velocity -= col.normal * dot(player_data->velocity, col.normal) * collision_force_multiplier;
-        
-        // Heavy collision.
-        if (before_speed > 200 && magnitude(player_data->velocity) < 100) {
-            player_data->heavy_collision_time = core.time.game_time;
-            player_data->heavy_collision_velocity = player_data->velocity;
-            emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 1.5f);
-            shake_camera(0.7f);
-            play_sound("HeavyLanding", col.point, 1.5f);
-        }
-    } // End player body collisions.
+
+void update_player(Entity *entity, Player *player_data, Input input, f32 dt) {    
+    update_player_movement(entity, player_data, input, dt);
     
-    player_data->on_propeller = on_propeller;
-    
-    if (is_body_huge_collision_speed || is_ground_huge_collision_speed) {
-        if (tires_emitter) {
-            tires_emitter->position = last_collision_point;
-            tires_emitter->direction = last_collision_normal;
-            tires_emitter->count_multiplier = 0.2f;
-            enable_emitter(tires_emitter);
-        }
-    } else {
-        disable_emitter(tires_emitter);
-    }
-    
-    b32 just_lost_ground_below_my_feet = player_data->grounded && !found_ground && player_data->timers.since_jump_timer >= 0.5f;
-    if (just_lost_ground_below_my_feet && !on_propeller) {
-        Collision col = raycast(player_entity->position + normalized(player_data->velocity), Vector2_up * -1, 10, player_ground_collision_flags, 0.2f, player_entity->id);
-        // That situation for snapping to surface while moving on different normal ground.
-        if (col.collided) {
-            Vector2 next_velocity_plane = get_move_plane(col.normal, player_data->velocity.x);
-            f32 angle_difference = fangle(col.normal, player_data->ground_normal);
-            if (col.normal != player_data->ground_normal && angle_difference < 35) {
-                found_ground = true;
-                player_snap_to_plane(player_entity, col.normal);
-                
-                // This thing just kills player in centipede case, but we're probably should first of all think of a better way
-                // for centipede walking and secondly make better centipede segments collision.
-                if (!(col.other_entity->flags & CENTIPEDE_SEGMENT)) {
-                    player_entity->position -= col.normal;
-                }
-            }
-        } else if (input_direction.x == 0 && abs(player_data->velocity.x) < player_data->ground_walk_speed * 0.4f) {
-            // That for stopping and not falling when on edge and player not holding key forward.
-            player_data->velocity = player_data->velocity * -0.8f;;
-        }
-    }
-    player_data->grounded = found_ground;
-    
-    if (player_data->sword_hit_ground) {
-        enable_emitter(sword_tip_ground_emitter);
-        f32 t = blood_t * spin_t;
-        sword_tip_ground_emitter->speed_multiplier = lerp(0.7f, 4.0f, t * t * t);
-        sword_tip_ground_emitter->count_multiplier = lerp(0.45f, 1.0f, t * t * t);
-    } else {
-        sword_tip_ground_emitter->enabled = false;
-    }
-    
-    player_data->sword_hit_ground = false;
-    
-    f32 wind_t = clamp01(magnitude(player_data->velocity) / 300.0f);
-    SetMusicVolume(wind_theme, lerp(0.0f, 1.0f, wind_t * wind_t));
-    
-    update_player_connected_entities_positions(player_entity);
-} // Update player end.
+    update_player_sword(entity, player_data, input, dt);
+    update_player_rifle(entity, player_data, input, dt);
+}
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity) {
     fill_collisions(entity, &collisions_buffer, entity->collision_flags);
@@ -8659,7 +8655,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             // player_data = &real_player_data;
         } else {
             // player_data = &real_player_data;
-            update_player(e, dt, input);
+            update_player(e, &e->context->player_data, input, dt);
         }
     }
       
