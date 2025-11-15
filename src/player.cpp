@@ -286,7 +286,7 @@ void push_or_set_player_up(f32 power) {
     player_data->grounded = false;
 }
 
-inline void update_player_connected_entities_positions(Entity *player_entity) {
+inline void update_connected_entities_positions(Entity *player_entity) {
     Player *player_data = player_entity->player_data;
     Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
     Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
@@ -328,7 +328,27 @@ void change_sword_spin_progress(Player *player_data, i32 direction, f32 progress
     assert(player_data->sword_spin_direction == direction);
 }
 
-void update_player_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
+void spin_sword(Entity *sword, Entity *player_entity, f32 dt) {
+    f32 total_rotation_amount_required = player_data->sword_angular_velocity * dt;
+    static const f32 MAX_ONE_TIME_ROTATION_AMOUNT = 5;
+
+    // Someone could enter sword on previous frame after this update so we'll check for that.
+    rotate(sword, -1.0f * 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
+    calculate_sword_collisions(sword, player_entity);
+    
+    rotate(sword, 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
+    calculate_sword_collisions(sword, player_entity);
+    
+    while(total_rotation_amount_required > MAX_ONE_TIME_ROTATION_AMOUNT) {
+        rotate(sword, MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);
+        calculate_sword_collisions(sword, player_entity);
+        total_rotation_amount_required -= MAX_ONE_TIME_ROTATION_AMOUNT;
+    }
+    rotate(sword, total_rotation_amount_required);
+    calculate_sword_collisions(sword, player_entity);
+}
+
+void update_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (player_data->dead_man) {
         return;
     }
@@ -371,14 +391,12 @@ void update_player_sword(Entity *entity, Player *player_data, Input input, f32 d
     Vector2 input_direction = input.sum_direction;
     
     // Calculating required spin.
-    b32 calculated_spin = false; // @CLEANUP: This should be better. Right now we using this to tell if we really need to spin sword.
     if (0) {
     } else if (player_data->state_flags & PLAYER_KILLING_CENTIPEDE) {
-        calculated_spin = true;
         change_scale(sword, lerp(sword->scale, player_data->sword_ground_mode_scale, dt * 15));
         change_sword_spin_progress(player_data, -1, 1);
+        spin_sword(sword, entity, dt);
     } else if (player_data->sword_mode != RIFLE_MODE) {
-        calculated_spin = true;
         f32 sword_max_spin_speed = player_data->sword_mode == AIR_MODE ? player_data->SWORD_SPIN_SPEED : player_data->SWORD_SPIN_SPEED;
         
         b32 can_sword_spin = !is_player_in_stun(entity);
@@ -401,27 +419,9 @@ void update_player_sword(Entity *entity, Player *player_data, Input input, f32 d
         
         player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
         player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
+        
+        spin_sword(sword, entity, dt);
     } // Sword spin end.
-    
-    if (calculated_spin) {
-        f32 total_rotation_amount_required = player_data->sword_angular_velocity * dt;
-        static const f32 MAX_ONE_TIME_ROTATION_AMOUNT = 5;
-    
-        // Someone could enter sword on previous frame after this update so we'll check for that.
-        rotate(sword, -1.0f * 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
-        calculate_sword_collisions(sword, entity);
-        
-        rotate(sword, 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
-        calculate_sword_collisions(sword, entity);
-        
-        while(total_rotation_amount_required > MAX_ONE_TIME_ROTATION_AMOUNT) {
-            rotate(sword, MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);
-            calculate_sword_collisions(sword, entity);
-            total_rotation_amount_required -= MAX_ONE_TIME_ROTATION_AMOUNT;
-        }
-        rotate(sword, total_rotation_amount_required);
-        calculate_sword_collisions(sword, entity);
-    }
     
     // Sword effects.
     {
@@ -711,7 +711,7 @@ void player_air_move(Entity *entity, f32 dt) {
     }
 }
 
-void update_player_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
+void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (player_data->dead_man) {
         return;
     }
@@ -720,7 +720,7 @@ void update_player_movement(Entity *entity, Player *player_data, Input input, f3
     Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
     Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
     
-    update_player_connected_entities_positions(entity);    
+    update_connected_entities_positions(entity);    
     
     f32 since_hit_booster = core.time.game_time - player_data->timers.hit_booster_time;
     b32 player_in_hit_booster = since_hit_booster <= HIT_BOOSTER_BOOST_TIME;
@@ -1220,7 +1220,7 @@ void update_player_movement(Entity *entity, Player *player_data, Input input, f3
         player_data->grounded = found_ground;
     } // End player collisions.
     
-    update_player_connected_entities_positions(entity);
+    update_connected_entities_positions(entity);
     
     // Player effects.
     {
@@ -1239,9 +1239,9 @@ void update_player_movement(Entity *entity, Player *player_data, Input input, f3
 
 
 void update_player(Entity *entity, Player *player_data, Input input, f32 dt) {    
-    update_player_movement(entity, player_data, input, dt);
+    update_movement(entity, player_data, input, dt);
     
-    update_player_sword(entity, player_data, input, dt);
+    update_sword(entity, player_data, input, dt);
     update_rifle(entity, player_data, input, dt);
 }
 
