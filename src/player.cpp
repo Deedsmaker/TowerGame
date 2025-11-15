@@ -81,6 +81,27 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
     }
 }
 
+void start_sword_mode(Player *player_data) {
+    player_data->sword_mode_change_time = core.time.game_time;    
+    // player_data->max_speed_multiplier = 2.0f;
+    player_data->sword_mode = AIR_MODE;
+    
+    play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
+    
+    assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
+    player_data->current_big_sword_charges -= 1;
+    
+    remove_flag(&player_data->state_flags, HIT_CENTIPEDE_THIS_SPIN);
+}
+
+void stop_sword_mode(Player *player_data) {
+    // player_data->max_speed_multiplier = 1.0f;
+    if (player_data->sword_mode != RIFLE_MODE ) {
+        play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
+    }
+    player_data->sword_mode = RIFLE_MODE;
+}
+
 void player_start_killing_centipede(Entity *segment_entity, Player *player_data) {
     assert(segment_entity->flags & CENTIPEDE_SEGMENT);
     
@@ -110,6 +131,8 @@ void player_stop_killing_centipede(Player *player_data) {
     remove_flag(&player_data->state_flags, PLAYER_INVINCIBLE);
     
     player_data->velocity = Vector2_up * 50;
+    
+    stop_sword_mode(player_data);
 }
 
 b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
@@ -363,30 +386,19 @@ void update_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
     
     // Sword changing mode and size.
     {
-        f32 since_sword_mode_change = core.time.game_time - player_data->sword_mode_change_time;
-        f32 big_sword_max_time = 1.4f;
-        
-        // big sword
-        if (since_sword_mode_change > big_sword_max_time) {
+        if (player_data->sword_mode == RIFLE_MODE) {
             if (input.press_flags & SPIN && player_data->current_big_sword_charges > 0) {
-                player_data->sword_mode_change_time = core.time.game_time;    
-                // player_data->max_speed_multiplier = 2.0f;
-                player_data->sword_mode = AIR_MODE;
-                
-                play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
-                
-                assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
-                player_data->current_big_sword_charges -= 1;
-                
-                remove_flag(&player_data->state_flags, HIT_CENTIPEDE_THIS_SPIN);
-            } else {
-                // player_data->max_speed_multiplier = 1.0f;
-                if (player_data->sword_mode != RIFLE_MODE ) {
-                    play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
-                }
-                player_data->sword_mode = RIFLE_MODE;
+                start_sword_mode(player_data);
+            }
+        } else { // In sword mode.
+            f32 since_sword_mode_change = core.time.game_time - player_data->sword_mode_change_time;
+            static const f32 SWORD_TIME = 1.4f;
+            if (since_sword_mode_change > SWORD_TIME && !(player_data->state_flags & KILLING_CENTIPEDE)) {
+                stop_sword_mode(player_data);
             }
         }
+        
+        // big sword
         
         Vector2 sword_target_scale = player_data->sword_start_scale;
         if      (player_data->sword_mode == GROUND_MODE) sword_target_scale = player_data->sword_ground_mode_scale;
