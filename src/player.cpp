@@ -84,21 +84,29 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
 void player_start_killing_centipede(Entity *segment_entity, Player *player_data) {
     assert(segment_entity->flags & CENTIPEDE_SEGMENT);
     
-    // That would mean that we've hit the top segment, so no need to going in PLAYER_KILLING_CENTIPEDE state.
+    // That would mean that we've hit the top segment, so no need to going in KILLING_CENTIPEDE state.
     if (segment_entity->centipede_segment->previous->flags & CENTIPEDE) { 
         return;
     }
     
-    player_data->state_flags |= PLAYER_KILLING_CENTIPEDE;
+    if (player_data->state_flags & HIT_CENTIPEDE_THIS_SPIN) {
+        return;
+    }
+    
+    segment_entity->context->player->position = segment_entity->position;
+
+    player_data->state_flags |= HIT_CENTIPEDE_THIS_SPIN;
+    
+    player_data->state_flags |= KILLING_CENTIPEDE;
     player_data->state_flags |= PLAYER_INVINCIBLE;
     player_data->last_segment_kill_time = core.time.game_time;
     player_data->last_killed_segment = segment_entity;
 }
 
 void player_stop_killing_centipede(Player *player_data) {
-    assert(player_data->state_flags & PLAYER_KILLING_CENTIPEDE);
+    assert(player_data->state_flags & KILLING_CENTIPEDE);
     
-    remove_flag(&player_data->state_flags, PLAYER_KILLING_CENTIPEDE);
+    remove_flag(&player_data->state_flags, KILLING_CENTIPEDE);
     remove_flag(&player_data->state_flags, PLAYER_INVINCIBLE);
     
     player_data->velocity = Vector2_up * 50;
@@ -143,9 +151,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         }
         
         // Sword centipede kill.
-        if (enemy_entity->flags & CENTIPEDE_SEGMENT && !(player_data->state_flags & PLAYER_KILLING_CENTIPEDE)) {
-            enemy_entity->context->player->position = enemy_entity->position;
-            
+        if (enemy_entity->flags & CENTIPEDE_SEGMENT && !(player_data->state_flags & KILLING_CENTIPEDE)) {
             player_start_killing_centipede(enemy_entity, player_data);
         }
         
@@ -371,6 +377,8 @@ void update_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
                 
                 assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
                 player_data->current_big_sword_charges -= 1;
+                
+                remove_flag(&player_data->state_flags, HIT_CENTIPEDE_THIS_SPIN);
             } else {
                 // player_data->max_speed_multiplier = 1.0f;
                 if (player_data->sword_mode != RIFLE_MODE ) {
@@ -392,7 +400,7 @@ void update_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
     
     // Calculating required spin.
     if (0) {
-    } else if (player_data->state_flags & PLAYER_KILLING_CENTIPEDE) {
+    } else if (player_data->state_flags & KILLING_CENTIPEDE) {
         change_scale(sword, lerp(sword->scale, player_data->sword_ground_mode_scale, dt * 15));
         change_sword_spin_progress(player_data, -1, 1);
         spin_sword(sword, entity, dt);
@@ -459,8 +467,10 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
     
     Vector2 sword_tip = sword->position + sword->up * sword->scale.y * sword->pivot.y;
     
+    b32 can_shoot = player_data->sword_mode == RIFLE_MODE && !(player_data->state_flags & KILLING_CENTIPEDE);
+    
     // Rifle shoot.
-    if (player_data->sword_mode == RIFLE_MODE) {
+    if (can_shoot) {
         i32 shoots_queued = 0;
         local_persist f32 shoot_press_time = -12;
         local_persist b32 rifle_in_machinegun_mode = false;
@@ -731,7 +741,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (0) {
     } else if (player_in_hit_booster) {
           
-    } else if (player_data->state_flags & PLAYER_KILLING_CENTIPEDE) {
+    } else if (player_data->state_flags & KILLING_CENTIPEDE) {
         assert(player_data->last_killed_segment);
         
         player_data->sword_spin_progress = 1;

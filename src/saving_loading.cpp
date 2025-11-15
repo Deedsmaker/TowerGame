@@ -374,7 +374,6 @@ void create_level(String name) {
 b32 load_level(String name) {
     clear_multiselected_entities();
 
-    clear_allocator(temp);
     name = copy_string(name, temp); // Beacuse we're just cleared temp allocator and if "name" was temp allocated - it could go wrong.
     
     // editor_enter_editor_state();
@@ -716,8 +715,6 @@ b32 load_level(String name) {
     
     current_context->cam.position = current_context->player_spawn_point;
     current_context->cam.target = current_context->player_spawn_point;
-    
-    clear_allocator(temp);
     
     return true;
 } // load level end.

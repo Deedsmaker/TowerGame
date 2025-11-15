@@ -659,8 +659,9 @@ enum Sword_Mode {
 };
 
 enum Player_States : FLAGS {
-    PLAYER_KILLING_CENTIPEDE = 0x1,
-    PLAYER_INVINCIBLE        = 0x2,
+    KILLING_CENTIPEDE       = 0x1,
+    PLAYER_INVINCIBLE       = 0x2,
+    HIT_CENTIPEDE_THIS_SPIN = 0x4,
 };
 
 struct Player {
