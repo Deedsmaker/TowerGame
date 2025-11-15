@@ -46,6 +46,15 @@ void close_create_box();
 
 inline void check_entities_that_should_be_destroyed(Context *context);
 
+void shake_camera(f32 trauma);
+
+void play_sound(Sound_Handler *handler);
+void play_sound(Sound_Handler *handler, Vector2 position, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f);
+void play_sound(const char* name, Vector2 position, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f);
+inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pitch = 1.0f, f32 pitch_variation = 0.3f);
+
+inline void cut_rope(Entity *entity, Vector2 point = Vector2_zero);
+
 // void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
 void calculate_bounds(Entity *entity);

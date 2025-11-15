@@ -3,6 +3,43 @@
 // It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_affected_collision_cells).
 global_variable Array <Collision_Grid_Cell*> collision_cells_buffer = {0};
 
+Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, f32 step = 4, i32 my_id = -1) {
+    f32 current_len = 0;
+    Static_Array <Vector2, MAX_VERTICES> ray_vertices = Static_Array <Vector2, MAX_VERTICES>();
+    
+    b32 found = false;
+    Collision result = {0};
+    while (current_len < len) {
+        if (current_len + step > len) {
+            current_len = len;
+        } else {
+            current_len += step;
+        }
+        Vector2 east_direction = get_rotated_vector_90(direction, -1);
+        ray_vertices.clear();
+        ray_vertices.append(direction * current_len + east_direction * 0.5f);
+        ray_vertices.append(direction * current_len - east_direction * 0.5f);
+        ray_vertices.append(east_direction * 0.5f);
+        ray_vertices.append(east_direction * -0.5f);
+        
+        Bounds ray_bounds = get_bounds(ray_vertices, {0.5f, 1.0f});
+    
+        fill_collisions(start_position, ray_vertices, ray_bounds, {0.5f, 1.0f}, &collisions_buffer, include_flags, my_id);
+    
+        for (i32 i = 0; i < collisions_buffer.count; i++) {
+            result = collisions_buffer.get_value(i);
+            found = true;
+            result.point = start_position + direction * current_len - direction * result.overlap;
+            break;
+        }
+        
+        if (found) {
+            break;
+        }
+    }
+    return result;
+}
+
 inline void fill_arr_with_normals(Array <Vector2> *normals, Static_Array <Vector2, MAX_VERTICES> vertices) {
     //@INCOMPLETE now only for rects and triangles, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
