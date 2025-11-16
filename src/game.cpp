@@ -670,6 +670,8 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     dest->player_spawn_point = src->player_spawn_point;
     dest->cam = src->cam;
     
+    dest->game_time = src->game_time;
+    
     if (should_init_entities) {
         // Particle emitters get's added on each entity init.
         // So when se init entities - we clear particle emitters, because they will be added again. 
@@ -1711,7 +1713,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             // sticky_entity->sticky_texture->line_color  = Fade(ORANGE, 0.3f);
             sticky_entity->sticky_texture->need_to_follow = true;
             sticky_entity->sticky_texture->follow_id  = entity->id;
-            sticky_entity->sticky_texture->birth_time = core.time.game_time;
+            sticky_entity->sticky_texture->birth_time = current_context->game_time;
             
             sticky_entity->sticky_texture->alpha = 0.8f;
             
@@ -1747,7 +1749,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         sticky_entity->sticky_texture->need_to_follow = true;
         // sticky_entity->sticky_texture->draw_line      = true;
         sticky_entity->sticky_texture->follow_id  = entity->id;
-        sticky_entity->sticky_texture->birth_time = core.time.game_time;
+        sticky_entity->sticky_texture->birth_time = current_context->game_time;
         
         entity->union_enemy->sword_required_sticky_id = sticky_entity->id;
     }
@@ -2259,6 +2261,9 @@ void enter_gaming_state() {
     
     current_context->active_win_blocks_count = current_context->win_blocks.get_occupied_count();
     
+    current_context->game_time = planning_context.game_time;
+    log_short(current_context->game_time);
+    
     current_context->cam.cam2D.zoom = 0.35f;
     current_context->cam.target_zoom = 0.35f;
     current_context->cam.position = current_context->player_spawn_point;
@@ -2287,8 +2292,8 @@ void enter_planning_state() {
     if (!current_context->initially_simulated) {
         // Simulating game world for 2 seconds before the start.
         input = {0};
-        for (i32 i = 0; i < FIXED_FPS * 2; i++) { 
-            update_entities(TARGET_FRAME_TIME);
+        for (i32 i = 0; i < FIXED_FPS * 5; i++) { 
+            update_entities(&planning_context, TARGET_FRAME_TIME);
         }
         
         current_context->initially_simulated = true;
@@ -2298,7 +2303,7 @@ void enter_planning_state() {
 void editor_enter_game_state(Context *from_context) {
     state_context = {0};
     global_data.just_entered_game_state = true;
-    core.time.game_time = 0;
+    current_context->game_time = 0;
     core.time.hitstop = 0;
     core.time.previous_dt = 0;
     
@@ -2327,7 +2332,7 @@ void kill_player() {
 
     emit_particles(&big_blood_emitter_copy, player_entity->position, player_entity->up, 1, 1);
     player_data->dead_man = true;
-    player_data->timers.died_time = core.time.game_time;
+    player_data->timers.died_time = current_context->game_time;
     play_sound("PlayerTakeDamage", player_entity->position);
     
     // @VISUAL: It's better to separate default flash and player death flash.
@@ -2349,7 +2354,7 @@ void editor_enter_editor_state() {
     clean_up_scene();
     
     switch_current_context(editor_context);
-    core.time.game_time = 0;
+    current_context->game_time = 0;
     core.time.hitstop = 0;
     core.time.previous_dt = 0;
     
@@ -2399,8 +2404,8 @@ inline void check_entities_that_should_be_destroyed(Context *context) {
     }
 }
 
-void fixed_game_update(f32 dt) {
-    frame_rnd = perlin_noise3(core.time.game_time, core.time.app_time, 5) * 2 - 1.0f;
+void fixed_game_update(Context *context, f32 dt) {
+    frame_rnd = perlin_noise3(context->game_time, core.time.app_time, 5) * 2 - 1.0f;
     frame_on_circle_rnd = get_perlin_in_circle(1.0f);
     
     Entity *player_entity = current_context->player;
@@ -2446,7 +2451,7 @@ void fixed_game_update(f32 dt) {
         }
             check_entities_that_should_be_destroyed(current_context);
     } else if (game_state == GAMING) {
-        update_entities(dt);
+        update_entities(context, dt);
     }
     update_particle_emitters(dt);
     // Update_particles(dt);.
@@ -2465,8 +2470,8 @@ void fixed_game_update(f32 dt) {
             Vector2 player_velocity = player_data->velocity;
             f32 target_speed_multiplier = 1;
         
-            f32 time_since_heavy_collision = core.time.game_time - player_data->heavy_collision_time;
-            if (magnitude(player_data->velocity) < 80 && core.time.game_time > 5 && time_since_heavy_collision <= 1.0f) {
+            f32 time_since_heavy_collision = context->game_time - player_data->heavy_collision_time;
+            if (magnitude(player_data->velocity) < 80 && context->game_time > 5 && time_since_heavy_collision <= 1.0f) {
                 player_velocity = player_data->heavy_collision_velocity;
                 target_speed_multiplier = 0.05f;
             }
@@ -2958,8 +2963,7 @@ void update_game() {
         global_data.updated_today = false;
         while (full_delta >= TARGET_FRAME_TIME) {
             core.time.fixed_dt = TARGET_FRAME_TIME;
-            core.time.game_time += core.time.fixed_dt;
-            fixed_game_update(core.time.fixed_dt);
+            fixed_game_update(current_context, core.time.fixed_dt);
             global_data.updated_today = true;
             full_delta -= TARGET_FRAME_TIME;
         }
@@ -2974,7 +2978,7 @@ void update_game() {
         
         core.time.previous_dt = full_delta;
     } else {
-        fixed_game_update(core.time.real_dt);
+        fixed_game_update(current_context, core.time.real_dt);
     }
     
     // Update speedrun timer.
@@ -3060,7 +3064,7 @@ void update_color_changer(Entity *entity, f32 dt) {
         entity->color = lerp(changer->start_color, changer->target_color, t);
     } else if (entity->flags & EXPLOSIVE) {
         Color target_color = ColorBrightness(changer->start_color, 2);
-        f32 t = abs(sinf(core.time.game_time * changer->change_time));
+        f32 t = abs(sinf(current_context->game_time * changer->change_time));
         entity->color = lerp(changer->start_color, target_color, t);
         
         if (entity->lights.count > 0) {
@@ -4555,7 +4559,7 @@ void update_editor() {
         }
     }
     
-    update_entities(core.time.real_dt);
+    update_entities(current_context, core.time.real_dt);
     
     // Editor entities loop.
     for_chunk_array(i, (&current_context->entities)) {
@@ -5451,7 +5455,7 @@ void update_editor() {
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         editor.last_click_position = input.mouse_position;
-        editor.last_click_time = core.time.game_time;
+        editor.last_click_time = current_context->game_time;
     }
     
     if (can_control_with_single_button && IsKeyPressed(KEY_P) && !IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_LEFT_CONTROL)) {
@@ -5674,7 +5678,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
             shooter->current_index = (shooter->current_index + 1) % shooter->move_points.count;
             shooter->states.flying_to_point = false;
             shooter->states.standing = true;
-            shooter->states.standing_start_time = core.time.game_time;
+            shooter->states.standing_start_time = current_context->game_time;
             shooter->velocity = Vector2_zero;
             emit_particles(&ground_splash_emitter, col.point, col.normal, 6, 2.5f);
             
@@ -5734,8 +5738,8 @@ void respond_bird_collision(Entity *bird_entity, Collision col) {
                 disable_emitter(bird->attack_emitter_index);
                 disable_emitter(bird->alarm_emitter_index);
                 bird->roaming = true;
-                bird->attacked_time = core.time.game_time;
-                bird->roam_start_time = core.time.game_time;
+                bird->attacked_time = current_context->game_time;
+                bird->roam_start_time = current_context->game_time;
             }
         }
         
@@ -5811,8 +5815,8 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     } else if (bird->just_awake) {
         bird->just_awake = false;
         bird->roaming = true;
-        bird->roam_start_time = core.time.game_time;
-        enemy->birth_time = core.time.game_time;
+        bird->roam_start_time = current_context->game_time;
+        enemy->birth_time = current_context->game_time;
     }
     
     if (entity->flags & MOVE_SEQUENCE) {
@@ -5829,22 +5833,22 @@ void update_bird_enemy(Entity *entity, f32 dt) {
         rotate(entity, bird->velocity.x);
         bird_clear_formation(bird);
         
-        f32 since_died_time = core.time.game_time - enemy->died_time;
+        f32 since_died_time = current_context->game_time - enemy->died_time;
         if (since_died_time >= 15 && sqr_magnitude(entity->position - player_entity->position) >= 50000) {
             kill_enemy(entity, entity->position, entity->up);
         }
         return;
     }
 
-    f32 in_stun_time = core.time.game_time - enemy->stun_start_time;
+    f32 in_stun_time = current_context->game_time - enemy->stun_start_time;
     
-    if (core.time.game_time > 3 && in_stun_time <= enemy->max_stun_time) {
+    if (current_context->game_time > 3 && in_stun_time <= enemy->max_stun_time) {
         rotate(entity, 0.2f * bird->velocity.x);
         bird->velocity = move_towards(bird->velocity, Vector2_zero, magnitude(bird->velocity) * 1.0f, dt);
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
     
         bird->roaming = true;
-        bird->roam_start_time = core.time.game_time;
+        bird->roam_start_time = current_context->game_time;
         bird->charging = false;
         bird->attacking = false;
         disable_emitter(bird->attack_emitter_index);
@@ -5855,7 +5859,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     
     //update bird states
     if (bird->roaming) {
-        f32 roam_time = core.time.game_time - bird->roam_start_time;
+        f32 roam_time = current_context->game_time - bird->roam_start_time;
         f32 max_roam_time = bird->max_roam_time;
         
         if (bird->slot_index != -1) {
@@ -5865,24 +5869,24 @@ void update_bird_enemy(Entity *entity, f32 dt) {
         if (roam_time >= max_roam_time) {
             bird->roaming = false;
             bird->charging = true;
-            bird->charging_start_time = core.time.game_time;
+            bird->charging_start_time = current_context->game_time;
         }
     }
     
     if (bird->charging) {
-        f32 charging_time = core.time.game_time - bird->charging_start_time;
+        f32 charging_time = current_context->game_time - bird->charging_start_time;
         if (charging_time >= bird->max_charging_time) {
-            f32 time_since_last_bird_attacked = core.time.game_time - state_context.timers.last_bird_attack_time;
+            f32 time_since_last_bird_attacked = current_context->game_time - state_context.timers.last_bird_attack_time;
             
             if (time_since_last_bird_attacked >= 0.4f) {
                 //bird start attack
-                state_context.timers.last_bird_attack_time = core.time.game_time;
+                state_context.timers.last_bird_attack_time = current_context->game_time;
                 change_scale(entity, bird->original_scale);
             
                 change_up(entity, dir_to_player);         
                 bird->charging = false;
                 bird->attacking = true;
-                bird->attack_start_time = core.time.game_time;
+                bird->attack_start_time = current_context->game_time;
                 
                 f32 bird_attack_speed = 300;
                 bird->velocity = dir_to_player * bird_attack_speed;
@@ -5899,25 +5903,25 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     }
     
     if (bird->attacking) {
-        f32 attacking_time = core.time.game_time - bird->attack_start_time;
+        f32 attacking_time = current_context->game_time - bird->attack_start_time;
         
         if (attacking_time >= bird->max_attack_time) {
             bird->attacking = false;
             bird->roaming = true;
-            bird->roam_start_time = core.time.game_time;
+            bird->roam_start_time = current_context->game_time;
             disable_emitter(bird->attack_emitter_index);
             disable_emitter(bird->alarm_emitter_index);
-            bird->attacked_time = core.time.game_time;
+            bird->attacked_time = current_context->game_time;
         } 
     }
     
     f32 bird_speed = magnitude(bird->velocity);
     
-    f32 time_since_attacked = core.time.game_time - bird->attacked_time;
+    f32 time_since_attacked = current_context->game_time - bird->attacked_time;
     
     //update bird
     if (bird->roaming) {
-        f32 roam_time = core.time.game_time - bird->roam_start_time;
+        f32 roam_time = current_context->game_time - bird->roam_start_time;
         f32 roam_t = roam_time / bird->max_roam_time;
     
         if (roam_t <= 0.2f && time_since_attacked < 4) {
@@ -5945,7 +5949,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
                 target_position = player_entity->position + bird_formation_positions[bird->slot_index];
             } else {
                 // If bird could not find slot - it will not attack and wait in roaming until slot is freed
-                bird->roam_start_time = core.time.game_time;
+                bird->roam_start_time = current_context->game_time;
                 roam_time = 0;
             }
         
@@ -5961,7 +5965,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     } else if (bird->charging) {
         // bird_clear_formation(bird);
         
-        f32 charging_time = core.time.game_time - bird->charging_start_time;
+        f32 charging_time = current_context->game_time - bird->charging_start_time;
         f32 t = clamp01(charging_time / bird->max_charging_time);
         
         change_scale(entity, lerp(bird->original_scale, {bird->original_scale.x * 1.2f, bird->original_scale.y * 2.0f}, t * t));
@@ -5977,7 +5981,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
         
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
     } else if (bird->attacking) {
-        f32 attacking_time = core.time.game_time - bird->attack_start_time;
+        f32 attacking_time = current_context->game_time - bird->attack_start_time;
         
         bird_clear_formation(bird);
     
@@ -6043,11 +6047,11 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             }
         }
     
-        enemy->stun_start_time = core.time.game_time;
+        enemy->stun_start_time = current_context->game_time;
         emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, particles_speed_modifier, 1);
     
         enemy->dead_man = true;
-        enemy->died_time = core.time.game_time;
+        enemy->died_time = current_context->game_time;
         b32 should_be_destroyed = !(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT));
         if (should_be_destroyed) {
             enemy_entity->enabled = false;
@@ -6210,7 +6214,7 @@ inline b32 is_enemy_can_take_damage(Entity *enemy_entity, b32 check_for_last_hit
         immune_time = 0.078f;
     }
     
-    b32 recently_got_hit = (core.time.game_time - enemy_entity->union_enemy->last_hit_time) <= immune_time;
+    b32 recently_got_hit = (current_context->game_time - enemy_entity->union_enemy->last_hit_time) <= immune_time;
     return !recently_got_hit;
 }
 
@@ -6259,8 +6263,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         }
         agro_enemy(enemy_entity);
     
-        enemy->stun_start_time = core.time.game_time;
-        enemy->last_hit_time   = core.time.game_time;
+        enemy->stun_start_time = current_context->game_time;
+        enemy->last_hit_time   = current_context->game_time;
         enemy->hits_taken++;
         b32 should_die_in_one_hit = enemy_entity->flags & BIRD_ENEMY && enemy_entity->bird_enemy->attacking;
         
@@ -6268,7 +6272,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, 1, 1);
         
             enemy->dead_man = true;
-            enemy->died_time = core.time.game_time;
+            enemy->died_time = current_context->game_time;
         
             if (enemy_entity->flags & BIRD_ENEMY) {
                 // birds handle dead state by themselves
@@ -6287,8 +6291,8 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 kill_enemy(enemy_entity, kill_position, kill_direction);
             }
         } else {
-            enemy->stun_start_time = core.time.game_time;
-            enemy->last_hit_time   = core.time.game_time;
+            enemy->stun_start_time = current_context->game_time;
+            enemy->last_hit_time   = current_context->game_time;
         }
         add_hitmark(enemy_entity, true); 
     }
@@ -6297,7 +6301,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
 void add_rifle_projectile(Vector2 start_position, Vector2 velocity) {
     Entity *projectile_entity = add_entity(start_position, {2, 2}, {0.5f, 0.5f}, 0, PINK, PROJECTILE | PARTICLE_EMITTER);
     projectile_entity->projectile->type  = PLAYER_RIFLE_PROJECTILE;
-    projectile_entity->projectile->birth_time = core.time.game_time;
+    projectile_entity->projectile->birth_time = current_context->game_time;
     projectile_entity->projectile->velocity = velocity;
     projectile_entity->projectile->max_lifetime = 7;
     
@@ -6322,7 +6326,7 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color
     hitmark->sticky_texture->need_to_follow   = need_to_follow;
     hitmark->sticky_texture->draw_line        = true;
     hitmark->sticky_texture->follow_id        = entity->id;
-    hitmark->sticky_texture->birth_time       = core.time.game_time;
+    hitmark->sticky_texture->birth_time       = current_context->game_time;
     hitmark->sticky_texture->should_draw_until_expires = true;
     hitmark->sticky_texture->max_distance     = 1000;
     hitmark->sticky_texture->base_size = hitmark->scale;
@@ -6478,6 +6482,8 @@ void calculate_projectile_collisions(Entity *entity) {
         
         b32 damaged_enemy = false;
         
+        b32 should_start_dying = true;
+        
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
             Entity *other = col.other_entity;
@@ -6519,16 +6525,23 @@ void calculate_projectile_collisions(Entity *entity) {
                     
                     if (!can_damage) {
                         need_bounce = true;
-                        enemy->last_hit_time = core.time.game_time;
+                        enemy->last_hit_time = current_context->game_time;
                         play_sound("ShootBlock", col.point);
                     }
                 }
                 if (other->flags & ENEMY_BARRIER) {
                     can_damage = false;
-                    enemy->last_hit_time = core.time.game_time;
+                    enemy->last_hit_time = current_context->game_time;
                     need_bounce = true;
                     play_sound("ShootBlock", col.point);
                 }
+                
+                if (other->flags & PROJECTILE && !(other->flags & EXPLOSIVE)) {
+                    can_damage = false;
+                    need_bounce = true;
+                    play_sound("ShootBlock", col.point);
+                }
+
                 
                 if (other->flags & BIRD_ENEMY && can_damage) {
                     other->bird_enemy->velocity += projectile->velocity * 0.05f;
@@ -6549,13 +6562,17 @@ void calculate_projectile_collisions(Entity *entity) {
                 if (other->flags & HIT_BOOSTER) {
                     entity->position = other->position;
                     projectile->velocity = normalized(other->up) * magnitude(projectile->velocity);
+                    should_start_dying = false;
+                }
+                
+                if (should_start_dying) {
+                    projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
+                    projectile->bounced = true;
+                    projectile->birth_time = current_context->game_time;
                 }
                 
                 if (can_damage) {
                     if (enemy->max_hits_taken > 1) {
-                        projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
-                        projectile->bounced = true;
-                        projectile->birth_time = core.time.game_time;
                         stun_enemy(other, entity->position, col.normal);    
                     } else if (enemy->max_hits_taken <= -1) {
                         
@@ -6586,8 +6603,9 @@ void calculate_projectile_collisions(Entity *entity) {
                     // @TODO: We should explode here. Also could check that hits were made fast, like calculating average delay between hits for last 10.
                 }
                 
+                
                 if (can_damage) {
-                    f32 time_since_last_hit = core.time.game_time - state_context.timers.last_projectile_hit_time;
+                    f32 time_since_last_hit = current_context->game_time - state_context.timers.last_projectile_hit_time;
                     if (time_since_last_hit <= 0.05f) {
                         state_context.contiguous_projectile_hits_count += 1;
                     } else {
@@ -6595,7 +6613,7 @@ void calculate_projectile_collisions(Entity *entity) {
                     }
                 
                     f32 base_pitch = 1.0f + state_context.contiguous_projectile_hits_count * 0.025f;
-                    state_context.timers.last_projectile_hit_time = core.time.game_time;
+                    state_context.timers.last_projectile_hit_time = current_context->game_time;
                     play_sound("RifleHit", col.point, 0.4f + state_context.contiguous_projectile_hits_count * 0.01f, base_pitch);
                 }
             
@@ -6619,9 +6637,9 @@ void calculate_projectile_collisions(Entity *entity) {
                 projectile->velocity = reflected_vector(projectile->velocity * 0.5f, col.normal);
             }
             
-            if (!projectile->dying && core.time.game_time - projectile->last_light_spawn_time >= 0.1f) {
+            if (!projectile->dying && current_context->game_time - projectile->last_light_spawn_time >= 0.1f) {
                 add_explosion_light(col.point, 75, 0.05f, 0.1f, ColorBrightness(damaged_enemy ? RED : SKYBLUE, 0.4f));
-                projectile->last_light_spawn_time = core.time.game_time;
+                projectile->last_light_spawn_time = current_context->game_time;
             }
         }
     } else if (projectile->type == JUMP_SHOOTER_PROJECTILE) {
@@ -6681,16 +6699,17 @@ void calculate_projectile_collisions(Entity *entity) {
     }
 }
 
-void update_projectile(Entity *entity, f32 dt) {
+inline void update_projectile(Entity *entity, f32 dt) {
     assert(entity->flags & PROJECTILE);
     
     Projectile *projectile = entity->projectile;
-    f32 lifetime = core.time.game_time - projectile->birth_time;
+    f32 lifetime = current_context->game_time - projectile->birth_time;
     
     Vector2 player_position = current_context->player ? current_context->player->position : Vector2_zero;
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
         if (entity->flags & ENEMY) {
+            log_short("fo sure");
             // kill_enemy(entity, entity->position, entity->up);
             mark_entity_destroyed(entity);    
         } else {
@@ -6781,7 +6800,7 @@ void update_projectile(Entity *entity, f32 dt) {
 void update_sticky_texture(Entity *entity, f32 dt) {
     Sticky_Texture *st = entity->sticky_texture;
     
-    f32 lifetime = core.time.game_time - st->birth_time;
+    f32 lifetime = current_context->game_time - st->birth_time;
     f32 lifetime_t = 0;
     if (st->max_lifetime > EPSILON) {
         lifetime_t = lifetime / st->max_lifetime;
@@ -7119,7 +7138,7 @@ i32 update_trigger(Entity *e) {
         }
         
         trigger->triggered = true;
-        trigger->triggered_time = core.time.game_time;
+        trigger->triggered_time = current_context->game_time;
         
         if (trigger->settings & DIE_AFTER_TRIGGER) {
             e->enabled = false;
@@ -7132,7 +7151,7 @@ i32 update_trigger(Entity *e) {
 void update_door(Entity *entity) {
     Door *door = &entity->door;
 
-    f32 since_triggered = core.time.game_time - door->triggered_time;
+    f32 since_triggered = current_context->game_time - door->triggered_time;
     f32 move_time       = door->is_open ? door->time_to_open : door->time_to_close;
     
     if (since_triggered <= move_time) {
@@ -7149,7 +7168,7 @@ void activate_door(Entity *entity, b32 is_open) {
     if (entity->door.is_open != is_open) { 
         play_sound("OpenDoor", entity->position);
         entity->door.is_open = is_open;
-        entity->door.triggered_time = core.time.game_time;
+        entity->door.triggered_time = current_context->game_time;
     }
 }
 
@@ -7280,7 +7299,7 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
     Entity *projectile_entity = add_entity(position, scale, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | settings.enemy_flags);
     assert(projectile_entity->projectile->index >= 0);
     change_color(projectile_entity, color);
-    projectile_entity->projectile->birth_time = core.time.game_time;
+    projectile_entity->projectile->birth_time = current_context->game_time;
     projectile_entity->projectile->type = type;
     projectile_entity->projectile->velocity = direction * settings.launch_speed;
     change_up(projectile_entity, direction);
@@ -7524,10 +7543,10 @@ inline b32 update_entity(Entity *e, f32 dt) {
         
         if (!shooter->in_agro) {
             shooter->states = {0};
-            shooter->states.standing_start_time = core.time.game_time;
+            shooter->states.standing_start_time = current_context->game_time;
         }
         
-        f32 in_stun_time = core.time.game_time - shooter->stun_start_time;
+        f32 in_stun_time = current_context->game_time - shooter->stun_start_time;
         
         b32 is_stunned = in_stun_time <= shooter->max_stun_time;
         
@@ -7537,14 +7556,14 @@ inline b32 update_entity(Entity *e, f32 dt) {
             shooter->states = {0};
             disable_emitter(shooter->trail_emitter_index);
             shooter->states.standing = false;
-            shooter->states.standing_start_time = core.time.game_time;
+            shooter->states.standing_start_time = current_context->game_time;
             
             if (is_stunned) {
                 shooter->was_in_stun = true;
             }
         } else if (shooter->was_in_stun) {
             shooter->states.standing = true;
-            shooter->states.standing_start_time = core.time.game_time;
+            shooter->states.standing_start_time = current_context->game_time;
             
             shooter->was_in_stun = false;
         }
@@ -7559,7 +7578,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         f32 distance_to_player = magnitude(vec_to_player);
         
         if (shooter->states.standing) {
-            f32 standing_time = core.time.game_time - shooter->states.standing_start_time;
+            f32 standing_time = current_context->game_time - shooter->states.standing_start_time;
             f32 max_standing_time = 3.0f;
             
             Collision nearest_ground = get_nearest_ground_collision(e->position, e->scale.x * 0.7f + e->scale.y * 0.7f);
@@ -7598,7 +7617,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 if (standing_time >= max_standing_time) {
                     shooter->states.standing = false;
                     shooter->states.jumping = true;
-                    shooter->states.jump_start_time = core.time.game_time;
+                    shooter->states.jump_start_time = current_context->game_time;
                     shooter->jump_direction = e->up;
                     
                     shooter->velocity = shooter->jump_direction * 250;
@@ -7628,13 +7647,13 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 shooter->velocity.y -= GRAVITY * dt;
                 
                 if (shooter->not_found_ground_timer >= 0.4f) {
-                    shooter->states.standing_start_time = core.time.game_time;
+                    shooter->states.standing_start_time = current_context->game_time;
                 }
             }
         }
         
         if (shooter->states.jumping) {
-            f32 jumping_time = core.time.game_time - shooter->states.jump_start_time;
+            f32 jumping_time = current_context->game_time - shooter->states.jump_start_time;
             f32 max_jumping_time = 1.5f;
             f32 jump_t = clamp01((jumping_time / max_jumping_time));
             
@@ -7647,14 +7666,14 @@ inline b32 update_entity(Entity *e, f32 dt) {
             if (jumping_time >= max_jumping_time || (jumping_time >= max_jumping_time * 0.5f && shooter->velocity.y < 40)) {
                 shooter->states.jumping = false;
                 shooter->states.charging = true;
-                shooter->states.charging_start_time = core.time.game_time;
+                shooter->states.charging_start_time = current_context->game_time;
                 
-                shooter->blocker_clockwise = /*rnd01() >= 0.5f*/ (core.time.game_time - (i32)core.time.game_time) >= 0.5f;
+                shooter->blocker_clockwise = /*rnd01() >= 0.5f*/ (current_context->game_time - (i32)current_context->game_time) >= 0.5f;
             }
         }
         
         if (shooter->states.charging) {
-            f32 charging_time = core.time.game_time - shooter->states.charging_start_time;
+            f32 charging_time = current_context->game_time - shooter->states.charging_start_time;
             f32 charging_t = clamp01(charging_time / shooter->max_charging_time);
             
             // Visual hints above jumper head happening in first half of charging
@@ -7671,7 +7690,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             change_right(e, move_towards(e->right, dir_to_player.x > 0 ? dir_to_player : dir_to_player * -1, look_speed, dt));
             
             // jump shooter shoot
-            if (charging_time >= shooter->max_charging_time && core.time.game_time - state_context.timers.last_jump_shooter_attack_time >= 0.3f) {                    
+            if (charging_time >= shooter->max_charging_time && current_context->game_time - state_context.timers.last_jump_shooter_attack_time >= 0.3f) {                    
                 f32 angle = -shooter->spread * 0.5f;
                 f32 angle_step = shooter->spread / shooter->shots_count;
                 
@@ -7679,7 +7698,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 explosive_indexes.clear();
                 
                 for (i32 i = 0; i < shooter->explosive_count; i++) {
-                    i32 explosive_index = /*rnd(0, shooter->shots_count)*/ (i32)core.time.game_time * (explosive_indexes.count + 1) % shooter->shots_count;
+                    i32 explosive_index = /*rnd(0, shooter->shots_count)*/ (i32)current_context->game_time * (explosive_indexes.count + 1) % shooter->shots_count;
                     while (explosive_indexes.contains(explosive_index)) {
                         explosive_index = (explosive_index+1) % shooter->shots_count;
                     }
@@ -7709,7 +7728,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                     Entity *projectile_entity = add_entity(e->position, {2, 4}, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | additional_flags);
                     assert(projectile_entity->union_enemy);
                     change_color(projectile_entity, ColorBrightness(RED, 0.4f));
-                    projectile_entity->projectile->birth_time = core.time.game_time;
+                    projectile_entity->projectile->birth_time = current_context->game_time;
                     projectile_entity->projectile->type = JUMP_SHOOTER_PROJECTILE;
                     projectile_entity->projectile->velocity = direction * speed;
                     projectile_entity->projectile->max_lifetime = 15;
@@ -7732,23 +7751,23 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 
                 shooter->states.charging = false;
                 shooter->states.in_recoil = true;
-                shooter->states.recoil_start_time = core.time.game_time;
+                shooter->states.recoil_start_time = current_context->game_time;
                 
-                state_context.timers.last_jump_shooter_attack_time = core.time.game_time;
+                state_context.timers.last_jump_shooter_attack_time = current_context->game_time;
             }
         }
         
         if (shooter->shoot_sword_blockers) {
             // Mostly visual change direction above blocker head
-            f32 time_since_block_direction_change = core.time.game_time - shooter->last_visual_blocker_direction_change_time;
+            f32 time_since_block_direction_change = current_context->game_time - shooter->last_visual_blocker_direction_change_time;
             if (time_since_block_direction_change >= block_direction_switch_time) {
                 shooter->blocker_clockwise = !shooter->blocker_clockwise;
-                shooter->last_visual_blocker_direction_change_time = core.time.game_time;
+                shooter->last_visual_blocker_direction_change_time = current_context->game_time;
             }
         }
         
         if (shooter->states.in_recoil) {
-            f32 in_recoil_time = core.time.game_time - shooter->states.recoil_start_time;
+            f32 in_recoil_time = current_context->game_time - shooter->states.recoil_start_time;
             f32 max_recoil_time = 1.0f;
             
             rotate(e, shooter->velocity.x * 20 * dt);
@@ -7759,12 +7778,12 @@ inline b32 update_entity(Entity *e, f32 dt) {
             if (in_recoil_time >= max_recoil_time) {
                 shooter->states.in_recoil = false;
                 shooter->states.picking_point = true;
-                shooter->states.picking_point_start_time = core.time.game_time;
+                shooter->states.picking_point_start_time = current_context->game_time;
             }
         }
         
         if (shooter->states.picking_point) {
-            f32 picking_point_time = core.time.game_time - shooter->states.picking_point_start_time;
+            f32 picking_point_time = current_context->game_time - shooter->states.picking_point_start_time;
             f32 picking_point_t = clamp01(picking_point_time / shooter->max_picking_point_time);
             
             Move_Point next_point = shooter->move_points.get_value((shooter->current_index + 1) % shooter->move_points.count);
@@ -7790,7 +7809,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             if (picking_point_time >= shooter->max_picking_point_time) {
                 shooter->states.picking_point = false;
                 shooter->states.flying_to_point = true;
-                shooter->states.flying_start_time = core.time.game_time;
+                shooter->states.flying_start_time = current_context->game_time;
                 
                 shooter->velocity = dir * 400;
                 if (flying_emitter) {
@@ -7807,7 +7826,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         }
         
         if (shooter->states.flying_to_point) {
-            f32 flying_time = core.time.game_time - shooter->states.flying_start_time;
+            f32 flying_time = current_context->game_time - shooter->states.flying_start_time;
             f32 max_flying_time = 1.2f;
             f32 flying_t = clamp01(flying_time / max_flying_time);
             // when we fly we just wait for ground collision to change state and if it took too long - we should die
@@ -7857,7 +7876,9 @@ inline b32 update_entity(Entity *e, f32 dt) {
     return true;
 } //update entity end
 
-void update_entities(f32 dt) {
+void update_entities(Context *context, f32 dt) {
+    context->game_time += core.time.fixed_dt;
+
     // Update turrets ticks.
     state_context.turret_state.ticked_this_frame = false;
     state_context.turret_state.tick_countdown -= dt;
@@ -7958,16 +7979,16 @@ inline void draw_player(Entity *entity) {
             play_sound("ScifyOne", 1.5f);
         }
         
-        draw_game_ring_lines(entity->position, entity->scale.y * 1.05f, entity->scale.y * 2.0f, 5, YELLOW, core.time.game_time * 4, core.time.game_time * 2 + 360);
+        draw_game_ring_lines(entity->position, entity->scale.y * 1.05f, entity->scale.y * 2.0f, 5, YELLOW, current_context->game_time * 4, current_context->game_time * 2 + 360);
     }
 }
 
 inline Vector2 get_perlin_in_circle(f32 speed) {
-    return {perlin_noise3_seed(core.time.game_time * speed, 1, 2, rnd(0, 10000)), perlin_noise3_seed(1, core.time.game_time * speed, 3, rnd(0, 10000))};
+    return {perlin_noise3_seed(current_context->game_time * speed, 1, 2, rnd(0, 10000)), perlin_noise3_seed(1, current_context->game_time * speed, 3, rnd(0, 10000))};
 }
 
 inline Vector2 get_perlin_in_circle(f32 speed, f32 seed1, f32 seed2) {
-    return {perlin_noise3_seed(core.time.game_time * speed, seed1, seed2, rnd(0, 10000)), perlin_noise3_seed(seed2, core.time.game_time * speed, seed1, rnd(0, 10000))};
+    return {perlin_noise3_seed(current_context->game_time * speed, seed1, seed2, rnd(0, 10000)), perlin_noise3_seed(seed2, current_context->game_time * speed, seed1, rnd(0, 10000))};
 }
 
 inline void draw_sword(Entity *entity) {
@@ -7984,10 +8005,10 @@ inline void draw_sword(Entity *entity) {
 inline void draw_rifle(Entity *entity) {
     Entity visual_entity = *entity;
     
-    f32 time_since_shake = core.time.game_time - player_data->timers.rifle_shake_start_time;
+    f32 time_since_shake = current_context->game_time - player_data->timers.rifle_shake_start_time;
     
     if (time_since_shake <= 0.2f) {
-        Vector2 perlin_rnd = {perlin_noise3(core.time.game_time * 30, 1, 2), perlin_noise3(1, core.time.game_time * 30, 3)};
+        Vector2 perlin_rnd = {perlin_noise3(current_context->game_time * 30, 1, 2), perlin_noise3(1, current_context->game_time * 30, 3)};
         visual_entity.position += perlin_rnd * 1.8f;
     }
     
@@ -8018,7 +8039,7 @@ inline void draw_bird_enemy(Entity *entity) {
     
     Entity visual_entity = *entity;
     if (entity->bird_enemy->charging) {
-        f32 charging_time = core.time.game_time - entity->bird_enemy->charging_start_time;
+        f32 charging_time = current_context->game_time - entity->bird_enemy->charging_start_time;
         f32 t = clamp01(charging_time / entity->bird_enemy->max_charging_time);
         visual_entity.position += get_perlin_in_circle(30) * lerp(0.0f, 1.0f, t * t);
     }
@@ -8086,7 +8107,7 @@ void fill_entities_draw_queue() {
             local_persist f32 charging_line_width = 1.5f;
             local_persist f32 attacking_line_width = 7.0f;
             if (bird->charging && !bird->dead_man) {
-                f32 charging_time = core.time.game_time - entity->bird_enemy->charging_start_time;
+                f32 charging_time = current_context->game_time - entity->bird_enemy->charging_start_time;
                 f32 t = clamp01(charging_time / entity->bird_enemy->max_charging_time);
                 Color attack_line_color = color_fade(charging_line_color, t * t);
                 f32 attack_line_width = lerp(0.0f, charging_line_width, t * t);
@@ -8102,7 +8123,7 @@ void fill_entities_draw_queue() {
             }
             
             if (bird->attacking && !bird->dead_man) {
-                f32 attacking_time = core.time.game_time - bird->attack_start_time;
+                f32 attacking_time = current_context->game_time - bird->attack_start_time;
                 f32 t = clamp01(attacking_time / bird->max_attack_time);
                 
                 Color attack_line_color = color_fade(attacking_line_color, (1.0f - t) * (1.0f - t));
@@ -8227,7 +8248,7 @@ void fill_entities_draw_queue() {
             }
             
             b32 is_trigger_selected = editor.selected && editor.selected->id == entity->id || (IsKeyDown(KEY_LEFT_ALT) && should_draw_editor_hints());
-            f32 since_triggered = core.time.game_time - trigger->triggered_time;
+            f32 since_triggered = current_context->game_time - trigger->triggered_time;
             for (i32 ii = 0; ii < trigger->connected.count; ii++) {
                 Entity *connected = get_entity(trigger->connected.get_value(ii));
                 
@@ -8285,7 +8306,7 @@ void fill_entities_draw_queue() {
         if (entity->flags & STICKY_TEXTURE) {
             Sticky_Texture *st = entity->sticky_texture;
             
-            f32 lifetime = core.time.game_time - st->birth_time;
+            f32 lifetime = current_context->game_time - st->birth_time;
             f32 lifetime_t = 0.5f;
             if (st->max_lifetime > EPSILON) {
                 lifetime_t = lifetime / st->max_lifetime;
@@ -8604,12 +8625,12 @@ void draw_entity(Entity *e) {
         // draw jump shooter
         
         if (e->jump_shooter->states.charging) {
-            f32 charging_time = core.time.game_time - e->jump_shooter->states.charging_start_time;
+            f32 charging_time = current_context->game_time - e->jump_shooter->states.charging_start_time;
             f32 charging_t = charging_time / e->jump_shooter->max_charging_time;
             e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, charging_t * charging_t);
         }
         if (e->jump_shooter->states.picking_point) {
-            f32 picking_point_time = core.time.game_time - e->jump_shooter->states.picking_point_start_time;
+            f32 picking_point_time = current_context->game_time - e->jump_shooter->states.picking_point_start_time;
             f32 picking_point_t = picking_point_time / e->jump_shooter->max_picking_point_time;
             e->position += get_perlin_in_circle(50) * lerp(0.0f, 1.0f, picking_point_t * picking_point_t);
         }
@@ -8625,11 +8646,11 @@ void draw_entity(Entity *e) {
         
         if (e->jump_shooter->explosive_count > 0) {
             Color target_color = ColorBrightness(WHITE, 4);
-            f32 color_t = abs(sinf(core.time.game_time * 3));
+            f32 color_t = abs(sinf(current_context->game_time * 3));
             hint_color = lerp(hint_color, target_color, color_t);
             
             if (e->jump_shooter->states.charging) {
-                f32 charging_time = core.time.game_time - e->jump_shooter->states.charging_start_time;
+                f32 charging_time = current_context->game_time - e->jump_shooter->states.charging_start_time;
                 f32 charging_t = charging_time / e->jump_shooter->max_charging_time;
                 
                 f32 radius = lerp(0.0f, 40.0f, charging_t * charging_t);
@@ -9273,8 +9294,8 @@ void apply_shake() {
     f32 x_shake_speed = 7;
     f32 y_shake_speed = 10;
     
-    f32 x_offset = perlin_noise3(core.time.game_time * x_shake_speed, 0, 1) * x_shake_power;
-    f32 y_offset = perlin_noise3(0, core.time.game_time * y_shake_speed, 2) * y_shake_power;
+    f32 x_offset = perlin_noise3(current_context->game_time * x_shake_speed, 0, 1) * x_shake_power;
+    f32 y_offset = perlin_noise3(0, current_context->game_time * y_shake_speed, 2) * y_shake_power;
     
     current_context->cam.position += (cast(Vector2) {x_offset, y_offset}) * state_context.cam_state.trauma * state_context.cam_state.trauma;
 }
@@ -9401,7 +9422,7 @@ void draw_game() {
     }
     
     if (editor_state == GAME && player_data->dead_man && !state_context.we_got_a_winner) {
-        f32 since_died = core.time.game_time - player_data->timers.died_time;
+        f32 since_died = current_context->game_time - player_data->timers.died_time;
         
         f32 t = clamp01((since_died - 3.0f) / 2.0f);
         Old::make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "restart_text");

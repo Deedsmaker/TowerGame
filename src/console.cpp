@@ -425,16 +425,20 @@ void init_console() {
     console.commands.append(make_console_command("replay_load", load_temp_replay, load_replay));
 }
 
+void close_console() {
+    console.is_open = false;
+    console.closed_time = core.time.app_time;
+    
+    if (str_equal(focus_input_field.tag, "console_input_field")) {
+        focus_input_field.in_focus = false;
+    }
+}
+
 void update_console() {
     b32 can_control_console = !editor.create_box_active;
     if (can_control_console && (IsKeyPressed(KEY_SLASH) || (console.is_open && IsKeyPressed(KEY_ESCAPE)))) {
         if (console.is_open) {
-            console.is_open = false;
-            console.closed_time = core.time.app_time;
-            
-            if (str_equal(focus_input_field.tag, "console_input_field")) {
-                focus_input_field.in_focus = false;
-            }
+            close_console();
         } else {
             console.is_open = true;
             console.opened_time = core.time.app_time;
@@ -573,7 +577,7 @@ void draw_console() {
         draw_rect({0, y_position}, {(f32)screen_width, screen_height * 0.5f}, BLUE * 0.2f);
         draw_text_boxed(console.content_builder.data, {4, 4 + y_position, (f32)screen_width, screen_height * 0.5f - 30.0f}, 16, 3, text_color, false);
         draw_text(tprintf("App time: %.2f", core.time.app_time), {screen_width * 0.46f, 5.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
-        draw_text(tprintf("Game time: %.2f", core.time.game_time), {screen_width * 0.46f, 20.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
+        draw_text(tprintf("Game time: %.2f", current_context->game_time), {screen_width * 0.46f, 20.0f}, 14, ColorBrightness(lerp(LIME * 0, LIME, console.open_progress * console.open_progress), 0.5f));
     } else {
         f32 since_console_closed = core.time.app_time - console.closed_time;
         

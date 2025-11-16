@@ -19,7 +19,7 @@ inline void add_player_ammo(i32 amount) {
     player_data->ammo_count = clamp(player_data->ammo_count, 0, 3333);
     
     if (player_data->ammo_count == 0 && amount < 0) {
-        player_data->timers.last_bullet_shot_time = core.time.game_time;
+        player_data->timers.last_bullet_shot_time = current_context->game_time;
     }
 }
 
@@ -82,7 +82,7 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
 }
 
 void start_sword_mode(Player *player_data) {
-    player_data->sword_mode_change_time = core.time.game_time;    
+    player_data->sword_mode_change_time = current_context->game_time;    
     // player_data->max_speed_multiplier = 2.0f;
     player_data->sword_mode = AIR_MODE;
     
@@ -120,7 +120,7 @@ void player_start_killing_centipede(Entity *segment_entity, Player *player_data)
     
     player_data->state_flags |= KILLING_CENTIPEDE;
     player_data->state_flags |= PLAYER_INVINCIBLE;
-    player_data->last_segment_kill_time = core.time.game_time;
+    player_data->last_segment_kill_time = current_context->game_time;
     player_data->last_killed_segment = segment_entity;
 }
 
@@ -165,7 +165,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         
         // We also set this last hit variable in kill_enemy and stun_enemy, but as we see now we don't want to kill or stun 
         // every enemy that take hit, so it have sense to set it where actual hit is delivered.
-        enemy->last_hit_time = core.time.game_time;
+        enemy->last_hit_time = current_context->game_time;
         
         b32 can_kill = true;
         
@@ -266,7 +266,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
                 player_data->velocity = player_data->velocity * -0.5f;
                 emit_particles(&rifle_bullet_emitter, col.point, col.normal, 3, 5);
                 set_sword_velocity(normalized(-player_data->sword_angular_velocity) * 150);
-                player_data->weak_recoil_stun_start_time = core.time.game_time;
+                player_data->weak_recoil_stun_start_time = current_context->game_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
                 // changed pitch from 0.5f and changed sound from 0.4f
@@ -342,7 +342,7 @@ inline void player_snap_to_plane(Entity *player_entity, Vector2 normal) {
 
 inline b32 is_player_in_stun(Entity *entity) {
     f32 max_weak_stun_time = 0.3f;
-    f32 in_weak_stun_time  = core.time.game_time - entity->player_data->weak_recoil_stun_start_time;
+    f32 in_weak_stun_time  = current_context->game_time - entity->player_data->weak_recoil_stun_start_time;
     return (in_weak_stun_time <= max_weak_stun_time);
 }
 
@@ -391,7 +391,7 @@ void update_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
                 start_sword_mode(player_data);
             }
         } else { // In sword mode.
-            f32 since_sword_mode_change = core.time.game_time - player_data->sword_mode_change_time;
+            f32 since_sword_mode_change = current_context->game_time - player_data->sword_mode_change_time;
             static const f32 SWORD_TIME = 1.4f;
             if (since_sword_mode_change > SWORD_TIME && !(player_data->state_flags & KILLING_CENTIPEDE)) {
                 stop_sword_mode(player_data);
@@ -487,17 +487,17 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
         local_persist f32 shoot_press_time = -12;
         local_persist b32 rifle_in_machinegun_mode = false;
         if (input.press_flags & SHOOT) {
-            shoot_press_time = core.time.game_time;
+            shoot_press_time = current_context->game_time;
             shoots_queued += 1;
         }
         
         if (input.hold_flags & SHOOT_DOWN && shoot_press_time > 0) {
-            f32 hold_time = core.time.game_time - shoot_press_time;
+            f32 hold_time = current_context->game_time - shoot_press_time;
             
             if (!rifle_in_machinegun_mode && hold_time >= 0.2f) {
                 rifle_in_machinegun_mode = true;
                 shoots_queued += 1;
-                shoot_press_time = core.time.game_time;
+                shoot_press_time = current_context->game_time;
                 hold_time -= 0.2f;
             }
             
@@ -506,7 +506,7 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
                 while (hold_time >= machinegun_shoots_delay) {
                     hold_time -= machinegun_shoots_delay;
                     shoots_queued += 1;
-                    shoot_press_time = core.time.game_time;
+                    shoot_press_time = current_context->game_time;
                 }
             }
         }
@@ -521,7 +521,7 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
                 play_sound("FailedRifleActivation", 0.4f);
             }
             
-            player_data->timers.rifle_shake_start_time = core.time.game_time;
+            player_data->timers.rifle_shake_start_time = current_context->game_time;
             emit_particles(&gunpowder_emitter, sword_tip, sword->up);
         }
         
@@ -564,13 +564,13 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
                 
                 shake_camera(0.1f);
                 play_sound("RifleShot", sword_tip, 0.3f);
-                player_data->timers.rifle_shake_start_time = core.time.game_time;
-                player_data->timers.rifle_shoot_time = core.time.game_time;
+                player_data->timers.rifle_shake_start_time = current_context->game_time;
+                player_data->timers.rifle_shoot_time = current_context->game_time;
                 
                 enable_emitter(player_data->rifle_trail_emitter_index);
                 
             } else if (input.press_flags & SHOOT) {
-                player_data->timers.rifle_shake_start_time = core.time.game_time;
+                player_data->timers.rifle_shake_start_time = current_context->game_time;
                 emit_particles(&gunpowder_emitter, sword_tip, sword->up);
                 
                 // shoot stoper blocked
@@ -598,7 +598,7 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
                                 sticky_line->sticky_texture->follow_id = entity->id;
                                 sticky_line->sticky_texture->need_to_follow = true;
                                 sticky_line->position = get_shoot_stoper_cross_position(entity);
-                                sticky_line->sticky_texture->birth_time = core.time.game_time;
+                                sticky_line->sticky_texture->birth_time = current_context->game_time;
                                 sticky_line->sticky_texture->max_distance = 0;
                                 sticky_line->draw_order = 1;
                                 shake_camera(0.1f);
@@ -612,8 +612,8 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
             shoots_queued -= 1;
         } // Shots queued loop end.
         
-        f32 time_since_shoot = core.time.game_time - player_data->timers.rifle_shoot_time;
-        if (time_since_shoot >= 0.5f && core.time.game_time > 1) {
+        f32 time_since_shoot = current_context->game_time - player_data->timers.rifle_shoot_time;
+        if (time_since_shoot >= 0.5f && current_context->game_time > 1) {
             disable_emitter(player_data->rifle_trail_emitter_index);
         } else {
         }
@@ -744,7 +744,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     
     update_connected_entities_positions(entity);    
     
-    f32 since_hit_booster = core.time.game_time - player_data->timers.hit_booster_time;
+    f32 since_hit_booster = current_context->game_time - player_data->timers.hit_booster_time;
     b32 player_in_hit_booster = since_hit_booster <= HIT_BOOSTER_BOOST_TIME;
     
     Vector2 input_direction = input.sum_direction;
@@ -761,7 +761,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         if (current->centipede_segment->head->will_be_destroyed) {
             player_stop_killing_centipede(player_data);
         } else {
-            f32 time_since_last_kill = core.time.game_time - player_data->last_segment_kill_time;
+            f32 time_since_last_kill = current_context->game_time - player_data->last_segment_kill_time;
             
             if (time_since_last_kill >= player_data->SEGMENTS_KILL_DELAY) {
                 player_data->last_segment_kill_time += player_data->SEGMENTS_KILL_DELAY;
@@ -844,15 +844,15 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         if (input.press_flags & JUMP) {
         
         // This thing tells about button press time, not about real act of jumping.
-        player_data->timers.jump_press_time = core.time.game_time;
+        player_data->timers.jump_press_time = current_context->game_time;
             
         if (!player_data->grounded) {
-                player_data->timers.air_jump_press_time = core.time.game_time;
+                player_data->timers.air_jump_press_time = current_context->game_time;
             }
         }
         
-        f32 time_since_jump_press = core.time.game_time - player_data->timers.jump_press_time;
-        f32 time_since_air_jump_press = core.time.game_time - player_data->timers.air_jump_press_time;
+        f32 time_since_jump_press = current_context->game_time - player_data->timers.jump_press_time;
+        f32 time_since_air_jump_press = current_context->game_time - player_data->timers.air_jump_press_time;
         
         player_data->timers.since_jump_timer += dt;
         
@@ -879,10 +879,10 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         
         f32 wall_acceleration = 400;
         
-        f32 time_since_wall_jump = core.time.game_time - player_data->timers.wall_jump_time;
+        f32 time_since_wall_jump = current_context->game_time - player_data->timers.wall_jump_time;
         f32 player_speed = magnitude(player_data->velocity);
         
-        f32 time_since_wall_vertical_boost = core.time.game_time - player_data->timers.wall_enter_vertical_boost_time;
+        f32 time_since_wall_vertical_boost = current_context->game_time - player_data->timers.wall_enter_vertical_boost_time;
         b32 hit_a_wall = false;
         
         f32 wall_vertical_boost = 100;
@@ -901,7 +901,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
             
             if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
                 player_data->velocity.y = wall_vertical_boost;
-                player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
+                player_data->timers.wall_enter_vertical_boost_time = current_context->game_time;
             } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
                 // Here 90 is straight wall.
                 f32 wall_angle = fangle(col.normal, Vector2_up);
@@ -933,7 +933,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
             
             if (time_since_wall_vertical_boost >= 2.0f && player_data->velocity.y < wall_vertical_boost && player_data->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
                 player_data->velocity.y = wall_vertical_boost;
-                player_data->timers.wall_enter_vertical_boost_time = core.time.game_time;
+                player_data->timers.wall_enter_vertical_boost_time = current_context->game_time;
             } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
                 // Here 90 is straight wall.
                 f32 wall_angle = fangle(col.normal, Vector2_up);
@@ -1058,7 +1058,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
                     
                     //heavy landing
                     if (before_speed > 200 && magnitude(player_data->velocity) < 100) {
-                        player_data->heavy_collision_time = core.time.game_time;
+                        player_data->heavy_collision_time = current_context->game_time;
                         player_data->heavy_collision_velocity = player_data->velocity;
                         emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 1.5f);
                         shake_camera(0.7f);
@@ -1147,7 +1147,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
             if (other->flags & HIT_BOOSTER) {
                 entity->position = other->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
                 player_data->velocity = other->up * other->union_enemy->hit_booster.boost;
-                player_data->timers.hit_booster_time = core.time.game_time;
+                player_data->timers.hit_booster_time = current_context->game_time;
                 continue; // Only detecting collision. Don't want to actually physically collide with it.
             }
     
@@ -1196,7 +1196,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
             
             // Heavy collision.
             if (before_speed > 200 && magnitude(player_data->velocity) < 100) {
-                player_data->heavy_collision_time = core.time.game_time;
+                player_data->heavy_collision_time = current_context->game_time;
                 player_data->heavy_collision_velocity = player_data->velocity;
                 emit_particles(&ground_splash_emitter, col.point, col.normal, 1, 1.5f);
                 shake_camera(0.7f);

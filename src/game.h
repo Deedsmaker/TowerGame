@@ -55,6 +55,8 @@ inline void play_sound(const char* name, f32 volume_multiplier = 1, f32 base_pit
 
 inline void cut_rope(Entity *entity, Vector2 point = Vector2_zero);
 
+void close_console();
+
 // void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
 void calculate_bounds(Entity *entity);
@@ -94,7 +96,7 @@ void update_editor();
 void update_editor_entity(Entity *e);
 void update_all_collision_cells(b32 update_cells_for_static_entities);
 inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_static_entities);
-void update_entities(f32 dt);
+void update_entities(Context *context, f32 dt);
 
 void activate_door(Entity *entity, b32 is_open);
 

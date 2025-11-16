@@ -151,7 +151,7 @@ void update_dynamic_lights() {
         
         // Here we're updating temp lights. Lights that's not considered temporary will not have grow_time and shrink_time set.
         if (light->grow_time > 0 || light->shrink_time > 0) {
-            f32 lifetime = core.time.game_time - light->birth_time;
+            f32 lifetime = current_context->game_time - light->birth_time;
             if (lifetime < light->grow_time) {
                 f32 grow_t        = lifetime / light->grow_time;
                 light->radius = lerp(0.0f, light->target_radius, sqrtf(grow_t));
@@ -176,7 +176,7 @@ void update_dynamic_lights() {
         }
             
         if (light->fire_effect) {
-            f32 perlin_rnd = (perlin_noise3(core.time.game_time * 5, i, core.time.game_time * 4) + 1) * 0.5f;
+            f32 perlin_rnd = (perlin_noise3(current_context->game_time * 5, i, current_context->game_time * 4) + 1) * 0.5f;
             light->radius = perlin_rnd * 30 + 45;
             light->power  = perlin_rnd * 1.0f + 0.5f;
         }
@@ -382,7 +382,7 @@ void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink
     
     Light explosion_light = {0};
     
-    explosion_light.birth_time    = core.time.game_time;
+    explosion_light.birth_time    = current_context->game_time;
     explosion_light.target_radius = radius;
     explosion_light.grow_time     = grow_time;
     explosion_light.shrink_time   = shrink_time;

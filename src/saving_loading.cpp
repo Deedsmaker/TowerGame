@@ -716,6 +716,8 @@ b32 load_level(String name) {
     current_context->cam.position = current_context->player_spawn_point;
     current_context->cam.target = current_context->player_spawn_point;
     
+    close_console();
+    
     return true;
 } // load level end.
 

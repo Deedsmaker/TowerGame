@@ -1027,7 +1027,7 @@ struct Time {
     f32 time_scale = 1;
     f32 debug_target_time_scale = 1;
     f32 target_time_scale = 1;
-    f32 game_time = 0;
+    // f32 game_time = 0;
     f32 app_time = 0;
     f32 hitstop = 0;
 };
@@ -1155,6 +1155,8 @@ struct Context {
     String level_name = {};
 
     i32 active_win_blocks_count = 0;
+
+    f32 game_time = 0;
 
     Chunk_Array <Entity> entities = {};
     
