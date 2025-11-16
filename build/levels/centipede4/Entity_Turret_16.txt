@@ -1,21 +1,21 @@
 name Turret 
- id 23 
- position { -408.350555,  201.656387} 
+ id 16 
+ position { -35.000000,  200.000000} 
  scale { 5.000000,  15.000000} 
  pivot { 0.500000,  1.000000} 
- rotation 0.000000 
+ rotation 180.000000 
  color { 227,  188,  255,  255} 
  flags 274877906952 
  draw_order 100 
- vertices [ { 2.947214,  15.894424} { -2.947214,  15.894424} { 3.500000,  0.000000} { -3.500000,  0.000000} ] 
- unscaled_vertices [  { 0.500000,  1.000000} { -0.500000,  1.000000} { 0.500000,  0.000000} { -0.500000,  0.000000} ] 
+ vertices [ { -2.947215,  -15.894423} { 2.947215,  -15.894423} { -3.499999,  0.000000} { 3.499999,  0.000000} ] 
+ unscaled_vertices [  { -0.500000,  -1.000000} { 0.500000,  -1.000000} { -0.500000,  0.000000} { 0.500000,  0.000000} ] 
  hidden 0 
  spawn_enemy_when_no_ammo 0 
  turret_projectile_flags 4096 
  turret_shoot_sword_blocker_clockwise 0 
  turret_activated 1 
  turret_homing_projectiles 0 
- turret_shoot_every_tick 3 
+ turret_shoot_every_tick 1 
  turret_start_tick_delay 0 
  turret_projectile_speed 75.000000 
  turret_projectile_max_lifetime 7.000000 

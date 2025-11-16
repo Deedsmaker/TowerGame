@@ -30,7 +30,8 @@ global_variable Input input = {0};
 global_variable Input replay_input = {0};
 // global_variable Context editor_context = {0};
 
-#define CELL_SIZE 5
+#define MOVE_CELL_SIZE 2.5f
+#define SCALE_CELL_SIZE 5
 
 #define MAX_LOADED_LEVELS 2
 global_variable Context loaded_editor_contexts[MAX_LOADED_LEVELS];
@@ -1391,9 +1392,16 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
 
     entity->color = entity->color_changer.start_color;
 
+    // Init ammo pack.
     if (entity->flags & AMMO_PACK){
         entity->flags |= TEXTURE;
         entity->texture = get_texture("Prop");
+    }
+    
+    // Init note.
+    if (entity->flags & NOTE) {
+        entity->flags |= TEXTURE;
+        entity->texture = get_texture("editor_note");
     }
 
     // Init move sequence.
@@ -1450,7 +1458,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             entity->turret = entity->context->turrets.append({0}, &index);
             Turret *turret = entity->turret;
             
-            // We don't want to set things that could be changed in editor (like shoot_every_tick) every time we init enity,
+            // We don't want to set things that could be changed in editor (like shoot_every_tick) every time we init entity,
             // because what would cancel any changes made in editor. 
             // So we put that in here, under ignore_existing_types, because that's mean that we want to just put every 
             // default value and that's full initialization.
@@ -2305,7 +2313,7 @@ void enter_planning_state() {
     if (!current_context->initially_simulated) {
         // Simulating game world for 2 seconds before the start.
         input = {0};
-        for (i32 i = 0; i < FIXED_FPS * 5; i++) { 
+        for (i32 i = 0; i < FIXED_FPS * 2; i++) { 
             update_entities(&planning_context, TARGET_FRAME_TIME);
         }
         
@@ -4206,9 +4214,9 @@ void editor_mouse_move_entity(Entity *entity) {
     
     if (moving_without_cell_bound) {
         entity->position += move_delta;
-    } else if (sqr_magnitude(move_delta) >= (CELL_SIZE * 0.5f * CELL_SIZE * 0.5f)) {
+    } else if (sqr_magnitude(move_delta) >= (MOVE_CELL_SIZE * 0.5f * MOVE_CELL_SIZE * 0.5f)) {
         Vector2 next_position = entity->position + move_delta;
-        Vector2 cell_position = {round_to_factor(next_position.x, CELL_SIZE), round_to_factor(next_position.y, CELL_SIZE)};
+        Vector2 cell_position = {round_to_factor(next_position.x, MOVE_CELL_SIZE), round_to_factor(next_position.y, MOVE_CELL_SIZE)};
         move_delta = cell_position - entity->position;
         entity->position += move_delta;
     } else {
@@ -4813,11 +4821,11 @@ void update_editor() {
             moving_displacement = get_editor_mouse_move();
             multiselection->total_displacement_for_undo += moving_displacement;
         } else {
-            if (sqr_magnitude(input.mouse_position - editor.dragging_start) >= (CELL_SIZE * 0.5f * CELL_SIZE * 0.5f)) {
+            if (sqr_magnitude(input.mouse_position - editor.dragging_start) >= (MOVE_CELL_SIZE * 0.5f * MOVE_CELL_SIZE * 0.5f)) {
                 // While moving multiselected entities we canot directly set position like we do in editor_mouse_move_entity,
                 // so here we calculate current quantized displacement from last moving.
-                // Vector2 cell_mouse_position = round_to_factor(input.mouse_position, CELL_SIZE);
-                moving_displacement = round_to_factor(input.mouse_position - editor.dragging_start, CELL_SIZE);
+                // Vector2 cell_mouse_position = round_to_factor(input.mouse_position, MOVE_CELL_SIZE);
+                moving_displacement = round_to_factor(input.mouse_position - editor.dragging_start, MOVE_CELL_SIZE);
                 editor.dragging_start += moving_displacement;
                 multiselection->total_displacement_for_undo += moving_displacement;
             }
@@ -4918,9 +4926,9 @@ void update_editor() {
     
     //entity tap moving
     if (editor.selected) {
-        Vector2 tap_move = {input.tap_direction.x * CELL_SIZE, input.tap_direction.y * CELL_SIZE};
+        Vector2 tap_move = {input.tap_direction.x * MOVE_CELL_SIZE, input.tap_direction.y * MOVE_CELL_SIZE};
         if (tap_move.x != 0 || tap_move.y != 0) {
-            Vector2 next_position = round_to_factor(editor.selected->position + tap_move, CELL_SIZE);
+            Vector2 next_position = round_to_factor(editor.selected->position + tap_move, MOVE_CELL_SIZE);
             Vector2 move_amount = next_position - editor.selected->position;
             editor.selected->position += move_amount;
             // undo_action.position_change = move_amount;
@@ -5171,7 +5179,7 @@ void update_editor() {
         }
     }
     
-    //editor free entity scaling
+    // Editor free entity scaling.
     if (editor.selected && IsKeyDown(KEY_LEFT_ALT) && editor.moving_entity_edge_type == NONE) {
         Vector2 scaling = {0};
         f32 speed = 80;
@@ -5199,7 +5207,7 @@ void update_editor() {
     } else if (editor.selected && can_control_with_single_button && editor.moving_entity_edge_type == NONE) {
         local_persist f32 holding_time = 0;
         Vector2 scaling = Vector2_zero;
-        f32 scale_amount = 5;
+        f32 scale_amount = SCALE_CELL_SIZE;
         
         if      (IsKeyPressed(KEY_W)) scaling.y += scale_amount;
         else if (IsKeyPressed(KEY_S)) scaling.y -= scale_amount;

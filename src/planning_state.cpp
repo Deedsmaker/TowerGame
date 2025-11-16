@@ -25,7 +25,7 @@ void update_planning() {
     if (planning.dragged_entity) {
         Entity *entity = planning.dragged_entity;
         entity->position = input.mouse_position;
-        entity->position = round_to_factor(entity->position, CELL_SIZE);
+        entity->position = round_to_factor(entity->position, MOVE_CELL_SIZE);
         
         if (IsKeyPressed(KEY_Q) || IsKeyPressed(KEY_E)) {   
             f32 to_rotate = 0;
@@ -45,7 +45,7 @@ void update_planning() {
         }
         
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            entity->position = round_to_factor(entity->position, CELL_SIZE);
+            entity->position = round_to_factor(entity->position, MOVE_CELL_SIZE);
             
             planning.spawned_ids.append(entity->id);
             

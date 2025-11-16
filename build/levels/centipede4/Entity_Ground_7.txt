@@ -1,0 +1,18 @@
+name Ground 
+ id 7 
+ position { 85.000000,  205.000000} 
+ scale { 5.000000,  80.000000} 
+ pivot { 0.500000,  0.500000} 
+ rotation 90.000000 
+ color { 233,  201,  255,  255} 
+ flags 393217 
+ draw_order 100 
+ vertices [ { 40.707100,  -3.207107} { 40.707100,  3.207101} { -40.707100,  -3.207101} { -40.707100,  3.207107} ] 
+ unscaled_vertices [  { 0.500000,  -0.500000} { 0.500000,  0.500000} { -0.500000,  -0.500000} { -0.500000,  0.500000} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ trigger_tracking [   24 ] 
+ trigger_settings 3272 
+ trigger_locked_camera_position { 0.000000,  0.000000} 
+ door_open 0 
+ 

@@ -488,7 +488,7 @@ void make_lightmap_settings_panel(){
     if (editor.picking_lightmap_position && IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !clicked_ui){
         assert(editor.editing_lightmap_index != -1);
         assert(editor.editing_lightmap_index < current_context->lightmaps.count);
-        current_context->lightmaps.get(editor.editing_lightmap_index)->position = round_to_factor(input.mouse_position, CELL_SIZE);
+        current_context->lightmaps.get(editor.editing_lightmap_index)->position = round_to_factor(input.mouse_position, MOVE_CELL_SIZE);
     }
     
     // Making size choosing panel.
