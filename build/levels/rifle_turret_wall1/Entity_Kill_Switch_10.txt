@@ -1,6 +1,6 @@
 name Kill_Switch 
  id 10 
- position { -145.000000,  250.000000} 
+ position { -245.000000,  250.000000} 
  scale { 20.000000,  10.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 

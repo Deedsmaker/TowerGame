@@ -1161,6 +1161,16 @@ void init_spawn_objects() {
     str_copy(hit_booster_object.name, "hit_booster");
     spawn_objects.append(hit_booster_object);
     
+    Entity explosive_entity = make_entity({0, 0}, {8, 8}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
+    explosive_entity.color = ColorBrightness(RED, 0.3f);
+    setup_color_changer(&explosive_entity);
+    
+    Spawn_Object explosive_object;
+    explosive_object.entity = explosive_entity;
+    explosive_object.flags |= PLANNING_OBJECT;
+    str_copy(explosive_object.name, "explosive");
+    spawn_objects.append(explosive_object);
+    
     // we use move sequence on jump shooter only to set jump points
     Entity jump_shooter_entity = make_entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
     // jump_shooter_entity.move_sequence->moving = true;
@@ -6260,7 +6270,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         return;
     }
     
-    if (1 || is_enemy_can_take_damage(enemy_entity)) {
+    if (is_enemy_can_take_damage(enemy_entity)) {
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)) {
             enemy_entity->move_sequence->moving = false;
         }
@@ -6274,15 +6284,16 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         if ((enemy->hits_taken >= enemy->max_hits_taken || serious || should_die_in_one_hit) && !enemy->dead_man) {
             emit_particles(get_sword_kill_particle_emitter(enemy_entity), kill_position, kill_direction, 1, 1, 1);
         
-            enemy->dead_man = true;
             enemy->died_time = current_context->game_time;
         
             if (enemy_entity->flags & BIRD_ENEMY) {
+                enemy->dead_man = true;
                 // birds handle dead state by themselves
                 enable_emitter(enemy_entity->bird_enemy->fire_emitter_index, enemy_entity->position);
                 enable_emitter(enemy_entity->bird_enemy->smoke_fire_emitter_index, enemy_entity->position);
                 add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
+                enemy->dead_man = true;
                 Particle_Emitter *dead_fire_emitter = get_particle_emitter(add_entity_particle_emitter(enemy_entity, &fire_emitter));
                 if (dead_fire_emitter) {
                     dead_fire_emitter->position = enemy_entity->position;
@@ -6290,6 +6301,7 @@ void stun_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                 }
                 add_fire_light_to_entity(enemy_entity);
             } else if (enemy_entity->flags & CENTIPEDE_SEGMENT) {
+                enemy->dead_man = true;
             } else {
                 kill_enemy(enemy_entity, kill_position, kill_direction);
             }
@@ -6501,7 +6513,7 @@ void calculate_projectile_collisions(Entity *entity) {
                 continue;
             }
             
-            b32 need_bounce = false;
+            // b32 need_bounce = false;
             
             Vector2 velocity_dir = normalized(projectile->velocity);
             f32 sparks_speed = 1;
@@ -6527,7 +6539,7 @@ void calculate_projectile_collisions(Entity *entity) {
                     sparks_count += 2;
                     
                     if (!can_damage) {
-                        need_bounce = true;
+                        // need_bounce = true;
                         enemy->last_hit_time = current_context->game_time;
                         play_sound("ShootBlock", col.point);
                     }
@@ -6535,13 +6547,13 @@ void calculate_projectile_collisions(Entity *entity) {
                 if (other->flags & ENEMY_BARRIER) {
                     can_damage = false;
                     enemy->last_hit_time = current_context->game_time;
-                    need_bounce = true;
+                    // need_bounce = true;
                     play_sound("ShootBlock", col.point);
                 }
                 
                 if (other->flags & PROJECTILE && !(other->flags & EXPLOSIVE)) {
                     can_damage = false;
-                    need_bounce = true;
+                    // need_bounce = true;
                     play_sound("ShootBlock", col.point);
                 }
 
@@ -6572,6 +6584,7 @@ void calculate_projectile_collisions(Entity *entity) {
                     projectile->velocity = reflected_vector(projectile->velocity * 0.6f, col.normal);
                     projectile->bounced = true;
                     projectile->birth_time = current_context->game_time;
+                    // need_bounce = true;
                 }
                 
                 if (can_damage) {
@@ -6636,9 +6649,9 @@ void calculate_projectile_collisions(Entity *entity) {
                 play_sound("RopeCut", col.point);
             }
             
-            if (need_bounce) {
-                projectile->velocity = reflected_vector(projectile->velocity * 0.5f, col.normal);
-            }
+            // if (need_bounce && !) {
+            //     projectile->velocity = reflected_vector(projectile->velocity * 0.5f, col.normal);
+            // }
             
             if (!projectile->dying && current_context->game_time - projectile->last_light_spawn_time >= 0.1f) {
                 add_explosion_light(col.point, 75, 0.05f, 0.1f, ColorBrightness(damaged_enemy ? RED : SKYBLUE, 0.4f));

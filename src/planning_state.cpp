@@ -78,8 +78,8 @@ void planning_draw_ui() {
         if (!(object->flags & PLANNING_OBJECT)) continue;
         
         buttons_count += 1;
-        Vector2 pos = panel_pos + Vector2_up * 10 * buttons_count;
-        Vector2 size = {panel_size.x - 20, 100};
+        Vector2 pos = panel_pos + Vector2_up * 50 * buttons_count;
+        Vector2 size = {panel_size.x - 20, 50};
         if (Old::make_button(pos, size, object->name, tprintf("planning_object_%d", i))) {
             planning_start_holding_entity(&object->entity);
         }

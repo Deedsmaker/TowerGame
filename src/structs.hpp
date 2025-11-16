@@ -1284,9 +1284,6 @@ struct Global_Data{
     
     b32 updated_today = false;
     
-    // Death instinct timers is in app time. (Because it's manipulating time!!).
-    
-    // char current_level_name[256] = "\0";
     char old_previous_level_name[256] = "\0";
     String previous_level_name = {};
     
