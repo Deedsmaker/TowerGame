@@ -672,6 +672,8 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     
     dest->game_time = src->game_time;
     
+    dest->turret_state = src->turret_state;
+    
     if (should_init_entities) {
         // Particle emitters get's added on each entity init.
         // So when se init entities - we clear particle emitters, because they will be added again. 
@@ -740,6 +742,10 @@ void clear_context(Context *context) {
         free_entity(entity);
         *entity = {0};
     }
+    
+    context->game_time = 0;
+    
+    context->turret_state = {0};
     
     context->initially_simulated = false;
     
@@ -2260,9 +2266,6 @@ void enter_gaming_state() {
     }
     
     current_context->active_win_blocks_count = current_context->win_blocks.get_occupied_count();
-    
-    current_context->game_time = planning_context.game_time;
-    log_short(current_context->game_time);
     
     current_context->cam.cam2D.zoom = 0.35f;
     current_context->cam.target_zoom = 0.35f;
@@ -6709,7 +6712,6 @@ inline void update_projectile(Entity *entity, f32 dt) {
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
         if (entity->flags & ENEMY) {
-            log_short("fo sure");
             // kill_enemy(entity, entity->position, entity->up);
             mark_entity_destroyed(entity);    
         } else {
@@ -6940,7 +6942,7 @@ void update_editor_entity(Entity *e) {
 
 void activate_turret(Entity *entity) {
     entity->turret->activated = true;
-    entity->turret->last_shot_tick = state_context.turret_state.current_tick - entity->turret->start_tick_delay;
+    entity->turret->last_shot_tick = entity->context->turret_state.current_tick - entity->turret->start_tick_delay;
 }
 
 void trigger_entity(Entity *trigger_entity, Entity *connected) {
@@ -7380,7 +7382,7 @@ inline void update_turret(Entity *entity, f32 dt) {
         turret->see_player = true;
     }
     
-    Turret_State *state = &state_context.turret_state;
+    Turret_State *state = &entity->context->turret_state;
     
     // We apply delay only for first shot ever, because next it will just work as intended because of last_shot_tick.
     i32 seconds_between_ticks = turret->last_shot_tick == 0 ? turret->start_tick_delay : 0;
@@ -7880,13 +7882,13 @@ void update_entities(Context *context, f32 dt) {
     context->game_time += core.time.fixed_dt;
 
     // Update turrets ticks.
-    state_context.turret_state.ticked_this_frame = false;
-    state_context.turret_state.tick_countdown -= dt;
-    if (state_context.turret_state.tick_countdown <= 0) {
+    context->turret_state.ticked_this_frame = false;
+    context->turret_state.tick_countdown -= dt;
+    if (context->turret_state.tick_countdown <= 0) {
         // 0.2f it's just arbitrary value for turret tick.
-        state_context.turret_state.tick_countdown += 0.2f;
-        state_context.turret_state.current_tick += 1;
-        state_context.turret_state.ticked_this_frame = true;
+        context->turret_state.tick_countdown += 0.2f;
+        context->turret_state.current_tick += 1;
+        context->turret_state.ticked_this_frame = true;
     }
 
     Chunk_Array <Entity> *entities = &current_context->entities;
@@ -8077,7 +8079,7 @@ inline b32 should_not_draw_entity(Entity *e, Cam cam) {
 }
 
 inline f32 get_turret_charge_progress(Turret *turret) {
-    Turret_State *state = &state_context.turret_state;
+    Turret_State *state = &current_context->turret_state;
     f32 between_tick_time       = (f32)(turret->shoot_every_tick) * state->seconds_between_ticks;
     f32 from_previous_tick_time = (f32)(state->current_tick - turret->last_shot_tick) * state->seconds_between_ticks + (state->seconds_between_ticks - state->tick_countdown);
     return clamp01(from_previous_tick_time / between_tick_time);

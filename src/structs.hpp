@@ -1139,6 +1139,13 @@ struct Entity_Undo_Change {
     };
 };
 
+struct Turret_State {
+    inline static const f32 seconds_between_ticks = 0.2f;
+    b32 ticked_this_frame = false;
+    i32 current_tick = 0;
+    f32 tick_countdown = 0.2f;
+};
+
 struct Context {
     char name[64] = {};
     Allocator memory_arena = {};
@@ -1157,6 +1164,8 @@ struct Context {
     i32 active_win_blocks_count = 0;
 
     f32 game_time = 0;
+    
+    Turret_State turret_state = {};
 
     Chunk_Array <Entity> entities = {};
     
@@ -1196,13 +1205,6 @@ struct Context {
     
     Array <Lightmap_Data> lightmaps = {};
     b32 lightmaps_render_textures_loaded = false;
-};
-
-struct Turret_State {
-    inline static const f32 seconds_between_ticks = 0.2f;
-    b32 ticked_this_frame = false;
-    i32 current_tick = 0;
-    f32 tick_countdown = 0.2f;
 };
 
 struct State_Context { // @TODO: How can we rename this?
@@ -1247,8 +1249,6 @@ struct State_Context { // @TODO: How can we rename this?
         b32 on_rails_vertical   = false;
         i32 rails_trigger_id    = -1;
     };
-    
-    Turret_State turret_state = {};
     
     Cam_State cam_state = {};
       
