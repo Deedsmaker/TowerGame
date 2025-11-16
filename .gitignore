@@ -48,10 +48,6 @@
 *.ipch
 *.db
 
-*.7z
-*.zip
-*.rar
-
 *.rdi
 *.ilk
 
