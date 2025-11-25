@@ -4207,30 +4207,6 @@ void editor_mouse_move_entity(Entity *entity) {
     }
 }
 
-// void restore_deleted_entities(Undo_Action *action) {
-//     assert(action->deleted_entities.count > 0);
-//     assert(action->deleted_entities.count == action->changed_entities.count);
-//     editor.multiselection.entities.clear();
-//     for (i32 i = 0; i < action->deleted_entities.count; i++) {            
-//         i32 deleted_entity_id = action->changed_entities.get_value(i);
-//         // We should now have deleted entity id present on scene anyhow, because even if we spawned someone and 
-//         // he's taked that id - on undo we should remove him.
-//         // assert(get_entity(deleted_entity_id) == NULL);
-//         // @TODO: Here we actually would like to 
-//         Entity *deleted_entity = action->deleted_entities.get_value(i);
-        
-//         Entity *restored_entity = copy_and_add_entity(deleted_entity, current_context, deleted_entity->id);
-//         restored_entity->id = deleted_entity_id;
-        
-//         if (action->changed_entities.count > 1) {
-//             editor.multiselection.entities.append(deleted_entity_id);
-//         } else {
-//             // editor.selected = restored_entity;
-//             assign_selected_entity(restored_entity);
-//         }
-//     }
-// }
-
 inline void add_to_multiselection(i32 id) {
     if (!editor.multiselection.entities.contains(id)) {
         Entity *entity = get_entity(id);
@@ -4249,15 +4225,6 @@ void add_to_multiselection(Array <i32> *ids) {
         add_to_multiselection(id);
     }
 }
-
-// inline i32 index_of_entity_with_id(Array <Entity *> *entities, i32 id_to_find) {
-//     for_array(i, entities) {
-//         if (entities->get_value(i)->id == id_to_find) {
-//             return i;
-//         }
-//     }
-//     return -1;
-// }
 
 void remove_id_from_multiselection(i32 id) {
     i32 index = editor.multiselection.entities.find(id);
