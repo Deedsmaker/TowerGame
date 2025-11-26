@@ -400,7 +400,7 @@ b32 load_level(String name) {
         return true;
     }
     
-    log(tstring("Loading level %s", c_str(level_path)));
+    log(tstring("Loading level %s", c_str(level_path)), PUSH_INDENTATION);
     
     clean_up_scene();
     switch_current_context(&loaded_context, true);
@@ -419,7 +419,7 @@ b32 load_level(String name) {
     
     Array <String> level_files = get_files_in_directory(level_path, temp);
     if (level_files.count == 0) {
-        log_error(tstring("Level directory %s was empty! We're stopping loading.\n", c_str(level_path)));
+        log(tstring("Level directory %s was empty! We're stopping loading.\n", c_str(level_path)), LOG_ERROR | POP_INDENTATION);
         return false;
     }
     
@@ -434,7 +434,7 @@ b32 load_level(String name) {
         b32 success = false;
         String level_info = read_entire_file(level_files.get_value(level_info_file_index), &success, temp);
         if (!success) {
-            log_error(tstring("Failed to read %s file! Stopping loading.\n", c_str(level_info_file_name)));
+            log(tstring("Failed to read %s file! Stopping loading.\n", c_str(level_info_file_name)), LOG_ERROR | POP_INDENTATION);
             return false;
         }
         
@@ -465,7 +465,7 @@ b32 load_level(String name) {
             b32 success = false;
             String entity_info = read_entire_file(file_path, &success, temp);
             if (!success) {
-                log_error(tstring("Failed to read entity file data from file %s\n", c_str(file_path)));
+                log(tstring("Failed to read entity file data from file %s\n", c_str(file_path)), LOG_ERROR);
                 continue;
             }
             
@@ -732,7 +732,7 @@ b32 load_level(String name) {
     
     close_console();
     
-    log(tstring("Finished loading %s.", c_str(level_path)));
+    log(tstring("Finished loading %s.", c_str(level_path)), POP_INDENTATION);
     
     return true;
 } // load level end.

@@ -51,7 +51,7 @@ void log_to_file(String message) {
     }
         
     assert(log_file.file);
-    fprintf(log_file.file, tprintf("%s\n", c_str(message)));
+    fprintf(log_file.file, c_str(message));
 }
 
 void game_log(const char *str) {
@@ -76,25 +76,67 @@ inline void game_log(Vector2 value) {
     game_log(tprintf("{%f, %f}", value.x, value.y));
 }
 
-inline void log_error(String message) {
-    printf(tprintf("%s%s%s\n", RED_TEXT, c_str(message), RESET_TEXT));
+enum Log_Flags : u64 {
+    LOG_ERROR        = 0x1, 
+    PUSH_INDENTATION = 0x2,
+    POP_INDENTATION  = 0x4,
+};
+
+i32 logs_indentation_count = 0;
+
+void push_log_indentation() {
+    logs_indentation_count += 1;    
+}
+void pop_log_indentation() {
+    logs_indentation_count -= 1;
     
-    String log_message = tstring("%s [ERROR] %s", c_str(get_current_date_with_time_tstring()), c_str(message));
-    log_to_file(log_message);
+    log_if_false(logs_indentation_count >= 0, "Poped too mush log indentation! logs_indentation_count is %s", logs_indentation_count);
 }
 
-inline void log(String message) { 
-    printf(tprintf("%s\n", c_str(message)));
+inline void log(String message, u64 flags) { 
+    String_Builder builder = {.allocator = temp};
     
-    String log_message = tstring("%s [INFO] %s", c_str(get_current_date_with_time_tstring()), c_str(message));
+    for (i32 i = 0; i < logs_indentation_count; i++) {
+        builder_append(&builder, tstring("\t"));    
+    }
+    
+    builder_append(&builder, tstring("%s\n", c_str(message)));
+    
+    String console_message = make_string_from_builder(&builder, temp);
+    
+    if (flags & LOG_ERROR) {
+        printf("%s%s%s", RED_TEXT, c_str(console_message), RESET_TEXT);
+    } else {
+        printf(c_str(console_message));
+    }
+    
+    String log_message = {0};
+    
+    if (flags & LOG_ERROR) {
+        log_message = tstring("%s [ERROR] %s", c_str(get_current_date_with_time_tstring()), c_str(console_message));
+    } else {
+        log_message = tstring("%s [INFO] %s", c_str(get_current_date_with_time_tstring()), c_str(console_message));
+    }
+    
     log_to_file(log_message);
+    
+    // Applying indentation changes afterwards on purpose.
+    if (flags & PUSH_INDENTATION) {
+        push_log_indentation();
+    }
+    if (flags & POP_INDENTATION) {
+        pop_log_indentation();
+    }
+}
+inline void log(const char *message, u64 flags) {
+    log(tstring(message), flags);
 }
 
 inline void log_if_false(b32 expression, const char *message, ...) {
     if (!expression) {
         va_list args;
         va_start(args, message);
-        log_error(tstring(message, args));
+        log(tstring(message, args), LOG_ERROR);
         va_end(args);
     }
 }

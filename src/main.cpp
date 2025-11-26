@@ -154,7 +154,7 @@ int main(){
 
     // main_font = LoadFont("resources/MonospaceBold.ttf");
 
-    SetTraceLogLevel(LOG_WARNING);
+    SetTraceLogLevel(LOG_WARNING_RAYLIB);
 
     InitWindow(screen_width, screen_height, "(Not that) Pure (of a) Action");
     SetWindowState(FLAG_WINDOW_RESIZABLE | FLAG_WINDOW_ALWAYS_RUN);

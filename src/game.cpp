@@ -2041,7 +2041,7 @@ void load_render() {
 }
 
 void init_game() {
-    log(tstring("Initing game."));
+    log(tstring("Initing game."), PUSH_INDENTATION);
 
     initing_game = true;
     
@@ -2122,7 +2122,7 @@ void init_game() {
     
     initing_game = false;
     
-    log(tstring("Finished initing game."));
+    log(tstring("Finished initing game."), POP_INDENTATION);
 } // end init game end
 
 void destroy_player() {
