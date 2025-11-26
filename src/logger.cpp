@@ -76,12 +76,6 @@ inline void game_log(Vector2 value) {
     game_log(tprintf("{%f, %f}", value.x, value.y));
 }
 
-enum Log_Flags : u64 {
-    LOG_ERROR        = 0x1, 
-    PUSH_INDENTATION = 0x2,
-    POP_INDENTATION  = 0x4,
-};
-
 i32 logs_indentation_count = 0;
 
 void push_log_indentation() {

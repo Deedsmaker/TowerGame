@@ -2041,6 +2041,7 @@ void load_render() {
 }
 
 void init_game() {
+    push_performance_timer();
     log(tstring("Initing game."), PUSH_INDENTATION);
 
     initing_game = true;
@@ -2122,7 +2123,8 @@ void init_game() {
     
     initing_game = false;
     
-    log(tstring("Finished initing game."), POP_INDENTATION);
+    i64 elapsed = pop_performance_timer_milliseconds();
+    log(tstring("Finished initing game. Elapsed: %lldms.", elapsed), POP_INDENTATION);
 } // end init game end
 
 void destroy_player() {

@@ -227,8 +227,10 @@ struct Array {
         return data[--count];
     }
     T* pop(){
-        assert(count > 0);
-        return &data[--count];
+        if (count > 0) {
+            return &data[--count];
+        }
+        return NULL;
     }
     
     void free_data() {
