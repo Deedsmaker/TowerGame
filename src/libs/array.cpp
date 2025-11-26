@@ -223,8 +223,10 @@ struct Array {
     }
     
     T pop_value(){
-        assert(count > 0);
-        return data[--count];
+        if (count > 0) {
+            return data[--count];
+        }
+        return {0};
     }
     T* pop(){
         if (count > 0) {
