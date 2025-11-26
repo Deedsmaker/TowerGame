@@ -1,5 +1,5 @@
 #pragma once
-
+#include "logger.h"
 
 void log_short(const char *str) {
     Log_Message *new_log = debug.log_messages_short.append({0});
@@ -23,3 +23,8 @@ inline void log_short(Vector2 value) {
     log_short(tprintf("{%f, %f}", value.x, value.y));
 }
 
+inline void log_if_false(bool expression, String message) {
+    if (!expression) {
+        printf(c_str(message));
+    }
+}

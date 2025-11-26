@@ -754,10 +754,6 @@ void clear_context(Context *context) {
     context->level_name.free_data();
     context->level_name = {0};
     
-    // Id 0 is invalid for good reasons, so we're adding it here.
-    // Entity dummy_entity = {0};
-    // copy_and_add_entity(&dummy_entity, context);
-    
     // context->particles.clear();
     // context->emitters.clear();
     
@@ -3112,7 +3108,6 @@ inline Light *get_light(i32 index, Context *context) {
 }
 
 inline Entity *get_entity(i32 id, Context *context) {
-    assert(id > 0 && "Invalid entity id!");
     if (!context) context = current_context;
     
     // We're always assuming that given id is valid and there will be real entity, because otherwise some entity just forgot 
@@ -3123,13 +3118,6 @@ inline Entity *get_entity(i32 id, Context *context) {
 }
 
 inline Entity *maybe_get_entity(i32 id, Context *context) {
-    assert(id > 0 && "Invalid entity id!");
-    if (!context) context = current_context;
-    
-    if (current_context->entities.is_index_avaliable_for_new_value(id - 1)) {
-        return NULL;
-    }
-    
     return get_entity(id, context);
 }
 

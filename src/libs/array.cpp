@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include "Allocator.cpp"
 #include "my_defines.hpp"
+#include "logger.h"
 
 #define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
 #define for_array_backwards(index, array) for (i32 index = (array)->count - 1; index >= 0; index--)
@@ -41,13 +42,13 @@ struct Array {
     i32 capacity;
     
     inline T *get(i32 index) {
-        assert((index >= 0 && index < count) && "Index out of bounds!");
+        log_if_false((index >= 0 && index < count), tstring("Index %d with count %d out of bounds!", index, count));
         
         return &data[index];
     }
     
     inline T get_value(i32 index) {
-        assert((index >= 0 && index < count) && "Index out of bounds!");
+        log_if_false((index >= 0 && index < count), tstring("Index %d with count %d out of bounds!", index, count));
         
         return data[index];
     }
