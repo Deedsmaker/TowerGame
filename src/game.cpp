@@ -2041,6 +2041,8 @@ void load_render() {
 }
 
 void init_game() {
+    log(tstring("Initing game."));
+
     initing_game = true;
     
     str_copy(loaded_context.name, "loaded_context");
@@ -2119,6 +2121,8 @@ void init_game() {
     load_level(tstring(level_name_to_load));
     
     initing_game = false;
+    
+    log(tstring("Finished initing game."));
 } // end init game end
 
 void destroy_player() {

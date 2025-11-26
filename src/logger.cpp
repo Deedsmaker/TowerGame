@@ -83,6 +83,13 @@ inline void log_error(String message) {
     log_to_file(log_message);
 }
 
+inline void log(String message) { 
+    printf(tprintf("%s%s%s\n", RED_TEXT, c_str(message), RESET_TEXT));
+    
+    String log_message = tstring("%s [INFO] %s", c_str(get_current_date_with_time_tstring()), c_str(message));
+    log_to_file(log_message);
+}
+
 inline void log_if_false(b32 expression, const char *message, ...) {
     if (!expression) {
         va_list args;

@@ -203,5 +203,8 @@ int main(){
     }
     
     CloseWindow();
+    
+    unload_log_file();
+    
     return 0;
 }
