@@ -235,7 +235,7 @@ void save_level(String level_name) {
     
     delete_directory(old_directory_name);
     
-    log_short("Saved.");
+    game_log("Saved.");
 } // Save level end.
 
 Vector2 parse_vector2(Array <String> *splitted, i32 start_index) {

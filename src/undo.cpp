@@ -116,12 +116,11 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
     
     // So that's our code lmao.
     if (CHECK_CHANGES_COUNT && changes.count == 0) {
-        // assert(changes.count > 0);
-        log_short("Something was marked as udno changed but we've not detected any changes!");
+        game_log("Something was marked as udno changed but we've not detected any changes!");
     }
     
     if (LOG_UNDO_DIFFERENCES) {
-        log_short("Undo diff added");
+        game_log("Undo diff added");
     }
     
     return changes;
@@ -254,7 +253,7 @@ inline void update_undo_logic() {
             
             // assert(changes.count > 0);
             if (CHECK_CHANGES_COUNT && changes.count == 0) {
-                log_short("On multiselected undo assigning was detected zero changes!");
+                game_log("On multiselected undo assigning was detected zero changes!");
             }
             add_changes_to_undo(&changes);
         }

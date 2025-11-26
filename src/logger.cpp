@@ -5,7 +5,7 @@ const char* RED_TEXT = "\033[31m";
 const char* GREEN_TEXT = "\033[32m";
 const char* RESET_TEXT = "\033[0m"; 
 
-void log_short(const char *str) {
+void game_log(const char *str) {
     Log_Message *new_log = debug.log_messages_short.append({0});
     str_copy(new_log->data, str);
     
@@ -16,15 +16,15 @@ void log_short(const char *str) {
     
     new_log->birth_time = core.time.app_time;
 }
-inline void log_short(String string) {
-    log_short(c_str(string));
+inline void game_log(String string) {
+    game_log(c_str(string));
 }
 
-inline void log_short(f32 value) {
-    log_short(tprintf("%f", value));
+inline void game_log(f32 value) {
+    game_log(tprintf("%f", value));
 }
-inline void log_short(Vector2 value) {
-    log_short(tprintf("{%f, %f}", value.x, value.y));
+inline void game_log(Vector2 value) {
+    game_log(tprintf("{%f, %f}", value.x, value.y));
 }
 
 inline void log_error(String message) {
