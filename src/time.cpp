@@ -21,7 +21,7 @@ String get_current_date_tstring() {
     return result;
 }
 
-i64 get_milliseconds_since_epoch() {
+i64 get_current_milliseconds_i64() {
     struct timespec info;
     
     timespec_get(&info, TIME_UTC);
@@ -39,7 +39,7 @@ String get_current_date_with_time_tstring() {
     
     auto info = get_time_info();
     
-    i64 milliseconds = get_milliseconds_since_epoch() % 1000;
+    i64 milliseconds = get_current_milliseconds_i64();
     String result = tstring("%s_%02d:%02d:%02d:%03lld", c_str(date), info->tm_hour, info->tm_min, info->tm_sec, milliseconds);
     
     return result;
