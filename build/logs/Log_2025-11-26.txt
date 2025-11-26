@@ -1021,3 +1021,25 @@
 2025-11-26_15:16:43:769 [ERROR] FO REAL 2.698967
 2025-11-26_15:19:50:637 [INFO] Initing game.
 2025-11-26_15:19:51:585 [INFO] Finished initing game.
+2025-11-26_15:57:24:321 [INFO] Initing game.
+2025-11-26_15:57:25:125 [INFO] Loading level levels/test_level
+2025-11-26_15:57:25:211 [INFO] Finished loading levels/test_level.
+2025-11-26_15:57:25:211 [INFO] Finished initing game.
+2025-11-26_15:57:26:149 [INFO] Starting saving level levels/test_level
+2025-11-26_15:57:26:199 [INFO] Finished saving level levels/test_level
+2025-11-26_15:57:28:340 [INFO] Loading level levels/centipede1
+2025-11-26_15:57:28:382 [INFO] Finished loading levels/centipede1.
+2025-11-26_15:57:31:535 [INFO] Starting saving level levels/centipede1
+2025-11-26_15:57:31:573 [INFO] Finished saving level levels/centipede1
+2025-11-26 15:59:02:466 [INFO] Initing game.
+2025-11-26 15:59:03:250 [INFO] Loading level levels/test_level
+2025-11-26 15:59:03:332 [INFO] Finished loading levels/test_level.
+2025-11-26 15:59:03:332 [INFO] Finished initing game.
+2025-11-26 15:59:56:162 [INFO] Initing game.
+2025-11-26 15:59:56:921 [INFO] Loading level levels/test_level
+2025-11-26 15:59:56:974 [INFO] Finished loading levels/test_level.
+2025-11-26 15:59:56:974 [INFO] Finished initing game.
+2025-11-26 16:01:32:817 [INFO] Initing game.
+2025-11-26 16:01:33:595 [INFO] Loading level levels/test_level
+2025-11-26 16:01:33:659 [INFO] Finished loading levels/test_level.
+2025-11-26 16:01:33:659 [INFO] Finished initing game.

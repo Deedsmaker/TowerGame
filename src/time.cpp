@@ -40,7 +40,7 @@ String get_current_date_with_time_tstring() {
     auto info = get_time_info();
     
     i64 milliseconds = get_current_milliseconds_i64();
-    String result = tstring("%s_%02d:%02d:%02d:%03lld", c_str(date), info->tm_hour, info->tm_min, info->tm_sec, milliseconds);
+    String result = tstring("%s %02d:%02d:%02d:%03lld", c_str(date), info->tm_hour, info->tm_min, info->tm_sec, milliseconds);
     
     return result;
 }

@@ -3,6 +3,7 @@
 #include "string.cpp"
 #include "array.cpp"
 #include "Allocator.cpp"
+#include "logger.h"
 
 String level_name_to_path(String name) {
     return tstring("levels/%s", c_str(name));
@@ -10,6 +11,11 @@ String level_name_to_path(String name) {
 
 void save_level(String level_name) {
     String level_directory_name = level_name_to_path(level_name);
+
+    b32 is_autosave = string_contains(level_directory_name, tstring("autosaves"));
+    if (!is_autosave) {
+        log(tstring("Starting saving level %s", c_str(level_directory_name)));
+    }
 
     String old_directory_name = tstring("%s_old", c_str(level_directory_name));
     
@@ -235,7 +241,11 @@ void save_level(String level_name) {
     
     delete_directory(old_directory_name);
     
-    game_log("Saved.");
+    if (!is_autosave) {
+        log(tstring("Finished saving level %s", c_str(level_directory_name)));
+        game_log("Saved.");
+    }
+    
 } // Save level end.
 
 Vector2 parse_vector2(Array <String> *splitted, i32 start_index) {
@@ -358,6 +368,8 @@ void create_level(String name) {
         return;
     }
     
+    log(tstring("Creating level %s", c_str(path)));
+    
     clean_up_scene();
     // switch_current_context(&loaded_context);
     // clear_context(&loaded_context);
@@ -388,6 +400,8 @@ b32 load_level(String name) {
         return true;
     }
     
+    log(tstring("Loading level %s", c_str(level_path)));
+    
     clean_up_scene();
     switch_current_context(&loaded_context, true);
     clear_context(&loaded_context);
@@ -405,7 +419,7 @@ b32 load_level(String name) {
     
     Array <String> level_files = get_files_in_directory(level_path, temp);
     if (level_files.count == 0) {
-        printf("Level directory was empty!\n");
+        log_error(tstring("Level directory %s was empty! We're stopping loading.\n", c_str(level_path)));
         return false;
     }
     
@@ -415,12 +429,12 @@ b32 load_level(String name) {
     
     i32 level_info_file_index =  find_file_name_in_paths(&level_files, level_info_file_name);
     if (level_info_file_index < 0) {
-        printf("Failed to find level info file!\n");
+        log(tstring("Failed to find %s file!\n", c_str(level_info_file_name)));
     } else {
         b32 success = false;
         String level_info = read_entire_file(level_files.get_value(level_info_file_index), &success, temp);
         if (!success) {
-            printf("Failed to read level info file!\n");
+            log_error(tstring("Failed to read %s file! Stopping loading.\n", c_str(level_info_file_name)));
             return false;
         }
         
@@ -451,7 +465,7 @@ b32 load_level(String name) {
             b32 success = false;
             String entity_info = read_entire_file(file_path, &success, temp);
             if (!success) {
-                printf("Failed to read entity file data!\n");
+                log_error(tstring("Failed to read entity file data from file %s\n", c_str(file_path)));
                 continue;
             }
             
@@ -717,6 +731,8 @@ b32 load_level(String name) {
     current_context->cam.target = current_context->player_spawn_point;
     
     close_console();
+    
+    log(tstring("Finished loading %s.", c_str(level_path)));
     
     return true;
 } // load level end.
