@@ -18,6 +18,7 @@
 #include "raymath.h"
 #include "rlgl.h"
 
+#include "time.cpp"
 #include "files.cpp"
 // #include <windows.h>
 
@@ -49,8 +50,6 @@ b32 window_minimized = false;
 #include "game.cpp"
 
 void make_thing() {
-    init_allocator(temp, Megabytes(4));
-
     const char *letters = "QWERTYUIOPASDFGHJKLZXCVBNM";
 
     int size = 0;
@@ -147,6 +146,8 @@ void make_thing() {
 }
 
 int main(){
+    init_allocator(temp, Megabytes(16));
+
     // make_thing();
     
     // return 0;

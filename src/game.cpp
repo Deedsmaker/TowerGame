@@ -2043,9 +2043,6 @@ void load_render() {
 void init_game() {
     initing_game = true;
     
-    // Init arenas..
-    init_allocator(temp, Megabytes(16));
-    
     str_copy(loaded_context.name, "loaded_context");
     // str_copy(editor_context.name, "editor_context");
     str_copy(game_context.name, "game_context");

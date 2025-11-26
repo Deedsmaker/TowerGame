@@ -42,13 +42,13 @@ struct Array {
     i32 capacity;
     
     inline T *get(i32 index) {
-        log_if_false((index >= 0 && index < count), tstring("Index %d with count %d out of bounds!", index, count));
+        log_if_false((index >= 0 && index < count), "Index %d with count %d out of bounds!", index, count);
         
         return &data[index];
     }
     
     inline T get_value(i32 index) {
-        log_if_false((index >= 0 && index < count), tstring("Index %d with count %d out of bounds!", index, count));
+        log_if_false((index >= 0 && index < count), "Index %d with count %d out of bounds!", index, count);
         
         return data[index];
     }

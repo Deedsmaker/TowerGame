@@ -31,8 +31,11 @@ inline void log_error(String message) {
     printf(tprintf("%s%s%s", RED_TEXT, c_str(message), RESET_TEXT));
 }
 
-inline void log_if_false(bool expression, String message) {
+inline void log_if_false(bool expression, const char *message, ...) {
     if (!expression) {
-        log_error(message);
+        va_list args;
+        va_start(args, message);
+        log_error(tstring(message, args));
+        va_end(args);
     }
 }
