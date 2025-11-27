@@ -8,6 +8,14 @@
 #define MEDIUM_STR_LEN 1024
 #define MAX_TEMP_LINES 16
 
+struct String_Builder {
+    Allocator *allocator = NULL;  
+    
+    char *data = NULL;
+    i32 count = 0;
+    i32 capacity = 0;
+};
+
 global_variable char temp_lines[MAX_TEMP_LINES][MEDIUM_STR_LEN];
 global_variable i32 temp_line_index = 0;
 
@@ -335,7 +343,7 @@ b32 str_equal(const char *first, char *second){
     return true;
 }
 
-const char *tprintf(const char *text, ...){
+const char *tprintf(const char *text, ...){ 
     char *current_buffer = temp_lines[temp_line_index];
     // mem_set(current_buffer, 0, MEDIUM_STR_LEN);
     current_buffer[0] = 0;
@@ -355,7 +363,7 @@ const char *tprintf(const char *text, ...){
     return current_buffer;
 }
 
-i32 to_i32(const char *text){
+i32 to_i32(const char *text){ 
     i32 value = 0;
     i32 sign = 1;
     
@@ -620,17 +628,61 @@ inline b32 string_contains(String s, String to_find) {
     return string_find(s, to_find) >= 0;
 }
 
+void builder_append(String_Builder *builder, char ch);
+void builder_append(String_Builder *builder, const char *str);
+void builder_append(String_Builder *builder, String string);
+String make_string_from_builder(String_Builder *builder, Allocator *allocator);
+
 String tstring(const char *text, ...) {
-    String result_string = {.allocator = temp};
+    String_Builder builder = {.allocator = temp};
     
     va_list args;
     va_start(args, text);
-    i32 byte_count = vsnprintf(result_string.data, 0, text, args);
-    result_string.data = alloc(result_string.allocator, byte_count + 1);
-    vsnprintf(result_string.data, byte_count + 1, text, args);
+    
+    for (const char *ch = text; *ch != '\0'; ch++) {
+        switch (*ch) {
+            case '%': {
+                ch++;
+                if (!*ch) break;
+                switch (*ch) {
+                    case 's': {
+                        char *str = va_arg(args, char *);
+                        builder_append(&builder, str);                        
+                    } break;
+                    case 'S': {
+                        String string = va_arg(args, String);
+                        builder_append(&builder, string);
+                    } break;
+                    case 'c': {
+                        char character = va_arg(args, char);
+                        builder_append(&builder, character);                        
+                    } break;
+                    case 'd': {
+                        i32 number = va_arg(args, i32);
+                        builder_append(&builder, tprintf("%d", number));                        
+                    } break;
+                    case 'u': {
+                        u32 number = va_arg(args, u32);
+                        builder_append(&builder, tprintf("%u", number));             
+                    } break;
+                    case 'l': {
+                        i64 number = va_arg(args, i64);
+                        builder_append(&builder, tprintf("%lld", number));                        
+                    } break;
+                    default: {
+                        builder_append(&builder, '%');
+                    } break;
+                }
+            } break;
+            default: {
+                builder_append(&builder, *ch);
+            } break;
+        }
+    }
+    
     va_end(args);
     
-    result_string.count = byte_count;
+    String result_string = make_string_from_builder(&builder, temp);
     
     return result_string;
 }
@@ -657,14 +709,6 @@ struct Long_Str {
 };
 
 
-struct String_Builder {
-    Allocator *allocator = NULL;  
-    
-    char *data = NULL;
-    i32 count = 0;
-    i32 capacity = 0;
-};
-
 char *c_str(String_Builder *builder) {
     // Currently we null-terminate strings and builders by default, so returning just data.
     return builder->data;
@@ -679,16 +723,14 @@ void init_string_builder(String_Builder *builder, i32 capacity) {
 }
 
 
-
-
 // @TODO: I would like to get rid of null ternimation on strings, but while we working with Raylib that could be hard.
-static inline void builder_grow_if_need(String_Builder *builder, String appended_string) {
+static inline void builder_grow_if_need(String_Builder *builder, int appended_count) {
     assert(builder->data && builder->capacity > 0);
     
-    if (builder->count + appended_string.count + 1 > builder->capacity) {
+    if (builder->count + appended_count + 1 > builder->capacity) {
         char *old_data = builder->data;
         
-        while(builder->count + appended_string.count + 1 > builder->capacity) {
+        while (builder->count + appended_count + 1 > builder->capacity) {
             builder->capacity *= 2;
         }
         
@@ -699,6 +741,22 @@ static inline void builder_grow_if_need(String_Builder *builder, String appended
     }
 }
 
+
+static inline void builder_grow_if_need(String_Builder *builder, String appended_string) {
+    builder_grow_if_need(builder, appended_string.count);
+}
+
+void builder_append(String_Builder *builder, const char *appended_str) {
+    if (!builder->data) init_string_builder(builder, 2048);
+    
+    size_t len = str_len(appended_str);
+    
+    builder_grow_if_need(builder, len);    
+    
+    mem_copy(builder->data + builder->count, (void *)appended_str, len * sizeof(char));
+    builder->count += len;
+    builder->data[builder->count] = '\0';
+}
 void builder_append(String_Builder *builder, String appended_string) {
     if (!builder->data) init_string_builder(builder, 2048);
     
@@ -706,6 +764,16 @@ void builder_append(String_Builder *builder, String appended_string) {
     
     mem_copy(builder->data + builder->count, appended_string.data, appended_string.count * sizeof(char));
     builder->count += appended_string.count;
+    builder->data[builder->count] = '\0';
+}
+
+void builder_append(String_Builder *builder, char ch) {
+    if (!builder->data) init_string_builder(builder, 512);
+    
+    builder_grow_if_need(builder, 1);
+    
+    builder->data[builder->count] = ch;
+    builder->count += 1;
     builder->data[builder->count] = '\0';
 }
 
