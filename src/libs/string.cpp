@@ -670,7 +670,7 @@ String tstring(const char *text, ...) {
                         builder_append(&builder, tprintf("%lld", number));                        
                     } break;
                     default: {
-                        builder_append(&builder, '%');
+                        builder_append(&builder, "UNHANdLEd_ARG");
                     } break;
                 }
             } break;
