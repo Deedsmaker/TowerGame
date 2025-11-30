@@ -438,7 +438,7 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                     player->state_flags |= SWORD_ATTACKING;
                     player->state_flags |= JUST_ENDED_PREPARING_ATTACK;
                     
-                    player->to_spin_angle_amount = 720;
+                    player->to_spin_angle_amount = 1440;
                     
                     player->velocity.x += 200 * player->sword_spin_direction;
                 }
@@ -477,7 +477,7 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
         change_color(sword, player->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
         
         if (player->state_flags & KILLING_CENTIPEDE) {
-            f32 spin_velocity = player->SWORD_SPIN_SPEED * 4 * player->sword_spin_direction;
+            f32 spin_velocity = player->SWORD_SPIN_SPEED * player->sword_spin_direction;
             
             spin_sword(sword, entity, player, spin_velocity * dt);
         }

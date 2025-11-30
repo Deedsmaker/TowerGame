@@ -7933,7 +7933,7 @@ f32 move_towards(f32 current, f32 target, f32 speed, f32 dt) {
         move_len = abs(required);
     }
     
-    current += normalized(move_len) * move_len;
+    current += normalized(required) * move_len;
     
     return current;
 }

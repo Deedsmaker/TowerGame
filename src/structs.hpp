@@ -727,7 +727,7 @@ struct Player {
     f32 heavy_collision_time = 0;
     Vector2 heavy_collision_velocity = Vector2_zero;
     
-    inline static const f32 SWORD_SPIN_SPEED = 1000;
+    inline static const f32 SWORD_SPIN_SPEED = 2000;
     
     Vector2 sword_start_scale = {2.0f, 12.0f};
     // Vector2 sword_ground_mode_scale = {3.0f, 18.0f};
