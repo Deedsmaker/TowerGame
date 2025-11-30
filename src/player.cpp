@@ -104,7 +104,28 @@ void stop_sword_mode(Player *player_data) {
     remove_flag(&player_data->state_flags, SWORD_ATTACKING);
 }
 
-void player_start_killing_centipede(Entity *segment_entity, Player *player_data) {
+void flick_to_enemy(Entity *player_entity, Player *player, Entity *enemy_entity) {
+    if (!enemy_entity->union_enemy) {
+        log("On flick_to_enemy: enemy_entity does not have union_enemy on him.", LOG_ERROR);
+        return;
+    }
+    
+    if (enemy_entity->union_enemy->dead_man) {
+        return;
+    }
+    
+    make_line(player_entity->position, enemy_entity->position, 2.0f, Fade(RED, 0.5f), 0.5f);
+    
+    player_entity->position = enemy_entity->position;
+    player->velocity.y = 100;
+    
+    if (player->sword_mode == AIR_MODE) {
+        player->this_attack_killed_count += 1;
+        player->to_spin_angle_amount += 360;
+    }
+}
+
+void player_start_killing_centipede(Entity *segment_entity, Player *player) {
     assert(segment_entity->flags & CENTIPEDE_SEGMENT);
     
     // That would mean that we've hit the top segment, so no need to going in KILLING_CENTIPEDE state.
@@ -112,18 +133,22 @@ void player_start_killing_centipede(Entity *segment_entity, Player *player_data)
         return;
     }
     
-    if (player_data->state_flags & HIT_CENTIPEDE_THIS_SPIN) {
+    if (player->state_flags & KILLING_CENTIPEDE) {
         return;
     }
     
-    segment_entity->context->player_entity->position = segment_entity->position;
-
-    player_data->state_flags |= HIT_CENTIPEDE_THIS_SPIN;
+    if (player->state_flags & HIT_CENTIPEDE_THIS_SPIN) {
+        return;
+    }
     
-    player_data->state_flags |= KILLING_CENTIPEDE;
-    player_data->state_flags |= PLAYER_INVINCIBLE;
-    player_data->last_segment_kill_time = current_context->game_time;
-    player_data->last_killed_segment = segment_entity;
+    flick_to_enemy(segment_entity->context->player_entity, player, segment_entity);
+
+    player->state_flags |= HIT_CENTIPEDE_THIS_SPIN;
+    
+    player->state_flags |= KILLING_CENTIPEDE;
+    player->state_flags |= PLAYER_INVINCIBLE;
+    player->last_segment_kill_time = current_context->game_time;
+    player->last_killed_segment = segment_entity;
 }
 
 void player_stop_killing_centipede(Player *player_data) {
@@ -147,8 +172,8 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         return false;
     }
     
-    Entity *player_entity = current_context->player_entity;
-    Player *player_data = &enemy_entity->context->player;
+    Entity *player_entity = enemy_entity->context->player_entity;
+    Player *player = &enemy_entity->context->player;
 
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !is_player_in_stun(player_entity) && is_enemy_can_take_damage(enemy_entity)) {
@@ -159,7 +184,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         if (enemy_entity->flags & AMMO_PACK) {
             add_player_ammo(1);
         }
-        add_blood_amount(player_data, 10);
+        add_blood_amount(player, 10);
     
         b32 was_alive_before_hit = !enemy->dead_man;
         f32 hitstop_add = 0;
@@ -180,25 +205,26 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         }
         
         // Sword centipede kill.
-        if (enemy_entity->flags & CENTIPEDE_SEGMENT && !(player_data->state_flags & KILLING_CENTIPEDE)) {
-            player_start_killing_centipede(enemy_entity, player_data);
-        }
-        
-        if (enemy_entity->flags & BIRD_ENEMY) {
-            // flick_to_enemy(enemy_entity->context->player_entity, player_data, enemy_entity
+        if (enemy_entity->flags & CENTIPEDE_SEGMENT) {
+            player_start_killing_centipede(enemy_entity, player);
         }
         
         if (can_kill) {
             if (enemy_entity->flags & GIVES_BIG_SWORD_CHARGE) {
-                player_data->current_big_sword_charges += 1;                
-                clamp(&player_data->current_big_sword_charges, 0, player_data->max_big_sword_charges);
+                player->current_big_sword_charges += 1;                
+                clamp(&player->current_big_sword_charges, 0, player->max_big_sword_charges);
             }
             
-            if (enemy_entity->flags & BIRD_ENEMY) {
+            if (enemy_entity->flags & HIT_BOOSTER) {
+                flick_to_enemy(player_entity, player, enemy_entity);
+            } else if (enemy_entity->flags & BIRD_ENEMY) {
+                flick_to_enemy(player_entity, player, enemy_entity);
                 sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy->velocity);
             } else if (enemy_entity->flags & JUMP_SHOOTER) {
+                flick_to_enemy(player_entity, player, enemy_entity);
                 sword_kill_enemy(enemy_entity, &enemy_entity->jump_shooter->velocity);
             } else if (enemy_entity->flags & WIN_BLOCK) {
+                flick_to_enemy(player_entity, player, enemy_entity);
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, 1.0f);
             } else {
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, 1));
@@ -206,16 +232,16 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             
             killed_enemy = true;
         }
-        // player_data->sword_angular_velocity += player_data->sword_spin_direction * 1400;
+        // player->sword_angular_velocity += player->sword_spin_direction * 1400;
         
-        f32 max_speed_boost = 6 * player_data->sword_spin_direction * enemy->sword_kill_speed_modifier;
-        f32 max_vertical_speed_boost = player_data->grounded ? 0 : 20;
-        if (player_data->velocity.y > 0) {
+        f32 max_speed_boost = 6 * player->sword_spin_direction * enemy->sword_kill_speed_modifier;
+        f32 max_vertical_speed_boost = player->grounded ? 0 : 20;
+        if (player->velocity.y > 0) {
             max_vertical_speed_boost *= 0.3f;   
         }
         
-        if (!player_data->grounded) {
-            player_data->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
+        if (!player->grounded) {
+            player->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
         }
                          
         if (was_alive_before_hit) {
@@ -420,6 +446,8 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                 player->sword_attack_start_angle = sword->rotation;
                 
                 player->state_flags |= PREPARING_SWORD;
+                
+                player->this_attack_killed_count = 0;
             }
         }
             

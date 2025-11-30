@@ -8248,6 +8248,7 @@ void fill_entities_draw_queue() {
                     make_line(entity->position, connected->position, RED);
                 }
                 
+                // Draw trigger lines.
                 if (trigger->triggered && since_triggered <= 1.5f) {
                     f32 full_t = since_triggered / 1.5f;
                     Color start_color = Fade(PURPLE, 0);
@@ -9132,7 +9133,7 @@ void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivo
     render.textures_to_draw.append(im_texture);
 }
 
-void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color) {
+void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color, f32 lifetime) {
     if (!should_add_immediate_stuff()) {
         return;
     }
@@ -9141,7 +9142,13 @@ void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color
     line.target_position = target_position;
     line.color = color;
     line.thick = thick;
-    render.lines_to_draw.append(line);
+    line.lifetime = lifetime;
+    
+    if (line.lifetime <= 0) {
+        render.lines_to_draw.append(line);
+    } else {
+        render.lines_to_draw_persistent.append(line);
+    }
 }
 
 inline void make_line(Vector2 start_position, Vector2 target_position, Color color) {
@@ -9265,6 +9272,22 @@ void draw_immediate_stuff() {
         render.rect_lines_to_draw.clear();
         render.textures_to_draw.clear();
         render.outlines_to_draw.clear();
+    }
+    
+    for_array_backwards(i, &render.lines_to_draw_persistent) {
+        Line *line = render.lines_to_draw_persistent.get(i);
+        
+        line->lifetime_timer += core.time.dt;
+        f32 t = clamp01(line->lifetime_timer / line->lifetime);
+        
+        Color color = lerp(line->color, Fade(line->color, 0), t * t * t);
+        f32 thick = lerp(line->thick, 0.0f, EaseInOutQuad(t));
+        
+        draw_game_line(line->start_position, line->target_position, thick, color);
+        
+        if (t >= 1) {
+            render.lines_to_draw_persistent.remove(i);
+        }
     }
 }
 
