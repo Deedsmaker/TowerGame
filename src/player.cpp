@@ -721,11 +721,17 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
     player_data->velocity.x += dir.x * acceleration_speed;
 }
 
-void player_ground_move(Entity *entity, f32 dt) {
+void player_ground_move(Entity *entity, Player *player, f32 dt) {
     // f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
     f32 walk_speed = player_data->ground_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
+    
+    if (player->state_flags & AIR_MODE) {
+        if (input_direction.x != player->sword_spin_direction && input_direction.x != 0) {
+            input_direction.x = player->sword_spin_direction;
+        }
+    }
     
     b32 wanna_stop = input_direction.x == 0 || player_data->on_no_move_block;
     
@@ -764,11 +770,17 @@ void player_ground_move(Entity *entity, f32 dt) {
     }
 }
 
-void player_air_move(Entity *entity, f32 dt) {
+void player_air_move(Entity *entity, Player *player, f32 dt) {
     // f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
     f32 walk_speed = player_data->air_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
+    
+    if (player->state_flags & SWORD_ATTACKING) {
+        if (input_direction.x != player->sword_spin_direction && input_direction.x != 0) {
+            input_direction.x = player->sword_spin_direction;
+        }
+    }
     
     b32 wanna_stop = input_direction.x == 0;
     
@@ -866,7 +878,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         }
         // Player ground move.
     } else if (player_data->grounded && !is_player_in_stun(entity) && !player_data->on_propeller) {
-        player_ground_move(entity, dt);
+        player_ground_move(entity, player_data, dt);
         
         player_snap_to_plane(entity, player_data->ground_normal);
         
@@ -898,7 +910,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         }
         
         if (!is_player_in_stun(entity)) {
-            player_air_move(entity, dt);
+            player_air_move(entity, player_data, dt);
         }
         
         // In air and in big sword mode we keeping velocity mostly horizontal for more control.
