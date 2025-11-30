@@ -661,6 +661,10 @@ String tstring(const char *text, ...) {
                         char character = va_arg(args, char);
                         builder_append(&builder, character);                        
                     } break;
+                    case 'f': {
+                        float number = va_arg(args, float);
+                        builder_append(&builder, tprintf("%f", number));                        
+                    } break;
                     case 'd': {
                         i32 number = va_arg(args, i32);
                         builder_append(&builder, tprintf("%d", number));                        
