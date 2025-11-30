@@ -727,10 +727,10 @@ struct Player {
     f32 heavy_collision_time = 0;
     Vector2 heavy_collision_velocity = Vector2_zero;
     
-    inline static const f32 SWORD_SPIN_SPEED = 4500;
+    inline static const f32 SWORD_SPIN_SPEED = 1000;
     
     Vector2 sword_start_scale = {2.0f, 12.0f};
-    Vector2 sword_ground_mode_scale = {3.0f, 18.0f};
+    // Vector2 sword_ground_mode_scale = {3.0f, 18.0f};
     Vector2 sword_air_mode_scale = {9.0f, 46.0f};
     
     inline static const f32 SWORD_PREPARE_TIME = 0.4f;
@@ -740,7 +740,7 @@ struct Player {
     
     // inline static const f32 SWORD_SPIN_TIME = 0.8f;
     // f32 sword_spin_timer = 0;
-    f32 to_spin = 0;
+    f32 to_spin_angle_amount = 0;
 
     Sword_Mode sword_mode = RIFLE_MODE;
     // b32 in_big_sword = false;
@@ -779,8 +779,6 @@ struct Player {
     i32 current_big_sword_charges = 3;
     
     f32 sword_spin_direction = 0;
-    f32 sword_angular_velocity = 0;  
-    f32 sword_spin_progress = 0;
     
     b32 sword_hit_ground = false;
     

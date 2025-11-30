@@ -8820,7 +8820,7 @@ void draw_entities() {
             // Update_entity(e, core.time.not_updated_accumulated_dt);.
             e->position += get_entity_velocity(e) * core.time.not_updated_accumulated_dt;
             if (e->flags & SWORD) {
-                rotate(e, player_data->sword_angular_velocity * core.time.not_updated_accumulated_dt);
+                // rotate(e, player_data->sword_angular_velocity * core.time.not_updated_accumulated_dt);
             }
             
             if (e->flags & STICKY_TEXTURE) {
@@ -9408,11 +9408,6 @@ void draw_game() {
     }
     
     if (editor_state == GAME && current_context->player) {
-        if (debug.info_spin_progress) {
-            draw_text(tprintf("Spin progress: %.2f", player_data->sword_spin_progress), 10, v_pos, font_size, RED);
-            v_pos += font_size;
-        }
-        
         if (debug.info_blood_progress) {
             draw_text(tprintf("Blood progress: %.2f", player_data->blood_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;

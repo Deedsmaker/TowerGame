@@ -6,12 +6,12 @@ void add_blood_amount(Player *player, f32 added) {
     player->blood_progress = player->blood_amount / player->max_blood_amount;
 }
 
-void set_sword_velocity(f32 value) {
-    player_data->sword_angular_velocity = value;
-    player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
-    f32 sword_max_spin_speed = 5000;
-    player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
-}
+// void set_sword_velocity(f32 value) {
+//     player_data->sword_angular_velocity = value;
+//     player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
+//     f32 sword_max_spin_speed = 5000;
+//     player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
+// }
 
 inline void add_player_ammo(i32 amount) {
     player_data->ammo_count += amount;
@@ -99,7 +99,7 @@ void stop_sword_mode(Player *player_data) {
         play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
     }
     player_data->sword_mode = RIFLE_MODE;
-    player_data->to_spin = 0;
+    player_data->to_spin_angle_amount = 0;
     
     remove_flag(&player_data->state_flags, SWORD_ATTACKING);
 }
@@ -193,7 +193,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             } else if (enemy_entity->flags & WIN_BLOCK) {
                 kill_enemy(enemy_entity, hit_position, particles_direction, false, 1.0f);
             } else {
-                kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, sqrtf(player_data->sword_spin_progress)));
+                kill_enemy(enemy_entity, hit_position, particles_direction, false, lerp(1.0f, 1.5f, 1));
             }
             
             killed_enemy = true;
@@ -267,7 +267,10 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
             if (is_sword_can_damage() && !can_sword_damage_enemy(other)) {
                 player_data->velocity = player_data->velocity * -0.5f;
                 emit_particles(&rifle_bullet_emitter, col.point, col.normal, 3, 5);
-                set_sword_velocity(normalized(-player_data->sword_angular_velocity) * 150);
+                // set_sword_velocity(normalized(-player_data->sword_angular_velocity) * 150);
+                
+                stop_sword_mode(player_data);
+                
                 player_data->weak_recoil_stun_start_time = current_context->game_time;
                 add_hitstop(0.1f);
                 shake_camera(0.7f);
@@ -283,10 +286,10 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
             try_sword_damage_enemy(other, sword->position + sword->up * sword->scale.y * sword->pivot.y);
         }
         
-        if (other->flags & BLOCK_ROPE && player_data->sword_spin_progress >= 0.7f) {
-            // cut rope
-            cut_rope(other, col.point);
-        }
+        // if (other->flags & BLOCK_ROPE && player_data->sword_spin_progress >= 0.7f) {
+        //     // cut rope
+        //     cut_rope(other, col.point);
+        // }
         
         if (other->flags & GROUND || other->flags & CENTIPEDE_SEGMENT || other->flags & PLATFORM) {
             player_data->sword_hit_ground = true;
@@ -348,16 +351,16 @@ inline b32 is_player_in_stun(Entity *entity) {
     return (in_weak_stun_time <= max_weak_stun_time);
 }
 
-void change_sword_spin_progress(Player *player_data, i32 direction, f32 progress) {
-    direction = clamp(direction, -1, 1);
+// void change_sword_spin_progress(Player *player_data, i32 direction, f32 progress) {
+//     direction = clamp(direction, -1, 1);
 
-    player_data->sword_spin_progress = progress;
-    player_data->sword_angular_velocity = direction * progress * player_data->SWORD_SPIN_SPEED;
+//     player_data->sword_spin_progress = progress;
+//     player_data->sword_angular_velocity = direction * progress * player_data->SWORD_SPIN_SPEED;
     
-    player_data->is_sword_accelerating = direction != 0;
-    player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
-    assert(player_data->sword_spin_direction == direction);
-}
+//     player_data->is_sword_accelerating = direction != 0;
+//     player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
+//     assert(player_data->sword_spin_direction == direction);
+// }
 
 void spin_sword(Entity *sword, Entity *player_entity, Player *player, f32 spin_amount) {
     static const f32 MAX_ONE_TIME_ROTATION_AMOUNT = 5;
@@ -389,6 +392,10 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
     
     // Changing mode and managing size.
     {
+        if (player->state_flags & KILLING_CENTIPEDE) {
+            goto killing_centipede_sword_case;
+        }
+    
         if (player->sword_mode == RIFLE_MODE) {
             if (input.press_flags & SPIN && player->current_big_sword_charges > 0) {            
                 player->sword_mode = AIR_MODE;
@@ -431,7 +438,7 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                     player->state_flags |= SWORD_ATTACKING;
                     player->state_flags |= JUST_ENDED_PREPARING_ATTACK;
                     
-                    player->to_spin = 720;
+                    player->to_spin_angle_amount = 720;
                 }
             } 
             
@@ -442,53 +449,37 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                 } else {
                 }
                                 
-                static const f32 SPIN_SPEED = 1000;
+                f32 spin_velocity = player->SWORD_SPIN_SPEED * player->sword_spin_direction;
+                f32 spin_amount = abs(spin_velocity) * dt;
                 
-                player->sword_angular_velocity = SPIN_SPEED * player->sword_spin_direction;
-                f32 spin_amount = abs(player->sword_angular_velocity) * dt;
+                spin_sword(sword, entity, player, spin_velocity * dt);
                 
-                spin_sword(sword, entity, player, player->sword_angular_velocity * dt);
+                player->to_spin_angle_amount -= spin_amount;
                 
-                player->to_spin -= spin_amount;
-                
-                if (player->to_spin < 0) {
+                if (player->to_spin_angle_amount < 0) {
                     stop_sword_mode(player);
                 }
             }
         }
         
+    killing_centipede_sword_case:
+        
         Vector2 sword_target_scale = player->sword_start_scale;
-        if      (player->sword_mode == GROUND_MODE) sword_target_scale = player->sword_ground_mode_scale;
-        else if (player->sword_mode == AIR_MODE)    sword_target_scale = player->sword_air_mode_scale;
+        // if      (player->sword_mode == GROUND_MODE) sword_target_scale = player->sword_ground_mode_scale;
+        
+        if (!(player->state_flags & KILLING_CENTIPEDE)) {
+            if (player->sword_mode == AIR_MODE)    sword_target_scale = player->sword_air_mode_scale;
+        }
         
         change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
         change_color(sword, player->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
-
+        
+        if (player->state_flags & KILLING_CENTIPEDE) {
+            f32 spin_velocity = player->SWORD_SPIN_SPEED * 4 * player->sword_spin_direction;
+            
+            spin_sword(sword, entity, player, spin_velocity * dt);
+        }
     }
-    
-    // Sword changing mode and size.
-    // {
-    //     if (player->sword_mode == RIFLE_MODE) {
-    //         if (input.press_flags & SPIN && player->current_big_sword_charges > 0) {
-    //             start_sword_mode(player);
-    //         }
-    //     } else { // In sword mode.
-    //         f32 since_sword_mode_change = current_context->game_time - player->sword_mode_change_time;
-    //         static const f32 SWORD_TIME = 1.4f;
-    //         if (since_sword_mode_change > SWORD_TIME && !(player->state_flags & KILLING_CENTIPEDE)) {
-    //             stop_sword_mode(player);
-    //         }
-    //     }
-        
-    //     // big sword
-        
-    //     Vector2 sword_target_scale = player->sword_start_scale;
-    //     if      (player->sword_mode == GROUND_MODE) sword_target_scale = player->sword_ground_mode_scale;
-    //     else if (player->sword_mode == AIR_MODE)    sword_target_scale = player->sword_air_mode_scale;
-        
-    //     change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
-    //     change_color(sword, player->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
-    // } // End sword changing mode and size.
     
     // Calculating required spin.
     // if (0) {
@@ -605,9 +596,9 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
             emit_particles(&gunpowder_emitter, sword_tip, sword->up);
         }
         
-        player_data->sword_angular_velocity = 0;
+        // player_data->sword_angular_velocity = 0;
         player_data->is_sword_accelerating = 0;
-        player_data->sword_spin_progress = 0;
+        // player_data->sword_spin_progress = 0;
     
         Vector2 sword_vec_to_mouse = input.mouse_position - sword->position;
         Vector2 sword_to_mouse = normalized(sword_vec_to_mouse);
@@ -838,7 +829,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     } else if (player_data->state_flags & KILLING_CENTIPEDE) {
         assert(player_data->last_killed_segment);
         
-        player_data->sword_spin_progress = 1;
+        // player_data->sword_spin_progress = 1;
         Entity *current = player_data->last_killed_segment;
         if (current->centipede_segment->head->will_be_destroyed) {
             player_stop_killing_centipede(player_data);
