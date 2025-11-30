@@ -439,6 +439,8 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                     player->state_flags |= JUST_ENDED_PREPARING_ATTACK;
                     
                     player->to_spin_angle_amount = 720;
+                    
+                    player->velocity.x += 200 * player->sword_spin_direction;
                 }
             } 
             
@@ -720,7 +722,8 @@ void player_accelerate(Entity *entity, Vector2 dir, f32 wish_speed, f32 accelera
 }
 
 void player_ground_move(Entity *entity, f32 dt) {
-    f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
+    // f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_ground_walk_speed : player_data->ground_walk_speed;
+    f32 walk_speed = player_data->ground_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -762,7 +765,8 @@ void player_ground_move(Entity *entity, f32 dt) {
 }
 
 void player_air_move(Entity *entity, f32 dt) {
-    f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
+    // f32 walk_speed = player_data->sword_mode == AIR_MODE ? player_data->big_sword_air_walk_speed : player_data->air_walk_speed;
+    f32 walk_speed = player_data->air_walk_speed;
     
     Vector2 input_direction = input.sum_direction;
     
@@ -808,7 +812,6 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (player_data->dead_man) {
         return;
     }
-    
     Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
     Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
     Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
@@ -825,7 +828,8 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     } else if (player_in_hit_booster) {
           
     } else if (player_data->state_flags & PREPARING_SWORD) {
-        player_data->velocity = move_towards(player_data->velocity, Vector2_zero, 400, dt);
+        player_data->velocity.x = move_towards(player_data->velocity.x, 0.0f, 400, dt);
+        player_data->velocity.y = move_towards(player_data->velocity.y, 0.0f, 100, dt);
     } else if (player_data->state_flags & KILLING_CENTIPEDE) {
         assert(player_data->last_killed_segment);
         
@@ -860,8 +864,8 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
             entity->position = player_data->last_killed_segment->position;
             player_data->velocity = Vector2_zero;
         }
-    } else if (player_data->grounded && !is_player_in_stun(entity) && !player_data->on_propeller) {
         // Player ground move.
+    } else if (player_data->grounded && !is_player_in_stun(entity) && !player_data->on_propeller) {
         player_ground_move(entity, dt);
         
         player_snap_to_plane(entity, player_data->ground_normal);
@@ -900,10 +904,11 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         // In air and in big sword mode we keeping velocity mostly horizontal for more control.
         // This on wall check needs so that our wall boost system worked nice.
         if (player_data->sword_mode == AIR_MODE && !player_data->on_wall) {
-            player_data->velocity.y = lerp(player_data->velocity.y, 0.0f, dt * 10);            
-        } else {
-            player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
-        }
+            // player_data->velocity.y = lerp(player_data->velocity.y, 0.0f, dt * 10);            
+            
+        } 
+        
+        player_data->velocity.y -= player_data->gravity * player_data->gravity_mult * dt;
         
         if (player_data->velocity.y < max_downwards_speed) {
             player_data->velocity.y = lerp(player_data->velocity.y, max_downwards_speed, 30 * dt);

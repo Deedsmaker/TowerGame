@@ -105,6 +105,7 @@ inline void add_player_ammo(i32 amount);
 
 void move_vec_towards(Vector2 *current, Vector2 target, f32 speed, f32 dt);
 Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt);
+f32 move_towards(f32 current, f32 target, f32 speed, f32 dt);
 Vector2 move_by_velocity(Vector2 position, Vector2 target, Velocity_Move* settings, f32 dt);
 //void rotate_towards(f32 *rotate_angle, f32 target, f32 speed, f32 dt);
 

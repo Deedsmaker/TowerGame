@@ -7924,6 +7924,20 @@ Vector2 move_towards(Vector2 current, Vector2 target, f32 speed, f32 dt) {
     return current;
 }
 
+f32 move_towards(f32 current, f32 target, f32 speed, f32 dt) {
+    f32 required = target - current;
+    
+    f32 move_len = speed * dt;
+    
+    if (move_len > abs(required)) {
+        move_len = abs(required);
+    }
+    
+    current += normalized(move_len) * move_len;
+    
+    return current;
+}
+
 inline void draw_player(Entity *entity) {
     assert(entity->flags & PLAYER);
     
