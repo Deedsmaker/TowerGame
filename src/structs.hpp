@@ -1196,8 +1196,8 @@ struct Context {
     Chunk_Array <Centipede> centipedes = {};
     Chunk_Array <Centipede_Segment> centipede_segments = {};
     
-    Entity *player = NULL;
-    Player player_data = {};  
+    Entity *player_entity = NULL;
+    Player player = {};  
       
     Array <Particle>         particles = {};
     Array <Particle_Emitter> particle_emitters  = {};

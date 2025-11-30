@@ -326,7 +326,7 @@ void begin_game_speedrun() {
 }
 
 void debug_add_100_ammo() {
-    if (current_context->player) {
+    if (current_context->player_entity) {
         add_player_ammo(100);
     }    
 }

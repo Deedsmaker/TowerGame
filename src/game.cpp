@@ -178,7 +178,7 @@ void switch_current_context(Context *target, b32 clear_stuff) {
     current_context = target;
     setup_context_cam(current_context);
     
-    player_data = &current_context->player_data;
+    player_data = &current_context->player;
 }
 
 inline Color color_fade(Color color, f32 alpha_multiplier) {
@@ -686,12 +686,12 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
         }
         
         if (added->flags & PLAYER) {
-            dest->player = added;
+            dest->player_entity = added;
         }
     }
     
-    if (dest->player) {
-        dest->player_data = src->player_data;
+    if (dest->player_entity) {
+        dest->player = src->player;
     }
     
     for (i32 i = 0; i < src->line_trails.capacity; i++) {
@@ -729,8 +729,8 @@ void clear_context(Context *context) {
     
     context->initially_simulated = false;
     
-    context->player = NULL;
-    context->player_data = {0};
+    context->player_entity = NULL;
+    context->player = {0};
     
     context->entities.clear();
     
@@ -1765,7 +1765,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     // Init player.
     if (entity->flags & PLAYER) { 
         if (!entity->player_data || ignore_existing_types) {
-            entity->player_data = &entity->context->player_data;
+            entity->player_data = &entity->context->player;
         }
     }
     
@@ -2128,18 +2128,18 @@ void init_game() {
 } // end init game end
 
 void destroy_player() {
-    if (!current_context->player) {
-        printf("Destroy player was called when there's no player_entity is present. That should not happen.\n");
+    if (!current_context->player_entity) {
+        log("Destroy player was called when there's no player_entity is present. That should not happen.\n", LOG_ERROR);
         return;
     }
 
-    mark_entity_destroyed(current_context->player);
-    current_context->player->enabled   = false;
+    mark_entity_destroyed(current_context->player_entity);
+    current_context->player_entity->enabled   = false;
     
-    mark_entity_destroyed(get_entity(current_context->player_data.connected_entities_ids.ground_checker_id));
-    mark_entity_destroyed(get_entity(current_context->player_data.connected_entities_ids.sword_entity_id));
+    mark_entity_destroyed(get_entity(current_context->player.connected_entities_ids.ground_checker_id));
+    mark_entity_destroyed(get_entity(current_context->player.connected_entities_ids.sword_entity_id));
     
-    current_context->player = NULL;
+    current_context->player_entity = NULL;
 }
 
 void clean_up_scene() {
@@ -2222,7 +2222,7 @@ Entity *add_player_entity(Context *context, Player *data) {
     
     data->ammo_count = last_player_data.ammo_count;
     
-    current_context->player = new_player_entity;
+    current_context->player_entity = new_player_entity;
     
     switch_current_context(original_context);
     
@@ -2244,9 +2244,9 @@ void enter_gaming_state() {
     switch_current_context(&game_context);
     game_state = GAMING;
     
-    if (!current_context->player) {
-        current_context->player_data = {0};
-        add_player_entity(current_context, &current_context->player_data);
+    if (!current_context->player_entity) {
+        current_context->player = {0};
+        add_player_entity(current_context, &current_context->player);
     }
     
     game_setup_collisions();
@@ -2279,9 +2279,9 @@ void enter_planning_state() {
     
     game_setup_collisions();
     
-    if (!current_context->player) { 
-        planning_context.player_data = {0};
-        add_player_entity(current_context, &current_context->player_data);
+    if (!current_context->player_entity) { 
+        planning_context.player = {0};
+        add_player_entity(current_context, &current_context->player);
     }
     
     current_context->cam.cam2D.zoom = 0.35f;
@@ -2319,13 +2319,13 @@ void editor_enter_game_state(Context *from_context) {
 }
 
 void kill_player() {
-    Player *player_data = &current_context->player_data;
+    Player *player_data = &current_context->player;
     b32 is_player_invincible = debug.god_mode || player_data->state_flags & PLAYER_INVINCIBLE;
     if (is_player_invincible && !state_context.we_got_a_winner || !player_data || player_data->dead_man || debug.dragging_player) { 
         return;
     }
     
-    Entity *player_entity = current_context->player;
+    Entity *player_entity = current_context->player_entity;
     
     death_player_data = *player_data;
 
@@ -2344,7 +2344,7 @@ void editor_enter_editor_state() {
     
     global_data.playing_replay = false;
     
-    current_context->player_data.dead_man = false; 
+    current_context->player.dead_man = false; 
     
     // We want to enable cursor when user hits escape key.
     HideCursor();
@@ -2407,8 +2407,8 @@ void fixed_game_update(Context *context, f32 dt) {
     frame_rnd = perlin_noise3(context->game_time, core.time.app_time, 5) * 2 - 1.0f;
     frame_on_circle_rnd = get_perlin_in_circle(1.0f);
     
-    Entity *player_entity = current_context->player;
-    Player *player_data = &current_context->player_data;
+    Entity *player_entity = current_context->player_entity;
+    Player *player_data = &current_context->player;
 
     if (editor_state == GAME && !state_context.in_pause_editor) {
         if (!global_data.playing_replay) {
@@ -2829,7 +2829,7 @@ void update_game() {
         }
     }
     
-    Player *player_data = &current_context->player_data;
+    Player *player_data = &current_context->player;
     
     // In game level restart.
     if (editor_state == GAME && !console.is_open) {
@@ -2847,7 +2847,7 @@ void update_game() {
                 // editor_enter_editor_state();
                 if (is_have_checkpoint) {
                     // enter_and_reload_game_state(&checkpoint_context, false);
-                    current_context->player = checkpoint_player_entity;
+                    current_context->player_entity = checkpoint_player_entity;
                     // real_player_data = checkpoint_player_data;
                     core.time = checkpoint_time;
                     state_context = checkpoint_state_context;
@@ -2865,7 +2865,7 @@ void update_game() {
     core.time.app_time += GetFrameTime();
     core.time.real_dt = GetFrameTime();
     
-    Entity *player_entity = current_context->player;
+    Entity *player_entity = current_context->player_entity;
     
     // Update death instinct.
     if (is_in_death_instinct() && is_death_instinct_threat_active() && editor_state == GAME) {
@@ -3117,15 +3117,21 @@ inline Light *get_light(i32 index, Context *context) {
 inline Entity *get_entity(i32 id, Context *context) {
     if (!context) context = current_context;
     
-    // We're always assuming that given id is valid and there will be real entity, because otherwise some entity just forgot 
-    // to detect that some connected entity will be destroyed.
-    
+    Entity *entity = context->entities.get(id - 1);
+    if (!entity) {
+        log("Wrong entity id! Returning NULL in get_entity function!", LOG_ERROR);
+    }
     // Entity ids are index + 1, so 0 is always invalid.
-    return context->entities.get(id - 1);
+    return entity;
 }
 
+// This function is basically the same as usual get_entity, but we're not logging error if failed to get entity.
 inline Entity *maybe_get_entity(i32 id, Context *context) {
-    return get_entity(id, context);
+    if (!context) context = current_context;
+    
+    Entity *entity = context->entities.get(id - 1);
+    // Entity ids are index + 1, so 0 is always invalid.
+    return entity;
 }
 
 inline b32 entity_array_contains_id(Entity **arr, i32 count, i32 id) {
@@ -5766,8 +5772,8 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     assert(entity->flags & ENEMY);
     assert(entity->bird_enemy);
     
-    Entity *player_entity = current_context->player;
-    Player *player_data = player_entity->player_data;
+    Entity *player_entity = entity->context->player_entity;
+    Player *player_data = &entity->context->player;
     
     Bird_Enemy *bird = entity->bird_enemy;
     Enemy *enemy = entity->bird_enemy;
@@ -5777,8 +5783,8 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     } else if (bird->just_awake) {
         bird->just_awake = false;
         bird->roaming = true;
-        bird->roam_start_time = current_context->game_time;
-        enemy->birth_time = current_context->game_time;
+        bird->roam_start_time = entity->context->game_time;
+        enemy->birth_time = entity->context->game_time;
     }
     
     if (entity->flags & MOVE_SEQUENCE) {
@@ -5795,22 +5801,22 @@ void update_bird_enemy(Entity *entity, f32 dt) {
         rotate(entity, bird->velocity.x);
         bird_clear_formation(bird);
         
-        f32 since_died_time = current_context->game_time - enemy->died_time;
+        f32 since_died_time = entity->context->game_time - enemy->died_time;
         if (since_died_time >= 15 && sqr_magnitude(entity->position - player_entity->position) >= 50000) {
             kill_enemy(entity, entity->position, entity->up);
         }
         return;
     }
 
-    f32 in_stun_time = current_context->game_time - enemy->stun_start_time;
+    f32 in_stun_time = entity->context->game_time - enemy->stun_start_time;
     
-    if (current_context->game_time > 3 && in_stun_time <= enemy->max_stun_time) {
+    if (entity->context->game_time > 3 && in_stun_time <= enemy->max_stun_time) {
         rotate(entity, 0.2f * bird->velocity.x);
         bird->velocity = move_towards(bird->velocity, Vector2_zero, magnitude(bird->velocity) * 1.0f, dt);
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
     
         bird->roaming = true;
-        bird->roam_start_time = current_context->game_time;
+        bird->roam_start_time = entity->context->game_time;
         bird->charging = false;
         bird->attacking = false;
         disable_emitter(bird->attack_emitter_index);
@@ -5821,7 +5827,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     
     //update bird states
     if (bird->roaming) {
-        f32 roam_time = current_context->game_time - bird->roam_start_time;
+        f32 roam_time = entity->context->game_time - bird->roam_start_time;
         f32 max_roam_time = bird->max_roam_time;
         
         if (bird->slot_index != -1) {
@@ -5831,24 +5837,24 @@ void update_bird_enemy(Entity *entity, f32 dt) {
         if (roam_time >= max_roam_time) {
             bird->roaming = false;
             bird->charging = true;
-            bird->charging_start_time = current_context->game_time;
+            bird->charging_start_time = entity->context->game_time;
         }
     }
     
     if (bird->charging) {
-        f32 charging_time = current_context->game_time - bird->charging_start_time;
+        f32 charging_time = entity->context->game_time - bird->charging_start_time;
         if (charging_time >= bird->max_charging_time) {
-            f32 time_since_last_bird_attacked = current_context->game_time - state_context.timers.last_bird_attack_time;
+            f32 time_since_last_bird_attacked = entity->context->game_time - state_context.timers.last_bird_attack_time;
             
             if (time_since_last_bird_attacked >= 0.4f) {
                 //bird start attack
-                state_context.timers.last_bird_attack_time = current_context->game_time;
+                state_context.timers.last_bird_attack_time = entity->context->game_time;
                 change_scale(entity, bird->original_scale);
             
                 change_up(entity, dir_to_player);         
                 bird->charging = false;
                 bird->attacking = true;
-                bird->attack_start_time = current_context->game_time;
+                bird->attack_start_time = entity->context->game_time;
                 
                 f32 bird_attack_speed = 300;
                 bird->velocity = dir_to_player * bird_attack_speed;
@@ -5865,25 +5871,25 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     }
     
     if (bird->attacking) {
-        f32 attacking_time = current_context->game_time - bird->attack_start_time;
+        f32 attacking_time = entity->context->game_time - bird->attack_start_time;
         
         if (attacking_time >= bird->max_attack_time) {
             bird->attacking = false;
             bird->roaming = true;
-            bird->roam_start_time = current_context->game_time;
+            bird->roam_start_time = entity->context->game_time;
             disable_emitter(bird->attack_emitter_index);
             disable_emitter(bird->alarm_emitter_index);
-            bird->attacked_time = current_context->game_time;
+            bird->attacked_time = entity->context->game_time;
         } 
     }
     
     f32 bird_speed = magnitude(bird->velocity);
     
-    f32 time_since_attacked = current_context->game_time - bird->attacked_time;
+    f32 time_since_attacked = entity->context->game_time - bird->attacked_time;
     
     //update bird
     if (bird->roaming) {
-        f32 roam_time = current_context->game_time - bird->roam_start_time;
+        f32 roam_time = entity->context->game_time - bird->roam_start_time;
         f32 roam_t = roam_time / bird->max_roam_time;
     
         if (roam_t <= 0.2f && time_since_attacked < 4) {
@@ -5897,7 +5903,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
             Vector2 target_position = player_entity->position + Vector2_up * 120;        
             if (bird->slot_index == -1) {
                 for (i32 i = 0; i < MAX_BIRD_POSITIONS; i++) {
-                    Bird_Slot *slot = &current_context->bird_slots[i];
+                    Bird_Slot *slot = &entity->context->bird_slots[i];
                     
                     if (!slot->occupied) {
                         slot->occupied = true;
@@ -5911,7 +5917,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
                 target_position = player_entity->position + bird_formation_positions[bird->slot_index];
             } else {
                 // If bird could not find slot - it will not attack and wait in roaming until slot is freed
-                bird->roam_start_time = current_context->game_time;
+                bird->roam_start_time = entity->context->game_time;
                 roam_time = 0;
             }
         
@@ -5927,7 +5933,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
     } else if (bird->charging) {
         // bird_clear_formation(bird);
         
-        f32 charging_time = current_context->game_time - bird->charging_start_time;
+        f32 charging_time = entity->context->game_time - bird->charging_start_time;
         f32 t = clamp01(charging_time / bird->max_charging_time);
         
         change_scale(entity, lerp(bird->original_scale, {bird->original_scale.x * 1.2f, bird->original_scale.y * 2.0f}, t * t));
@@ -5943,7 +5949,7 @@ void update_bird_enemy(Entity *entity, f32 dt) {
         
         move_by_velocity_with_collisions(entity, bird->velocity, entity->scale.y * 0.8f, &respond_bird_collision, dt);
     } else if (bird->attacking) {
-        f32 attacking_time = current_context->game_time - bird->attack_start_time;
+        f32 attacking_time = entity->context->game_time - bird->attack_start_time;
         
         bird_clear_formation(bird);
     
@@ -6120,7 +6126,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
                     cut_rope(other_entity);
                 }
                 
-                if (other_entity->flags & PLAYER && !current_context->player_data.dead_man && distance_to_other < explosion_radius * 0.75f) {
+                if (other_entity->flags & PLAYER && !current_context->player.dead_man && distance_to_other < explosion_radius * 0.75f) {
                     kill_player();
                 }
             }
@@ -6333,7 +6339,7 @@ b32 is_death_instinct_threat_active() {
     if (entity_alive) {
         switch (state_context.death_instinct.last_reason) {
             case ENEMY_ATTACKING:{
-                Vector2 vec_to_player = current_context->player->position - threat_entity->position;
+                Vector2 vec_to_player = current_context->player_entity->position - threat_entity->position;
                 Vector2 dir_to_player = normalized(vec_to_player);
                 f32 distance_to_player = magnitude(vec_to_player);
                 
@@ -6343,7 +6349,7 @@ b32 is_death_instinct_threat_active() {
                 return is_enemy_should_trigger_death_instinct(threat_entity, get_entity_velocity(threat_entity), dir_to_player, distance_to_player, check_for_flying_towards);
             } break;
             case SWORD_WILL_EXPLODE:{
-                return current_context->player_data.is_sword_will_hit_explosive;     
+                return current_context->player.is_sword_will_hit_explosive;     
             } break;
             default: return true;
         }
@@ -6424,7 +6430,7 @@ b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vec
 }
 
 b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
-    if (is_in_death_instinct() || is_death_instinct_in_cooldown() || current_context->player_data.dead_man) {
+    if (is_in_death_instinct() || is_death_instinct_in_cooldown() || current_context->player.dead_man) {
         return false;
     }
     
@@ -6437,7 +6443,7 @@ b32 start_death_instinct(Entity *threat_entity, Death_Instinct_Reason reason) {
 void calculate_projectile_collisions(Entity *entity) {
     Projectile *projectile = entity->projectile;
     
-    Entity *player_entity = current_context->player;
+    Entity *player_entity = current_context->player_entity;
     
     // Player projectile collisions.
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
@@ -6623,7 +6629,7 @@ void calculate_projectile_collisions(Entity *entity) {
                 emit_particles(&bullet_hit_emitter_copy, col.point, col.normal * -1, 1);
             }
             
-            if (other->flags & PLAYER && !current_context->player_data.dead_man && !enemy->dead_man) {
+            if (other->flags & PLAYER && !current_context->player.dead_man && !enemy->dead_man) {
                 // It's a good thing that we don't kill player when projectile is blocker or explosive, 
                 // but of course we need to better tell player what exactly will kill him on touch. 
                 // While projectiles are flying - they're leave particle trail and all flying projectiles 
@@ -6650,7 +6656,7 @@ void calculate_projectile_collisions(Entity *entity) {
             Entity *other = col.other_entity;
             
             if (other->flags & PLAYER) {
-                b32 should_kill_player = !entity->context->player_data.dead_man && !enemy->dead_man;
+                b32 should_kill_player = !entity->context->player.dead_man && !enemy->dead_man;
                 if (should_kill_player) {
                     kill_player();
                     kill_enemy(entity, col.point, col.normal);
@@ -6670,7 +6676,7 @@ inline void update_projectile(Entity *entity, f32 dt) {
     Projectile *projectile = entity->projectile;
     f32 lifetime = current_context->game_time - projectile->birth_time;
     
-    Vector2 player_position = current_context->player ? current_context->player->position : Vector2_zero;
+    Vector2 player_position = current_context->player_entity ? current_context->player_entity->position : Vector2_zero;
     
     if (projectile->max_lifetime > 0 && lifetime> projectile->max_lifetime) {
         if (entity->flags & ENEMY) {
@@ -6697,7 +6703,7 @@ inline void update_projectile(Entity *entity, f32 dt) {
                 projectile->dying = true;
                 
                 clamp_magnitude(&projectile->velocity, 60);
-                projectile->velocity.y -= current_context->player_data.gravity * dt;
+                projectile->velocity.y -= current_context->player.gravity * dt;
             }
         }
     }
@@ -7001,8 +7007,8 @@ i32 update_trigger(Entity *e) {
         trigger_now = true;
     }
     
-    Player *player_data = &current_context->player_data;
-    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && current_context->player && check_entities_collision(e, current_context->player).collided) {
+    Player *player_data = &current_context->player;
+    if (trigger_now || (trigger->settings & PLAYER_TOUCH) && current_context->player_entity && check_entities_collision(e, current_context->player_entity).collided) {
         if (trigger->settings & FORBID_PLAYER_SHOOT) {
             player_data->can_shoot = false;
         }
@@ -7013,7 +7019,7 @@ i32 update_trigger(Entity *e) {
         if (str_contains(temp_entity_name(e).data, "checkpoint") && checkpoint_trigger_id != e->id) {
             clear_context(&checkpoint_context);
             copy_context(&checkpoint_context, current_context, false);
-            checkpoint_player_entity = current_context->player;
+            checkpoint_player_entity = current_context->player_entity;
             checkpoint_player_data = *player_data;
             checkpoint_time = core.time;
             checkpoint_state_context = state_context;
@@ -7186,7 +7192,7 @@ void update_move_sequence(Entity *entity, f32 dt) {
     f32 speed = sequence->speed;
     
     if (sequence->speed_related_player_distance && editor_state == GAME) {
-        f32 distance_to_player = magnitude(current_context->player->position - entity->position);
+        f32 distance_to_player = magnitude(current_context->player_entity->position - entity->position);
         f32 distance_t = clamp01((distance_to_player + sequence->min_distance) / sequence->max_distance);
         speed = lerp(sequence->speed, sequence->max_distance_speed, distance_t * distance_t);
     }
@@ -7295,7 +7301,7 @@ inline void update_turret(Entity *entity, f32 dt) {
     Projectile_Type projectile_type = TURRET_DIRECT_PROJECTILE;
     Color projectile_color = ColorBrightness(RED, 0.5f);
     
-    Entity *player_entity = current_context->player;
+    Entity *player_entity = current_context->player_entity;
     
     b32 player_in_range = true;
     b32 player_in_angle_range = true;
@@ -7370,7 +7376,7 @@ inline void update_turret(Entity *entity, f32 dt) {
 inline b32 update_entity(Entity *e, f32 dt) {
     update_color_changer(e, dt);            
     
-    Entity *player_entity = current_context->player;
+    Entity *player_entity = current_context->player_entity;
     
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT) {
@@ -7393,7 +7399,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             // player_data = &real_player_data;
         } else {
             // player_data = &real_player_data;
-            update_player(e, &e->context->player_data, input, dt);
+            update_player(e, &e->context->player, input, dt);
         }
     }
       
@@ -7416,7 +7422,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     }
     
     // Update player touch timer.
-    if (e->flags & PLAYER_TOUCH_TIMER && e->context->player) {
+    if (e->flags & PLAYER_TOUCH_TIMER && e->context->player_entity) {
         Player_Touch_Timer *touch = &e->union_enemy->player_touch_timer;
         // Collision player_collision = check_entities_collision(e, e->context->player);
         auto player_collisions = get_tcollisions(e, PLAYER | CONNECTED_TO_PLAYER);
@@ -8001,12 +8007,12 @@ inline void draw_rifle(Entity *entity) {
 }
 
 inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len) {
-    if (!current_context->player) {
+    if (!current_context->player_entity) {
         print("WARNING: Tried to get ray collision to player, but player is not present");
         return {0};     
     }
     
-    Vector2 vec_to_player = current_context->player->position - entity->position;
+    Vector2 vec_to_player = current_context->player_entity->position - entity->position;
     Vector2 dir = normalized(vec_to_player);
     f32 len = magnitude(vec_to_player);
     return raycast(entity->position, dir, len - reduced_len, collision_flags, 6, entity->id);
@@ -8064,7 +8070,7 @@ inline f32 get_turret_charge_progress(Turret *turret) {
 void fill_entities_draw_queue() {
     global_data.entities_draw_queue.clear();
     
-    Entity *player_entity = current_context->player;
+    Entity *player_entity = current_context->player_entity;
     
     // That also acts entities loop on draw update call. For example we use it for some immediate stuff that should
     // work on occluded entities.
@@ -9279,7 +9285,7 @@ void apply_shake() {
 }
 
 void new_render() {
-    Entity *player_entity = current_context->player;
+    Entity *player_entity = current_context->player_entity;
 
     bake_lightmaps_if_need();
 
@@ -9421,7 +9427,7 @@ void draw_game() {
         v_pos += font_size;
     }
     
-    if (editor_state == GAME && current_context->player) {
+    if (editor_state == GAME && current_context->player_entity) {
         if (debug.info_blood_progress) {
             draw_text(tprintf("Blood progress: %.2f", player_data->blood_progress), 10, v_pos, font_size, RED);
             v_pos += font_size;

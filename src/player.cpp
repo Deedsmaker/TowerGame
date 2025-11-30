@@ -24,7 +24,7 @@ inline void add_player_ammo(i32 amount) {
 }
 
 inline b32 is_sword_can_damage() {
-    return player_data->sword_mode == AIR_MODE && !is_player_in_stun(current_context->player);
+    return player_data->sword_mode == AIR_MODE && !is_player_in_stun(current_context->player_entity);
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity) {
@@ -56,7 +56,7 @@ inline b32 can_sword_damage_enemy(Entity *enemy_entity) {
 void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
     assert(enemy_entity->union_enemy);
 
-    Player *player_data = &current_context->player_data;
+    Player *player_data = &current_context->player;
 
     Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
     enemy_velocity->y = fmaxf(100.0f, 100.0f + enemy_velocity->y);
@@ -116,7 +116,7 @@ void player_start_killing_centipede(Entity *segment_entity, Player *player_data)
         return;
     }
     
-    segment_entity->context->player->position = segment_entity->position;
+    segment_entity->context->player_entity->position = segment_entity->position;
 
     player_data->state_flags |= HIT_CENTIPEDE_THIS_SPIN;
     
@@ -141,10 +141,14 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
     if (!can_sword_damage_enemy(enemy_entity)) {
         return false;
     }
-    assert(enemy_entity->union_enemy);
     
-    Entity *player_entity = current_context->player;
-    Player *player_data = &enemy_entity->context->player_data;
+    if (!enemy_entity->union_enemy) {
+        log("Tried to try_sword_damage_enemy, but there's no union_enemy on enemy_entity.", LOG_ERROR);
+        return false;
+    }
+    
+    Entity *player_entity = current_context->player_entity;
+    Player *player_data = &enemy_entity->context->player;
 
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !is_player_in_stun(player_entity) && is_enemy_can_take_damage(enemy_entity)) {
@@ -178,6 +182,10 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         // Sword centipede kill.
         if (enemy_entity->flags & CENTIPEDE_SEGMENT && !(player_data->state_flags & KILLING_CENTIPEDE)) {
             player_start_killing_centipede(enemy_entity, player_data);
+        }
+        
+        if (enemy_entity->flags & BIRD_ENEMY) {
+            // flick_to_enemy(enemy_entity->context->player_entity, player_data, enemy_entity
         }
         
         if (can_kill) {
@@ -298,7 +306,7 @@ void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
 }
 
 void push_player_up(f32 power) {
-    Player *player_data = &current_context->player_data;
+    Player *player_data = &current_context->player;
     if (player_data->velocity.y < 0) {
         player_data->velocity.y = 0;
     }
@@ -309,7 +317,7 @@ void push_player_up(f32 power) {
 }
 
 void push_or_set_player_up(f32 power) {
-    Player *player_data = &current_context->player_data;
+    Player *player_data = &current_context->player;
     if (player_data->velocity.y > power) {
         power *= 0.25f;
     }
