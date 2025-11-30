@@ -24,8 +24,7 @@ inline void add_player_ammo(i32 amount) {
 }
 
 inline b32 is_sword_can_damage() {
-    f32 threshold = player_data->is_sword_accelerating ? 0.01f : 0.5f;
-    return !is_player_in_stun(current_context->player) && player_data->sword_spin_progress >= threshold;
+    return player_data->sword_mode == AIR_MODE && !is_player_in_stun(current_context->player);
 }
 
 inline b32 can_damage_blocker(Entity *blocker_entity) {
@@ -100,6 +99,9 @@ void stop_sword_mode(Player *player_data) {
         play_sound("SwordSwing", 0.9f, 1.5f, 0.05f);
     }
     player_data->sword_mode = RIFLE_MODE;
+    player_data->to_spin = 0;
+    
+    remove_flag(&player_data->state_flags, SWORD_ATTACKING);
 }
 
 void player_start_killing_centipede(Entity *segment_entity, Player *player_data) {
@@ -357,23 +359,22 @@ void change_sword_spin_progress(Player *player_data, i32 direction, f32 progress
     assert(player_data->sword_spin_direction == direction);
 }
 
-void spin_sword(Entity *sword, Entity *player_entity, f32 dt) {
-    f32 total_rotation_amount_required = player_data->sword_angular_velocity * dt;
+void spin_sword(Entity *sword, Entity *player_entity, Player *player, f32 spin_amount) {
     static const f32 MAX_ONE_TIME_ROTATION_AMOUNT = 5;
 
     // Someone could enter sword on previous frame after this update so we'll check for that.
-    rotate(sword, -1.0f * 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
+    rotate(sword, -1.0f * 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player->sword_spin_direction);         
     calculate_sword_collisions(sword, player_entity);
     
-    rotate(sword, 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);         
+    rotate(sword, 0.5f * MAX_ONE_TIME_ROTATION_AMOUNT * player->sword_spin_direction);         
     calculate_sword_collisions(sword, player_entity);
     
-    while(total_rotation_amount_required > MAX_ONE_TIME_ROTATION_AMOUNT) {
-        rotate(sword, MAX_ONE_TIME_ROTATION_AMOUNT * player_data->sword_spin_direction);
+    while(spin_amount > MAX_ONE_TIME_ROTATION_AMOUNT) {
+        rotate(sword, MAX_ONE_TIME_ROTATION_AMOUNT * player->sword_spin_direction);
         calculate_sword_collisions(sword, player_entity);
-        total_rotation_amount_required -= MAX_ONE_TIME_ROTATION_AMOUNT;
+        spin_amount -= MAX_ONE_TIME_ROTATION_AMOUNT;
     }
-    rotate(sword, total_rotation_amount_required);
+    rotate(sword, spin_amount);
     calculate_sword_collisions(sword, player_entity);
 }
 
@@ -392,7 +393,6 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
             if (input.press_flags & SPIN && player->current_big_sword_charges > 0) {            
                 player->sword_mode = AIR_MODE;
                 player->sword_prepare_timer = 0;
-                player->sword_spin_timer = 0;
                 
                 play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
                 
@@ -422,35 +422,36 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                 rotate_to(sword, rotation);
                 
                 if (player->sword_prepare_timer >= player->SWORD_PREPARE_TIME) {
-                    player->sword_spin_timer = 0;
-                    player->sword_attack_start_move_direction = input.last_non_zero_x;
+                    // player->sword_spin_timer = 0;
+                    player->sword_spin_direction = input.last_non_zero_x;
                     
                     assert(player->state_flags & PREPARING_SWORD);
                     player->state_flags ^= PREPARING_SWORD;
                     
                     player->state_flags |= SWORD_ATTACKING;
                     player->state_flags |= JUST_ENDED_PREPARING_ATTACK;
+                    
+                    player->to_spin = 720;
                 }
             } 
             
             if (player->state_flags & SWORD_ATTACKING) {
                 if (player->state_flags & JUST_ENDED_PREPARING_ATTACK) {
-                    // Just not adding timer if just ended preparing.
+                    // Fo the future.
                     remove_flag(&player->state_flags, JUST_ENDED_PREPARING_ATTACK);
                 } else {
-                    player->sword_spin_timer += dt;
                 }
                                 
-                f32 start = player->sword_attack_start_move_direction > 0 ? 0 : 359.999f;
-                f32 end = player->sword_attack_start_move_direction > 0 ? 400.0f : -40;
+                static const f32 SPIN_SPEED = 1000;
                 
-                f32 t = clamp01(player->sword_spin_timer / player->SWORD_SPIN_TIME);
+                player->sword_angular_velocity = SPIN_SPEED * player->sword_spin_direction;
+                f32 spin_amount = abs(player->sword_angular_velocity) * dt;
                 
-                f32 rotation = lerp(start, end, EaseOutQuint(t));
+                spin_sword(sword, entity, player, player->sword_angular_velocity * dt);
                 
-                rotate_to(sword, rotation);
+                player->to_spin -= spin_amount;
                 
-                if (player->sword_spin_timer >= player->SWORD_SPIN_TIME * 2.0f) {
+                if (player->to_spin < 0) {
                     stop_sword_mode(player);
                 }
             }

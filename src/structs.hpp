@@ -738,8 +738,9 @@ struct Player {
     f32 sword_attack_start_angle = 0;
     i32 sword_attack_start_move_direction = 0;
     
-    inline static const f32 SWORD_SPIN_TIME = 0.8f;
-    f32 sword_spin_timer = 0;
+    // inline static const f32 SWORD_SPIN_TIME = 0.8f;
+    // f32 sword_spin_timer = 0;
+    f32 to_spin = 0;
 
     Sword_Mode sword_mode = RIFLE_MODE;
     // b32 in_big_sword = false;
