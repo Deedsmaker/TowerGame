@@ -544,6 +544,10 @@ const char *c_str(String string) {
 String make_string(Allocator *allocator, const char *text, ...){
     String result_string = {.allocator = allocator};
     
+    if (!text) {
+        return result_string;
+    }
+    
     va_list args;
     va_start(args, text);
     i32 byte_count = vsnprintf(result_string.data, 0, text, args);

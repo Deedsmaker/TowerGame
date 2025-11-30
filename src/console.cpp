@@ -456,7 +456,6 @@ void update_console() {
         // split_str(focus_input_field.content, " ", &console.args);
         split_string(&console.args, tstring(focus_input_field.content), tstring(" "));
         
-        
         b32 content_changed = false;
         for (i32 i = 0; i < console.commands.count && console.args.count == 1; i++) {
             b32 arg_matches_some_command = str_start_with(console.commands.get_value(i).name, console.args.get_value(0).data);
