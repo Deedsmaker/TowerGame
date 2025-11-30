@@ -81,18 +81,18 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
     }
 }
 
-void start_sword_mode(Player *player_data) {
-    player_data->sword_mode_change_time = current_context->game_time;    
-    // player_data->max_speed_multiplier = 2.0f;
-    player_data->sword_mode = AIR_MODE;
+// void start_sword_mode(Player *player_data) {
+//     player_data->sword_mode_change_time = current_context->game_time;    
+//     // player_data->max_speed_multiplier = 2.0f;
+//     player_data->sword_mode = AIR_MODE;
     
-    play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
+//     play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
     
-    assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
-    player_data->current_big_sword_charges -= 1;
+//     assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
+//     player_data->current_big_sword_charges -= 1;
     
-    remove_flag(&player_data->state_flags, HIT_CENTIPEDE_THIS_SPIN);
-}
+//     remove_flag(&player_data->state_flags, HIT_CENTIPEDE_THIS_SPIN);
+// }
 
 void stop_sword_mode(Player *player_data) {
     // player_data->max_speed_multiplier = 1.0f;
@@ -377,71 +377,150 @@ void spin_sword(Entity *sword, Entity *player_entity, f32 dt) {
     calculate_sword_collisions(sword, player_entity);
 }
 
-void update_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
-    if (player_data->dead_man) {
+void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
+    if (player->dead_man) {
         return;
     }
     
-    Entity *sword = get_entity(player_data->connected_entities_ids.sword_entity_id);
-    
-    // Sword changing mode and size.
-    {
-        if (player_data->sword_mode == RIFLE_MODE) {
-            if (input.press_flags & SPIN && player_data->current_big_sword_charges > 0) {
-                start_sword_mode(player_data);
-            }
-        } else { // In sword mode.
-            f32 since_sword_mode_change = current_context->game_time - player_data->sword_mode_change_time;
-            static const f32 SWORD_TIME = 1.4f;
-            if (since_sword_mode_change > SWORD_TIME && !(player_data->state_flags & KILLING_CENTIPEDE)) {
-                stop_sword_mode(player_data);
-            }
-        }
-        
-        // big sword
-        
-        Vector2 sword_target_scale = player_data->sword_start_scale;
-        if      (player_data->sword_mode == GROUND_MODE) sword_target_scale = player_data->sword_ground_mode_scale;
-        else if (player_data->sword_mode == AIR_MODE)    sword_target_scale = player_data->sword_air_mode_scale;
-        
-        change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
-        change_color(sword, player_data->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
-    } // End sword changing mode and size.
-    
     Vector2 input_direction = input.sum_direction;
     
-    // Calculating required spin.
-    if (0) {
-    } else if (player_data->state_flags & KILLING_CENTIPEDE) {
-        change_scale(sword, lerp(sword->scale, player_data->sword_ground_mode_scale, dt * 15));
-        change_sword_spin_progress(player_data, -1, 1);
-        spin_sword(sword, entity, dt);
-    } else if (player_data->sword_mode != RIFLE_MODE) {
-        f32 sword_max_spin_speed = player_data->sword_mode == AIR_MODE ? player_data->SWORD_SPIN_SPEED : player_data->SWORD_SPIN_SPEED;
-        
-        b32 can_sword_spin = !is_player_in_stun(entity);
-        if (can_sword_spin) {
-            f32 sword_spin_sense = player_data->sword_mode == AIR_MODE ? 40 : 10; 
-            
-            f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
-            
-            if (player_data->sword_mode != AIR_MODE && player_data->grounded) {
-                wish_angular_velocity *= 2;
+    Entity *sword = get_entity(player->connected_entities_ids.sword_entity_id);
+    
+    // Changing mode and managing size.
+    {
+        if (player->sword_mode == RIFLE_MODE) {
+            if (input.press_flags & SPIN && player->current_big_sword_charges > 0) {            
+                player->sword_mode = AIR_MODE;
+                player->sword_prepare_timer = 0;
+                player->sword_spin_timer = 0;
+                
+                play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
+                
+                assert(player->current_big_sword_charges > 0 && player->current_big_sword_charges <= player->max_big_sword_charges);
+                
+                player->current_big_sword_charges -= 1;
+                remove_flag(&player->state_flags, HIT_CENTIPEDE_THIS_SPIN);
+                
+                player->sword_attack_start_move_direction = input_direction.x != 0 ? input_direction.x : 1;
+                player->sword_attack_start_angle = sword->rotation;
+                
+                player->state_flags |= PREPARING_SWORD;
             }
-            
-            if (core.time.time_scale < 1) {
-                sword_spin_sense /= core.time.time_scale;
-                sword_spin_sense = fminf(sword_spin_sense, 60);
-            }
-            player_data->sword_angular_velocity = lerp(player_data->sword_angular_velocity, wish_angular_velocity, dt * sword_spin_sense);
         }
-        player_data->is_sword_accelerating = input_direction.x != 0;
+            
+        if (player->sword_mode == AIR_MODE) {
+            if (player->sword_prepare_timer < player->SWORD_PREPARE_TIME) { 
+                player->sword_prepare_timer += dt;
+                
+                f32 t = clamp01(player->sword_prepare_timer / player->SWORD_PREPARE_TIME);
+                
+                f32 start = player->sword_attack_start_angle;
+                f32 end = player->sword_attack_start_move_direction > 0 ? 359.99f : 0;
+                
+                f32 rotation = lerp(start, end, EaseInOutQuad(t));
+                
+                rotate_to(sword, rotation);
+                
+                if (player->sword_prepare_timer >= player->SWORD_PREPARE_TIME) {
+                    player->sword_spin_timer = 0;
+                    player->sword_attack_start_move_direction = input.last_non_zero_x;
+                    
+                    assert(player->state_flags & PREPARING_SWORD);
+                    player->state_flags ^= PREPARING_SWORD;
+                    
+                    player->state_flags |= SWORD_ATTACKING;
+                    player->state_flags |= JUST_ENDED_PREPARING_ATTACK;
+                }
+            } 
+            
+            if (player->state_flags & SWORD_ATTACKING) {
+                if (player->state_flags & JUST_ENDED_PREPARING_ATTACK) {
+                    // Just not adding timer if just ended preparing.
+                    remove_flag(&player->state_flags, JUST_ENDED_PREPARING_ATTACK);
+                } else {
+                    player->sword_spin_timer += dt;
+                }
+                                
+                f32 start = player->sword_attack_start_move_direction > 0 ? 0 : 359.999f;
+                f32 end = player->sword_attack_start_move_direction > 0 ? 400.0f : -40;
+                
+                f32 t = clamp01(player->sword_spin_timer / player->SWORD_SPIN_TIME);
+                
+                f32 rotation = lerp(start, end, EaseOutQuint(t));
+                
+                rotate_to(sword, rotation);
+                
+                if (player->sword_spin_timer >= player->SWORD_SPIN_TIME * 2.0f) {
+                    stop_sword_mode(player);
+                }
+            }
+        }
         
-        player_data->sword_spin_progress = clamp01(abs(player_data->sword_angular_velocity) / sword_max_spin_speed);
-        player_data->sword_spin_direction = normalized(player_data->sword_angular_velocity);
+        Vector2 sword_target_scale = player->sword_start_scale;
+        if      (player->sword_mode == GROUND_MODE) sword_target_scale = player->sword_ground_mode_scale;
+        else if (player->sword_mode == AIR_MODE)    sword_target_scale = player->sword_air_mode_scale;
         
-        spin_sword(sword, entity, dt);
-    } // Sword spin end.
+        change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
+        change_color(sword, player->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
+
+    }
+    
+    // Sword changing mode and size.
+    // {
+    //     if (player->sword_mode == RIFLE_MODE) {
+    //         if (input.press_flags & SPIN && player->current_big_sword_charges > 0) {
+    //             start_sword_mode(player);
+    //         }
+    //     } else { // In sword mode.
+    //         f32 since_sword_mode_change = current_context->game_time - player->sword_mode_change_time;
+    //         static const f32 SWORD_TIME = 1.4f;
+    //         if (since_sword_mode_change > SWORD_TIME && !(player->state_flags & KILLING_CENTIPEDE)) {
+    //             stop_sword_mode(player);
+    //         }
+    //     }
+        
+    //     // big sword
+        
+    //     Vector2 sword_target_scale = player->sword_start_scale;
+    //     if      (player->sword_mode == GROUND_MODE) sword_target_scale = player->sword_ground_mode_scale;
+    //     else if (player->sword_mode == AIR_MODE)    sword_target_scale = player->sword_air_mode_scale;
+        
+    //     change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
+    //     change_color(sword, player->sword_mode == AIR_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
+    // } // End sword changing mode and size.
+    
+    // Calculating required spin.
+    // if (0) {
+    // } else if (player->state_flags & KILLING_CENTIPEDE) {
+    //     change_scale(sword, lerp(sword->scale, player->sword_ground_mode_scale, dt * 15));
+    //     change_sword_spin_progress(player, -1, 1);
+    //     spin_sword(sword, entity, dt);
+    // } else if (player->sword_mode != RIFLE_MODE) {
+    //     f32 sword_max_spin_speed = player->sword_mode == AIR_MODE ? player->SWORD_SPIN_SPEED : player->SWORD_SPIN_SPEED;
+        
+    //     b32 can_sword_spin = !is_player_in_stun(entity);
+    //     if (can_sword_spin) {
+    //         f32 sword_spin_sense = player->sword_mode == AIR_MODE ? 40 : 10; 
+            
+    //         f32 wish_angular_velocity = input_direction.x * sword_max_spin_speed;
+            
+    //         if (player->sword_mode != AIR_MODE && player->grounded) {
+    //             wish_angular_velocity *= 2;
+    //         }
+            
+    //         if (core.time.time_scale < 1) {
+    //             sword_spin_sense /= core.time.time_scale;
+    //             sword_spin_sense = fminf(sword_spin_sense, 60);
+    //         }
+    //         player->sword_angular_velocity = lerp(player->sword_angular_velocity, wish_angular_velocity, dt * sword_spin_sense);
+    //     }
+    //     player->is_sword_accelerating = input_direction.x != 0;
+        
+    //     player->sword_spin_progress = clamp01(abs(player->sword_angular_velocity) / sword_max_spin_speed);
+    //     player->sword_spin_direction = normalized(player->sword_angular_velocity);
+        
+    //     spin_sword(sword, entity, dt);
+    // } // Sword spin end.
     
     // Sword effects.
     {
@@ -457,8 +536,8 @@ void update_sword(Entity *entity, Player *player_data, Input input, f32 dt) {
             sword_tip_ground_emitter->position = sword_tip;
         }
         
-        if (player_data->sword_hit_ground) {
-            player_data->sword_hit_ground = false;
+        if (player->sword_hit_ground) {
+            player->sword_hit_ground = false;
             enable_emitter(sword_tip_ground_emitter);
             f32 t = 0.6f;
             sword_tip_ground_emitter->speed_multiplier = lerp(0.7f, 4.0f, t * t * t);
@@ -753,6 +832,8 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (0) {
     } else if (player_in_hit_booster) {
           
+    } else if (player_data->state_flags & PREPARING_SWORD) {
+        player_data->velocity = move_towards(player_data->velocity, Vector2_zero, 400, dt);
     } else if (player_data->state_flags & KILLING_CENTIPEDE) {
         assert(player_data->last_killed_segment);
         

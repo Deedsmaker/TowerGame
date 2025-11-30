@@ -2746,12 +2746,16 @@ void update_game() {
         } else if (input.hold_flags & LEFT) {
             input.sum_direction.x = -1;
         }
+        if (input.sum_direction.x != 0) {
+            input.last_non_zero_x = input.sum_direction.x;
+        }
         
         if (input.hold_flags & UP) {
             input.sum_direction.y = 1;
         } else if (input.hold_flags & DOWN) {
             input.sum_direction.y = -1;
         }
+        
         
         if (IsKeyPressed(KEY_SPACE)) {
             input.press_flags |= JUMP;

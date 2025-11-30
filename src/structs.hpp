@@ -659,9 +659,12 @@ enum Sword_Mode {
 };
 
 enum Player_States : FLAGS {
-    KILLING_CENTIPEDE       = 0x1,
-    PLAYER_INVINCIBLE       = 0x2,
-    HIT_CENTIPEDE_THIS_SPIN = 0x4,
+    KILLING_CENTIPEDE           = 0x1,
+    PLAYER_INVINCIBLE           = 0x2,
+    HIT_CENTIPEDE_THIS_SPIN     = 0x4,
+    PREPARING_SWORD             = 0x8,
+    SWORD_ATTACKING             = 0x10,
+    JUST_ENDED_PREPARING_ATTACK = 0x20,
 };
 
 struct Player {
@@ -729,6 +732,14 @@ struct Player {
     Vector2 sword_start_scale = {2.0f, 12.0f};
     Vector2 sword_ground_mode_scale = {3.0f, 18.0f};
     Vector2 sword_air_mode_scale = {9.0f, 46.0f};
+    
+    inline static const f32 SWORD_PREPARE_TIME = 0.4f;
+    f32 sword_prepare_timer = 0;
+    f32 sword_attack_start_angle = 0;
+    i32 sword_attack_start_move_direction = 0;
+    
+    inline static const f32 SWORD_SPIN_TIME = 0.8f;
+    f32 sword_spin_timer = 0;
 
     Sword_Mode sword_mode = RIFLE_MODE;
     // b32 in_big_sword = false;
@@ -1380,6 +1391,7 @@ struct Input {
     Vector2 sum_mouse_delta = Vector2_zero;
     f32     sum_mouse_wheel = 0;
     Vector2 sum_direction   = Vector2_zero;
+    f32 last_non_zero_x   = 1;
     FLAGS hold_flags        = 0;
     FLAGS press_flags       = 0;
     
