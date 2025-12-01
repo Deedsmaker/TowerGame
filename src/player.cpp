@@ -121,7 +121,7 @@ void flick_to_enemy(Entity *player_entity, Player *player, Entity *enemy_entity)
     
     if (player->sword_mode == AIR_MODE) {
         player->this_attack_killed_count += 1;
-        player->to_spin_angle_amount += 360;
+        player->to_spin_angle_amount += 1000;
     }
 }
 
@@ -177,7 +177,6 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
 
     b32 killed_enemy = false;
     if (is_sword_can_damage() && !is_player_in_stun(player_entity) && is_enemy_can_take_damage(enemy_entity)) {
-        b32 is_it_utility_enemy = enemy_entity->flags & (HIT_BOOSTER | TRIGGER);
                 
         Enemy *enemy = enemy_entity->union_enemy;
                 
@@ -194,15 +193,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             particles_direction = get_particle_emitter(sword_tip_ground_emitter_index)->direction;
         }
         
-        // We also set this last hit variable in kill_enemy and stun_enemy, but as we see now we don't want to kill or stun 
-        // every enemy that take hit, so it have sense to set it where actual hit is delivered.
-        enemy->last_hit_time = current_context->game_time;
-        
         b32 can_kill = true;
-        
-        if (enemy->max_hits_taken <= -1) {
-            can_kill = false;
-        }
         
         // Sword centipede kill.
         if (enemy_entity->flags & CENTIPEDE_SEGMENT) {
@@ -217,6 +208,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             
             if (enemy_entity->flags & HIT_BOOSTER) {
                 flick_to_enemy(player_entity, player, enemy_entity);
+                kill_enemy(enemy_entity, hit_position, particles_direction, false, 1.0f);
             } else if (enemy_entity->flags & BIRD_ENEMY) {
                 flick_to_enemy(player_entity, player, enemy_entity);
                 sword_kill_enemy(enemy_entity, &enemy_entity->bird_enemy->velocity);
@@ -233,6 +225,10 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
             killed_enemy = true;
         }
         // player->sword_angular_velocity += player->sword_spin_direction * 1400;
+        
+        // We also set this last hit variable in kill_enemy and stun_enemy, but as we see now we don't want to kill or stun 
+        // every enemy that take hit, so it have sense to set it where actual hit is delivered.
+        enemy->last_hit_time = current_context->game_time;
         
         f32 max_speed_boost = 6 * player->sword_spin_direction * enemy->sword_kill_speed_modifier;
         f32 max_vertical_speed_boost = player->grounded ? 0 : 20;
