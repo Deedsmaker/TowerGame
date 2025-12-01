@@ -2124,7 +2124,7 @@ void init_game() {
     initing_game = false;
     
     i64 elapsed = pop_performance_timer_milliseconds();
-    log(tstring("Finished initing game. Elapsed: %lms.", elapsed), POP_INDENTATION);
+    log(tstring("Finished initing game. Elapsed: %llums.", elapsed), POP_INDENTATION);
 } // end init game end
 
 void destroy_player() {

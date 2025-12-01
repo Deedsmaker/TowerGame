@@ -1,0 +1,16 @@
+name Bird_enemy 
+ id 14 
+ position { 2.000000,  0.000000} 
+ scale { 6.000000,  10.000000} 
+ pivot { 0.000000,  0.000000} 
+ rotation 0.000000 
+ color { 227,  224,  0,  229} 
+ flags 296 
+ draw_order 100 
+ vertices [ { 13.000000,  0.000000} { 13.000000,  0.000000} { 0.000000,  -1.000000} { 0.000000,  -1.000000} ] 
+ unscaled_vertices [  { 2.000000,  0.000000} { 2.000000,  0.000000} { 0.000000,  0.000000} { 0.000000,  0.000000} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ sword_kill_speed_modifier 4.0 
+ enemy_gives_ammo 0 
+ 

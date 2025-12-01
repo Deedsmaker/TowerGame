@@ -23,7 +23,7 @@ String read_entire_file(String name, b32 *success, Allocator *allocator = HEAP_A
 }
 
 b32 write_entire_file(String name, String_Builder *builder) {
-    return SaveFileText(c_str(name), c_str(builder));
+    return SaveFileText(c_str(name), (char *)c_str(builder));
 }
     
 b32 directory_exists(String name) {
