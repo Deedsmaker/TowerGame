@@ -73,7 +73,7 @@ i32 add_line_trail(Vector2 start_position){
         }
     }
     
-    print("L_WARNING: Could not add line trail, no space left");
+    // print("L_WARNING: Could not add line trail, no space left");
     return -1;
 }
 

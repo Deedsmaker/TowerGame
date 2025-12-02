@@ -2191,7 +2191,7 @@ Entity *add_player_entity(Context *context, Player *data) {
     right_wall_checker->color = Fade(PURPLE, 0.8f);
     right_wall_checker->draw_order = 31;
     
-    Entity *sword_entity = add_entity(current_context->player_spawn_point, data->sword_start_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
+    Entity *sword_entity = add_entity(current_context->player_spawn_point, data->rifle_scale, {0.5f, 1.0f}, 0, GRAY + RED * 0.1f, SWORD);
     sword_entity->collision_flags = ENEMY;
     sword_entity->color   = GRAY + RED * 0.1f;
     sword_entity->draw_order = 25;

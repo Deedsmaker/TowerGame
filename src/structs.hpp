@@ -654,8 +654,7 @@ struct Bounds {
 
 enum Sword_Mode {
     RIFLE_MODE,  
-    GROUND_MODE,
-    AIR_MODE
+    SWORD_MODE,
 };
 
 enum Player_States : FLAGS {
@@ -729,9 +728,11 @@ struct Player {
     
     inline static const f32 SWORD_SPIN_SPEED = 2000;
     
-    Vector2 sword_start_scale = {2.0f, 12.0f};
+    Vector2 rifle_scale = {2.0f, 12.0f};
     // Vector2 sword_ground_mode_scale = {3.0f, 18.0f};
-    Vector2 sword_air_mode_scale = {9.0f, 46.0f};
+    Vector2 sword_scale = {9.0f, 46.0f};
+    
+    f32 killing_centipede_timer = 0;
     
     inline static const f32 SWORD_PREPARE_TIME = 0.4f;
     f32 sword_prepare_timer = 0;
