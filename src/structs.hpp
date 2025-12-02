@@ -562,6 +562,8 @@ struct Bird_Enemy : Enemy {
     f32 attack_start_time = 0;
     f32 attacked_time = -12;
     f32 max_attack_time = 3.0f;
+    
+    Vector2 initial_position = Vector2_zero;
 
     //Charging attack state
     b32 charging = false;

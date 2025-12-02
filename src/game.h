@@ -75,6 +75,8 @@ inline Entity *maybe_get_entity(i32 id, Context *context = NULL);
 
 Vector2 get_entity_velocity(Entity *entity);
 
+void move_by_velocity_with_collisions(Entity *entity, Vector2 velocity, f32 max_frame_move_len, void (respond_collision_func)(Entity*, Collision), f32 dt);
+
 inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_flags, f32 reduced_len = 0);
 
 void kill_player();

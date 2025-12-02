@@ -1,0 +1,16 @@
+name Trigger 
+ id 5 
+ position { -220.000000,  121.250000} 
+ scale { 235.000000,  5.000000} 
+ pivot { 0.500000,  0.500000} 
+ rotation 0.000000 
+ color { 230,  41,  55,  229} 
+ flags 2199024041984 
+ draw_order 100 
+ vertices [ { 118.207108,  3.207107} { -118.207108,  3.207107} { 118.207108,  -3.207107} { -118.207108,  -3.207107} ] 
+ unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ trigger_settings 3211 
+ trigger_locked_camera_position { 0.000000,  0.000000} 
+ 
