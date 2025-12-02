@@ -1,6 +1,6 @@
 name Bird_enemy 
- id 15 
- position { -349.110321,  170.102203} 
+ id 12 
+ position { -292.500000,  212.500000} 
  scale { 6.000000,  10.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 

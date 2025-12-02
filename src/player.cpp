@@ -116,8 +116,12 @@ void flick_to_enemy(Entity *player_entity, Player *player, Entity *enemy_entity)
     
     make_line(player_entity->position, enemy_entity->position, 2.0f, Fade(RED, 0.5f), 0.5f);
     
+    add_hitstop(0.5f);
+    
     player_entity->position = enemy_entity->position;
     player->velocity.y = 100;
+    
+    player->since_flick_timer = 0;
     
     if (player->sword_mode == SWORD_MODE) {
         player->this_attack_killed_count += 1;
@@ -439,8 +443,8 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                 
                 assert(player->current_big_sword_charges > 0 && player->current_big_sword_charges <= player->max_big_sword_charges);
                 
-                player->current_big_sword_charges -= 1;
                 remove_flag(&player->state_flags, HIT_CENTIPEDE_THIS_SPIN);
+                player->current_big_sword_charges -= 1;
                 
                 player->sword_attack_start_move_direction = input_direction.x != 0 ? input_direction.x : 1;
                 player->sword_attack_start_angle = sword->rotation;
@@ -487,6 +491,11 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                 } else {
                 }
                                 
+                static const f32 AFTER_FLICK_DIRECTION_BUFFER = 0.2f;
+                if (player->since_flick_timer <= AFTER_FLICK_DIRECTION_BUFFER) {
+                    player->sword_spin_direction = input.last_non_zero_x;
+                }
+                                
                 f32 spin_velocity = player->SWORD_SPIN_SPEED * player->sword_spin_direction;
                 f32 spin_amount = abs(spin_velocity) * dt;
                 
@@ -500,12 +509,13 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
             }
         }
         
-        
-        Vector2 sword_target_scale = player->rifle_scale;
-        
-        if (player->sword_mode == SWORD_MODE)    sword_target_scale = player->sword_scale;
-        
-        change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
+        {
+            Vector2 sword_target_scale = player->rifle_scale;
+            
+            if (player->sword_mode == SWORD_MODE)    sword_target_scale = player->sword_scale;
+            
+            change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
+        }
         
     killing_centipede_sword_case:
     
@@ -588,6 +598,8 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
         }
 
     } // End sword effects.
+    
+    player->since_flick_timer += dt;
 } // End update player sword.
 
 void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
@@ -1282,9 +1294,9 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
             }
             
             if (other->flags & HIT_BOOSTER) {
-                entity->position = other->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
-                player_data->velocity = other->up * other->union_enemy->hit_booster.boost;
-                player_data->timers.hit_booster_time = current_context->game_time;
+                // entity->position = other->position; // @TODO: Will need to do small delay before boost and actually smoothly snap to booster position.
+                // player_data->velocity = other->up * other->union_enemy->hit_booster.boost;
+                // player_data->timers.hit_booster_time = current_context->game_time;
                 continue; // Only detecting collision. Don't want to actually physically collide with it.
             }
     

@@ -734,6 +734,8 @@ struct Player {
     
     f32 killing_centipede_timer = 0;
     
+    f32 since_flick_timer = 0;
+    
     inline static const f32 SWORD_PREPARE_TIME = 0.4f;
     f32 sword_prepare_timer = 0;
     f32 sword_attack_start_angle = 0;

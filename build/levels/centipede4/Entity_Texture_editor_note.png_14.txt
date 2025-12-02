@@ -12,6 +12,6 @@ name Texture_editor_note.png
  hidden 0 
  spawn_enemy_when_no_ammo 0 
  texture_name editor_note.png 
- note_content "  Here best solution would be to use only two boosters - just to hit this kill switch. For that you need to be at the top of a door after killing cenipede.  " 
+ note_content "   Here best solution would be to use only two boosters - just to hit this kill switch. For that you need to be at the top of a door after killing cenipede.   " 
  note_draw_in_game 0 
  
