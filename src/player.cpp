@@ -929,6 +929,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
                     try_sword_damage_enemy(next, next->position);
                     add_hitstop(0.01f);
                     player_data->last_killed_segment = next;
+                    make_line(entity->position, next->position, 2.0f, Fade(RED, 0.5f), 0.7f);
                 }
             }
             
