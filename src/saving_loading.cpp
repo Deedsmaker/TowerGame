@@ -286,7 +286,7 @@ Color parse_color(Array <String> *splitted, i32 start_index) {
 void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted, i32 start_index) {
     i32 end_index = splitted->find_from(tstring("\n"), start_index);
     if (end_index <= start_index) {
-        printf("End index was somehow less than a start index. That could mean that there was no breakline character at the end.\n");
+        // printf("End index was somehow less than a start index. That could mean that there was no breakline character at the end.\n");
         return;
     }
     
@@ -312,7 +312,7 @@ void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted,
         
         lightmaps->append(lightmap);
         
-        i--; // So we won't skip next lightmap_position.
+        i--; // We're on a next lightmap_position index right now, so subtracting one and for loop i++ won't break our jaw.
     }
 }
 
@@ -396,7 +396,11 @@ void create_level(String name) {
     reload_level_names();
 }
 
-b32 load_level(String name) {
+enum Load_Flags {
+    ENTER_GAME_STATE_AFTER = 0x1,  
+};
+
+b32 load_level(String name, u64 load_flags = 0) {
     clear_multiselected_entities();
 
     name = copy_string(name, temp); // Beacuse we're just cleared temp allocator and if "name" was temp allocated - it could go wrong.
@@ -685,7 +689,17 @@ b32 load_level(String name) {
     clear_context(editor_context);
     copy_context(editor_context, &loaded_context, true);
     
-    editor_enter_editor_state();
+    if (load_flags & ENTER_GAME_STATE_AFTER) {
+        if (editor_state == EDITOR) {
+            editor_enter_game_state(&loaded_context);
+        } else {
+            copy_context(&planning_context, &loaded_context, true);
+            enter_planning_state();
+        }
+    } else {
+        editor_enter_editor_state();
+    }
+    
     
     current_context->cam.position = current_context->player_spawn_point;
     current_context->cam.target = current_context->player_spawn_point;
@@ -700,7 +714,7 @@ b32 load_level(String name) {
 b32 maybe_load_next_level() { 
     i32 current_level_index = global_data.level_order.find(current_context->level_name);
     if (current_level_index >= 0 && current_level_index < global_data.level_order.count - 1) {
-        b32 success  = load_level(global_data.level_order.get_value(current_level_index + 1));  
+        b32 success  = load_level(global_data.level_order.get_value(current_level_index + 1), ENTER_GAME_STATE_AFTER);  
         return success;
     }
     

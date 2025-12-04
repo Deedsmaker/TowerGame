@@ -640,6 +640,8 @@ i32 add_note(const char *content) {
 }
 
 void copy_context(Context *dest, Context *src, b32 should_init_entities) {
+    clear_context(dest);
+
     // *dest = *src;
     Context *original_context = current_context;
     switch_current_context(dest);
@@ -9146,12 +9148,12 @@ void draw_game() {
         f32 since_died = current_context->game_time - player_data->timers.died_time;
         
         f32 t = clamp01((since_died - 3.0f) / 2.0f);
-        Old::make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.55f}, 40, Fade(GREEN, t * t * t * t), "restart_text");
-        
-        if (state_context.we_got_a_winner) {
-            Old::make_ui_text("V - next", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "next_text");
-        }
+        Old::make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "restart_text");
     }
+    if (state_context.we_got_a_winner && editor_state == GAME) {
+        Old::make_ui_text("V - next", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, .6f), "next_text");
+    }
+
     
     draw_ui("");
     
