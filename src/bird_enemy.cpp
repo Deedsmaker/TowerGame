@@ -1,5 +1,12 @@
 #pragma once
 
+void bird_clear_formation(Bird_Enemy *bird) {
+    if (bird->slot_index != -1) {
+        current_context->bird_slots[bird->slot_index].occupied = false;
+        bird->slot_index = -1;
+    }
+}
+
 void respond_bird_collision(Entity *bird_entity, Collision col) {
     assert(bird_entity->flags & BIRD_ENEMY);
 

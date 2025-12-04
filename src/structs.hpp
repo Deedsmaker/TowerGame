@@ -1307,6 +1307,8 @@ struct Global_Data{
     // Cam cam = {};
     
     Speedrun_Timer speedrun_timer = {};
+    
+    Array <String> level_order = {0};
 };
 
 struct Line {

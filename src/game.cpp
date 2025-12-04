@@ -814,13 +814,6 @@ Entity *spawn_object_by_name(const char* name, Vector2 position, Context *contex
     return NULL;
 }
 
-void bird_clear_formation(Bird_Enemy *bird) {
-    if (bird->slot_index != -1) {
-        current_context->bird_slots[bird->slot_index].occupied = false;
-        bird->slot_index = -1;
-    }
-}
-
 inline void free_particle_emitter(i32 index) {
     assert(index >= 0 && index < current_context->particle_emitters.capacity);
     
@@ -2122,6 +2115,8 @@ void init_game() {
         str_copy(level_name_to_load, "test_level");
     }
     
+    load_level_order();
+    
     load_level(tstring(level_name_to_load));
     
     initing_game = false;
@@ -2247,6 +2242,8 @@ void enter_gaming_state() {
     switch_current_context(&game_context);
     game_state = GAMING;
     
+    state_context.we_got_a_winner = false;
+    
     if (!current_context->player_entity) {
         current_context->player = {0};
         add_player_entity(current_context, &current_context->player);
@@ -2279,6 +2276,8 @@ void enter_planning_state() {
     
     clean_up_scene();
     switch_current_context(&planning_context);
+    
+    state_context.we_got_a_winner = false;
     
     game_setup_collisions();
     
@@ -2633,7 +2632,7 @@ void fixed_game_update(Context *context, f32 dt) {
         Cam *cam = &current_context->cam;
         
         f32 target_zoom = cam->target_zoom;
-        if (editor_state == GAME && player_data->in_slowmo) {
+        if (editor_state == GAME && player_data->in_slowmo && !state_context.cam_state.locked) {
             target_zoom *= 1.2f;
         }
         cam->cam2D.zoom = lerp(cam->cam2D.zoom, target_zoom, dt * zoom_speed);
@@ -2862,6 +2861,10 @@ void update_game() {
                     enter_planning_state();
                 }
             }
+        }
+        
+        if (state_context.we_got_a_winner && IsKeyPressed(KEY_V)) {
+            maybe_load_next_level();
         }
     }
     
@@ -9143,7 +9146,11 @@ void draw_game() {
         f32 since_died = current_context->game_time - player_data->timers.died_time;
         
         f32 t = clamp01((since_died - 3.0f) / 2.0f);
-        Old::make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "restart_text");
+        Old::make_ui_text("T - restart", {screen_width * 0.45f, screen_height * 0.55f}, 40, Fade(GREEN, t * t * t * t), "restart_text");
+        
+        if (state_context.we_got_a_winner) {
+            Old::make_ui_text("V - next", {screen_width * 0.45f, screen_height * 0.45f}, 40, Fade(GREEN, t * t), "next_text");
+        }
     }
     
     draw_ui("");
