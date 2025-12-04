@@ -786,7 +786,7 @@ void player_ground_move(Entity *entity, Player *player, f32 dt) {
     
     Vector2 input_direction = input.sum_direction;
     
-    if (player->state_flags & SWORD_MODE) {
+    if (player->state_flags & SWORD_ATTACKING) {
         if (input_direction.x != player->sword_spin_direction && input_direction.x != 0) {
             input_direction.x = player->sword_spin_direction;
         }

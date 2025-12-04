@@ -5,22 +5,9 @@ void print_to_console(const char *text) {
 }
 
 void try_load_next_level() {
-    b32 found = false;
-    ForEntities(entity, TRIGGER) {
-        if (entity->trigger->settings & LOAD_LEVEL) {
-            found = true;
-            if (load_level(tstring(entity->trigger->level_name))) {            
-                print_to_console("Next level loaded successfuly");
-                editor_enter_editor_state();
-            } else {
-                print_to_console("Next level FAILED TO LOAD");
-            }
-            break;
-        }
-    }
-    
-    if (!found) {
-        print_to_console("Could not find trigger that will load next level");
+    b32 success = maybe_load_next_level();
+    if (!success) {
+        print_to_console("This level is either last or not in level order file.");
     }
 }
 
