@@ -1163,6 +1163,39 @@ struct Turret_State {
     f32 tick_countdown = 0.2f;
 };
 
+enum Planning_Flags : FLAGS {
+};
+
+enum Planning_Node_Type {
+    SPACE_NODE = 0,  
+    ITEM_NODE = 1,  
+};
+
+struct Planning_Node {
+    Vector2 position;
+    Planning_Node_Type type = SPACE_NODE;
+};
+
+struct Planning_Node_Icon {
+    String name = {0};
+    
+    Planning_Node_Type type;
+};
+
+struct Planning_Data {
+    Entity *dragged_entity = NULL;
+        
+    Array <i32> spawned_ids = {0};
+    
+    i32 space_points = 6;
+    i32 item_points = 2;
+    
+    Planning_Node *selected_node = NULL;
+    
+    Array <Planning_Node> nodes = {0};
+    Array <Planning_Node_Icon> node_icons = {0};
+};
+
 struct Context {
     char name[64] = {};
     Allocator memory_arena = {};
@@ -1205,6 +1238,8 @@ struct Context {
     
     Entity *player_entity = NULL;
     Player player = {};  
+    
+    Planning_Data planning = {0};
       
     Array <Particle>         particles = {};
     Array <Particle_Emitter> particle_emitters  = {};

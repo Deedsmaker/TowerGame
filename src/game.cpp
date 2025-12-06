@@ -787,6 +787,8 @@ void clear_context(Context *context) {
     
     clear_allocator(&context->memory_arena);
     
+    init_planning_data(context);
+    
     switch_current_context(original_context);
 }
 
@@ -2318,7 +2320,7 @@ void editor_enter_game_state(Context *from_context) {
     clear_context(&planning_context);
     copy_context(&planning_context, from_context, true);
     
-    reset_planning_data();
+    reset_planning_data(&planning_context);
     enter_planning_state();    
 }
 
@@ -2964,7 +2966,7 @@ void update_game() {
     update_console();
     
     if (editor_state == GAME && game_state == GAME_PLANNING) { 
-        update_planning();
+        update_planning(current_context);
     }
     
     if (editor_state == GAME && !state_context.in_pause_editor) {
@@ -8570,7 +8572,7 @@ void draw_entities() {
     }
     
     if (game_state == GAME_PLANNING) {
-        planning_draw();
+        planning_draw(current_context);
     }
 }
 
@@ -8744,7 +8746,7 @@ void draw_ui(const char *tag) {
         }
         
         if (game_state == GAME_PLANNING) {
-            planning_draw_ui();
+            planning_draw_ui(current_context);
         }
     }
 
