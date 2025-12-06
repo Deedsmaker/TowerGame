@@ -28,6 +28,34 @@ struct Planning_Data {
 
 global_variable Planning_Data planning = {0};
 
+f32 radius_from_node(Planning_Node *node) {
+    switch (node->type) {
+        case SPACE_NODE:
+            return 50.0f;
+        case ITEM_NODE:
+            return 25.0f;
+        default: 
+            return 100.0f; // Fallback.
+    }
+}
+
+Color color_from_node(Planning_Node *node) {
+    switch (node->type) {
+        case SPACE_NODE:
+            return Fade(ColorBrightness(SKYBLUE, -0.3f), 0.6f);
+        case ITEM_NODE:
+            return Fade(RED, 0.7f);
+        default: 
+            return PINK; // Fallback.
+    }
+}
+
+Color radius_color_from_node(Planning_Node *node) {
+    Color node_color = color_from_node(node);
+    
+    return color_fade(ColorBrightness(node_color, 0.3f), 0.4f);
+}
+
 void reset_planning_data() {
     planning.dragged_entity = NULL;
     planning.spawned_ids.clear();
@@ -42,7 +70,24 @@ void planning_start_holding_entity(Entity *entity_to_drag) {
 }
 
 void update_planning() { 
-        
+    assert(planning.nodes.count > 0); // We're always keeping base node on player spawn point.
+    auto last_node = planning.nodes.last();
+    
+    Vector2 last_to_mouse = input.mouse_position - last_node->position;
+    f32 sqr_len = sqr_magnitude(last_to_mouse);
+    f32 target_radius = radius_from_node(last_node);
+    if (sqr_len > target_radius * target_radius) {
+        clamp_magnitude(&last_to_mouse, target_radius);
+    }
+    Vector2 target_position = last_node->position + last_to_mouse;
+    make_line(last_node->position, target_position, 1.0f, BLUE);
+    
+    if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+        Planning_Node new_node = {0};
+        new_node.position = target_position;
+        new_node.type = SPACE_NODE;
+        planning.nodes.append(new_node);
+    }
 
     // if (planning.dragged_entity) {
     //     Entity *entity = planning.dragged_entity;
@@ -89,38 +134,10 @@ void update_planning() {
     // }
 }
 
-f32 radius_from_node(Planning_Node *node) {
-    switch (node->type) {
-        case SPACE_NODE:
-            return 50.0f;
-        case ITEM_NODE:
-            return 25.0f;
-        default: 
-            return 100.0f; // Fallback.
-    }
-}
-
-Color color_from_node(Planning_Node *node) {
-    switch (node->type) {
-        case SPACE_NODE:
-            return Fade(ColorBrightness(SKYBLUE, -0.3f), 0.6f);
-        case ITEM_NODE:
-            return Fade(RED, 0.7f);
-        default: 
-            return PINK; // Fallback.
-    }
-}
-
-Color radius_color_from_node(Planning_Node *node) {
-    Color node_color = color_from_node(node);
-    
-    return color_fade(ColorBrightness(node_color, 0.3f), 0.4f);
-}
-
 void planning_draw() {
-    For(&planning.nodes) {
-        // auto node = planning.nodes.get(i);
-        
+    For (&planning.nodes) {
+        // auto it = planning.nodes.get(i);
+    
         f32 radius = radius_from_node(it);
         Color node_color = color_from_node(it);
         Color radius_color = radius_color_from_node(it);

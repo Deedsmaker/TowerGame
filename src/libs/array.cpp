@@ -7,7 +7,7 @@
 #include "my_defines.hpp"
 #include "logger.h"
 
-#define For(array) auto it = (array)->maybe_get_first(); for (i32 i = 0; i < (array)->count; it = (array)->get(i), i++)
+#define For(array) auto it = (array)->maybe_get_first(); u32 i = 0; for (i = 0; i < (array)->count; i += 1, it = (array)->maybe_get(i))
 
 #define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
 #define for_array_backwards(index, array) for (i32 index = (array)->count - 1; index >= 0; index--)
@@ -46,6 +46,11 @@ struct Array {
     inline T *get(i32 index) {
         log_if_false((index >= 0 && index < count), "Index %d with count %d out of bounds!", index, count);
         
+        return &data[index];
+    }
+    
+    inline T *maybe_get(i32 index) {
+        if (index < 0 || index >= count) return NULL;
         return &data[index];
     }
     
