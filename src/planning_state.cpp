@@ -74,9 +74,16 @@ void update_planning(Context *context) {
             planning->nodes.pop();
         }
     }
-
+    
     assert(planning->nodes.count > 0); // We're always keeping base node on player spawn point.
     auto last_node = planning->nodes.last();
+    
+    if (IsKeyPressed(KEY_TAB)) {
+        planning->selected_icon_index += 1;
+        planning->selected_icon_index %= planning->node_icons.count;
+    }
+    
+    Planning_Node_Icon *node_icon = planning->node_icons.get(planning->selected_icon_index);
     
     f32 target_radius = radius_from_node(last_node);
     Vector2 last_to_mouse = input.mouse_position - last_node->position;
@@ -107,11 +114,15 @@ void update_planning(Context *context) {
     
     make_line(last_node->position, target_position, 1.0f, line_color);
     
+    if (node_icon->entity) {
+        
+    }
+    
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         if (can_place_new_node) {
             Planning_Node new_node = {0};
             new_node.position = target_position;
-            new_node.type = SPACE_NODE;
+            new_node.type = node_icon->type;
             planning->nodes.append(new_node);
         } else {
             play_sound("FailedRifleActivation", 0.4f);
@@ -140,7 +151,12 @@ void planning_draw_ui(Context *context) {
         Vector2 pos = panel_pos + Vector2_up * 50 * i;
         Vector2 size = {panel_size.x - 20, 40};
         
-        Old::make_ui_image(pos, size, {0, 0}, Fade(BLUE, 0.8f), tprintf("planning_icon_%d", i));
+        Color color = BLUE;
+        if (i == context->planning.selected_icon_index) {
+            color = SKYBLUE;
+        }
+        
+        Old::make_ui_image(pos, size, {0, 0}, Fade(color, 0.8f), tprintf("planning_icon_%d", i));
         Old::make_ui_text(c_str(it->name), pos, 22, WHITE, tprintf("planning_text_%d", i));
         // if (Old::make_button(pos, size, object->name, tprintf("planning_object_%d", i))) {
         //     // planning_start_holding_entity(&object->entity);

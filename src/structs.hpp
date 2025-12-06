@@ -1194,6 +1194,8 @@ struct Planning_Data {
     
     Planning_Node *selected_node = NULL;
     
+    i32 selected_icon_index = 0;
+    
     Array <Planning_Node> nodes = {0};
     Array <Planning_Node_Icon> node_icons = {0};
 };

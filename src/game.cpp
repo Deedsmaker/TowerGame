@@ -2840,7 +2840,7 @@ void update_game() {
     } 
     
     // editor game pause
-    if (IsKeyPressed(KEY_TAB) && !console.is_open && editor_state == GAME) {
+    if (IsKeyPressed(KEY_TAB) && !console.is_open && editor_state == GAME && game_state == GAMING) {
         assign_selected_entity(NULL);
         state_context.in_pause_editor = !state_context.in_pause_editor;
         if (state_context.in_pause_editor) {
