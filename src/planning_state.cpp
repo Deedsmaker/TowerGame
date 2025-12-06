@@ -70,6 +70,12 @@ void planning_start_holding_entity(Entity *entity_to_drag) {
 }
 
 void update_planning() { 
+    if (IsKeyPressed(KEY_Z)) {
+        if (planning.nodes.count > 1) {
+            planning.nodes.pop();
+        }
+    }
+
     assert(planning.nodes.count > 0); // We're always keeping base node on player spawn point.
     auto last_node = planning.nodes.last();
     
@@ -80,28 +86,39 @@ void update_planning() {
     static const f32 ANGLE_STEP = 30;
     
     f32 angle = fangle(dir);
-    angle = round_to_factor(angle, ANGLE_STEP) + 90;
+    angle = round_to_factor(angle, ANGLE_STEP) + 90; // "+ 90" because we have retarged angle system where UP is zero.
     f32 rad = angle * DEG2RAD;
         
     dir = {-cosf(rad), sinf(rad)};
     
     Vector2 target_position = last_node->position + dir * target_radius;
     
-    make_line(last_node->position, target_position, 1.0f, BLUE);
+    Collision col = raycast(last_node->position, dir, target_radius, GROUND);
+    
+    bool can_place_new_node = true;
+    if (col.collided) {
+        can_place_new_node = false;
+    }
+    
+    Color line_color = BLUE;
+    
+    if (!can_place_new_node) {
+        line_color = RED;
+    }
+    
+    make_line(last_node->position, target_position, 1.0f, line_color);
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        Planning_Node new_node = {0};
-        new_node.position = target_position;
-        new_node.type = SPACE_NODE;
-        planning.nodes.append(new_node);
-    }
-    
-    if (IsKeyPressed(KEY_Z)) {
-        if (planning.nodes.count > 1) {
-            planning.nodes.pop();
+        if (can_place_new_node) {
+            Planning_Node new_node = {0};
+            new_node.position = target_position;
+            new_node.type = SPACE_NODE;
+            planning.nodes.append(new_node);
+        } else {
+            play_sound("FailedRifleActivation", 0.4f);
         }
     }
-
+    
     // if (planning.dragged_entity) {
     //     Entity *entity = planning.dragged_entity;
     //     entity->position = input.mouse_position;

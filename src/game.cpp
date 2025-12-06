@@ -152,11 +152,11 @@ inline b32 is_editor_active() {
 #include "old_ui.hpp"
 #include "immediate_ui.cpp"
 #include "lightmaps.cpp"
+#include "collisions.cpp"
 #include "planning_state.cpp"
 #include "dynamic_lights.cpp"
 #include "undo.cpp"
 #include "saving_loading.cpp"
-#include "collisions.cpp"
 #include "text_input.hpp"
 #include "console.cpp"
 #include "player.cpp"
@@ -2462,7 +2462,8 @@ void fixed_game_update(Context *context, f32 dt) {
     // Update camera.
     if (0) {
     } else if (editor_state == GAME && game_state == GAME_PLANNING) {
-        current_context->cam.position += input.direction * dt * 250;
+        // Update planning camera.
+        current_context->cam.position += input.direction * dt * 300;
     } else if (editor_state == GAME && player_entity && !state_context.free_cam && !state_context.in_pause_editor && (!is_in_death_instinct() || !is_death_instinct_threat_active())) {
         f32 time_since_death_instinct_stop = core.time.app_time - state_context.death_instinct.stop_time;
         
