@@ -890,7 +890,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     update_connected_entities_positions(entity);    
     
     f32 since_hit_booster = current_context->game_time - player_data->timers.hit_booster_time;
-    b32 player_in_hit_booster = since_hit_booster <= HIT_BOOSTER_BOOST_TIME;
+    b32 player_in_hit_booster = since_hit_booster <= HIT_BOOSTER_BOOST_TIME; // @TODO: Remove.
     
     Vector2 input_direction = input.sum_direction;
     

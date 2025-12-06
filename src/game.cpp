@@ -8567,6 +8567,10 @@ void draw_entities() {
         
         draw_entity(e);
     }
+    
+    if (game_state == GAME_PLANNING) {
+        planning_draw();
+    }
 }
 
 void draw_game_space_editor() {
@@ -9128,7 +9132,7 @@ void draw_game() {
     BeginDrawing();
 
     new_render();
-    
+        
     update_input_field();
     
     BeginMode2D(current_context->cam.cam2D); {
