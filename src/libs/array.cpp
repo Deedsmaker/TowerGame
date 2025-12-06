@@ -7,6 +7,8 @@
 #include "my_defines.hpp"
 #include "logger.h"
 
+#define For(array) auto it = (array)->maybe_get_first(); for (i32 i = 0; i < (array)->count; it = (array)->get(i), i++)
+
 #define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
 #define for_array_backwards(index, array) for (i32 index = (array)->count - 1; index >= 0; index--)
 
@@ -220,6 +222,11 @@ struct Array {
     }
     inline i32 find_from(T to_find, i32 from) {
         return find_from(&to_find, from);
+    }
+    
+    T* maybe_get_first() {
+        if (count > 0) return &data[0];
+        return NULL;
     }
     
     T pop_value(){

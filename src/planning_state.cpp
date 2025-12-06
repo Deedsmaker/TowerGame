@@ -118,14 +118,14 @@ Color radius_color_from_node(Planning_Node *node) {
 }
 
 void planning_draw() {
-    for_array(i, &planning.nodes) {
-        auto node = planning.nodes.get(i);
+    For(&planning.nodes) {
+        // auto node = planning.nodes.get(i);
         
-        f32 radius = radius_from_node(node);
-        Color node_color = color_from_node(node);
-        Color radius_color = radius_color_from_node(node);
-        draw_game_circle(node->position, radius, radius_color);
-        draw_game_circle(node->position, 5.0f, node_color);
+        f32 radius = radius_from_node(it);
+        Color node_color = color_from_node(it);
+        Color radius_color = radius_color_from_node(it);
+        draw_game_circle(it->position, radius, radius_color);
+        draw_game_circle(it->position, 5.0f, node_color);
     }
 }
 
