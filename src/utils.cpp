@@ -151,7 +151,7 @@ void print(const char *str){
 
 void print(Array <i32> *numbers) {
     printf("Numbers: [");
-    for_array(i, numbers) {
+    for_array (i, numbers) {
         if (i < numbers->count - 1) {
             printf("%d, ", numbers->get_value(i));
         } else {

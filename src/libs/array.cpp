@@ -79,7 +79,7 @@ struct Array {
     // }
     
     void append_another_array(Array <T> *another_array) {
-        for_array(i, another_array) {
+        for_array (i, another_array) {
             append(another_array->get_value(i));
         }
     }
@@ -92,7 +92,7 @@ struct Array {
     b32 values_equal(Array <T> *another_array) {
         if (count != another_array->count) return false;
         
-        for_array(i, this) { 
+        for_array (i, this) { 
             if (*get(i) != *another_array->get(i)) {
                 return false;
             }
@@ -144,7 +144,7 @@ struct Array {
     }
     
     inline void remove_all_encountered(T *value) {
-        for_array(i, this) {
+        for_array (i, this) {
             if (*get(i) == *value) {
                 remove(i);
                 i--;
@@ -164,7 +164,7 @@ struct Array {
     }
     
     inline b32 contains(T *to_find) {
-        for_array(i, this) {
+        for_array (i, this) {
             if (*get(i) == *to_find) {
                 return true;
             }
@@ -178,7 +178,7 @@ struct Array {
     }
     
     inline b32 contains_at_least_one(Array <T> *another_array) {
-        for_array(i, another_array) {
+        for_array (i, another_array) {
             if (contains(another_array->get(i))) {
                 return true;
             }
@@ -194,7 +194,7 @@ struct Array {
         
         Array <T> *biggest = count > another_array->count ? this : another_array;
         Array <T> *smallest = count > another_array->count ? another_array : this;
-        for_array(i, biggest) {
+        for_array (i, biggest) {
             if (!smallest->contains(biggest->get(i))) {
                 result.append(biggest->get_value(i));
             }
@@ -204,7 +204,7 @@ struct Array {
     }
     
     inline i32 find(T *to_find) {    
-        for_array(i, this) {
+        for_array (i, this) {
             if (*get(i) == *to_find) {
                 return i;
             }
@@ -285,7 +285,7 @@ Array <T> copy_array(Array<T> *to_copy) {
     Array <T> result = {.allocator = to_copy->allocator};
     init_array(&result, to_copy->capacity, to_copy->allocator);
     
-    for_array(i, to_copy) {
+    for_array (i, to_copy) {
         result.append(*to_copy->get(i));
     }
     
@@ -340,7 +340,7 @@ struct Static_Array {
     }
     
     inline void remove_all_encountered(T *value) {
-        for_array(i, this) {
+        for_array (i, this) {
             if (*get(i) == *value) {
                 remove(i);
                 i--;
@@ -371,7 +371,7 @@ struct Static_Array {
     }
     
     b32 contains(T *to_find) {
-        for_array(i, this) {
+        for_array (i, this) {
             if (*get(i) == *to_find) {
                 return true;
             }
@@ -385,7 +385,7 @@ struct Static_Array {
     }
     
     i32 find(T *to_find) {    
-        for_array(i, this) {
+        for_array (i, this) {
             if (*get(i) == *to_find) {
                 return i;
             }

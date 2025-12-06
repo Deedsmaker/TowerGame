@@ -69,7 +69,7 @@ void make_thing() {
     
     Array <String> icons = get_files_in_directory(tstring("temp/icons"));
     
-    for_array(b, &backgrounds) {
+    for_array (b, &backgrounds) {
         Image background = backgrounds.get_value(b);
         b32 dark_background = b < 2;
         Color color = dark_background ? WHITE : BLACK;
@@ -112,7 +112,7 @@ void make_thing() {
             ExportImage(image, tprintf("temp/result/Achievement_%d_%s_gray.jpg", b, str));
         }
         
-        for_array(i, &icons) {
+        for_array (i, &icons) {
             Image icon = LoadImage(c_str(icons.get_value(i)));
             Image image = ImageCopy(background);
             

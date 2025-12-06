@@ -100,7 +100,7 @@ u64 get_file_modification_time(String path) {
 }
 
 inline i32 find_file_name_in_paths(Array <String> *paths, String name_to_find) {
-    for_array(i, paths) {
+    for_array (i, paths) {
         String name = strip_path_to_just_name(paths->get_value(i), temp);
         if (name == name_to_find) return i;
     }
@@ -136,7 +136,7 @@ b32 delete_directory(String path) {
       
     auto files = get_files_in_directory(path, temp);
     
-    for_array(i, &files) {
+    for_array (i, &files) {
         delete_file(files.get_value(i));
     }
     

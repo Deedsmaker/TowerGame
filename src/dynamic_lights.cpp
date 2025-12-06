@@ -110,7 +110,7 @@ void free_light(Light *light, i32 index, Context *context) {
 }
 
 void free_lights_connected_to_entity(Entity *entity) {
-    for_array(i, &entity->lights) {
+    for_array (i, &entity->lights) {
         i32 light_index = entity->lights.get_value(i);
         Light *light = entity->context->lights.get(light_index);
         free_light(light, light_index, entity->context);

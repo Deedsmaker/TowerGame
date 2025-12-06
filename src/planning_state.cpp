@@ -121,7 +121,7 @@ void update_planning() {
         
     // } else if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
     //     auto mouse_collisions = get_tcollisions(&mouse_entity, 0);
-    //     for_array(i, &mouse_collisions) {
+    //     for_array (i, &mouse_collisions) {
     //         Entity *other = mouse_collisions.get(i)->other_entity;
             
     //         i32 spawned_index = planning.spawned_ids.find(other->id);
@@ -136,8 +136,6 @@ void update_planning() {
 
 void planning_draw() {
     For (&planning.nodes) {
-        // auto it = planning.nodes.get(i);
-    
         f32 radius = radius_from_node(it);
         Color node_color = color_from_node(it);
         Color radius_color = radius_color_from_node(it);
@@ -152,7 +150,7 @@ void planning_draw_ui() {
     Old::make_ui_image(panel_pos, panel_size, {0, 0}, color_fade(SKYBLUE, 0.2f), "planning_panel");
     
     i32 buttons_count = 0;
-    for_array(i, &spawn_objects) {
+    for_array (i, &spawn_objects) {
         Spawn_Object *object = spawn_objects.get(i);
         if (!(object->flags & PLANNING_OBJECT)) continue;
         

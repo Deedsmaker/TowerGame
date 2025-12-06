@@ -50,7 +50,7 @@ Old_File old_load_file(const char *name, const char *mode, Allocator *allocator)
 }
 
 void old_unload_file(Old_File *file){
-    for_array(i, (&file->lines)) {
+    for_array (i, (&file->lines)) {
         file->lines.get(i)->free_data();
     }
     

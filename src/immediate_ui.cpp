@@ -24,7 +24,7 @@ void end_panel() {
 
 void draw_immediate_ui() {
     // Will go from oldest panel to newest.
-    for_array(i, &panels) {
+    for_array (i, &panels) {
         auto panel = panels.get(i);
         
         

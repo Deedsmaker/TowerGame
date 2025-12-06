@@ -60,14 +60,14 @@ void print_create_level_hint() {
 }
 
 void reload_level_names() {
-    for_array(i, &console.level_names) {
+    for_array (i, &console.level_names) {
         console.level_names.get(i)->free_data();
     }
     console.level_names.clear();
     
     Array <String> levels = get_files_in_directory(tstring("levels"), temp);
     
-    for_array(i, &levels) {
+    for_array (i, &levels) {
         String path = levels.get_value(i);
         if (!directory_exists(path)) continue;
         String name = strip_path_to_just_name(path, HEAP_ALLOCATOR);
@@ -470,14 +470,14 @@ void update_console() {
                 first_level_autocomplete_name = copy_string(console.args.get_value(1), HEAP_ALLOCATOR);
             }
         
-            for_array(i, &console.level_names) {
+            for_array (i, &console.level_names) {
                 if (string_contains(console.level_names.get_value(i), first_level_autocomplete_name)) {
                     matching_level_names.append(console.level_names.get_value(i));
                 }
             }
             
             b32 autocompleted_level_name = false;
-            for_array(i, &matching_level_names) {
+            for_array (i, &matching_level_names) {
                 const char *new_console_content = tprintf("%s %s", c_str(console.args.get_value(0)), c_str(matching_level_names.get_value(i)));
                 if (i == 0) {             
                     Old::make_ui_text(new_console_content, {3.0f, (f32)screen_height * 0.5f + focus_input_field.font_size}, focus_input_field.font_size, color * 0.7f, "console_hint_text");

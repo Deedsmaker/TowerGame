@@ -469,7 +469,7 @@ b32 load_level(String name, u64 load_flags = 0) {
     // Sorting level files so entities will come in correct id order.
     sort_file_paths(&level_files);
     
-    for_array(i, &level_files) {
+    for_array (i, &level_files) {
         String file_path = level_files.get_value(i);    
         String file_name = strip_path_to_just_name(file_path, temp);
         

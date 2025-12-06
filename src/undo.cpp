@@ -20,7 +20,7 @@ Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *
     if (changed->count > original->count) {
         Array <i32> differences = changed->get_unique_elements_differences(original);
         assert(differences.count > 0);
-        for_array(i, &differences) {
+        for_array (i, &differences) {
             Entity_Undo_Change change =  {
                 .entity_id = entity_id,
                 .change_type = ARRAY_APPENDED,
@@ -33,7 +33,7 @@ Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *
     } else if (changed->count < original->count) {
         Array <i32> differences = changed->get_unique_elements_differences(original);
         assert(differences.count > 0);
-        for_array(i, &differences) {
+        for_array (i, &differences) {
             Entity_Undo_Change change =  {
                 .entity_id = entity_id,
                 .change_type = ARRAY_REMOVED,
@@ -168,7 +168,7 @@ inline void update_undo_logic() {
         assert(found_one_that_will_be_destroyed);
     } else if (editor.just_spawned_ids.count > 0) {
         Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
-        for_array(i, &editor.just_spawned_ids) {
+        for_array (i, &editor.just_spawned_ids) {
             Entity *spawned = get_entity(editor.just_spawned_ids.get_value(i));    
             
             changes.append({
@@ -190,7 +190,7 @@ inline void update_undo_logic() {
             // we actually don't have a copy of entity before there was added reference to new entity. It just happens.
             if (entity->flags & TRIGGER) {
                 Trigger *trigger = entity->trigger;
-                for_array(j, &editor.just_spawned_ids) {
+                for_array (j, &editor.just_spawned_ids) {
                     if (trigger->connected.contains(editor.just_spawned_ids.get(j))) {
                         changes.append({
                             .entity_id = entity->id,  
@@ -211,7 +211,7 @@ inline void update_undo_logic() {
             }
             if (entity->flags & KILL_SWITCH) {
                 Kill_Switch *kill_switch = entity->kill_switch;
-                for_array(j, &editor.just_spawned_ids) {
+                for_array (j, &editor.just_spawned_ids) {
                     if (kill_switch->connected.contains(editor.just_spawned_ids.get(j))) {
                         changes.append({
                             .entity_id = entity->id,  
@@ -240,7 +240,7 @@ inline void update_undo_logic() {
         if (get_entity(editor.multiselection.entities.get_value(0))->runtime_only_flags & EDITOR_CHANGED) {
             Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
             
-            for_array(i, &editor.multiselection.entities) {
+            for_array (i, &editor.multiselection.entities) {
                 Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
                 entity->runtime_only_flags ^= EDITOR_CHANGED;
                 Entity *unchanged  = editor.multiselection.unchanged_copies.get_value(i);
@@ -284,7 +284,7 @@ inline void update_undo_logic() {
     // b32 undo_pressed = undo_required_helper_keys_down && IsKeyPressed(KEY_Z);
     if (undo_queued && current_context->undo_actions.count > 0) {
         Array <Entity_Undo_Change> *changes = current_context->undo_actions.last();
-        for_array(i, changes) {
+        for_array (i, changes) {
             Entity_Undo_Change *change = changes->get(i);
             // Entity *changed_entity = get_entity(change->entity_id);
             
@@ -365,7 +365,7 @@ inline void update_undo_logic() {
     b32 can_make_redo = current_context->max_undos_added > current_context->undo_actions.count;
     if (redo_queued && can_make_redo) {
         Array <Entity_Undo_Change> *changes = current_context->undo_actions.increase_count_and_get_last();
-        for_array(i, changes) {
+        for_array (i, changes) {
             Entity_Undo_Change *change = changes->get(i);
             
             switch(change->change_type) {

@@ -197,7 +197,7 @@ inline void mark_entity_destroyed(Entity *entity) {
     // segments. The right moment to do that will be when we'll make updating entities by type and not just going thgough
     // all of em.
     if (entity->flags & CENTIPEDE) {
-        for_array(i, &entity->centipede->segments) {
+        for_array (i, &entity->centipede->segments) {
             mark_entity_destroyed(entity->centipede->segments.get_value(i));
         }
     }
@@ -286,7 +286,7 @@ void free_entity(Entity *e) {
     // Free centipede.
     if (e->flags & CENTIPEDE) {
         assert(e->centipede && e->centipede->index >= 0);
-        for_array(i, &e->centipede->segments) {
+        for_array (i, &e->centipede->segments) {
             Entity *segment = e->centipede->segments.get_value(i);
             mark_entity_destroyed(segment);
         }
@@ -1461,7 +1461,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         assert(entity->centipede);     
         Centipede *centipede = entity->centipede;
         
-        for_array(i, &centipede->segments) {
+        for_array (i, &centipede->segments) {
             mark_entity_destroyed(centipede->segments.get_value(i));
         }
         centipede->segments.clear();
@@ -4741,7 +4741,7 @@ void update_editor() {
     
     // Update multiselected.
     if (multiselection->entities.count > 0) {
-        for_array_backwards(i, &multiselection->entities) {
+        for_array_backwards (i, &multiselection->entities) {
             i32 id = multiselection->entities.get_value(i);
             if (get_entity(id)->will_be_destroyed) {
                 remove_id_from_multiselection(multiselection->entities.get_value(i));
@@ -4758,7 +4758,7 @@ void update_editor() {
         if (was_moving_multiselected && !should_move_multiselected && multiselection->total_displacement_for_undo != Vector2_zero) {
             
 //             undo_add_multiselect_position_change(multiselection->total_displacement_for_undo);
-            for_array(i, &multiselection->entities) {
+            for_array (i, &multiselection->entities) {
                 undo_mark_entity_changed(get_entity(multiselection->entities.get_value(i)));
             }
         }
@@ -6535,7 +6535,7 @@ inline b32 verify_trigger_connected(Entity *entity) {
     b32 removed_something = false;
       
     Trigger *trigger = entity->trigger;
-    for_array(i, &trigger->connected) {
+    for_array (i, &trigger->connected) {
         Entity *connected = get_entity(trigger->connected.get_value(i));
         if (connected->will_be_destroyed) {
             trigger->connected.remove(i);
@@ -6543,7 +6543,7 @@ inline b32 verify_trigger_connected(Entity *entity) {
             removed_something = true;
         }
     }
-    for_array(i, &trigger->tracking) {
+    for_array (i, &trigger->tracking) {
         Entity *tracking = get_entity(trigger->tracking.get_value(i));
         if (tracking->will_be_destroyed) {
             trigger->tracking.remove(i);
@@ -6567,7 +6567,7 @@ inline b32 verify_kill_switch_connected(Entity *entity) {
     b32 removed_something = false;
     
     Kill_Switch *kill_switch = entity->kill_switch;
-    for_array(i, &kill_switch->connected) {
+    for_array (i, &kill_switch->connected) {
         Entity *connected = get_entity(kill_switch->connected.get_value(i));
         if (connected->will_be_destroyed) {
             kill_switch->connected.remove(i);
@@ -6614,7 +6614,7 @@ void update_editor_entity(Entity *e) {
         if (e->centipede->segments.count != e->centipede->segments_to_spawn) {
             init_entity(e); // On init entity centipede will destroy all existing segments and respawn them with proper count.
         }
-        for_array(i, &e->centipede->segments) {
+        for_array (i, &e->centipede->segments) {
             Entity *segment = e->centipede->segments.get_value(i);
             Vector2 right_position = get_centipede_segment_start_position(segment, e, i);
             if (segment->position != right_position) {
@@ -7195,7 +7195,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
         Centipede *centipede = e->centipede;
         
         i32 alive_count = 0;
-        for_array(i, &centipede->segments) {
+        for_array (i, &centipede->segments) {
             Entity *segment = centipede->segments.get_value(i);
             
             Entity *previous = segment->centipede_segment->previous;
@@ -8296,7 +8296,7 @@ void draw_entity(Entity *e) {
         assert(e->centipede);
     
         // First draw segments.
-        // for_array(i, &e->centipede->segments) {
+        // for_array (i, &e->centipede->segments) {
         //     Entity *segment = e->centipede->segments.get_value(i);
         //     Color color = segment->color;
         //     if (segment->union_enemy->dead_man) {
@@ -8994,7 +8994,7 @@ void draw_immediate_stuff() {
         render.outlines_to_draw.clear();
     }
     
-    for_array_backwards(i, &render.lines_to_draw_persistent) {
+    for_array_backwards (i, &render.lines_to_draw_persistent) {
         Line *line = render.lines_to_draw_persistent.get(i);
         
         line->lifetime_timer += core.time.dt;
@@ -9271,7 +9271,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
         // e->light_index = -1;
         e->lights = copy_array(&to_copy->lights);
         e->lights.clear();
-        for_array(i, &to_copy->lights) {
+        for_array (i, &to_copy->lights) {
             Light *copy_light = to_copy->context->lights.get(to_copy->lights.get_value(i));  
             copy_and_add_light_to_entity(e, copy_light);
         }
