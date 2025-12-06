@@ -4,7 +4,7 @@ f32 radius_from_node(Planning_Node *node) {
     switch (node->type) {
         case SPACE_NODE:
             return 50.0f;
-        case ITEM_NODE:
+        case HIT_BOOSTER_NODE:
             return 25.0f;
         default: 
             return 100.0f; // Fallback.
@@ -15,7 +15,7 @@ Color color_from_node(Planning_Node *node) {
     switch (node->type) {
         case SPACE_NODE:
             return Fade(ColorBrightness(SKYBLUE, -0.3f), 0.6f);
-        case ITEM_NODE:
+        case HIT_BOOSTER_NODE:
             return Fade(RED, 0.7f);
         default: 
             return PINK; // Fallback.
@@ -37,6 +37,14 @@ i32 *point_count_from_node(Planning_Data *planning, Planning_Node *node) {
     }
 }
 
+void add_node_icon(Context *context, String name, Planning_Node_Type type, Entity *node_entity) {
+    Planning_Node_Icon icon = {0};
+    icon.name = copy_string(name, &context->memory_arena);
+    icon.type = type;
+    icon.entity = node_entity;
+    context->planning.node_icons.append(icon);
+}
+
 void init_planning_data(Context *context) {
     context->planning.nodes.clear();
     context->planning.nodes.allocator = &context->memory_arena;
@@ -44,11 +52,10 @@ void init_planning_data(Context *context) {
     context->planning.node_icons.clear();
     context->planning.node_icons.allocator = &context->memory_arena;
     
-    Planning_Node_Icon space_node_icon = {0};
-    space_node_icon.name = make_string(&context->memory_arena, "Space node");
-    space_node_icon.type = SPACE_NODE;
-    context->planning.node_icons.append(space_node_icon);
+    add_node_icon(context, tstring("Space node"), SPACE_NODE, NULL);
     
+    auto hit_booster_object = get_spawn_object_by_name(tstring("hit_booster"));
+    add_node_icon(context, tstring("Booster node"), HIT_BOOSTER_NODE, &hit_booster_object->entity);
 }
 
 void reset_planning_data(Context *context) {
@@ -129,17 +136,15 @@ void planning_draw_ui(Context *context) {
           
     // Old::make_ui_image(
     
-    i32 buttons_count = 0;
-    for_array (i, &spawn_objects) {
-        Spawn_Object *object = spawn_objects.get(i);
-        if (!(object->flags & PLANNING_OBJECT)) continue;
+    For (&context->planning.node_icons) {
+        Vector2 pos = panel_pos + Vector2_up * 50 * i;
+        Vector2 size = {panel_size.x - 20, 40};
         
-        buttons_count += 1;
-        Vector2 pos = panel_pos + Vector2_up * 50 * buttons_count;
-        Vector2 size = {panel_size.x - 20, 50};
-        if (Old::make_button(pos, size, object->name, tprintf("planning_object_%d", i))) {
-            // planning_start_holding_entity(&object->entity);
-        }
+        Old::make_ui_image(pos, size, {0, 0}, Fade(BLUE, 0.8f), tprintf("planning_icon_%d", i));
+        Old::make_ui_text(c_str(it->name), pos, 22, WHITE, tprintf("planning_text_%d", i));
+        // if (Old::make_button(pos, size, object->name, tprintf("planning_object_%d", i))) {
+        //     // planning_start_holding_entity(&object->entity);
+        // }
     }
     
     // Now some hints.

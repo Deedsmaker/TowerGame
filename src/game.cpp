@@ -902,6 +902,17 @@ inline String temp_entity_name(Entity *entity) {
     return get_entity_name(entity, temp);
 }
 
+Spawn_Object *get_spawn_object_by_name(String name) {
+    For (&spawn_objects) {
+        if (name == it->name) {
+            return it;
+        }
+    }
+    
+    log("Failed to get spawn object by name.", LOG_ERROR);
+    return NULL;
+}
+
 void init_spawn_objects() {
     Entity block_base_entity = make_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND);
     block_base_entity.color = BROWN;
@@ -2046,6 +2057,9 @@ void init_game() {
 
     initing_game = true;
     
+    load_all_textures();
+    init_spawn_objects();
+    
     str_copy(loaded_context.name, "loaded_context");
     // str_copy(editor_context.name, "editor_context");
     str_copy(game_context.name, "game_context");
@@ -2098,8 +2112,6 @@ void init_game() {
     input = {0};
     init_console();
     // current_level = {0};
-    load_all_textures();
-    init_spawn_objects();
     
     jump_shooter_bullet_hint_texture = get_texture("JumpShooterHintBullet.png");
     big_sword_killable_texture        = get_texture("BigSwordSticky.png");

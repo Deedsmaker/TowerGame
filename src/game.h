@@ -59,6 +59,8 @@ void close_console();
 
 // void undo_apply_vertices_change(Entity *entity, Undo_Action *undo_action);
 
+Spawn_Object *get_spawn_object_by_name(String name);
+
 void calculate_bounds(Entity *entity);
 Bounds get_bounds(Static_Array<Vector2, MAX_VERTICES> vertices, Vector2 pivot = {0.5f, 0.5f});
 Bounds get_cam_bounds(Cam cam, f32 zoom);

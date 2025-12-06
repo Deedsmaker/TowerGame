@@ -1168,7 +1168,7 @@ enum Planning_Flags : FLAGS {
 
 enum Planning_Node_Type {
     SPACE_NODE = 0,  
-    ITEM_NODE = 1,  
+    HIT_BOOSTER_NODE = 1,  
 };
 
 struct Planning_Node {
@@ -1180,6 +1180,8 @@ struct Planning_Node_Icon {
     String name = {0};
     
     Planning_Node_Type type;
+    
+    Entity *entity = NULL;
 };
 
 struct Planning_Data {
