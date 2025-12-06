@@ -73,13 +73,20 @@ void update_planning() {
     assert(planning.nodes.count > 0); // We're always keeping base node on player spawn point.
     auto last_node = planning.nodes.last();
     
-    Vector2 last_to_mouse = input.mouse_position - last_node->position;
-    f32 sqr_len = sqr_magnitude(last_to_mouse);
     f32 target_radius = radius_from_node(last_node);
-    if (sqr_len > target_radius * target_radius) {
-        clamp_magnitude(&last_to_mouse, target_radius);
-    }
-    Vector2 target_position = last_node->position + last_to_mouse;
+    Vector2 last_to_mouse = input.mouse_position - last_node->position;
+    Vector2 dir = normalized(last_to_mouse);
+    
+    static const f32 ANGLE_STEP = 30;
+    
+    f32 angle = fangle(dir);
+    angle = round_to_factor(angle, ANGLE_STEP) + 90;
+    f32 rad = angle * DEG2RAD;
+        
+    dir = {-cosf(rad), sinf(rad)};
+    
+    Vector2 target_position = last_node->position + dir * target_radius;
+    
     make_line(last_node->position, target_position, 1.0f, BLUE);
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -87,6 +94,12 @@ void update_planning() {
         new_node.position = target_position;
         new_node.type = SPACE_NODE;
         planning.nodes.append(new_node);
+    }
+    
+    if (IsKeyPressed(KEY_Z)) {
+        if (planning.nodes.count > 1) {
+            planning.nodes.pop();
+        }
     }
 
     // if (planning.dragged_entity) {
