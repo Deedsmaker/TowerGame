@@ -172,7 +172,7 @@ void bake_lightmaps_if_need(){
                 // I think it will be fixed with simple shader here that will rotate normal map colors around considering 
                 // entity rotation.
                 if (texture_entity->have_normal_map){
-                    draw_game_texture(texture_entity->normal_map_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color_changer.start_color);
+                    draw_game_texture(&texture_entity->normal_map_texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color_changer.start_color);
                 }
             }
             } EndMode2D();

@@ -527,7 +527,7 @@ void setup_particles(){
     blood_pop_emitter_copy.shape = PARTICLE_TEXTURE;
     blood_pop_emitter_copy.grow_after_birth = true;
     blood_pop_emitter_copy.shrink_before_death = false;
-    blood_pop_emitter_copy.texture = get_texture("SmokeParticle1");
+    blood_pop_emitter_copy.texture = *get_texture("SmokeParticle1");
     blood_pop_emitter_copy.spawn_radius      = 4;
     blood_pop_emitter_copy.over_distance     = 0;
     blood_pop_emitter_copy.direction_to_move = 0;
@@ -620,7 +620,7 @@ void setup_particles(){
     air_dust_emitter.count_type = MEDIUM_PARTICLE_COUNT;
     air_dust_emitter.grow_after_birth = true;
     air_dust_emitter.shrink_before_death = false;
-    air_dust_emitter.texture = get_texture("SmokeParticle1");
+    air_dust_emitter.texture = *get_texture("SmokeParticle1");
     air_dust_emitter.spawn_radius      = 0.5f;
     air_dust_emitter.over_distance     = 0.5f;
     air_dust_emitter.direction_to_move = 0;
@@ -748,7 +748,7 @@ void setup_particles(){
     str_copy(explosion_emitter_copy.tag_16, "explosion");
     
     shockwave_emitter_copy.shape              = PARTICLE_TEXTURE;
-    shockwave_emitter_copy.texture            = get_texture("Shockwave1");
+    shockwave_emitter_copy.texture            = *get_texture("Shockwave1");
     shockwave_emitter_copy.grow_till_death    = true;
     shockwave_emitter_copy.random_movement    = false;
     shockwave_emitter_copy.gravity_multiplier = 0;
@@ -1047,7 +1047,7 @@ void setup_particles(){
     ground_splash_emitter.shape = PARTICLE_TEXTURE;
     ground_splash_emitter.grow_after_birth = true;
     ground_splash_emitter.shrink_before_death = false;
-    ground_splash_emitter.texture = get_texture("SmokeParticle1");
+    ground_splash_emitter.texture = *get_texture("SmokeParticle1");
     ground_splash_emitter.spawn_radius             = 4;
     ground_splash_emitter.over_distance      = 0;
     ground_splash_emitter.direction_to_move  = 0;

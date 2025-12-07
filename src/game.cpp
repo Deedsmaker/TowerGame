@@ -486,7 +486,7 @@ Entity make_entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, 
     return e;
 }
 
-Entity make_entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture _texture, FLAGS _flags) {
+Entity make_entity(Vector2 _pos, Vector2 _scale, Vector2 _pivot, f32 _rotation, Texture *_texture, FLAGS _flags) {
     Entity e = {0};
     e.flags    = _flags;
     e.position = _pos;
@@ -962,7 +962,7 @@ void init_spawn_objects() {
     str_copy(platform_object.name, "platform");
     spawn_objects.append(platform_object);
     
-    Entity enemy_ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ENEMY | AMMO_PACK);
+    Entity enemy_ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, AMMO_PACK);
     enemy_ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
     setup_color_changer(&enemy_ammo_pack_entity);
     
@@ -1136,7 +1136,7 @@ void init_spawn_objects() {
     str_copy(shoot_stoper_object.name, "shoot_stoper");
     spawn_objects.append(shoot_stoper_object);
     
-    Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
+    Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER | TEXTURE);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
     setup_color_changer(&hit_booster_entity);
     
@@ -1176,8 +1176,8 @@ struct Tile_Sheet {
 
 Array <Tile_Sheet> tile_sheets = {0};
 
-void add_spawn_object_from_texture(Texture texture, const char *name, const char *directory_name = 0) {
-    Entity texture_entity = make_entity({0, 0}, {(f32)texture.width * 0.25f, (f32)texture.height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
+void add_spawn_object_from_texture(Texture *texture, const char *name, const char *directory_name = 0) {
+    Entity texture_entity = make_entity({0, 0}, {(f32)texture->width * 0.25f, (f32)texture->height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
@@ -1209,7 +1209,7 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
         
         Texture_Data *new_data = sheet->textures.append({0});
         str_copy(new_data->name, name);
-        new_data->texture = texture;
+        new_data->texture = *texture;
     }
     
     // assign_texture(&texture_entity, texture, name);
@@ -1221,24 +1221,17 @@ void add_spawn_object_from_texture(Texture texture, const char *name, const char
     spawn_objects.append(texture_object);
 }
 
-Texture get_texture(const char *name) {
-    Texture found_texture;
-    
+Texture *get_texture(const char *name) {
     char *trimped_name = get_substring_before_symbol(name, '.');
     
-    b32 found = false;
     for (i32 i = 0; i < loaded_textures.count; i++) {
         if (str_equal(loaded_textures.get_value(i).name, trimped_name)) {
-            found_texture = loaded_textures.get_value(i).texture;
-            found = true;
+            return &loaded_textures.get(i)->texture;
         }
     }
-    if (!found) {
-        print(tprintf("WARNING: Texture named %s cannot be found", trimped_name));
-        found_texture = missing_texture;
-    }
     
-    return found_texture;
+    log(tprintf("WARNING: Texture named %s cannot be found", trimped_name));
+    return &missing_texture;
 }
 
 void load_textures(const char* path, b32 in_root_textures_directory) {
@@ -1277,7 +1270,7 @@ void load_textures(const char* path, b32 in_root_textures_directory) {
             normal_maps.append(data);
         } else {
             loaded_textures.append(data);
-            add_spawn_object_from_texture(texture, name, in_root_textures_directory ? 0 : path);
+            add_spawn_object_from_texture(&texture, name, in_root_textures_directory ? 0 : path);
         }
     }
     UnloadDirectoryFiles(textures);
@@ -1289,10 +1282,10 @@ void load_all_textures() {
     // load_texrures is recursive and will check all subdirectories.
     load_textures("resources\\textures", true);
         
-    missing_texture                 = get_texture("MissingTexture");
-    spiral_clockwise_texture        = get_texture("vpravo");
-    spiral_counterclockwise_texture = get_texture("levo");
-    hitmark_small_texture           = get_texture("hitmark_small");
+    missing_texture                 = *get_texture("MissingTexture");
+    spiral_clockwise_texture        = *get_texture("vpravo");
+    spiral_counterclockwise_texture = *get_texture("levo");
+    hitmark_small_texture           = *get_texture("hitmark_small");
 }
 
 inline i32 next_entity_avaliable(Context *context, i32 start_index, Entity **entity, FLAGS flags) {
@@ -1714,7 +1707,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         if (!entity->union_enemy->blocker_immortal) {
             Texture texture = entity->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-            Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
+            Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, &texture, TEXTURE | STICKY_TEXTURE);
             // str_copy(sticky_entity->name, "blocker_attack_mark");
             sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE;
             //sticky_entity->texture = texture;
@@ -1740,7 +1733,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         
         Texture texture = entity->union_enemy->big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
-        Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, texture, TEXTURE | STICKY_TEXTURE);
+        Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, &texture, TEXTURE | STICKY_TEXTURE);
         
         sticky_entity->sticky_texture->base_size = {4, 8};
         if (!entity->union_enemy->big_sword_killable) {
@@ -2113,10 +2106,10 @@ void init_game() {
     init_console();
     // current_level = {0};
     
-    jump_shooter_bullet_hint_texture = get_texture("JumpShooterHintBullet.png");
-    big_sword_killable_texture        = get_texture("BigSwordSticky.png");
-    small_sword_killable_texture       = get_texture("SmallSwordSticky.png");
-    perlin_texture = get_texture("PerlinNoise1.png");
+    jump_shooter_bullet_hint_texture = *get_texture("JumpShooterHintBullet.png");
+    big_sword_killable_texture        = *get_texture("BigSwordSticky.png");
+    small_sword_killable_texture       = *get_texture("SmallSwordSticky.png");
+    perlin_texture = *get_texture("PerlinNoise1.png");
     
     load_sounds();
     
@@ -4057,7 +4050,7 @@ void update_editor_ui() {
             
             if (obj.entity.flags & TEXTURE) {
                 Vector2 texture_position = obj_position - Vector2_right * field_size.y;
-                Old::make_ui_image(obj.entity.texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
+                Old::make_ui_image(*obj.entity.texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
             }
             
             if (this_object_selected) {
@@ -5428,7 +5421,7 @@ void update_editor() {
                         if (next_index < 0) next_index = sheet->textures.count - 1;
                         
                         Texture_Data *next_data = sheet->textures.get(next_index);
-                        editor.selected->texture = next_data->texture;
+                        editor.selected->texture = &next_data->texture;
                         str_copy(editor.selected->texture_name, next_data->name);
                         init_entity(editor.selected);
                         break;
@@ -6028,7 +6021,7 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale) {
 }
 
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color tint) {
-    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
+    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), &hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
     hitmark->runtime_only_flags |= SHOULD_NOT_SAVE;
     change_color(hitmark, tint);
     hitmark->draw_order = 1;
@@ -8155,7 +8148,7 @@ void draw_entity(Entity *e) {
             if (e->flags & STICKY_TEXTURE) {
                 if (e->sticky_texture->should_draw_texture) {
                     change_scale(e, (e->sticky_texture->base_size) / fminf(current_context->cam.cam2D.zoom, 0.35f)); 
-                    make_texture(e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture->alpha));
+                    make_texture(*e->texture, position, e->scale, e->pivot, e->rotation, Fade(e->color, ((f32)e->color.a / 255.0f) * e->sticky_texture->alpha));
                 }
             } else {
                 b32 should_draw = true;
@@ -8187,7 +8180,7 @@ void draw_entity(Entity *e) {
         assert(e->note_index != -1);
         Note *note = current_context->notes.get(e->note_index);
         if (editor_state == EDITOR || state_context.in_pause_editor) {
-            make_texture(e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
+            make_texture(*e->texture, e->position, e->scale, e->pivot, e->rotation, e->color);
             // draw_game_rect(e->position, e->scale, e->pivot, e->rotation, e->color);
             if (editor.selected && editor.selected->id == e->id || (IsKeyDown(KEY_LEFT_SHIFT) && IsKeyDown(KEY_LEFT_ALT)) || focus_input_field.in_focus && str_contains(focus_input_field.tag, tprintf("%d", e->id))) {
                 Vector2 note_size = {screen_width * 0.2f, screen_height * 0.2f};
@@ -8361,7 +8354,7 @@ void draw_entity(Entity *e) {
             }
         }
         
-        draw_game_texture(jump_shooter_bullet_hint_texture, bullet_hint_position, bullet_hint_scale, {0.5f, 1.0f}, e->rotation, hint_color);
+        draw_game_texture(&jump_shooter_bullet_hint_texture, bullet_hint_position, bullet_hint_scale, {0.5f, 1.0f}, e->rotation, hint_color);
         
         if (e->jump_shooter->shoot_bullet_blockers) {
             draw_game_ring_lines(bullet_hint_position + e->up * e->scale.y * 0.5f, 3, 6, 8, Fade(WHITE, 0.5f));                
@@ -8496,7 +8489,7 @@ void draw_entity(Entity *e) {
     if (e->flags & BLOCKER && (editor_state == EDITOR) && !e->union_enemy->blocker_immortal) {
         Texture texture = e->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
         
-        draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.6f));
+        draw_game_texture(&texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.6f));
     }
     if (e->flags & BLOCKER && e->union_enemy->blocker_immortal) {
         Vector2 triangle1 = {e->position.x, e->position.y + 3};
@@ -8508,7 +8501,7 @@ void draw_entity(Entity *e) {
     if (e->flags & SWORD_SIZE_REQUIRED && (editor_state == EDITOR)) {
         Texture texture = e->union_enemy->big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
         
-        draw_game_texture(texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
+        draw_game_texture(&texture, e->position, {10.0f, 10.0f}, {0.5f, 0.5f}, 0, WHITE);
     }
 
     
@@ -8676,7 +8669,7 @@ void draw_particles() {
             
             switch (particle.shape) {
                 case PARTICLE_TEXTURE:{
-                    draw_game_texture(emitter->texture, particle.position, particle.scale, {0.5f, 0.5f}, particle.rotation, particle.color, false);                
+                    draw_game_texture(&emitter->texture, particle.position, particle.scale, {0.5f, 0.5f}, particle.rotation, particle.color, false);                
                 } break;
                 case PARTICLE_LINE:{
                     Vector2 target_position = particle.position + particle.velocity * 0.1f * emitter->line_length_multiplier * particle.scale.y;
@@ -8722,10 +8715,10 @@ void draw_ui(const char *tag) {
             f32 opacity = lerp(0.0f, 1.0f, t * t);
             f32 width = screen_width * 0.1f;
             
-            Texture vignette = get_texture("SlowmoVignette");
-            Vector2 size = {(f32)screen_width / vignette.width, (f32)screen_height / vignette.height};
+            Texture *vignette = get_texture("SlowmoVignette");
+            Vector2 size = {(f32)screen_width / vignette->width, (f32)screen_height / vignette->height};
             BeginBlendMode(BLEND_ADDITIVE);
-            draw_texture(vignette, {0, 0}, size, {0, 0}, 0, Fade(SKYBLUE, opacity));
+            draw_texture(*vignette, {0, 0}, size, {0, 0}, 0, Fade(SKYBLUE, opacity));
             EndBlendMode();
         }
         
@@ -8979,7 +8972,7 @@ void draw_immediate_stuff() {
     
     for (i32 i = 0; i < render.textures_to_draw.count; i++) {
         Immediate_Texture im_texture = render.textures_to_draw.get_value(i);
-        draw_game_texture(im_texture.texture, im_texture.position, im_texture.scale, im_texture.pivot, im_texture.rotation, im_texture.color);
+        draw_game_texture(&im_texture.texture, im_texture.position, im_texture.scale, im_texture.pivot, im_texture.rotation, im_texture.color);
     }
     
     for (i32 i = 0; i < render.outlines_to_draw.count; i++) {
@@ -9046,7 +9039,7 @@ void new_render() {
                 lightmap_texture = lightmap_data->global_illumination_rt.texture;
             }
     
-            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
+            draw_game_texture(&lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
         }
     } EndMode2D();
     } EndTextureMode();
@@ -9106,8 +9099,8 @@ void new_render() {
                 lightmap_texture = lightmap_data->global_illumination_rt.texture;
             }
             
-            draw_game_texture(lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
-            draw_game_texture(lightmap_data->normal_rt.texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+            draw_game_texture(&lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
+            draw_game_texture(&lightmap_data->normal_rt.texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
         }
         EndMode2D();
     } else if (debug.full_light) {
@@ -9428,7 +9421,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     return e;
 }
 
-Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags) {
+Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture *texture, FLAGS flags) {
     i32 id = 0;
     Entity *e = current_context->entities.append({0}, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
@@ -9599,9 +9592,9 @@ inline void draw_game_text(Vector2 position, const char *text, f32 size, Color c
     draw_text(text, screen_pos, size, color);
 }
 
-inline void draw_game_texture(Texture tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip) {
+inline void draw_game_texture(Texture *tex, Vector2 position, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip) {
     Vector2 screen_pos = world_to_screen(position);
-    draw_texture(tex, screen_pos, transform_texture_scale(tex, scale), pivot, rotation, color, flip);
+    draw_texture(*tex, screen_pos, transform_texture_scale(*tex, scale), pivot, rotation, color, flip);
 }
 
 inline void draw_game_line(Vector2 start, Vector2 end, f32 thick, Color color) {

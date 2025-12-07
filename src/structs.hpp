@@ -872,7 +872,7 @@ struct Entity {
 
     b32 enabled = 12;
     
-    Texture texture = {};
+    Texture *texture = NULL;
     char texture_name[64];
     
     b32 have_normal_map = false;

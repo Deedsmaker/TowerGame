@@ -193,7 +193,7 @@ void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier = 1, C
 
 inline void mark_entity_destroyed(Entity *entity);
 
-Texture get_texture(const char *name);
+Texture *get_texture(const char *name);
 
 inline Vector2 world_to_screen(Vector2 pos);
 inline Vector2 world_to_screen_with_zoom(Vector2 position);
@@ -211,7 +211,7 @@ inline void draw_game_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot,
 inline void draw_game_line_strip(Entity *entity, Color color);
 inline void draw_game_line_strip(Vector2 *points, int count, Color color);
 inline void draw_game_line_strip(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Color color);
-inline void draw_game_texture(Texture tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip = false);
+inline void draw_game_texture(Texture *tex, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, b32 flip = false);
 inline void draw_game_line(Vector2 start, Vector2 end, float thick, Color color);
 inline void draw_game_line(Vector2 start, Vector2 end, Color color);
 inline void draw_game_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color, f32 start_angle = 0, f32 end_angle = 360);
@@ -261,7 +261,7 @@ Entity *add_player_entity(Context *context, Player *data);
 Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32 id_to_insert = 0);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
-Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture texture, FLAGS flags);
+Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture *texture, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(i32 id, Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
