@@ -166,7 +166,8 @@ void bake_lightmaps_if_need(){
             BeginMode2D(current_context->cam.cam2D);{
             ClearBackground(Fade(BLACK, 0));
             
-            ForEntities(texture_entity, TEXTURE){
+            ForEntities(texture_entity, 0){
+                if (!texture_entity->texture) continue;
                 // @TODO: There's a serious problem with that normal maps have static colors regardless of entity orientation,
                 // that means if entity is not at base rotation - normal maps are wrong.
                 // I think it will be fixed with simple shader here that will rotate normal map colors around considering 
@@ -182,8 +183,9 @@ void bake_lightmaps_if_need(){
             BeginMode2D(current_context->cam.cam2D);{
             ClearBackground(Fade(BLACK, 0));
             
-            ForEntities(texture_entity, TEXTURE){
-                if (texture_entity->flags == TEXTURE){
+            ForEntities(texture_entity, 0){
+                if (!texture_entity->texture) continue;
+                if (texture_entity->flags == 0){
                     draw_game_texture(texture_entity->texture, texture_entity->position, texture_entity->scale, texture_entity->pivot, texture_entity->rotation, texture_entity->color_changer.start_color);
                 }
             }
@@ -211,7 +213,7 @@ void bake_lightmaps_if_need(){
                     assert(entity->lights.count > 0);
                     Light *light = current_context->lights.get(entity->lights.get_value(0));
                     if (light->bake_shadows){
-                        if (entity->flags & TEXTURE){
+                        if (entity->texture){
                             draw_game_texture(entity->texture, entity->position, entity->scale, entity->pivot, entity->rotation, Fade(light->color, light->opacity));
                         } else{
                             draw_game_triangle_strip(entity, Fade(light->color, light->opacity));

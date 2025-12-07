@@ -892,7 +892,7 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
             return make_string(allocator, "Light");  
         }
         return make_string(allocator, "Dummy");  
-    } else if (entity->flags & TEXTURE) {
+    } else if (entity->texture) {
         return make_string(allocator, tprintf("Texture_%s", entity->texture_name));  
     } 
         
@@ -932,7 +932,7 @@ void init_spawn_objects() {
     str_copy(no_move_block_object.name, "no_move_block");
     spawn_objects.append(no_move_block_object);
     
-    Entity note_entity = make_entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE | TEXTURE);
+    Entity note_entity = make_entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE);
     note_entity.color = Fade(WHITE, 0.7f);
     str_copy(note_entity.texture_name, "editor_note.png");
     note_entity.texture = get_texture(note_entity.texture_name);
@@ -1136,8 +1136,9 @@ void init_spawn_objects() {
     str_copy(shoot_stoper_object.name, "shoot_stoper");
     spawn_objects.append(shoot_stoper_object);
     
-    Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER | TEXTURE);
+    Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
+    hit_booster_entity.texture = get_texture("HitBooster");
     setup_color_changer(&hit_booster_entity);
     
     Spawn_Object hit_booster_object;
@@ -1177,7 +1178,7 @@ struct Tile_Sheet {
 Array <Tile_Sheet> tile_sheets = {0};
 
 void add_spawn_object_from_texture(Texture *texture, const char *name, const char *directory_name = 0) {
-    Entity texture_entity = make_entity({0, 0}, {(f32)texture->width * 0.25f, (f32)texture->height * 0.25f}, {0.5f, 0.5f}, 0, texture, TEXTURE);
+    Entity texture_entity = make_entity({0, 0}, {(f32)texture->width * 0.25f, (f32)texture->height * 0.25f}, {0.5f, 0.5f}, 0, texture, 0);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
@@ -1371,13 +1372,11 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
 
     // Init ammo pack.
     if (entity->flags & AMMO_PACK){
-        entity->flags |= TEXTURE;
         entity->texture = get_texture("Prop");
     }
     
     // Init note.
     if (entity->flags & NOTE) {
-        entity->flags |= TEXTURE;
         entity->texture = get_texture("editor_note");
     }
 
@@ -1569,7 +1568,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     }
     
     // Load normal maps.
-    if (entity->flags & TEXTURE) {
+    if (entity->texture) {
         for (i32 i = 0; i < normal_maps.count; i++) {        
             // We allow one normal map for different textures, but then texture should start with normal map name
             // and after normal map name *could* be '_'.
@@ -1707,7 +1706,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         if (!entity->union_enemy->blocker_immortal) {
             Texture texture = entity->union_enemy->blocker_clockwise ? spiral_clockwise_texture : spiral_counterclockwise_texture;
-            Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, &texture, TEXTURE | STICKY_TEXTURE);
+            Entity *sticky_entity = add_entity(entity->position, {10, 10}, {0.5f, 0.5f}, 0, &texture, STICKY_TEXTURE);
             // str_copy(sticky_entity->name, "blocker_attack_mark");
             sticky_entity->runtime_only_flags |= SHOULD_NOT_SAVE;
             //sticky_entity->texture = texture;
@@ -1733,7 +1732,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         
         Texture texture = entity->union_enemy->big_sword_killable ? big_sword_killable_texture : small_sword_killable_texture;
-        Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, &texture, TEXTURE | STICKY_TEXTURE);
+        Entity *sticky_entity = add_entity(entity->position, {15, 30}, {0.5f, 0.5f}, 0, &texture, STICKY_TEXTURE);
         
         sticky_entity->sticky_texture->base_size = {4, 8};
         if (!entity->union_enemy->big_sword_killable) {
@@ -4048,7 +4047,7 @@ void update_editor_ui() {
                 editor.just_spawned_ids.append(entity->id);
             }
             
-            if (obj.entity.flags & TEXTURE) {
+            if (obj.entity.texture) {
                 Vector2 texture_position = obj_position - Vector2_right * field_size.y;
                 Old::make_ui_image(*obj.entity.texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
             }
@@ -5241,7 +5240,7 @@ void update_editor() {
             b32 wanna_clear_cam_rails_points = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L);
             //trigger assign or remove
             if (wanna_assign || wanna_remove) {
-                fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY | TEXTURE);
+                fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY);
                 
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
                     Collision col = collisions_buffer.get_value(i);
@@ -5406,7 +5405,7 @@ void update_editor() {
     update_undo_logic();
     
     // Tile sheets logic.
-    if (editor.selected && editor.selected->flags & TEXTURE) {
+    if (editor.selected && editor.selected->texture) {
         if (IsKeyPressed(KEY_PERIOD) || IsKeyPressed(KEY_COMMA)) {
             // We don't really want to save tile sheet name on every entity, so we just take a little performance hit of 
             // going through every texture of every tile sheet to look up the current tile texture.
@@ -6021,7 +6020,7 @@ inline Vector2 transform_texture_scale(Texture texture, Vector2 wish_scale) {
 }
 
 void add_hitmark(Entity *entity, b32 need_to_follow, f32 scale_multiplier, Color tint) {
-    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), &hitmark_small_texture, TEXTURE | STICKY_TEXTURE);
+    Entity *hitmark = add_entity(entity->position, transform_texture_scale(hitmark_small_texture, {45, 45}) * scale_multiplier, {0.5f, 0.5f}, rnd(-90.0f, 90.0f), &hitmark_small_texture, STICKY_TEXTURE);
     hitmark->runtime_only_flags |= SHOULD_NOT_SAVE;
     change_color(hitmark, tint);
     hitmark->draw_order = 1;
@@ -8139,10 +8138,13 @@ void draw_entity(Entity *e) {
         return;
     }
     
-    if (e->flags & TEXTURE) {
+    b32 drawed_texture = false;
+    
+    if (e->texture) {
         // draw texture
         i32 exclude_flags = NOTE & AMMO_PACK;
         if (!(e->flags & exclude_flags)) {
+            drawed_texture = true;
             Vector2 position = e->position;
             // draw sticky texture texture
             if (e->flags & STICKY_TEXTURE) {
@@ -8207,10 +8209,12 @@ void draw_entity(Entity *e) {
         }
     }
     
+    // Draw no move block.
     if (e->flags & NO_MOVE_BLOCK) {
         make_outline(e->position, e->vertices, PURPLE);
     }
     
+    // Draw door.
     if (e->flags & DOOR) {
         if (editor.selected && editor.selected->id == e->id) {
             Vector2 previous_position = e->position;
@@ -8225,14 +8229,17 @@ void draw_entity(Entity *e) {
         }
     }
     
+    // Draw block rope.
     if (e->flags & BLOCK_ROPE) {
         draw_game_triangle_strip(e);
     }
     
+    // Draw rope point.
     if (e->flags & ROPE_POINT) {
         draw_game_circle(e->position, e->scale.x * 0.8f, e->color);
     }
     
+    // Draw dummy.
     if (e->flags & DUMMY) {
         // draw dummy
         if (editor_state == EDITOR || state_context.in_pause_editor) {
@@ -8241,18 +8248,18 @@ void draw_entity(Entity *e) {
         }
     }
     
+    // Draw player.
     if (e->flags & PLAYER) {
-        // draw player
         draw_player(e);
     }
     
+    // Draw sword.
     if (e->flags & SWORD) {
-        // draw sword
         draw_sword(e);
     }
     
+    // Draw shoot stoper.
     if (e->flags & SHOOT_STOPER) {
-        // draw shoot stoper
         f32 line_width = e->scale.x * 0.1f;
         Vector2 top = e->position + e->up * e->scale.y * 0.5f;
         Vector2 cross_position = get_shoot_stoper_cross_position(e);
@@ -8261,7 +8268,7 @@ void draw_entity(Entity *e) {
         draw_game_line(cross_position - e->right * e->scale.x * 0.6f, cross_position + e->right * e->scale.x * 0.6f, line_width, BLACK);
     }
     
-    // draw enemies
+    // Draw enemies.
     if (e->flags & BIRD_ENEMY) {
         draw_bird_enemy(e);
     } else if (e->flags & CENTIPEDE_SEGMENT) {
@@ -8405,7 +8412,7 @@ void draw_entity(Entity *e) {
     } else if (e->flags & WIN_BLOCK) {
         // draw win block  
         draw_game_triangle_strip(e, ColorBrightness(GREEN, -0.2f));
-    } else if (e->flags & ENEMY) { // Draw enemy.
+    } else if (e->flags & ENEMY && !drawed_texture) { // Draw enemy.
         draw_game_triangle_strip(e);
     }
     
@@ -9100,7 +9107,7 @@ void new_render() {
             }
             
             draw_game_texture(&lightmap_texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
-            draw_game_texture(&lightmap_data->normal_rt.texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, true);
+            draw_game_texture(&lightmap_data->normal_rt.texture, lightmap_data->position, lightmap_data->game_size, {0.5f, 0.5f}, 0,  WHITE, false);
         }
         EndMode2D();
     } else if (debug.full_light) {
@@ -9244,7 +9251,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
     
     assert(context_for_deep_copy && "Forgot to specify level context for deep copy.");      
                    
-    if (e->flags & TEXTURE) {
+    if (e->texture) {
         str_copy(e->texture_name, to_copy->texture_name);
     }
     

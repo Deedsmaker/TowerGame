@@ -239,7 +239,7 @@ void save_level(String level_name) {
             builder_append(&builder, tstring("shoot_blocker_immortal %d \n ", e->union_enemy->shoot_blocker_immortal));
         }
         
-        if (e->flags & TEXTURE) {
+        if (e->texture) {
             builder_append(&builder, tstring("texture_name %s \n ", e->texture_name));
         }
         
