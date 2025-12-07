@@ -1270,8 +1270,8 @@ void load_textures(const char* path, b32 in_root_textures_directory) {
             substring_before_line(data.name, "_normal_map");
             normal_maps.append(data);
         } else {
-            loaded_textures.append(data);
-            add_spawn_object_from_texture(&texture, name, in_root_textures_directory ? 0 : path);
+            auto new_texture_data = loaded_textures.append(data);
+            add_spawn_object_from_texture(&new_texture_data->texture, name, in_root_textures_directory ? 0 : path);
         }
     }
     UnloadDirectoryFiles(textures);
@@ -8200,7 +8200,7 @@ void draw_entity(Entity *e) {
         }
     }
     
-    if (e->flags & GROUND || e->flags & PLATFORM || e->flags == 0 || e->flags & PROJECTILE) {
+    if (e->flags & GROUND || e->flags & PLATFORM || e->flags & PROJECTILE) {
         // draw ground
         if (e->vertices.count > 0) {
             draw_game_triangle_strip(e);
