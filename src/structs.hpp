@@ -1164,6 +1164,7 @@ struct Turret_State {
 };
 
 enum Planning_Flags : FLAGS {
+    RESET_PLANNING_DATA = 0x1,
 };
 
 enum Planning_Node_Type {

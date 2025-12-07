@@ -2287,7 +2287,7 @@ void enter_gaming_state() {
     current_context->cam.position = current_context->player_spawn_point;
 }
 
-void enter_planning_state() {
+void enter_planning_state(u64 enter_flags) {
     assert(editor_state == GAME);
     game_state = GAME_PLANNING;
     
@@ -2295,6 +2295,10 @@ void enter_planning_state() {
     
     clean_up_scene();
     switch_current_context(&planning_context);
+    
+    if (enter_flags & RESET_PLANNING_DATA) {
+        reset_planning_data(&planning_context);
+    }
     
     state_context.we_got_a_winner = false;
     
@@ -2335,8 +2339,7 @@ void editor_enter_game_state(Context *from_context) {
     clear_context(&planning_context);
     copy_context(&planning_context, from_context, true);
     
-    reset_planning_data(&planning_context);
-    enter_planning_state();    
+    enter_planning_state(RESET_PLANNING_DATA);    
 }
 
 void kill_player() {

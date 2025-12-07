@@ -187,7 +187,7 @@ void update_planning(Context *context) {
         }
     }
     
-    assert(planning->nodes.count >= 2); // We're always keeping base node on player spawn point and a new node that will be spawned.
+    assert(planning->nodes.count >= 2); // We're always keeping base node on player spawn point and a corner node that we hold in hand to place somewhere.
     auto last_node = planning->nodes.get(planning->nodes.count - 2);
     auto corner_node = planning->nodes.last();
     
@@ -202,7 +202,7 @@ void update_planning(Context *context) {
     Vector2 last_to_mouse = input.mouse_position - last_node->position;
     Vector2 dir = normalized(last_to_mouse);
     
-    static const f32 ANGLE_STEP = 30;
+    static const f32 ANGLE_STEP = 15;
     Planning_Node_Icon *node_icon = planning->node_icons.get(planning->selected_icon_index);
     
     f32 angle = fangle(dir);

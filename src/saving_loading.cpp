@@ -694,7 +694,7 @@ b32 load_level(String name, u64 load_flags = 0) {
             editor_enter_game_state(&loaded_context);
         } else {
             copy_context(&planning_context, &loaded_context, true);
-            enter_planning_state();
+            enter_planning_state(RESET_PLANNING_DATA);
         }
     } else {
         editor_enter_editor_state();
