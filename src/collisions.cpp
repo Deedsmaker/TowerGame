@@ -1,7 +1,7 @@
 #pragma once
 
-// It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad fill_affected_collision_cells).
-global_variable Array <Collision_Grid_Cell*> collision_cells_buffer = {0};
+// It's a buffer that entities uses when finding collision cells that they're in (in fill_collisions nad get_affected_collision_cells).
+// global_variable Array <Collision_Grid_Cell*> collision_cells_buffer = {0};
 
 Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS include_flags, f32 step = 4, i32 my_id = -1) {
     f32 current_len = 0;
@@ -199,7 +199,7 @@ void resolve_collision(Entity *entity, Collision col) {
     }
 }
 
-Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
+inline Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
     Collision_Grid *grid = &current_context->collision_grid;    
     
     Vector2 origin_to_pos = position - grid->origin;
@@ -210,8 +210,6 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
     i32 row    = floor(((origin_to_pos.y + grid->size.y * 0.5f) / grid->cell_size.y));
     
     if (column < 0 || column >= max_columns || row < 0 || row >= (i32)(grid->size.y / grid->cell_size.y)) {
-        // We just don't want to assert because that's just could happen that projectile goes too far beyond reach of a collision
-        // grid, so everyone who calls it should check for null.
         return NULL;
     }
     
@@ -219,38 +217,49 @@ Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
     return cell;
 }
 
-void fill_affected_collision_cells(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array <Collision_Grid_Cell*> *out_cells) {
-    out_cells->clear();
+Array <Collision_Grid_Cell *> get_affected_collision_cells(Vector2 position, Bounds bounds, Vector2 pivot) {
+    Array <Collision_Grid_Cell *> out_cells = {.allocator = temp};
     Collision_Grid grid = current_context->collision_grid;
     Vector2 center = position + bounds.offset;
     center += {(0.5f - pivot.x) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
+    
+    Vector2 left_up    = {center.x - bounds.size.x * 0.5f, center.y + bounds.size.y * 0.5f};
+    Vector2 right_down = {center.x + bounds.size.x * 0.5f, center.y - bounds.size.y * 0.5f};
+    
+    // @SPEED: Many contains checks in here. If profiler shows that this is taking lot of time - we'll simplify it.
     
     // In this for loops we go left to right | bottom to top and it doesn't cover right side, so in loop after we cover fully right side.
     for (f32 h_pos = center.x - bounds.size.x * 0.5f; h_pos < center.x + bounds.size.x * 0.5f; h_pos += grid.cell_size.x) {
         for (f32 v_pos = center.y - bounds.size.y * 0.5f; v_pos < center.y + bounds.size.y * 0.5f; v_pos += grid.cell_size.y) {    
             Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, v_pos});
             if (cell) {
-                out_cells->append(cell);
+                assert(!out_cells.contains(cell));
+                out_cells.append(cell);
             }
         }
         
+        // Here checking one more up cell, because we might not actually hit it earlier.
         Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, center.y + bounds.size.y * 0.5f});
-        if (cell) {
-            out_cells->append(cell);
+        if (cell && !out_cells.contains(cell)) {
+            out_cells.append(cell);
         }
     }
     
+    // Here checking the right column that we might not hit before.
     for (f32 v_pos = center.y - bounds.size.y * 0.5f; v_pos < center.y + bounds.size.y * 0.5f; v_pos += grid.cell_size.y) {
         Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, v_pos});
-        if (cell) {
-            out_cells->append(cell);
+        if (cell && !out_cells.contains(cell)) {
+            out_cells.append(cell);
         }
     }
     
+    // Lastly checking right-up bounds corner that we might not hit before.
     Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, center.y + bounds.size.y * 0.5f});
-    if (cell) {
-        out_cells->append(cell);
+    if (cell && !out_cells.contains(cell)) {
+        out_cells.append(cell);
     }
+    
+    return out_cells;
 }
 
 inline b32 is_entity_static(Entity *entity) {
@@ -263,17 +272,36 @@ inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_s
         return;
     }
 
-    fill_affected_collision_cells(entity->position, entity->vertices, entity->bounds, entity->pivot, &collision_cells_buffer);    
+    auto cells = get_affected_collision_cells(entity->position, entity->bounds, entity->pivot);    
     
     assert(!entity->will_be_destroyed);
     
-    for (i32 i = 0; i < collision_cells_buffer.count; i++) {
-        Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
+    for (i32 i = 0; i < cells.count; i++) {
+        Collision_Grid_Cell *cell = cells.get_value(i);
         Array <i32> *cell_entities = is_static ? &cell->static_entities : &cell->dynamic_entities;
         
         if (cell) {
+            assert(!cell_entities->contains(entity->id));
             cell_entities->append(entity->id);
         }
+    }
+}
+
+void update_all_collision_cells(b32 update_cells_for_static_entities) {
+    for (i32 i = 0; i < current_context->collision_grid.cells.count; i++) {        
+        current_context->collision_grid.cells.get(i)->dynamic_entities.clear();
+        
+        if (update_cells_for_static_entities) {
+            current_context->collision_grid.cells.get(i)->static_entities.clear();
+        }
+    }
+    
+    ForEntities(entity, 0) {
+        if (entity->will_be_destroyed) {
+            continue;
+        }
+    
+        update_entity_collision_cells(entity, update_cells_for_static_entities);
     }
 }
 
@@ -282,11 +310,11 @@ global_variable Array <i32> added_collision_ids = {0};
 void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array <Collision> *result, FLAGS include_flags, i32 my_id) {
     result->clear();
     
-    fill_affected_collision_cells(position, vertices, bounds, pivot, &collision_cells_buffer);
+    auto cells = get_affected_collision_cells(position, bounds, pivot);
     added_collision_ids.clear();
     
-    for (i32 i = 0; i < collision_cells_buffer.count; i++) {
-        Collision_Grid_Cell *cell = collision_cells_buffer.get_value(i);
+    for (i32 i = 0; i < cells.count; i++) {
+        Collision_Grid_Cell *cell = cells.get_value(i);
         
         // Here we just combine static and dynamic entities.
         Array <i32> entities_in_cell = {.allocator = temp};

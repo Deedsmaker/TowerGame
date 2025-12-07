@@ -1192,6 +1192,9 @@ struct Planning_Data {
         
     Array <i32> spawned_ids = {0};
     
+    i32 max_space_points = 6;
+    i32 max_item_points = 2;
+    
     i32 space_points = 6;
     i32 item_points = 2;
     
@@ -1591,7 +1594,7 @@ struct Editor {
 };
 
 struct Log_Message {
-    char data[256] = "\0";  
+    char data[128] = "\0";  
     f32 birth_time = -12;
 };
 

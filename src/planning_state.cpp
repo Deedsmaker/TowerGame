@@ -2,6 +2,8 @@
 
 f32 radius_from_node(Planning_Node *node) {
     switch (node->type) {
+        case NO_NODE:
+            return 10.0f;
         case SPACE_NODE:
             return 50.0f;
         case HIT_BOOSTER_NODE:
@@ -13,6 +15,8 @@ f32 radius_from_node(Planning_Node *node) {
 
 Color color_from_node(Planning_Node *node) {
     switch (node->type) {
+        case NO_NODE:
+            return Fade(BLACK, 0.4f);
         case SPACE_NODE:
             return Fade(ColorBrightness(SKYBLUE, -0.3f), 0.6f);
         case HIT_BOOSTER_NODE:
@@ -59,14 +63,19 @@ void init_planning_data(Context *context) {
 }
 
 void reset_planning_data(Context *context) {
-    context->planning.dragged_entity = NULL;
-    context->planning.spawned_ids.clear();
+    auto planning = &context->planning;
+
+    planning->dragged_entity = NULL;
+    planning->spawned_ids.clear();
     
-    context->planning.selected_icon_index = 0;
+    planning->selected_icon_index = 0;
     
-    context->planning.nodes.clear();
-    context->planning.nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // First is the base node.
-    context->planning.nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // Second is the new node. We're always keeping node that will be spawned, even if we have no points for it.
+    planning->nodes.clear();
+    planning->nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // First is the base node.
+    planning->nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // Second is the new node. We're always keeping node that will be spawned, even if we have no points for it.
+    
+    planning->space_points = planning->max_space_points;
+    planning->item_points = planning->max_item_points;
 }
 
 void validate_node(Context *context, Planning_Node *node) {
@@ -74,7 +83,7 @@ void validate_node(Context *context, Planning_Node *node) {
     if (active_icon->type == SPACE_NODE) {
         if (context->planning.space_points <= 0) {
             if (node->entity) {
-                free_entity(node->entity);
+                mark_entity_destroyed(node->entity);
                 node->entity = NULL;
             }
             node->type = NO_NODE;
@@ -83,7 +92,7 @@ void validate_node(Context *context, Planning_Node *node) {
     } else {
         if (context->planning.item_points <= 0) {
             if (node->entity) {
-                free_entity(node->entity);
+                mark_entity_destroyed(node->entity);
                 node->entity = NULL;
             }
             node->type = NO_NODE;
@@ -96,7 +105,7 @@ void validate_node(Context *context, Planning_Node *node) {
         node->entity = copy_and_add_entity(active_icon->entity_to_spawn, context);
     }
     if (active_icon->entity_to_spawn == NULL && node->entity != NULL) {
-        free_entity(node->entity);
+        mark_entity_destroyed(node->entity);
         node->entity = NULL;
     }
 }
@@ -123,8 +132,22 @@ void update_planning(Context *context) {
         if (planning->nodes.count > 2) {
             auto removed_node = planning->nodes.pop();
             if (removed_node->entity) {
-                free_entity(removed_node->entity);
+                mark_entity_destroyed(removed_node->entity);
                 removed_node->entity = NULL;
+            }
+            
+            // NOTE: This removed_node was not real, this was the node that we were holding in our hand to place. 
+            // Actual node that was removed is replaced_node that is currently last. This replaced node will be called "new_node"
+            // in the following code.
+            
+            auto replaced_node = planning->nodes.last();
+            
+            if (replaced_node->type == SPACE_NODE) {
+                planning->space_points += 1;
+                assert(planning->space_points <= planning->max_space_points);
+            } else {
+                planning->item_points += 1;
+                assert(planning->item_points <= planning->max_item_points);
             }
         }
     }
@@ -136,21 +159,6 @@ void update_planning(Context *context) {
     if (IsKeyPressed(KEY_TAB)) {
         planning->selected_icon_index += 1;
         planning->selected_icon_index %= planning->node_icons.count;
-        
-        // if (new_node->entity) {
-        //     free_entity(new_node->entity);
-        //     new_node->entity = NULL;
-        // }
-        
-        // Planning_Node_Icon *node_icon = planning->node_icons.get(planning->selected_icon_index);
-        // if (node_icon->entity_to_spawn) {
-        //     auto active_icon = planning->node_icons.get(planning->selected_icon_index);
-        //     if (active_icon->entity_to_spawn) {
-        //         new_node->entity = copy_and_add_entity(active_icon->entity_to_spawn, context);
-        //     }
-        // }
-        
-        // new_node->type = node_icon->type;
     }
     
     validate_node(context, new_node);
@@ -174,14 +182,15 @@ void update_planning(Context *context) {
     bool can_place_new_node = true;
     
     Collision col = raycast(last_node->position, dir, target_radius, GROUND);
+    Color line_color = BLUE;
     if (col.collided) {
         can_place_new_node = false;
+        line_color = RED;
     }
     
-    Color line_color = BLUE;
-    
-    if (!can_place_new_node) {
-        line_color = RED;
+    if (new_node->type == NO_NODE) {
+        line_color = BLACK;
+        can_place_new_node = false;
     }
     
     make_line(last_node->position, target_position, 1.0f, line_color);
@@ -192,7 +201,7 @@ void update_planning(Context *context) {
         change_up(new_node->entity, dir);
     }
     
-    if (last_node->entity) {
+    if (last_node->entity && new_node->type != NO_NODE) {
         change_up(last_node->entity, dir);
     }
     
@@ -201,6 +210,14 @@ void update_planning(Context *context) {
             // new_node already in array, now we're adding something node that will be "next new_entity".
             auto added_node = planning->nodes.append({.position = target_position, .type = node_icon->type}); 
             validate_node(context, added_node);
+            
+            if (added_node->type == SPACE_NODE) {
+                planning->space_points -= 1;
+                assert(planning->space_points >= 0);
+            } else {
+                planning->item_points -= 1;
+                assert(planning->item_points >= 0);
+            }
         } else {
             play_sound("FailedRifleActivation", 0.4f);
         }
@@ -224,12 +241,30 @@ void planning_draw_ui(Context *context) {
           
     // Old::make_ui_image(
     
-    For (&context->planning.node_icons) {
-        Vector2 pos = panel_pos + Vector2_up * 50 * i;
+    auto planning = &context->planning;
+    
+    Old::make_ui_text(tprintf("Space points: %d", planning->space_points), panel_pos, "space_points_info");
+    Old::make_ui_text(tprintf("Item points: %d", planning->item_points), panel_pos + Vector2_up * 25, "item_points_info");
+    
+    For (&planning->node_icons) {
+        Vector2 pos = panel_pos + Vector2_up * 50 * (i + 1);
         Vector2 size = {panel_size.x - 20, 40};
         
         Color color = BLUE;
-        if (i == context->planning.selected_icon_index) {
+        
+        assert(it->type != NO_NODE); // NO_NODE type is only for nodes that's not for the placement, so there should be no icon with that type.
+        
+        b32 cannot_place_that_node = false;
+        if (it->type == SPACE_NODE && planning->space_points <= 0) {
+            cannot_place_that_node = true;
+            color = GRAY;
+        }
+        if (it->type != SPACE_NODE && planning->item_points <= 0) {
+            cannot_place_that_node = true;
+            color = GRAY;
+        }
+        
+        if (i == planning->selected_icon_index && !cannot_place_that_node) {
             color = SKYBLUE;
         }
         

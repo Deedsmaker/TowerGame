@@ -2469,7 +2469,7 @@ void fixed_game_update(Context *context, f32 dt) {
         } else {
             // Update_entities(-1);.
         }
-            check_entities_that_should_be_destroyed(current_context);
+        check_entities_that_should_be_destroyed(current_context);
     } else if (game_state == GAMING) {
         update_entities(context, dt);
     }
@@ -2972,6 +2972,9 @@ void update_game() {
         core.time.dt          = 0;
     }
 
+    
+    b32 update_static_entities_collision_cells = editor_state == EDITOR || state_context.in_pause_editor;
+    update_all_collision_cells(update_static_entities_collision_cells);
     
     if (editor_state == EDITOR || state_context.in_pause_editor) {
         update_editor_ui();
@@ -6972,25 +6975,6 @@ void update_move_sequence(Entity *entity, f32 dt) {
     }
 }
 
-void update_all_collision_cells(b32 update_cells_for_static_entities) {
-    for (i32 i = 0; i < current_context->collision_grid.cells.count; i++) {        
-        current_context->collision_grid.cells.get(i)->dynamic_entities.clear();
-    }
-    if (update_cells_for_static_entities) {
-        for (i32 i = 0; i < current_context->collision_grid.cells.count; i++) {        
-            current_context->collision_grid.cells.get(i)->static_entities.clear();
-        }
-    }
-    
-    ForEntities(entity, 0) {
-        if (entity->will_be_destroyed) {
-            continue;
-        }
-    
-        update_entity_collision_cells(entity, update_cells_for_static_entities);
-    }
-}
-
 void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings settings, Projectile_Type type, Color color) {
     Vector2 scale = {3, 8};
     
@@ -7594,9 +7578,6 @@ void update_entities(Context *context, f32 dt) {
     }
 
     Chunk_Array <Entity> *entities = &current_context->entities;
-    
-    b32 update_static_entities_collision_cells = editor_state == EDITOR || state_context.in_pause_editor;
-    update_all_collision_cells(update_static_entities_collision_cells);        
     
     // for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
     for_chunk_array(entity_index, entities) {
