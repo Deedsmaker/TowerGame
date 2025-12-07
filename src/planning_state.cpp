@@ -78,40 +78,75 @@ void reset_planning_data(Context *context) {
     planning->item_points = planning->max_item_points;
 }
 
-void validate_node(Context *context, Planning_Node *node) {
-    auto active_icon = context->planning.node_icons.get(context->planning.selected_icon_index);
+void validate_corner_node(Context *context) {
+    // In this node we're going to make sure that node type and node entity is correct according to points count 
+    // and current icon type.
+
+    auto planning = &context->planning;
+    auto corner_node = planning->nodes.last();
+
+    auto active_icon = planning->node_icons.get(planning->selected_icon_index);
     if (active_icon->type == SPACE_NODE) {
-        if (context->planning.space_points <= 0) {
-            if (node->entity) {
-                mark_entity_destroyed(node->entity);
-                node->entity = NULL;
-            }
-            node->type = NO_NODE;
-            return;
+        if (planning->space_points <= 0) {
+            goto no_points_for_corner_node_case;
         }
     } else {
-        if (context->planning.item_points <= 0) {
-            if (node->entity) {
-                mark_entity_destroyed(node->entity);
-                node->entity = NULL;
-            }
-            node->type = NO_NODE;
-            return;
+        if (planning->item_points <= 0) {
+            goto no_points_for_corner_node_case;
         }
     }
     
-    node->type = active_icon->type;
-    if (active_icon->entity_to_spawn && !node->entity) {           
-        node->entity = copy_and_add_entity(active_icon->entity_to_spawn, context);
+    corner_node->type = active_icon->type;
+    if (active_icon->entity_to_spawn && !corner_node->entity) {           
+        corner_node->entity = copy_and_add_entity(active_icon->entity_to_spawn, context);
     }
-    if (active_icon->entity_to_spawn == NULL && node->entity != NULL) {
-        mark_entity_destroyed(node->entity);
-        node->entity = NULL;
+    if (active_icon->entity_to_spawn == NULL && corner_node->entity != NULL) {
+        mark_entity_destroyed(corner_node->entity);
+        corner_node->entity = NULL;
+    }
+    
+    return;
+    
+    no_points_for_corner_node_case: {
+        if (corner_node->entity) {
+            mark_entity_destroyed(corner_node->entity);
+            corner_node->entity = NULL;
+        }
+        corner_node->type = NO_NODE;
+        
+        // If we have no points for corner node - we want to orient last real node entity right.
+        // Without that it will look at where was corner node before it become no_points case and will orient itself correctly 
+        // only when we'll enter gaming state (if we're not going to spawn last node).
+        if (planning->nodes.count > 2) {
+            auto pre_last = planning->nodes.get(planning->nodes.count - 2);
+            
+            if (pre_last->entity != NULL) {
+                auto pre_pre_last = planning->nodes.get(planning->nodes.count - 3);
+                
+                Vector2 vec = pre_last->position - pre_pre_last->position;
+                Vector2 dir = normalized(vec);
+                
+                change_up(pre_last->entity, dir);
+            }
+        }
     }
 }
 
 void planning_prepare_to_enter_gaming(Context *context) { 
     Planning_Data *planning = &context->planning;
+    
+    // Corner node is one that we just hold in our hand to place somewhere.
+    // So when it will no longer exists (as on entering gaming state) - we'll mark it NO_NODE and removing entity that it was 
+    // holding.
+    auto corner_node = planning->nodes.last();
+    if (corner_node->entity != NULL) {
+        mark_entity_destroyed(corner_node->entity);
+        corner_node->entity = NULL;
+    }
+    if (corner_node->type != NO_NODE) {
+        corner_node->type = NO_NODE;
+    }
+    
     For (&planning->nodes) {
         if (i == planning->nodes.count - 2 && it->entity != NULL) {
             // If last node is node with entity on it - we want to keep it's orientation on direction from previous to it, 
@@ -136,8 +171,8 @@ void update_planning(Context *context) {
                 removed_node->entity = NULL;
             }
             
-            // NOTE: This removed_node was not real, this was the node that we were holding in our hand to place. 
-            // Actual node that was removed is replaced_node that is currently last. This replaced node will be called "new_node"
+            // NOTE: This removed_node was not real, this was the node that we were holding in our hand to place somewhere. 
+            // Actual node that was removed is replaced_node that is currently last. This replaced node will be called "corner_node"
             // in the following code.
             
             auto replaced_node = planning->nodes.last();
@@ -154,15 +189,14 @@ void update_planning(Context *context) {
     
     assert(planning->nodes.count >= 2); // We're always keeping base node on player spawn point and a new node that will be spawned.
     auto last_node = planning->nodes.get(planning->nodes.count - 2);
-    auto new_node = planning->nodes.last();
+    auto corner_node = planning->nodes.last();
     
     if (IsKeyPressed(KEY_TAB)) {
         planning->selected_icon_index += 1;
         planning->selected_icon_index %= planning->node_icons.count;
     }
     
-    validate_node(context, new_node);
-    
+    validate_corner_node(context);
     
     f32 target_radius = radius_from_node(last_node);
     Vector2 last_to_mouse = input.mouse_position - last_node->position;
@@ -179,37 +213,37 @@ void update_planning(Context *context) {
     
     Vector2 target_position = last_node->position + dir * target_radius;
     
-    bool can_place_new_node = true;
+    bool can_place_corner_node = true;
     
     Collision col = raycast(last_node->position, dir, target_radius, GROUND);
     Color line_color = BLUE;
     if (col.collided) {
-        can_place_new_node = false;
+        can_place_corner_node = false;
         line_color = RED;
     }
     
-    if (new_node->type == NO_NODE) {
+    if (corner_node->type == NO_NODE) {
         line_color = BLACK;
-        can_place_new_node = false;
+        can_place_corner_node = false;
     }
     
     make_line(last_node->position, target_position, 1.0f, line_color);
     
-    new_node->position = target_position;
-    if (new_node->entity) {
-        new_node->entity->position = target_position;
-        change_up(new_node->entity, dir);
+    corner_node->position = target_position;
+    if (corner_node->entity) {
+        corner_node->entity->position = target_position;
+        change_up(corner_node->entity, dir);
     }
     
-    if (last_node->entity && new_node->type != NO_NODE) {
+    if (last_node->entity && corner_node->type != NO_NODE) {
         change_up(last_node->entity, dir);
     }
     
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-        if (can_place_new_node) {
+        if (can_place_corner_node) {
             // new_node already in array, now we're adding something node that will be "next new_entity".
             auto added_node = planning->nodes.append({.position = target_position, .type = node_icon->type}); 
-            validate_node(context, added_node);
+            validate_corner_node(context);
             
             if (added_node->type == SPACE_NODE) {
                 planning->space_points -= 1;

@@ -517,7 +517,7 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
             change_scale(sword, lerp(sword->scale, sword_target_scale, dt * 5));
         }
         
-    killing_centipede_sword_case:
+        killing_centipede_sword_case:
     
         change_color(sword, player->sword_mode == SWORD_MODE ? ColorBrightness(RED, 0.1f) : ColorBrightness(SKYBLUE, 0.3f));
         
