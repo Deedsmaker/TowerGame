@@ -2253,6 +2253,9 @@ void game_setup_collisions() {
 
 void enter_gaming_state() {
     b32 should_init_entities = false;
+    
+    planning_prepare_to_enter_gaming(current_context);
+    
     copy_context(&game_context, current_context, should_init_entities);
     
     switch_current_context(&game_context);

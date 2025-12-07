@@ -1167,13 +1167,16 @@ enum Planning_Flags : FLAGS {
 };
 
 enum Planning_Node_Type {
-    SPACE_NODE = 0,  
-    HIT_BOOSTER_NODE = 1,  
+    NO_NODE = 0,
+    SPACE_NODE = 1,  
+    HIT_BOOSTER_NODE = 2,  
 };
 
 struct Planning_Node {
     Vector2 position;
-    Planning_Node_Type type = SPACE_NODE;
+    Planning_Node_Type type = NO_NODE;
+    
+    Entity *entity = NULL;
 };
 
 struct Planning_Node_Icon {
@@ -1181,7 +1184,7 @@ struct Planning_Node_Icon {
     
     Planning_Node_Type type;
     
-    Entity *entity = NULL;
+    Entity *entity_to_spawn = NULL;
 };
 
 struct Planning_Data {
