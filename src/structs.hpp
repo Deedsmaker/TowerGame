@@ -239,6 +239,7 @@ enum Flags : FLAGS {
     ENEMY               = 1 << 3,
     SWORD               = 1 << 4,
     BIRD_ENEMY          = 1 << 5,
+    JUST_VISUAL         = 1 << 6,
     PROJECTILE          = 1 << 7,
     PARTICLE_EMITTER    = 1 << 8,
     WIN_BLOCK           = 1 << 9,

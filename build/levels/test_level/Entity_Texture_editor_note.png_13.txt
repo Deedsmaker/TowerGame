@@ -1,6 +1,6 @@
 name Texture_editor_note.png 
  id 13 
- position { -246.210190,  229.675797} 
+ position { -246.210190,  229.675812} 
  scale { 20.000000,  15.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 
@@ -12,6 +12,6 @@ name Texture_editor_note.png
  hidden 0 
  spawn_enemy_when_no_ammo 0 
  texture_name editor_note.png 
- note_content "        wrte        " 
+ note_content "         wrte         " 
  note_draw_in_game 0 
  

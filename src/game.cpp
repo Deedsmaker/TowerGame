@@ -1178,7 +1178,7 @@ struct Tile_Sheet {
 Array <Tile_Sheet> tile_sheets = {0};
 
 void add_spawn_object_from_texture(Texture *texture, const char *name, const char *directory_name = 0) {
-    Entity texture_entity = make_entity({0, 0}, {(f32)texture->width * 0.25f, (f32)texture->height * 0.25f}, {0.5f, 0.5f}, 0, texture, 0);
+    Entity texture_entity = make_entity({0, 0}, {(f32)texture->width * 0.25f, (f32)texture->height * 0.25f}, {0.5f, 0.5f}, 0, texture, JUST_VISUAL);
     texture_entity.color = WHITE;
     texture_entity.color_changer.start_color = texture_entity.color;
     texture_entity.color_changer.target_color = texture_entity.color * 1.5f;

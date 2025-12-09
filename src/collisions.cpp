@@ -263,7 +263,7 @@ Array <Collision_Grid_Cell *> get_affected_collision_cells(Vector2 position, Bou
 }
 
 inline b32 is_entity_static(Entity *entity) {
-    return entity->flags == GROUND || entity->flags == 0;
+    return entity->flags == GROUND || entity->flags == JUST_VISUAL || entity->flags == 0;
 }
 
 inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_static_entities) {
