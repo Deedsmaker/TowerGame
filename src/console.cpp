@@ -221,7 +221,7 @@ void save_temp_replay() {
 void play_loaded_replay() {
     global_data.playing_replay = true;
     Entity *replay_player_entity = add_player_entity(current_context, &replay_player_data);
-    replay_player_entity->flags |= REPLAY_PLAYER;
+    // replay_player_entity->flags |= REPLAY_PLAYER;
 }
 
 void load_replay(const char *replay_name) {

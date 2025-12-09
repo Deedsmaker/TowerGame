@@ -263,8 +263,6 @@ enum Flags : FLAGS {
     ROPE_POINT          = 1 << 28,
     JUMP_SHOOTER        = 1 << 29,
     LIGHT               = 1 << 30,
-    REPLAY_PLAYER       = 1 << 31,
-    LONG_SPIN              = (static_cast<u64>(1) << 32),
     NO_MOVE_BLOCK          = (static_cast<u64>(1) << 33),
     HIT_BOOSTER            = (static_cast<u64>(1) << 34),
     PLAYER_TOUCH_TIMER     = (static_cast<u64>(1) << 35),

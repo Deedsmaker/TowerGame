@@ -7100,20 +7100,8 @@ inline b32 update_entity(Entity *e, f32 dt) {
     
     // Update player.
     if (e->flags & PLAYER && !debug.dragging_player) {
-        if (e->flags & REPLAY_PLAYER) {
-            if (!global_data.playing_replay) {
-                mark_entity_destroyed(e);
-                return true;
-            }
-            // @HACK if we'll use replay characters more - we should really look into where we use player_data->
-            // player_data = &replay_player_data;
-            // e->position = replay_input.player_position;
-            // update_player(e, dt, replay_input);
-            // player_data = &real_player_data;
-        } else {
-            // player_data = &real_player_data;
-            update_player(e, &e->context->player, input, dt);
-        }
+        // player_data = &real_player_data;
+        update_player(e, &e->context->player, input, dt);
     }
       
     // Update explosive.
