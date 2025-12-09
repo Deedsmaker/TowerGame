@@ -962,14 +962,38 @@ void init_spawn_objects() {
     str_copy(platform_object.name, "platform");
     spawn_objects.append(platform_object);
     
-    Entity enemy_ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, AMMO_PACK);
-    enemy_ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
-    setup_color_changer(&enemy_ammo_pack_entity);
+    ////////////////////////////////////////////////
+    Entity ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, AMMO_PACK);
+    ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
+    setup_color_changer(&ammo_pack_entity);
     
-    Spawn_Object enemy_ammo_pack_object;
-    enemy_ammo_pack_object.entity = enemy_ammo_pack_entity;
-    str_copy(enemy_ammo_pack_object.name, "ammo_pack");
-    spawn_objects.append(enemy_ammo_pack_object);
+    Spawn_Object ammo_pack_object;
+    ammo_pack_object.entity = ammo_pack_entity;
+    str_copy(ammo_pack_object.name, "ammo_pack");
+    spawn_objects.append(ammo_pack_object);
+    ////////////////////////////////////////////////
+    
+    ////////////////////////////////////////////////
+    Entity item_point_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ITEM_POINT);
+    item_point_entity.color = ColorBrightness(WHITE, -0.1f);
+    setup_color_changer(&item_point_entity);
+    
+    Spawn_Object item_point_object;
+    item_point_object.entity = item_point_entity;
+    str_copy(item_point_object.name, "item_point");
+    spawn_objects.append(item_point_object);
+    ////////////////////////////////////////////////
+    
+    ////////////////////////////////////////////////
+    Entity space_point = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, SPACE_POINT);
+    space_point.color = ColorBrightness(WHITE, -0.1f);
+    setup_color_changer(&space_point);
+    
+    Spawn_Object space_point_object;
+    space_point_object.entity = space_point;
+    str_copy(space_point_object.name, "space_point");
+    spawn_objects.append(space_point_object);
+    ////////////////////////////////////////////////
     
     Entity big_sword_charge_giver_entity = make_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
     big_sword_charge_giver_entity.color = ColorBrightness(GREEN, 0.5f);
@@ -1373,6 +1397,14 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     // Init ammo pack.
     if (entity->flags & AMMO_PACK){
         entity->texture = get_texture("Prop");
+    }
+    // Init space point.
+    if (entity->flags & SPACE_POINT){
+        entity->texture = get_texture("SpacePoint");
+    }
+    // Init item point.
+    if (entity->flags & ITEM_POINT){
+        entity->texture = get_texture("ItemPoint");
     }
     
     // Init note.

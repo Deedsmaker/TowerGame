@@ -273,7 +273,8 @@ enum Flags : FLAGS {
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
     HOMING_TURRET          = (static_cast<u64>(1) << 42),
-    // BULLET_REDIRECT        = (static_cast<u64>(1) << 43),
+    ITEM_POINT             = (static_cast<u64>(1) << 43),
+    SPACE_POINT            = (static_cast<u64>(1) << 44),
 };
 
 struct Move_Point {

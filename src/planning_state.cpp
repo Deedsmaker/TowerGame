@@ -49,6 +49,25 @@ void add_node_icon(Context *context, String name, Planning_Node_Type type, Entit
     context->planning.node_icons.append(icon);
 }
 
+void check_new_node_surroundings(Context *context, Planning_Node *node) {
+    f32 radius = radius_from_node(node);
+    
+    static const f32 ITEMS_RADIUS = 5.0f;
+    ForEntitiesInContext(context, e, ITEM_POINT | SPACE_POINT | AMMO_PACK) {
+        auto vec = node->position - e->position;
+        auto len = magnitude(vec);
+        
+        if (len <= radius + ITEMS_RADIUS) {
+            if (e->flags & ITEM_POINT) {
+                context->planning.item_points += 1;               
+            }
+            if (e->flags & SPACE_POINT) {
+                context->planning.space_points += 1;    
+            }
+        }
+    }
+}
+
 void init_planning_data(Context *context) {
     context->planning.nodes.clear();
     context->planning.nodes.allocator = &context->memory_arena;
@@ -244,6 +263,8 @@ void update_planning(Context *context) {
             // new_node already in array, now we're adding something node that will be "next new_entity".
             auto added_node = planning->nodes.append({.position = target_position, .type = node_icon->type}); 
             validate_corner_node(context);
+            
+            check_new_node_surroundings(context, added_node);
             
             if (added_node->type == SPACE_NODE) {
                 planning->space_points -= 1;
