@@ -84,7 +84,7 @@ inline Line_Trail *get_line_trail(i32 index){
     }
     
     Line_Trail *line_trail = current_context->line_trails.get(index);
-    if (!line_trail->occupied){
+    if (!line_trail || !line_trail->occupied){
         printf("WARNING: Trying to get line trail that wasn't occupied with index %d\n", index);
         line_trail = NULL;
     }

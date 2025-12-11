@@ -223,6 +223,13 @@ void free_entity(Entity *e) {
         e->propeller = NULL;
     }
     
+    // Free planning point.j
+    if (e->flags & PLANNING_POINT) {
+        assert(e->planning_point && e->planning_point->index > -1);
+        e->context->planning_points.remove(e->planning_point->index);
+        e->planning_point = NULL;
+    }
+    
     // Free move sequence.
     if (e->flags & MOVE_SEQUENCE) {
         assert(e->move_sequence && e->move_sequence->index >= 0);
@@ -751,6 +758,8 @@ void clear_context(Context *context) {
     
     context->just_enemies.clear();
     
+    context->planning_points.clear();
+    
     context->centipedes.clear();
     context->centipede_segments.clear();
     
@@ -785,7 +794,7 @@ void clear_context(Context *context) {
     // context->we_got_a_winner = false;
     // player_data = {0};
     
-    clear_allocator(&context->memory_arena);
+    clear_and_push_zeroes_to_allocator(&context->memory_arena);
     
     init_planning_data(context);
     
@@ -963,7 +972,8 @@ void init_spawn_objects() {
     spawn_objects.append(platform_object);
     
     ////////////////////////////////////////////////
-    Entity ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, AMMO_PACK);
+    Entity ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+    ammo_pack_entity.init_flags = AMMO_PACK;
     ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
     setup_color_changer(&ammo_pack_entity);
     
@@ -974,7 +984,8 @@ void init_spawn_objects() {
     ////////////////////////////////////////////////
     
     ////////////////////////////////////////////////
-    Entity item_point_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, ITEM_POINT);
+    Entity item_point_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+    item_point_entity.init_flags = ITEM_POINT_FLAG;
     item_point_entity.color = ColorBrightness(WHITE, -0.1f);
     setup_color_changer(&item_point_entity);
     
@@ -985,7 +996,8 @@ void init_spawn_objects() {
     ////////////////////////////////////////////////
     
     ////////////////////////////////////////////////
-    Entity space_point = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, SPACE_POINT);
+    Entity space_point = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+    space_point.init_flags = SPACE_POINT;
     space_point.color = ColorBrightness(WHITE, -0.1f);
     setup_color_changer(&space_point);
     
@@ -1379,6 +1391,15 @@ inline void put_centipede_segment_at_right_start_position(Entity *segment, Entit
     segment->position = target_position;
 }
 
+template <typename T> 
+void add_entity_type_if_need(Chunk_Array <T> *arr, T **pointer_to_assign, b32 ignore_existing_types) {
+    if (!*pointer_to_assign || ignore_existing_types) {
+        i32 index = -1;
+        (*pointer_to_assign) = arr->append({0}, &index);
+        (*pointer_to_assign)->index = index;
+    }
+}
+
 // ignore_existing_types for situations when we want to add new type info even if one is non-zero.
 // For example on copy_and_add_entity we're doing thing like *entity = *to_copy, which means that we'll gonna have 
 // the same pointers to types as a copy (like trigger, propeller, some enemy etc.) and in that case we don't want to 
@@ -1394,18 +1415,34 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
 
     entity->color = entity->color_changer.start_color;
 
-    // Init ammo pack.
+    
+    // Init planning point.
+    if (entity->flags & PLANNING_POINT) {
+        if (!entity->planning_point || ignore_existing_types) {
+            i32 index = -1;
+            entity->planning_point = entity->context->planning_points.append({0}, &index);
+            entity->planning_point->index = index;
+        }
+        entity->planning_point->entity = entity;
+        
+        if (entity->init_flags & AMMO_PACK) {
+            entity->texture = get_texture("Prop");
+            entity->planning_point->flags |= AMMO_PACK;
+        }
+        if (entity->init_flags & SPACE_POINT_FLAG){
+            entity->texture = get_texture("SpacePoint");
+            entity->planning_point->flags |= SPACE_POINT_FLAG;
+        }
+        if (entity->init_flags & ITEM_POINT_FLAG){
+            entity->texture = get_texture("ItemPoint");
+            entity->planning_point->flags |= ITEM_POINT_FLAG;
+        }
+    }
+    
     if (entity->flags & AMMO_PACK){
         entity->texture = get_texture("Prop");
     }
     // Init space point.
-    if (entity->flags & SPACE_POINT){
-        entity->texture = get_texture("SpacePoint");
-    }
-    // Init item point.
-    if (entity->flags & ITEM_POINT){
-        entity->texture = get_texture("ItemPoint");
-    }
     
     // Init note.
     if (entity->flags & NOTE) {
@@ -1442,11 +1479,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         change_scale(entity, {6, 10});
     
-        if (!entity->bird_enemy || ignore_existing_types) {
-            i32 index = -1;
-            entity->bird_enemy = entity->context->bird_enemies.append({0}, &index);
-            entity->bird_enemy->index = index;
-        }
+        add_entity_type_if_need(&entity->context->bird_enemies, &entity->bird_enemy, ignore_existing_types);
     
         entity->bird_enemy->max_hits_taken = 3;
         entity->bird_enemy->sword_kill_speed_modifier = 4;
@@ -1992,6 +2025,8 @@ void init_context(Context *context) {
     
     init_chunk_array(&context->centipedes, 8, HEAP_ALLOCATOR);
     init_chunk_array(&context->centipede_segments, 128, HEAP_ALLOCATOR);
+    
+    init_chunk_array(&context->planning_points, 32, HEAP_ALLOCATOR);
     
     
     init_chunk_array(&context->lights, 128, HEAP_ALLOCATOR);

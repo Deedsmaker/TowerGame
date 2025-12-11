@@ -272,7 +272,7 @@ struct Array {
 
 template<typename T>
 void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
-    assert(array->data == NULL && "We probably should init array only when it is not initialized");
+    // assert(array->data == NULL && "We probably should init array only when it is not initialized");
     array->capacity = capacity;
     
     if (capacity > 0) {
@@ -709,7 +709,9 @@ struct Chunk_Array {
 
 template <typename T>
 void init_chunk_array(Chunk_Array <T> *arr, i32 chunk_size, Allocator *allocator) {
-    assert(arr->chunks_count == 0);
+    // assert(arr->chunks_count == 0);
+    arr->chunks_count = 0;
+    
     arr->allocator = allocator;
     arr->chunk_size = chunk_size;
     arr->init_chunk(&arr->first_chunk);

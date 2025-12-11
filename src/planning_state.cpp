@@ -53,15 +53,25 @@ void check_new_node_surroundings(Context *context, Planning_Node *node) {
     f32 radius = radius_from_node(node);
     
     static const f32 ITEMS_RADIUS = 5.0f;
-    ForEntitiesInContext(context, e, ITEM_POINT | SPACE_POINT | AMMO_PACK) {
+    for_chunk_array (i, &context->planning_points) {
+        Entity *e = context->planning_points.get(i)->entity;
         auto vec = node->position - e->position;
         auto len = magnitude(vec);
         
+        auto point = e->planning_point;
+        assert(point);
+        
+        if (point->taken) {
+            continue;
+        }
+        
+        point->taken = true;
+        
         if (len <= radius + ITEMS_RADIUS) {
-            if (e->flags & ITEM_POINT) {
+            if (point->flags & ITEM_POINT_FLAG) {
                 context->planning.item_points += 1;               
             }
-            if (e->flags & SPACE_POINT) {
+            if (point->flags & SPACE_POINT_FLAG) {
                 context->planning.space_points += 1;    
             }
         }

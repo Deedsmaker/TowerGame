@@ -273,7 +273,7 @@ enum Flags : FLAGS {
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
     HOMING_TURRET          = (static_cast<u64>(1) << 42),
-    ITEM_POINT             = (static_cast<u64>(1) << 43),
+    PLANNING_POINT         = (static_cast<u64>(1) << 43),
     SPACE_POINT            = (static_cast<u64>(1) << 44),
 };
 
@@ -860,6 +860,8 @@ enum Runtime_Flags : FLAGS {
     SHOULD_NOT_COPY = 0x4,
 };
 
+struct Planning_Point;
+
 struct Entity {
     i32 id = 0;
     b32 visible = true;
@@ -892,6 +894,7 @@ struct Entity {
     
     FLAGS flags = 0;
     FLAGS runtime_only_flags = 0;
+    FLAGS init_flags = 0;
     FLAGS collision_flags = 0;
     
     //lower - closer to camera
@@ -915,6 +918,7 @@ struct Entity {
         Trigger *trigger;
         Sticky_Texture *sticky_texture;
         Projectile *projectile;
+        Planning_Point *planning_point;
     };
     
     Move_Sequence *move_sequence;
@@ -1206,6 +1210,19 @@ struct Planning_Data {
     Array <Planning_Node_Icon> node_icons = {0};
 };
 
+enum Planning_Point_Flags {
+    ITEM_POINT_FLAG = 0x1,  
+    AMMO_POINT_FLAG = 0x2,
+    SPACE_POINT_FLAG = 0x4,
+};
+
+struct Planning_Point {
+    i32 index = -1;
+    Entity *entity = NULL;
+    u64 flags = 0;
+    b32 taken = false;
+};
+
 struct Context {
     char name[64] = {};
     Allocator memory_arena = {};
@@ -1238,6 +1255,7 @@ struct Context {
     Chunk_Array <Jump_Shooter> jump_shooters = {};
     Chunk_Array <Turret> turrets = {};
     Chunk_Array <Win_Block> win_blocks = {};
+    Chunk_Array <Planning_Point> planning_points = {};
     
     Chunk_Array <Projectile> projectiles = {};
     

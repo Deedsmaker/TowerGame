@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string.h>
 #include "my_defines.hpp"
 #include <stdlib.h> // For calloc.
 
@@ -33,9 +34,7 @@ char *alloc(Allocator *allocator, size_t size) {
     assert(allocator->watermark + size < allocator->reserved && "We don't handle situation where memory arena consumed more than it could handle. Alloc more on the start or think about your behaviour.");
     
     char *result = allocator->start + allocator->watermark;
-    for (i32 i = 0; i < size; i++) {
-        result[i] = 0;   
-    }
+    memset(result, 0, size);
     allocator->watermark += size;
     
     return result;
@@ -43,6 +42,12 @@ char *alloc(Allocator *allocator, size_t size) {
 
 void clear_allocator(Allocator *allocator) {
     allocator->watermark = 0;
+    
+}
+
+void clear_and_push_zeroes_to_allocator(Allocator *allocator) {
+    allocator->watermark = 0;
+    memset(allocator->start, 0, allocator->reserved);
 }
 
 void free_allocator(Allocator *allocator) {
