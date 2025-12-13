@@ -88,7 +88,7 @@ void init_planning_data(Context *context) {
     add_node_icon(context, tstring("Space node"), SPACE_NODE, NULL);
     
     auto hit_booster_object = get_spawn_object_by_name(tstring("hit_booster"));
-    add_node_icon(context, tstring("Booster node"), HIT_BOOSTER_NODE, &hit_booster_object->entity);
+    add_node_icon(context, tstring("Booster node"), HIT_BOOSTER_NODE, hit_booster_object->entity);
 }
 
 void reset_planning_data(Context *context) {

@@ -39,6 +39,7 @@ global_variable Context *editor_context = NULL;
 i32 current_editor_context_index = 0;
 i32 last_loaded_editor_context_index = 0;
 
+global_variable Context spawn_objects_context = {0};
 global_variable Context game_context = {0};
 global_variable Context planning_context = {0};
 global_variable Context checkpoint_context = {0};
@@ -817,7 +818,7 @@ Entity *spawn_object_by_name(const char* name, Vector2 position, Context *contex
     for (i32 i = 0; i < spawn_objects.count; i++) {
         Spawn_Object *obj = spawn_objects.get(i);
         if (str_equal(obj->name, name)) {
-            Entity *e = copy_and_add_entity(&obj->entity, context);
+            Entity *e = copy_and_add_entity(obj->entity, context);
             e->position = position;
             return e;
         }
@@ -923,288 +924,293 @@ Spawn_Object *get_spawn_object_by_name(String name) {
 }
 
 void init_spawn_objects() {
-    Entity block_base_entity = make_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND);
-    block_base_entity.color = BROWN;
-    setup_color_changer(&block_base_entity);
+    auto original_context = current_context;
+    switch_current_context(&spawn_objects_context);
+
+    auto block_base_entity = add_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND);
+    block_base_entity->color = BROWN;
+    setup_color_changer(block_base_entity);
     
-    Spawn_Object block_base_object;
+    Spawn_Object block_base_object = {0};
     block_base_object.entity = block_base_entity;
     str_copy(block_base_object.name, "block_base");
     spawn_objects.append(block_base_object);
     
-    Entity no_move_block_entity = make_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
-    no_move_block_entity.color = PURPLE;
-    setup_color_changer(&no_move_block_entity);
+    auto no_move_block_entity = add_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
+    no_move_block_entity->color = PURPLE;
+    setup_color_changer(no_move_block_entity);
     
-    Spawn_Object no_move_block_object;
+    Spawn_Object no_move_block_object = {0};
     no_move_block_object.entity = no_move_block_entity;
     str_copy(no_move_block_object.name, "no_move_block");
     spawn_objects.append(no_move_block_object);
     
-    Entity note_entity = make_entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE);
-    note_entity.color = Fade(WHITE, 0.7f);
-    str_copy(note_entity.texture_name, "editor_note.png");
-    note_entity.texture = get_texture(note_entity.texture_name);
-    setup_color_changer(&note_entity);
+    auto note_entity = add_entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE);
+    note_entity->color = Fade(WHITE, 0.7f);
+    str_copy(note_entity->texture_name, "editor_note.png");
+    note_entity->texture = get_texture(note_entity->texture_name);
+    setup_color_changer(note_entity);
     
-    Spawn_Object note_object;
+    Spawn_Object note_object = {0};
     note_object.entity = note_entity;
     str_copy(note_object.name, "note");
     spawn_objects.append(note_object);
     
-    Entity dummy_entity = make_entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
-    dummy_entity.color  = Fade(GREEN, 0.5f);
-    // dummy_entity.hidden = true;
-    setup_color_changer(&dummy_entity);
+    auto dummy_entity = add_entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
+    dummy_entity->color  = Fade(GREEN, 0.5f);
+    // dummy_entity->hidden = true;
+    setup_color_changer(dummy_entity);
     
-    Spawn_Object dummy_object;
+    Spawn_Object dummy_object = {0};
     dummy_object.entity = dummy_entity;
     str_copy(dummy_object.name, "dummy_entity");
     spawn_objects.append(dummy_object);
     
-    Entity platform_entity = make_entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
-    platform_entity.color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
-    setup_color_changer(&platform_entity);
+    auto platform_entity = add_entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
+    platform_entity->color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
+    setup_color_changer(platform_entity);
     
-    Spawn_Object platform_object;
+    Spawn_Object platform_object = {0};
     platform_object.entity = platform_entity;
     str_copy(platform_object.name, "platform");
     spawn_objects.append(platform_object);
     
     ////////////////////////////////////////////////
-    Entity ammo_pack_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-    ammo_pack_entity.init_flags = AMMO_PACK;
-    ammo_pack_entity.color = ColorBrightness(RED, -0.1f);
-    setup_color_changer(&ammo_pack_entity);
+    auto ammo_pack_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+    ammo_pack_entity->init_flags = AMMO_PACK;
+    ammo_pack_entity->color = ColorBrightness(RED, -0.1f);
+    setup_color_changer(ammo_pack_entity);
     
-    Spawn_Object ammo_pack_object;
+    Spawn_Object ammo_pack_object = {0};
     ammo_pack_object.entity = ammo_pack_entity;
     str_copy(ammo_pack_object.name, "ammo_pack");
     spawn_objects.append(ammo_pack_object);
     ////////////////////////////////////////////////
     
     ////////////////////////////////////////////////
-    Entity item_point_entity = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-    item_point_entity.init_flags = ITEM_POINT_FLAG;
-    item_point_entity.color = ColorBrightness(WHITE, -0.1f);
-    setup_color_changer(&item_point_entity);
+    auto item_point_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+    item_point_entity->init_flags = ITEM_POINT_FLAG;
+    item_point_entity->color = ColorBrightness(WHITE, -0.1f);
+    setup_color_changer(item_point_entity);
     
-    Spawn_Object item_point_object;
+    Spawn_Object item_point_object = {0};
     item_point_object.entity = item_point_entity;
     str_copy(item_point_object.name, "item_point");
     spawn_objects.append(item_point_object);
     ////////////////////////////////////////////////
     
     ////////////////////////////////////////////////
-    Entity space_point = make_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-    space_point.init_flags = SPACE_POINT;
-    space_point.color = ColorBrightness(WHITE, -0.1f);
-    setup_color_changer(&space_point);
+    auto space_point = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+    space_point->init_flags = SPACE_POINT;
+    space_point->color = ColorBrightness(WHITE, -0.1f);
+    setup_color_changer(space_point);
     
-    Spawn_Object space_point_object;
+    Spawn_Object space_point_object = {0};
     space_point_object.entity = space_point;
     str_copy(space_point_object.name, "space_point");
     spawn_objects.append(space_point_object);
     ////////////////////////////////////////////////
     
-    Entity big_sword_charge_giver_entity = make_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
-    big_sword_charge_giver_entity.color = ColorBrightness(GREEN, 0.5f);
-    setup_color_changer(&big_sword_charge_giver_entity);
+    auto big_sword_charge_giver_entity = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
+    big_sword_charge_giver_entity->color = ColorBrightness(GREEN, 0.5f);
+    setup_color_changer(big_sword_charge_giver_entity);
     
-    Spawn_Object big_sword_charge_giver_object;
+    Spawn_Object big_sword_charge_giver_object = {0};
     big_sword_charge_giver_object.entity = big_sword_charge_giver_entity;
     str_copy(big_sword_charge_giver_object.name, "big_sword_charge_giver");
     spawn_objects.append(big_sword_charge_giver_object);
     
-    Entity turret_direct_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
-    turret_direct_entity.color = ColorBrightness(PURPLE, 0.5f);
-    setup_color_changer(&turret_direct_entity);
+    auto turret_direct_entity = add_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
+    turret_direct_entity->color = ColorBrightness(PURPLE, 0.5f);
+    setup_color_changer(turret_direct_entity);
     
-    Spawn_Object turret_direct_object;
+    Spawn_Object turret_direct_object = {0};
     turret_direct_object.entity = turret_direct_entity;
     str_copy(turret_direct_object.name, "turret_direct");
     spawn_objects.append(turret_direct_object);
     
-    Entity turret_homing_entity = make_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET | HOMING_TURRET);
-    turret_homing_entity.color = ColorBrightness(PURPLE, 0.1f);
-    setup_color_changer(&turret_homing_entity);
+    auto turret_homing_entity = add_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET | HOMING_TURRET);
+    turret_homing_entity->color = ColorBrightness(PURPLE, 0.1f);
+    setup_color_changer(turret_homing_entity);
     
-    Spawn_Object turret_homing_object;
+    Spawn_Object turret_homing_object = {0};
     turret_homing_object.entity = turret_homing_entity;
     str_copy(turret_homing_object.name, "turret_homing");
     spawn_objects.append(turret_homing_object);
     
-    Entity bird_entity = make_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
+    auto bird_entity = add_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     
-    Spawn_Object enemy_bird_object;
+    Spawn_Object enemy_bird_object = {0};
     enemy_bird_object.entity = bird_entity;
     str_copy(enemy_bird_object.name, "bird_enemy");
     spawn_objects.append(enemy_bird_object);
     
-    Entity win_block_entity = make_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | PLAYER_TOUCH_TIMER);
-    win_block_entity.color_changer.start_color = win_block_entity.color;
-    win_block_entity.color_changer.target_color = win_block_entity.color * 1.5f;
-    setup_color_changer(&win_block_entity);
+    auto win_block_entity = add_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | PLAYER_TOUCH_TIMER);
+    win_block_entity->color_changer.start_color = win_block_entity->color;
+    win_block_entity->color_changer.target_color = win_block_entity->color * 1.5f;
+    setup_color_changer(win_block_entity);
     
-    Spawn_Object win_block_object;
+    Spawn_Object win_block_object = {0};
     win_block_object.entity = win_block_entity;
     str_copy(win_block_object.name, "win_block");
     spawn_objects.append(win_block_object);
     
-    Entity agro_area_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
-    agro_area_entity.color = Fade(VIOLET, 0.6f);
-    agro_area_entity.color_changer.start_color = agro_area_entity.color;
-    agro_area_entity.color_changer.target_color = agro_area_entity.color * 1.5f;
-    setup_color_changer(&agro_area_entity);
+    auto agro_area_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
+    agro_area_entity->color = Fade(VIOLET, 0.6f);
+    agro_area_entity->color_changer.start_color = agro_area_entity->color;
+    agro_area_entity->color_changer.target_color = agro_area_entity->color * 1.5f;
+    setup_color_changer(agro_area_entity);
     
-    Spawn_Object argo_area_object;
+    Spawn_Object argo_area_object = {0};
     argo_area_object.entity = agro_area_entity;
     str_copy(argo_area_object.name, "agro_area");
     spawn_objects.append(argo_area_object);
     
-    Entity trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
-    trigger_entity.color = Fade(GREEN, 0.6f);
-    setup_color_changer(&trigger_entity);
+    auto trigger_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
+    trigger_entity->color = Fade(GREEN, 0.6f);
+    setup_color_changer(trigger_entity);
     
-    Spawn_Object trigger_object;
+    Spawn_Object trigger_object = {0};
     trigger_object.entity = trigger_entity;
     str_copy(trigger_object.name, "trigger");
     spawn_objects.append(trigger_object);
     
-    Entity bomb_entity = make_entity({0, 0}, {13, 13}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
-    bomb_entity.color = ColorBrightness(RED, 0.2f);
-    setup_color_changer(&bomb_entity);
+    auto bomb_entity = add_entity({0, 0}, {13, 13}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
+    bomb_entity->color = ColorBrightness(RED, 0.2f);
+    setup_color_changer(bomb_entity);
     
-    Spawn_Object bomb_object;
+    Spawn_Object bomb_object = {0};
     bomb_object.entity = bomb_entity;
     str_copy(bomb_object.name, "bomb");
     spawn_objects.append(bomb_object);
     
-    Entity kill_trigger_entity = make_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER | KILL_TRIGGER);
-    kill_trigger_entity.color = Fade(RED, 0.6f);
-    setup_color_changer(&kill_trigger_entity);
+    auto kill_trigger_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER | KILL_TRIGGER);
+    kill_trigger_entity->color = Fade(RED, 0.6f);
+    setup_color_changer(kill_trigger_entity);
     
-    Spawn_Object kill_trigger_object;
+    Spawn_Object kill_trigger_object = {0};
     kill_trigger_object.entity = kill_trigger_entity;
     str_copy(kill_trigger_object.name, "kill_trigger");
     spawn_objects.append(kill_trigger_object);
     
-    Entity kill_switch_entity = make_entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
-    kill_switch_entity.color = ColorBrightness(RED, 0.3f);
-    setup_color_changer(&kill_switch_entity);
+    auto kill_switch_entity = add_entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
+    kill_switch_entity->color = ColorBrightness(RED, 0.3f);
+    setup_color_changer(kill_switch_entity);
     
-    Spawn_Object kill_switch_object;
+    Spawn_Object kill_switch_object = {0};
     kill_switch_object.entity = kill_switch_entity;
     str_copy(kill_switch_object.name, "kill_switch");
     spawn_objects.append(kill_switch_object);
     
-    Entity enemy_barrier_entity = make_entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | PLAYER_TOUCH_TIMER);
-    enemy_barrier_entity.color = ColorBrightness(GRAY, 0.2f);
-    setup_color_changer(&enemy_barrier_entity);
+    auto enemy_barrier_entity = add_entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | PLAYER_TOUCH_TIMER);
+    enemy_barrier_entity->color = ColorBrightness(GRAY, 0.2f);
+    setup_color_changer(enemy_barrier_entity);
     
-    Spawn_Object enemy_barrier_object;
+    Spawn_Object enemy_barrier_object = {0};
     enemy_barrier_object.entity = enemy_barrier_entity;
     str_copy(enemy_barrier_object.name, "enemy_barrier");
     spawn_objects.append(enemy_barrier_object);
     
-    Entity spikes_entity = make_entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES | KILL_TRIGGER);
-    spikes_entity.color = Fade(RED, 0.9f);
-    setup_color_changer(&spikes_entity);
+    auto spikes_entity = add_entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES | KILL_TRIGGER);
+    spikes_entity->color = Fade(RED, 0.9f);
+    setup_color_changer(spikes_entity);
     
-    Spawn_Object spikes_object;
+    Spawn_Object spikes_object = {0};
     spikes_object.entity = spikes_entity;
     str_copy(spikes_object.name, "spikes");
     spawn_objects.append(spikes_object);
     
-    Entity propeller_entity = make_entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
-    propeller_entity.color = Fade(BLUE, 0.4f);
-    propeller_entity.color_changer.start_color = propeller_entity.color;
-    propeller_entity.color_changer.target_color = propeller_entity.color * 1.5f;
-    setup_color_changer(&propeller_entity);
+    auto propeller_entity = add_entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
+    propeller_entity->color = Fade(BLUE, 0.4f);
+    propeller_entity->color_changer.start_color = propeller_entity->color;
+    propeller_entity->color_changer.target_color = propeller_entity->color * 1.5f;
+    setup_color_changer(propeller_entity);
     
-    Spawn_Object propeller_object;
+    Spawn_Object propeller_object = {0};
     propeller_object.entity = propeller_entity;
     str_copy(propeller_object.name, "propeller");
     spawn_objects.append(propeller_object);
     
-    Entity door_entity = make_entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
-    door_entity.color = ColorBrightness(PURPLE, 0.6f);
-    setup_color_changer(&door_entity);
+    auto door_entity = add_entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
+    door_entity->color = ColorBrightness(PURPLE, 0.6f);
+    setup_color_changer(door_entity);
     
-    Spawn_Object door_object;
+    Spawn_Object door_object = {0};
     door_object.entity = door_entity;
     str_copy(door_object.name, "door");
     spawn_objects.append(door_object);
     
-    Entity enemy_trigger_entity = make_entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
-    enemy_trigger_entity.color = ColorBrightness(BLUE, 0.6f);
-    setup_color_changer(&enemy_trigger_entity);
+    auto enemy_trigger_entity = add_entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
+    enemy_trigger_entity->color = ColorBrightness(BLUE, 0.6f);
+    setup_color_changer(enemy_trigger_entity);
     
-    Spawn_Object enemy_trigger_object;
+    Spawn_Object enemy_trigger_object = {0};
     enemy_trigger_object.entity = enemy_trigger_entity;
     str_copy(enemy_trigger_object.name, "enemy_trigger");
     spawn_objects.append(enemy_trigger_object);
     
-    Entity centipede_entity = make_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
-    centipede_entity.color = ColorBrightness(RED, 0.6f);
-    setup_color_changer(&centipede_entity);
+    auto centipede_segment_entity = add_entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT);
+    centipede_segment_entity->color = ColorBrightness(ORANGE, 0.3f);
+    setup_color_changer(centipede_segment_entity);
     
-    Spawn_Object centipede_object;
-    centipede_object.entity = centipede_entity;
-    str_copy(centipede_object.name, "centipede");
-    spawn_objects.append(centipede_object);
-    
-    Entity centipede_segment_entity = make_entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT);
-    centipede_segment_entity.color = ColorBrightness(ORANGE, 0.3f);
-    setup_color_changer(&centipede_segment_entity);
-    
-    Spawn_Object centipede_segment_object;
+    Spawn_Object centipede_segment_object = {0};
     centipede_segment_object.entity = centipede_segment_entity;
     str_copy(centipede_segment_object.name, "centipede_segment");
     spawn_objects.append(centipede_segment_object);
     
-    Entity shoot_stoper_entity = make_entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
-    shoot_stoper_entity.color = ColorBrightness(BLACK, 0.3f);
-    setup_color_changer(&shoot_stoper_entity);
+    auto centipede_entity = add_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
+    centipede_entity->color = ColorBrightness(RED, 0.6f);
+    setup_color_changer(centipede_entity);
     
-    Spawn_Object shoot_stoper_object;
+    Spawn_Object centipede_object = {0};
+    centipede_object.entity = centipede_entity;
+    str_copy(centipede_object.name, "centipede");
+    spawn_objects.append(centipede_object);
+    
+    auto shoot_stoper_entity = add_entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
+    shoot_stoper_entity->color = ColorBrightness(BLACK, 0.3f);
+    setup_color_changer(shoot_stoper_entity);
+    
+    Spawn_Object shoot_stoper_object = {0};
     shoot_stoper_object.entity = shoot_stoper_entity;
     str_copy(shoot_stoper_object.name, "shoot_stoper");
     spawn_objects.append(shoot_stoper_object);
     
-    Entity hit_booster_entity = make_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
-    hit_booster_entity.color = ColorBrightness(YELLOW, 0.3f);
-    hit_booster_entity.texture = get_texture("HitBooster");
-    setup_color_changer(&hit_booster_entity);
+    auto hit_booster_entity = add_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
+    hit_booster_entity->color = ColorBrightness(YELLOW, 0.3f);
+    hit_booster_entity->texture = get_texture("HitBooster");
+    setup_color_changer(hit_booster_entity);
     
-    Spawn_Object hit_booster_object;
+    Spawn_Object hit_booster_object = {0};
     hit_booster_object.entity = hit_booster_entity;
     hit_booster_object.flags |= PLANNING_OBJECT;
     str_copy(hit_booster_object.name, "hit_booster");
     spawn_objects.append(hit_booster_object);
     
-    Entity explosive_entity = make_entity({0, 0}, {8, 8}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
-    explosive_entity.color = ColorBrightness(RED, 0.3f);
-    setup_color_changer(&explosive_entity);
+    auto explosive_entity = add_entity({0, 0}, {8, 8}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
+    explosive_entity->color = ColorBrightness(RED, 0.3f);
+    setup_color_changer(explosive_entity);
     
-    Spawn_Object explosive_object;
+    Spawn_Object explosive_object = {0};
     explosive_object.entity = explosive_entity;
     explosive_object.flags |= PLANNING_OBJECT;
     str_copy(explosive_object.name, "explosive");
     spawn_objects.append(explosive_object);
     
     // we use move sequence on jump shooter only to set jump points
-    Entity jump_shooter_entity = make_entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
-    // jump_shooter_entity.move_sequence->moving = true;
-    // jump_shooter_entity.move_sequence->loop = true;
-    jump_shooter_entity.color = ColorBrightness(BLACK, 0.3f);
-    setup_color_changer(&jump_shooter_entity);
+    auto jump_shooter_entity = add_entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
+    // jump_shooter_entity->move_sequence->moving = true;
+    // jump_shooter_entity->move_sequence->loop = true;
+    jump_shooter_entity->color = ColorBrightness(BLACK, 0.3f);
+    setup_color_changer(jump_shooter_entity);
     
-    Spawn_Object jump_shooter_object;
+    Spawn_Object jump_shooter_object = {0};
     jump_shooter_object.entity = jump_shooter_entity;
     str_copy(jump_shooter_object.name, "jump_shooter");
     spawn_objects.append(jump_shooter_object);
-}
+    
+    switch_current_context(original_context);
+} // End init spawn objects.
 
 struct Tile_Sheet {
     String sheet_name;
@@ -1214,14 +1220,17 @@ struct Tile_Sheet {
 Array <Tile_Sheet> tile_sheets = {0};
 
 void add_spawn_object_from_texture(Texture *texture, const char *name, const char *directory_name = 0) {
-    Entity texture_entity = make_entity({0, 0}, {(f32)texture->width * 0.25f, (f32)texture->height * 0.25f}, {0.5f, 0.5f}, 0, texture, JUST_VISUAL);
-    texture_entity.color = WHITE;
-    texture_entity.color_changer.start_color = texture_entity.color;
-    texture_entity.color_changer.target_color = texture_entity.color * 1.5f;
-    // str_copy(texture_entity.name, name); 
+    auto original_context = current_context;
+    switch_current_context(&spawn_objects_context);
+
+    Entity *texture_entity = add_entity({0, 0}, {(f32)texture->width * 0.25f, (f32)texture->height * 0.25f}, {0.5f, 0.5f}, 0, texture, JUST_VISUAL);
+    texture_entity->color = WHITE;
+    texture_entity->color_changer.start_color = texture_entity->color;
+    texture_entity->color_changer.target_color = texture_entity->color * 1.5f;
+    // str_copy(texture_entity->name, name); 
     
-    texture_entity.texture = texture;
-    str_copy(texture_entity.texture_name, name);
+    texture_entity->texture = texture;
+    str_copy(texture_entity->texture_name, name);
     
     if (directory_name) {
         i32 tile_sheet_index = -1;
@@ -1256,6 +1265,8 @@ void add_spawn_object_from_texture(Texture *texture, const char *name, const cha
     str_copy(texture_object.name, name);
     
     spawn_objects.append(texture_object);
+    
+    switch_current_context(original_context);
 }
 
 Texture *get_texture(const char *name) {
@@ -1536,7 +1547,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         }
         centipede->segments.clear();
         for (i32 i = 0; i < centipede->segments_to_spawn; i++) {
-            Entity* segment = spawn_object_by_name("centipede_segment", entity->position, entity->context);
+            Entity *segment = spawn_object_by_name("centipede_segment", entity->position, entity->context);
             
             segment->runtime_only_flags |= SHOULD_NOT_SAVE | SHOULD_NOT_COPY;
             
@@ -2086,12 +2097,6 @@ void init_context(Context *context) {
     }
     
     context->inited = true;
-    
-    // We're clearing level context right after initialization becase init happens only at the very beginning and next
-    // level context is ready for new work right after clearing, so that's saves us some duplicate initialization 
-    // and guarantees for that level context is the same as it will be in the middle of program execution
-    // when it  will be just cleared and used again.
-    clear_context(context);
 }
 
 Shader load_shader(const char *vertex, const char *fragment) {
@@ -2116,9 +2121,6 @@ void init_game() {
 
     initing_game = true;
     
-    load_all_textures();
-    init_spawn_objects();
-    
     str_copy(loaded_context.name, "loaded_context");
     // str_copy(editor_context.name, "editor_context");
     str_copy(game_context.name, "game_context");
@@ -2126,6 +2128,10 @@ void init_game() {
     str_copy(checkpoint_context.name, "checkpoint_context");
     str_copy(undo_context.name, "undo_context");
     str_copy(copied_entities_context.name, "copied_entities_context");
+    str_copy(spawn_objects_context.name, "spawn_objects_context");
+    
+    
+    init_context(&spawn_objects_context);
     
     // Now we need to init all level contexts once 
     init_context(&loaded_context);
@@ -2134,6 +2140,9 @@ void init_game() {
     init_context(&checkpoint_context);
     init_context(&undo_context);
     init_context(&copied_entities_context);
+    
+    load_all_textures();
+    init_spawn_objects();
     
     for (i32 i = 0; i < MAX_LOADED_LEVELS; i++) {
         str_copy(loaded_editor_contexts[i].name, tprintf("editor_context_%d", i));
@@ -4107,16 +4116,16 @@ void update_editor_ui() {
             Color text_color   = lerp(WHITE * 0, WHITE * 0.9f, clamp01(create_t * 2));
             
             if (Old::make_button(obj_position, obj_size, {0, 0}, obj.name, 24, "create_box", button_color, text_color) || (this_object_selected && IsKeyPressed(KEY_ENTER))) {
-                obj.entity.position = editor.create_box_open_mouse_position; // So that on init_entity it has real position.
-                Entity *entity = copy_and_add_entity(&obj.entity, current_context);
+                obj.entity->position = editor.create_box_open_mouse_position; // So that on init_entity it has real position.
+                Entity *entity = copy_and_add_entity(obj.entity, current_context);
                 need_close_create_box = true;
                 
                 editor.just_spawned_ids.append(entity->id);
             }
             
-            if (obj.entity.texture) {
+            if (obj.entity->texture) {
                 Vector2 texture_position = obj_position - Vector2_right * field_size.y;
-                Old::make_ui_image(*obj.entity.texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
+                Old::make_ui_image(*obj.entity->texture, texture_position, {field_size.y, field_size.y}, {0, 0}, Fade(WHITE, alpha_multiplier), "create_box_obj_texture");
             }
             
             if (this_object_selected) {
@@ -9469,7 +9478,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
     return e;
 }
 
-Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
+Entity *add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     i32 id = 0;
     Entity *e = current_context->entities.append({0}, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
@@ -9483,7 +9492,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
     return e;
 }
 
-Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture *texture, FLAGS flags) {
+Entity *add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture *texture, FLAGS flags) {
     i32 id = 0;
     Entity *e = current_context->entities.append({0}, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
@@ -9496,7 +9505,7 @@ Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Text
     return e;
 }
 
-Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
+Entity *add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags) {
     Entity *e = add_entity(pos, scale, pivot, rotation, flags);    
     e->color = color;
     setup_color_changer(e);

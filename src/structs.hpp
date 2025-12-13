@@ -1009,7 +1009,7 @@ enum Spawn_Object_Flags : FLAGS {
 
 struct Spawn_Object {
     char name[64];
-    Entity entity = {};
+    Entity *entity = NULL;
     FLAGS flags = 0;
 };
 
