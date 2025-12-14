@@ -49,7 +49,9 @@ void add_node_icon(Context *context, String name, Planning_Node_Type type, Entit
     context->planning.node_icons.append(icon);
 }
 
-void check_new_node_surroundings(Context *context, Planning_Node *node) {
+Array <Planning_Point *> get_planning_points_on_node(Context *context, Planning_Node *node) {
+    Array <Planning_Point *> result = {.allocator = temp};
+
     f32 radius = radius_from_node(node);
     
     static const f32 ITEMS_RADIUS = 5.0f;
@@ -61,18 +63,29 @@ void check_new_node_surroundings(Context *context, Planning_Node *node) {
         auto point = e->planning_point;
         assert(point);
         
+        if (len <= radius + ITEMS_RADIUS) {
+            result.append(point);
+        }
+    }
+    
+    return result;
+}
+
+void check_new_node_surroundings(Context *context, Planning_Node *node) {
+    auto points_in_range = get_planning_points_on_node(context, node);
+
+    For (&points_in_range) {
+        auto point = *it;
         if (point->taken) {
             continue;
         }
         
-        if (len <= radius + ITEMS_RADIUS) {
-            point->taken = true;
-            if (point->flags & ITEM_POINT_FLAG) {
-                context->planning.item_points += 1;               
-            }
-            if (point->flags & SPACE_POINT_FLAG) {
-                context->planning.space_points += 1;    
-            }
+        point->taken = true;
+        if (point->flags & ITEM_POINT_FLAG) {
+            context->planning.item_points += 1;               
+        }
+        if (point->flags & SPACE_POINT_FLAG) {
+            context->planning.space_points += 1;    
         }
     }
 }

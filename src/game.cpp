@@ -806,6 +806,14 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
         return make_string(allocator, "Turret");  
     } else if (entity->flags & HIT_BOOSTER) {
         return make_string(allocator, "Hit_Booster");  
+    } else if (entity->flags & PLANNING_POINT) {
+        if (entity->planning_point->flags & ITEM_POINT_FLAG) {
+            return make_string(allocator, "Item_Planning_Point");  
+        } else if (entity->planning_point->flags & SPACE_POINT_FLAG) {
+            return make_string(allocator, "Space_Planning_Point");
+        } else {
+            return make_string(allocator, "Some_Planning_Point");
+        }
     } else if (entity->flags & DUMMY) {
         if (entity->flags & LIGHT) {
             return make_string(allocator, "Light");  
@@ -1431,9 +1439,11 @@ void init_entity(Entity *entity) {
         // }
         if (entity->planning_point->flags & SPACE_POINT_FLAG){
             entity->texture = get_texture("SpacePoint");
+            str_copy(entity->texture_name, "SpacePoint");
         }
         if (entity->planning_point->flags & ITEM_POINT_FLAG){
             entity->texture = get_texture("ItemPoint");
+            str_copy(entity->texture_name, "ItemPoint");
         }
     }
     
@@ -8025,6 +8035,13 @@ void fill_entities_draw_queue() {
                 Color color = Fade(YELLOW, 0.7f);
                 make_line(first, second, width, color);
                 make_line(second, third, width, color);
+            }
+        }
+        
+        // Always draw planning point.
+        if (entity->flags & PLANNING_POINT) {
+            if (entity->planning_point->taken) {
+                draw_game_circle(entity->position, entity->scale.x * 0.8f, Fade(SKYBLUE, 0.4f));
             }
         }
         
