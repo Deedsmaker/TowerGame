@@ -35,9 +35,9 @@ Color radius_color_from_node(Planning_Node *node) {
 i32 *point_count_from_node(Planning_Data *planning, Planning_Node *node) { 
     switch (node->type) {
         case SPACE_NODE: 
-            return &planning->space_points;
+            return &planning->current_space_points;
         default:
-            return &planning->item_points;
+            return &planning->current_item_points;
     }
 }
 
@@ -49,7 +49,7 @@ void add_node_icon(Context *context, String name, Planning_Node_Type type, Entit
     context->planning.node_icons.append(icon);
 }
 
-Array <Planning_Point *> get_planning_points_on_node(Context *context, Planning_Node *node) {
+Array <Planning_Point *> get_points_around_node(Context *context, Planning_Node *node) {
     Array <Planning_Point *> result = {.allocator = temp};
 
     f32 radius = radius_from_node(node);
@@ -71,23 +71,55 @@ Array <Planning_Point *> get_planning_points_on_node(Context *context, Planning_
     return result;
 }
 
-void check_new_node_surroundings(Context *context, Planning_Node *node) {
-    auto points_in_range = get_planning_points_on_node(context, node);
+void planning_validate_node_points(Context *context) {
+    auto planning = &context->planning;
+    
+    // Clearing taken flag at first and will reassign this for all taken at once.
+    for_chunk_array (i, &context->planning_points) {
+        context->planning_points.get(i)->taken = false;
+    }
 
-    For (&points_in_range) {
-        auto point = *it;
-        if (point->taken) {
+    i32 used_space_points = 0;
+    i32 used_item_points = 0;
+    
+    i32 collected_item_points = 0;
+    i32 collected_space_points = 0;
+    
+    For (&planning->nodes) {
+        if (i == planning->nodes.count - 1) {
             continue;
         }
         
-        point->taken = true;
-        if (point->flags & ITEM_POINT_FLAG) {
-            context->planning.item_points += 1;               
+        assert(it->type != NO_NODE);
+        
+        if (it->type == SPACE_NODE) {            
+            if (i > 0) used_space_points += 1; // Not counting first base node.
+        } else {
+            used_item_points += 1;
         }
-        if (point->flags & SPACE_POINT_FLAG) {
-            context->planning.space_points += 1;    
+                   
+        auto points_in_radius = get_points_around_node(context, it);
+        for (i32 j = 0; j < points_in_radius.count; j++) {
+            auto point = points_in_radius.get_value(j);
+            if (point->taken) continue;
+            
+            point->taken = true;
+            
+            if (point->flags & SPACE_POINT) {
+                collected_space_points += 1;
+            }
+            if (point->flags & ITEM_POINT) {
+                collected_item_points += 1;
+            }
         }
     }
+    
+    game_log(used_item_points);
+    planning->current_space_points = planning->base_space_points - used_space_points + collected_space_points;
+    assert(planning->current_space_points >= 0 && planning->current_space_points <= planning->base_space_points + collected_space_points);
+    
+    planning->current_item_points  = planning->base_item_points - used_item_points + collected_item_points;
+    assert(planning->current_item_points >= 0 && planning->current_item_points <= planning->base_item_points + collected_item_points);
 }
 
 void init_planning_data(Context *context) {
@@ -115,8 +147,10 @@ void reset_planning_data(Context *context) {
     planning->nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // First is the base node.
     planning->nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // Second is the new node. We're always keeping node that will be spawned, even if we have no points for it.
     
-    planning->space_points = planning->max_space_points;
-    planning->item_points = planning->max_item_points;
+    planning->current_space_points = 0;
+    planning->current_item_points  = 0;
+    
+    planning_validate_node_points(context);
 }
 
 void validate_corner_node(Context *context) {
@@ -128,11 +162,11 @@ void validate_corner_node(Context *context) {
 
     auto active_icon = planning->node_icons.get(planning->selected_icon_index);
     if (active_icon->type == SPACE_NODE) {
-        if (planning->space_points <= 0) {
+        if (planning->current_space_points <= 0) {
             goto no_points_for_corner_node_case;
         }
     } else {
-        if (planning->item_points <= 0) {
+        if (planning->current_item_points <= 0) {
             goto no_points_for_corner_node_case;
         }
     }
@@ -207,24 +241,16 @@ void update_planning(Context *context) {
     if (IsKeyPressed(KEY_Z)) {
         if (planning->nodes.count > 2) {
             auto removed_node = planning->nodes.pop();
+            
             if (removed_node->entity) {
                 mark_entity_destroyed(removed_node->entity);
                 removed_node->entity = NULL;
             }
             
             // NOTE: This removed_node was not real, this was the node that we were holding in our hand to place somewhere. 
-            // Actual node that was removed is replaced_node that is currently last. This replaced node will be called "corner_node"
-            // in the following code.
+            // That node is called corner_node and now corner node will be previous standing.
             
-            auto replaced_node = planning->nodes.last();
-            
-            if (replaced_node->type == SPACE_NODE) {
-                planning->space_points += 1;
-                assert(planning->space_points <= planning->max_space_points);
-            } else {
-                planning->item_points += 1;
-                assert(planning->item_points <= planning->max_item_points);
-            }
+            planning_validate_node_points(context);
         }
     }
     
@@ -286,20 +312,17 @@ void update_planning(Context *context) {
             auto added_node = planning->nodes.append({.position = target_position, .type = node_icon->type}); 
             validate_corner_node(context);
             
-            check_new_node_surroundings(context, added_node);
-            
-            if (added_node->type == SPACE_NODE) {
-                planning->space_points -= 1;
-                assert(planning->space_points >= 0);
-            } else {
-                planning->item_points -= 1;
-                assert(planning->item_points >= 0);
-            }
+            planning_validate_node_points(context);
         } else {
             play_sound("FailedRifleActivation", 0.4f);
         }
     }
-}
+        
+    if (planning->nodes_dirty) {
+        planning_validate_node_points(context);
+        planning->nodes_dirty = false;
+    }
+} // End update planning.
 
 void planning_draw(Context *context) {
     For (&context->planning.nodes) {
@@ -320,8 +343,8 @@ void planning_draw_ui(Context *context) {
     
     auto planning = &context->planning;
     
-    Old::make_ui_text(tprintf("Space points: %d", planning->space_points), panel_pos, "space_points_info");
-    Old::make_ui_text(tprintf("Item points: %d", planning->item_points), panel_pos + Vector2_up * 25, "item_points_info");
+    Old::make_ui_text(tprintf("Space points: %d", planning->current_space_points), panel_pos, "space_points_info");
+    Old::make_ui_text(tprintf("Item points: %d", planning->current_item_points), panel_pos + Vector2_up * 25, "item_points_info");
     
     For (&planning->node_icons) {
         Vector2 pos = panel_pos + Vector2_up * 50 * (i + 1);
@@ -332,11 +355,11 @@ void planning_draw_ui(Context *context) {
         assert(it->type != NO_NODE); // NO_NODE type is only for nodes that's not for the placement, so there should be no icon with that type.
         
         b32 cannot_place_that_node = false;
-        if (it->type == SPACE_NODE && planning->space_points <= 0) {
+        if (it->type == SPACE_NODE && planning->current_space_points <= 0) {
             cannot_place_that_node = true;
             color = GRAY;
         }
-        if (it->type != SPACE_NODE && planning->item_points <= 0) {
+        if (it->type != SPACE_NODE && planning->current_item_points <= 0) {
             cannot_place_that_node = true;
             color = GRAY;
         }

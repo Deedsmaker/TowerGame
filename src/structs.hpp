@@ -1192,11 +1192,13 @@ struct Planning_Data {
         
     Array <i32> spawned_ids = {0};
     
-    i32 max_space_points = 6;
-    i32 max_item_points = 2;
+    i32 base_space_points = 6;
+    i32 base_item_points = 2;
     
-    i32 space_points = 6;
-    i32 item_points = 2;
+    b32 nodes_dirty = false;
+    
+    i32 current_space_points = 0;
+    i32 current_item_points = 0;
     
     Planning_Node *selected_node = NULL;
     
@@ -1207,9 +1209,9 @@ struct Planning_Data {
 };
 
 enum Planning_Point_Flags {
-    ITEM_POINT_FLAG = 0x1,  
-    AMMO_POINT_FLAG = 0x2,
-    SPACE_POINT_FLAG = 0x4,
+    ITEM_POINT = 0x1,  
+    AMMO_POINT = 0x2,
+    SPACE_POINT = 0x4,
 };
 
 struct Planning_Point {

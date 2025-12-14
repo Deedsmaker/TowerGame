@@ -807,9 +807,9 @@ String get_entity_name(Entity *entity, Allocator *allocator) {
     } else if (entity->flags & HIT_BOOSTER) {
         return make_string(allocator, "Hit_Booster");  
     } else if (entity->flags & PLANNING_POINT) {
-        if (entity->planning_point->flags & ITEM_POINT_FLAG) {
+        if (entity->planning_point->flags & ITEM_POINT) {
             return make_string(allocator, "Item_Planning_Point");  
-        } else if (entity->planning_point->flags & SPACE_POINT_FLAG) {
+        } else if (entity->planning_point->flags & SPACE_POINT) {
             return make_string(allocator, "Space_Planning_Point");
         } else {
             return make_string(allocator, "Some_Planning_Point");
@@ -906,7 +906,7 @@ void init_spawn_objects() {
     
     {
         auto item_point_entity = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-        item_point_entity->planning_point->flags |= ITEM_POINT_FLAG;
+        item_point_entity->planning_point->flags |= ITEM_POINT;
         item_point_entity->color = ColorBrightness(WHITE, -0.1f);
         setup_color_changer(item_point_entity);
         
@@ -918,7 +918,7 @@ void init_spawn_objects() {
     
     {
         auto space_point = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-        space_point->planning_point->flags |= SPACE_POINT_FLAG;
+        space_point->planning_point->flags |= SPACE_POINT;
         space_point->color = ColorBrightness(WHITE, -0.1f);
         setup_color_changer(space_point);
         
@@ -1437,11 +1437,11 @@ void init_entity(Entity *entity) {
         //     entity->texture = get_texture("Prop");
         //     entity->planning_point->flags |= AMMO_PACK;
         // }
-        if (entity->planning_point->flags & SPACE_POINT_FLAG){
+        if (entity->planning_point->flags & SPACE_POINT){
             entity->texture = get_texture("SpacePoint");
             str_copy(entity->texture_name, "SpacePoint");
         }
-        if (entity->planning_point->flags & ITEM_POINT_FLAG){
+        if (entity->planning_point->flags & ITEM_POINT){
             entity->texture = get_texture("ItemPoint");
             str_copy(entity->texture_name, "ItemPoint");
         }
