@@ -512,7 +512,6 @@ b32 load_level(String name, u64 load_flags = 0) {
             
             // Entity loading.
             
-            
             IF_FIND("position") entity->position = parse_vector2(&splitted, i+1);
             IF_FIND("scale") { entity->scale = parse_vector2(&splitted, i+1); change_scale(entity, entity->scale); }
             IF_FIND("pivot") entity->pivot = parse_vector2(&splitted, i+1);

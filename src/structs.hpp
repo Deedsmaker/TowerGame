@@ -272,7 +272,6 @@ enum Flags : FLAGS {
     KILL_SWITCH            = (static_cast<u64>(1) << 39),
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
-    HOMING_TURRET          = (static_cast<u64>(1) << 42),
     PLANNING_POINT         = (static_cast<u64>(1) << 43),
 };
 

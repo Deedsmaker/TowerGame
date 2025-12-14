@@ -963,32 +963,47 @@ void init_spawn_objects() {
         spawn_objects.append(space_point_object);
     }
     
-    auto big_sword_charge_giver_entity = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
-    big_sword_charge_giver_entity->color = ColorBrightness(GREEN, 0.5f);
-    setup_color_changer(big_sword_charge_giver_entity);
+    {
+        auto big_sword_charge_giver_entity = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
+        big_sword_charge_giver_entity->color = ColorBrightness(GREEN, 0.5f);
+        setup_color_changer(big_sword_charge_giver_entity);
+        
+        Spawn_Object big_sword_charge_giver_object = {0};
+        big_sword_charge_giver_object.entity = big_sword_charge_giver_entity;
+        str_copy(big_sword_charge_giver_object.name, "big_sword_charge_giver");
+        spawn_objects.append(big_sword_charge_giver_object);
+    }
     
-    Spawn_Object big_sword_charge_giver_object = {0};
-    big_sword_charge_giver_object.entity = big_sword_charge_giver_entity;
-    str_copy(big_sword_charge_giver_object.name, "big_sword_charge_giver");
-    spawn_objects.append(big_sword_charge_giver_object);
+    {
+        auto turret_direct_entity = add_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
+        turret_direct_entity->color = ColorBrightness(PURPLE, 0.5f);
+        setup_color_changer(turret_direct_entity);
+        turret_direct_entity->turret->homing = false;
+        turret_direct_entity->turret->projectile_settings.launch_speed = 75;
+        turret_direct_entity->turret->projectile_settings.max_lifetime = 7;
+        turret_direct_entity->turret->shoot_every_tick = 3;
+        
+        Spawn_Object turret_direct_object = {0};
+        turret_direct_object.entity = turret_direct_entity;
+        str_copy(turret_direct_object.name, "turret_direct");
+        spawn_objects.append(turret_direct_object);
+    }
     
-    auto turret_direct_entity = add_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
-    turret_direct_entity->color = ColorBrightness(PURPLE, 0.5f);
-    setup_color_changer(turret_direct_entity);
-    
-    Spawn_Object turret_direct_object = {0};
-    turret_direct_object.entity = turret_direct_entity;
-    str_copy(turret_direct_object.name, "turret_direct");
-    spawn_objects.append(turret_direct_object);
-    
-    auto turret_homing_entity = add_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET | HOMING_TURRET);
-    turret_homing_entity->color = ColorBrightness(PURPLE, 0.1f);
-    setup_color_changer(turret_homing_entity);
-    
-    Spawn_Object turret_homing_object = {0};
-    turret_homing_object.entity = turret_homing_entity;
-    str_copy(turret_homing_object.name, "turret_homing");
-    spawn_objects.append(turret_homing_object);
+    {
+        auto turret_homing_entity = add_entity({0, 0}, {5, 15}, {0.5f, 1.0f}, 0, ENEMY | TURRET);
+        turret_homing_entity->color = ColorBrightness(PURPLE, 0.1f);
+        setup_color_changer(turret_homing_entity);
+        
+        turret_homing_entity->turret->homing = true;
+        turret_homing_entity->turret->projectile_settings.launch_speed = 150;
+        turret_homing_entity->turret->projectile_settings.max_lifetime = 15;
+        turret_homing_entity->turret->shoot_every_tick = 8;
+        
+        Spawn_Object turret_homing_object = {0};
+        turret_homing_object.entity = turret_homing_entity;
+        str_copy(turret_homing_object.name, "turret_homing");
+        spawn_objects.append(turret_homing_object);
+    }
     
     auto bird_entity = add_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
     
@@ -1412,25 +1427,7 @@ void add_entity_types(Entity *entity) {
         add_entity_type_if_need(entity, BIRD_ENEMY, &entity->bird_enemy, &context->bird_enemies, &main_type_match_count);
         add_entity_type_if_need(entity, KILL_SWITCH, &entity->kill_switch, &context->kill_switches, &main_type_match_count);
         
-        // We don't want to set things that could be changed in editor (like shoot_every_tick) every time we init entity,
-        // because what would cancel any changes made in editor. 
-        // So we put that in here, under ignore_existing_types, because that's mean that we want to just put every 
-        // default value and that's full initialization.
-        //
-        // @NOTE: That's probably a rudiment and we should remove it.
-        if (add_entity_type_if_need(entity, TURRET, &entity->turret, &context->turrets, &main_type_match_count)) {
-            if (entity->flags & HOMING_TURRET) {
-                entity->turret->homing = true;
-                entity->turret->projectile_settings.launch_speed = 150;
-                entity->turret->projectile_settings.max_lifetime = 15;
-                entity->turret->shoot_every_tick = 8;
-            } else {
-                entity->turret->homing = false;
-                entity->turret->projectile_settings.launch_speed = 75;
-                entity->turret->projectile_settings.max_lifetime = 7;
-                entity->turret->shoot_every_tick = 3;
-            }
-        }
+        add_entity_type_if_need(entity, TURRET, &entity->turret, &context->turrets, &main_type_match_count);
         
         add_entity_type_if_need(entity, CENTIPEDE, &entity->centipede, &context->centipedes, &main_type_match_count);
         add_entity_type_if_need(entity, CENTIPEDE_SEGMENT, &entity->centipede_segment, &context->centipede_segments, &main_type_match_count);
