@@ -249,7 +249,7 @@ struct Array {
     
     void free_data() {
         if (data) {
-            free(data);
+            free_data_in_allocator(allocator, data);
             data = NULL;
         } else {
             assert(capacity == 0 && count == 0);

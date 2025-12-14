@@ -205,141 +205,96 @@ inline void mark_entity_destroyed(Entity *entity) {
 }
 
 void free_entity(Entity *e) {
-    // Free trigger.
-    if (e->flags & TRIGGER) {
-        assert(e->trigger);
+    auto context = e->context;
     
-        if (e->trigger->connected.capacity > 0) {
+    // Free helper type.
+    if (e->helper_type) {
+        if (0) {
+        } else if (e->flags & MOVE_SEQUENCE) { // Free move sequence.
+            e->move_sequence->points.free_data();
+            b32 r = context->move_sequences.remove_by_pointer(e->move_sequence);
+            assert(r);
+        } else {
+            log("WARNING: Forgot to free some helper type!", LOG_WARNING);
+        }
+    }
+    
+    // Free secondary type.
+    if (e->secondary_type) {
+        if (0) {
+        } else if (e->flags & TRIGGER) { // Free trigger.
             e->trigger->connected.free_data();
-        }
-        if (e->trigger->tracking.capacity > 0) {
-            e->trigger->tracking.free_data();
-        }
-        
-        if (e->trigger->cam_rails_points.capacity > 0) {
+            e->trigger->tracking.free_data(); 
             e->trigger->cam_rails_points.free_data();
+            
+            auto r = context->triggers.remove_by_pointer(e->trigger);
+            assert(r);
+        } else if (e->flags & PROJECTILE) { // Free projectile.
+            auto r = context->projectiles.remove_by_pointer(e->projectile);
+            assert(r);
+        } else if (e->flags & PLANNING_POINT) { // Free planning point.
+            auto r = context->planning_points.remove_by_pointer(e->planning_point);
+            assert(r);
+        } else if (e->flags & STICKY_TEXTURE) { // Free sticky texture.
+            auto r = context->sticky_textures.remove_by_pointer(e->sticky_texture);            
+            assert(r);
+        } else {
+            log("WARNING: Forgot to free some secondary type!", LOG_WARNING);
         }
-        
-        e->context->triggers.remove_by_pointer(e->trigger);
-        e->propeller = NULL;
     }
     
-    // Free planning point.
-    if (e->flags & PLANNING_POINT) {
-        assert(e->planning_point);
-        b32 success = e->context->planning_points.remove_by_pointer(e->planning_point);
-        assert(success);
-        e->planning_point = NULL; // @TODO: We should actually just make *e = {0} at the end.
-    }
-    
-    // Free move sequence.
-    if (e->flags & MOVE_SEQUENCE) {
-        assert(e->move_sequence);
-        
-        e->move_sequence->points.free_data();
-        
-        e->context->move_sequences.remove_by_pointer(e->move_sequence);
-        e->move_sequence = NULL;
-    }
-    
-    // Free sticky texture.
-    if (e->flags & STICKY_TEXTURE) {
-        assert(e->sticky_texture);
-        
-        e->context->sticky_textures.remove_by_pointer(e->sticky_texture);
-        e->sticky_texture = NULL;
-    }
-    
-    // Free propeller.
-    if (e->flags & PROPELLER) {
-        assert(e->propeller);
-        e->context->propellers.remove_by_pointer(e->propeller);
-        e->propeller = NULL;
-    }
-    
-    // Free turret->.
-    if (e->flags & TURRET) {
-        assert(e->turret);
-        e->context->turrets.remove_by_pointer(e->turret);
-        e->turret = NULL;
-    }
-    
-    // Free bird enemy.
-    if (e->flags & BIRD_ENEMY) {
-        assert(e->bird_enemy);
-    
-        bird_clear_formation(e->bird_enemy);
-        
-        e->context->bird_enemies.remove_by_pointer(e->bird_enemy);
-        e->bird_enemy = NULL;
-    }
-    
-    // Free kill switch.
-    if (e->flags & KILL_SWITCH) {
-        assert(e->kill_switch);
-    
-        e->kill_switch->connected.free_data();    
-        
-        e->context->kill_switches.remove_by_pointer(e->kill_switch);
-        e->kill_switch = NULL;
-    }
-    
-    // Free centipede segment.
-    if (e->flags & CENTIPEDE_SEGMENT) {
-        assert(e->centipede_segment);
-        
-        e->context->centipede_segments.remove_by_pointer(e->centipede_segment);
-        e->centipede_segment = NULL;
-    }
-    
-    // Free centipede.
-    if (e->flags & CENTIPEDE) {
-        assert(e->centipede);
-        for_array (i, &e->centipede->segments) {
-            Entity *segment = e->centipede->segments.get_value(i);
-            mark_entity_destroyed(segment);
+    // Free main type.
+    if (e->main_type) {
+        if (0) {
+        } else if (e->flags & BIRD_ENEMY) { // Free bird enemy.
+            bird_clear_formation(e->bird_enemy);                        
+            
+            auto r = context->bird_enemies.remove_by_pointer(e->bird_enemy);
+            assert(r);
+        } else if (e->flags & KILL_SWITCH) { // Free kill switch.
+            e->kill_switch->connected.free_data();
+            
+            auto r = context->kill_switches.remove_by_pointer(e->kill_switch);
+            assert(r);
+        } else if (e->flags & TURRET) { // Free turret.
+            auto r = context->turrets.remove_by_pointer(e->turret);            
+            assert(r);
+        } else if (e->flags & CENTIPEDE) { // Free centipede.
+            For (&e->centipede->segments) {
+                mark_entity_destroyed(*it);
+            }
+            
+            e->centipede->segments.free_data();
+            
+            auto r = e->context->centipedes.remove_by_pointer(e->centipede);
+            assert(r);
+        } else if (e->flags & CENTIPEDE_SEGMENT) { // Free centipede segment.
+            auto r = context->centipede_segments.remove_by_pointer(e->centipede_segment);
+            assert(r);
+        } else if (e->flags & JUMP_SHOOTER) { // Free jump shooter.
+            e->jump_shooter->move_points.free_data();
+            
+            auto r = context->jump_shooters.remove_by_pointer(e->jump_shooter);
+            assert(r);
+        } else if (e->flags & WIN_BLOCK) { // Free win block.
+            auto r = context->win_blocks.remove_by_pointer(e->win_block);
+            assert(r);
+        } else if (e->flags & PROPELLER) { // Free propeller.
+            auto r = context->propellers.remove_by_pointer(e->propeller);
+            assert(r);
+        } else if (e->flags & ENEMY) { // Free enemy.
+            // NOTE: ENEMY freeing should be always at the bottom, because other enemies should be checked before it.
+            auto r = context->just_enemies.remove_by_pointer(e->union_enemy);
+            assert(r);
+        } else {
+            log("WARNING: Forgot to free some main type!", LOG_WARNING);
         }
-        
-        e->centipede->segments.free_data();
-        
-        e->context->centipedes.remove_by_pointer(e->centipede);
-        e->centipede = NULL;
     }
-    
-    // Free jump shooter.
-    if (e->flags & JUMP_SHOOTER) {
-        e->jump_shooter->move_points.free_data();
-        
-        e->context->jump_shooters.remove_by_pointer(e->jump_shooter);
-        e->jump_shooter = NULL;
-    }
-    
-    // Free win block.
-    if (e->flags & WIN_BLOCK) {
-        e->context->win_blocks.remove_by_pointer(e->win_block);
-        e->win_block = NULL;
-    }
-    
+
     // Free light.
     if (e->lights.count > 0) {
         free_lights_connected_to_entity(e);
         e->lights.free_data();
-    }
-    
-    // Free enemy.
-    if (e->flags & ENEMY && e->union_enemy) { 
-        // We'll be here if entity is marked as enemy and it was not previously freed, which should mean that all of his data        
-        // is contained in base Enemy struct.
-        assert(e->union_enemy);
-        
-        e->context->just_enemies.remove_by_pointer(e->union_enemy);
-        e->union_enemy = NULL;
-    }
-    
-    // Free projectile.
-    if (e->flags & PROJECTILE && e->projectile) {
-        e->context->projectiles.remove_by_pointer(e->projectile);
-        e->projectile = NULL;
     }
     
     e->color_changer.changing = false;
@@ -347,7 +302,9 @@ void free_entity(Entity *e) {
     free_entity_particle_emitters(e);
     
     e->context->entities.remove(e->id - 1);
-} // Free entity end.
+    
+    *e = {0};
+} // End free entity.
 
 inline void add_rect_vertices(Static_Array <Vector2, MAX_VERTICES> *vertices, Vector2 pivot) {
     vertices->clear();
@@ -940,7 +897,7 @@ void init_spawn_objects() {
     }    
     
     {
-        auto item_point_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+        auto item_point_entity = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, PLANNING_POINT);
         item_point_entity->planning_point->flags |= ITEM_POINT_FLAG;
         item_point_entity->color = ColorBrightness(WHITE, -0.1f);
         setup_color_changer(item_point_entity);
@@ -952,7 +909,7 @@ void init_spawn_objects() {
     }    
     
     {
-        auto space_point = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+        auto space_point = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, PLANNING_POINT);
         space_point->planning_point->flags |= SPACE_POINT_FLAG;
         space_point->color = ColorBrightness(WHITE, -0.1f);
         setup_color_changer(space_point);
@@ -5473,7 +5430,7 @@ void update_editor() {
     }
 } // Update editor end.
 
-void change_color(Entity *entity, Color new_color) {
+inline void change_color(Entity *entity, Color new_color) {
     entity->color = new_color;
     setup_color_changer(entity);
 }

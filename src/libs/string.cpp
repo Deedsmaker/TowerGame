@@ -448,11 +448,8 @@ struct String {
     }
 
     void free_data(){
-        // If allocator is persist we don't free that one because Allocator is just arena for the time being.
-        if (!allocator){
-            free(data);
-            count = 0;
-        }
+        free_data_in_allocator(allocator, data);
+        count = 0;
     }
 };
 

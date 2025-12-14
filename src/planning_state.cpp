@@ -65,9 +65,8 @@ void check_new_node_surroundings(Context *context, Planning_Node *node) {
             continue;
         }
         
-        point->taken = true;
-        
         if (len <= radius + ITEMS_RADIUS) {
+            point->taken = true;
             if (point->flags & ITEM_POINT_FLAG) {
                 context->planning.item_points += 1;               
             }

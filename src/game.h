@@ -289,11 +289,11 @@ Vector2 get_left_down(Entity *e);
 Vector2 get_right_up_no_rot(Entity *e);
 Vector2 get_right_up(Entity *e);
 
-void change_scale(Entity *entity, Vector2 new_scale);
-void change_color(Entity *entity, Color new_color);
-void add_scale(Entity *entity, Vector2 added);
+inline void change_scale(Entity *entity, Vector2 new_scale);
+inline void change_color(Entity *entity, Color new_color);
+inline void add_scale(Entity *entity, Vector2 added);
 
-void change_up(Entity *entity, Vector2 new_up);
+inline void change_up(Entity *entity, Vector2 new_up);
 void change_right(Entity *entity, Vector2 new_right);
 void rotate_to(Entity *entity, f32 new_rotation, b32 add_to_undo = false);
 inline void rotate(Entity *entity, f32 rotation, b32 add_to_undo = false);
