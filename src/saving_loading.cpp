@@ -67,7 +67,7 @@ void save_level(String level_name) {
         String_Builder builder = make_string_builder(256, temp);
         
         Color color = e->color_changer.start_color;
-        builder_append(&builder, tstring("name %s \n id %d \n position { %f,  %f} \n scale { %f,  %f} \n pivot { %f,  %f} \n rotation %f \n color { %d,  %d,  %d,  %d} \n flags %llu \n init_flags %llu \n draw_order %d \n ", temp_entity_name(e).data, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->init_flags, e->draw_order));
+        builder_append(&builder, tstring("name %s \n id %d \n position { %f,  %f} \n scale { %f,  %f} \n pivot { %f,  %f} \n rotation %f \n color { %d,  %d,  %d,  %d} \n flags %llu \n draw_order %d \n ", temp_entity_name(e).data, e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order));
         
         builder_append(&builder, tstring("vertices [ "));
         for (i32 v = 0; v < e->vertices.count; v++) {
@@ -487,17 +487,20 @@ b32 load_level(String name, u64 load_flags = 0) {
             }
             
             split_string(&splitted, entity_info, separators);
-            Entity *entity = NULL;
             
-            Entity dummy_entity = {0}; // It's here just for setting data for initing.
+            auto dummy_entity = add_default_entity(&copied_entities_context); // It's here just for setting data for initing.
+            
             i32 i = -1;
             i32 id = 0;
             IF_FIND("id") id = to_i32(splitted.get_value(i+1));
             
-            IF_FIND("flags") dummy_entity.flags = to_u64(splitted.get_value(i+1));
-            IF_FIND("init_flags") dummy_entity.init_flags = to_u64(splitted.get_value(i+1));
+            IF_FIND("flags") dummy_entity->flags = to_u64(splitted.get_value(i+1));
             
-            entity = copy_and_add_entity(&dummy_entity, &loaded_context, id);
+            add_entity_types(dummy_entity);
+            
+            auto entity = copy_and_add_entity(dummy_entity, &loaded_context, id);
+            
+            free_entity(dummy_entity);
             
             if (entity->flags & LIGHT) {        
                 // We're adding empty ligh just because on loading we're gonna fill this empty light.
@@ -511,10 +514,10 @@ b32 load_level(String name, u64 load_flags = 0) {
             
             
             IF_FIND("position") entity->position = parse_vector2(&splitted, i+1);
-            IF_FIND("scale") entity->scale = parse_vector2(&splitted, i+1);
+            IF_FIND("scale") { entity->scale = parse_vector2(&splitted, i+1); change_scale(entity, entity->scale); }
             IF_FIND("pivot") entity->pivot = parse_vector2(&splitted, i+1);
             
-            IF_FIND("rotation") entity->rotation = to_f32(splitted.get_value(i+1));
+            IF_FIND("rotation") { entity->rotation = to_f32(splitted.get_value(i+1)); }
             
             IF_FIND("color") change_color(entity, parse_color(&splitted, i+1));
             

@@ -274,7 +274,6 @@ enum Flags : FLAGS {
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
     HOMING_TURRET          = (static_cast<u64>(1) << 42),
     PLANNING_POINT         = (static_cast<u64>(1) << 43),
-    SPACE_POINT            = (static_cast<u64>(1) << 44),
 };
 
 struct Move_Point {
@@ -303,7 +302,6 @@ struct Projectile_Settings {
 struct Entity;
 
 struct Enemy {
-    i32 index = -1;
     Entity *entity = NULL;
 
     b32 dead_man = false;  
@@ -429,8 +427,6 @@ struct Jump_Shooter : Enemy {
 };
 
 struct Move_Sequence {
-    i32 index = -1;
-
     Array <Vector2> points = {};  
     b32 moving = false;
     f32 speed = 100;
@@ -497,7 +493,6 @@ enum Trigger_Settings : FLAGS {
 
 struct Trigger {
     Entity *entity;
-    i32 index = -1;
 
     FLAGS settings = SHOWS_ENTITIES | PLAYER_TOUCH | OPEN_DOORS | AGRO_ENEMIES | STARTS_MOVING_SEQUENCE;
 
@@ -535,7 +530,6 @@ struct Velocity_Move {
 };
 
 struct Propeller {
-    i32 index = -1;
     f32 power = 200;  
     b32 spin_sensitive = false;
     
@@ -604,8 +598,6 @@ struct Centipede : Enemy {
 };
 
 struct Sticky_Texture {
-    i32 index = -1;
-    
     b32 need_to_follow = false;
     i32 follow_id = -1;  
     f32 max_lifetime = 2.0f;
@@ -806,7 +798,6 @@ enum Projectile_Type {
 };
 
 struct Projectile {
-    i32 index = -1;
     Projectile_Type type = UNDEFINED_PROJECTILE;
     Vector2 velocity = {0, 0};
     f32 birth_time = 0;
@@ -894,7 +885,6 @@ struct Entity {
     
     FLAGS flags = 0;
     FLAGS runtime_only_flags = 0;
-    FLAGS init_flags = 0;
     FLAGS collision_flags = 0;
     
     //lower - closer to camera
@@ -914,14 +904,19 @@ struct Entity {
     i32 spawned_enemy_id = -1;
     
     union {
-        Propeller *propeller;
         Trigger *trigger;
-        Sticky_Texture *sticky_texture;
         Projectile *projectile;
         Planning_Point *planning_point;
+        Sticky_Texture *sticky_texture;
+        
+        void *secondary_type;
     };
     
-    Move_Sequence *move_sequence;
+    union {
+        Move_Sequence *move_sequence;
+        
+        void *helper_type;  
+    };
     
     union {
         Enemy *union_enemy;
@@ -932,8 +927,10 @@ struct Entity {
         Kill_Switch *kill_switch;
         Turret *turret;
         Win_Block *win_block;
-        
+        Propeller *propeller;
         Player *player_data;
+        
+        void *main_type; 
     };
     
     Door door;
@@ -1217,7 +1214,6 @@ enum Planning_Point_Flags {
 };
 
 struct Planning_Point {
-    i32 index = -1;
     Entity *entity = NULL;
     u64 flags = 0;
     b32 taken = false;

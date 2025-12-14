@@ -281,9 +281,9 @@ void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
 }
 
 template <typename T>
-Array <T> copy_array(Array<T> *to_copy) {
-    Array <T> result = {.allocator = to_copy->allocator};
-    init_array(&result, to_copy->capacity, to_copy->allocator);
+Array <T> copy_array(Array<T> *to_copy, Allocator *allocator) {
+    Array <T> result = {.allocator = allocator};
+    init_array(&result, to_copy->capacity, allocator);
     
     for_array (i, to_copy) {
         result.append(*to_copy->get(i));
@@ -621,7 +621,29 @@ struct Chunk_Array {
         return &chunk_element->value;
     }
     
-    void remove(i32 index) {
+    inline void copy_values(Chunk_Array <T> *to_copy) {
+        clear();
+        if (!to_copy->first_chunk) return;
+    
+        chunk_size = to_copy->chunk_size;
+        chunks_count = to_copy->chunks_count;
+        
+        auto *copy_chunk = to_copy->first_chunk;
+        auto **my_chunk = &first_chunk;
+        for (i32 i = 0; i < to_copy->chunks_count; i++) {
+            init_chunk(my_chunk);
+            (*my_chunk)->occupied_count = copy_chunk->occupied_count;
+            
+            for (i32 j = 0; j < to_copy->chunk_size; j++) {
+                (*my_chunk)->elements[j] = copy_chunk->elements[j];
+            }
+                 
+            my_chunk = &(*my_chunk)->next;
+            copy_chunk = copy_chunk->next;
+        }
+    }
+    
+    inline void remove(i32 index) {
         Chunk *chunk = first_chunk;
         i32 chunk_index = index / chunk_size;
         assert(chunk_index < chunks_count);
@@ -635,6 +657,20 @@ struct Chunk_Array {
         chunk_element->occupied = false;
         chunk->occupied_count -= 1;
         assert(chunk->occupied_count >= 0);
+    }
+    
+    // In chunk array we can remove by pointer because pointers are stable on growing.
+    // And we can just assert that removing was successful and if it was - we just know that it worked as intended.
+    b32 remove_by_pointer(T *value) {
+        for_chunk_array(i, this) {
+            auto e = get(i);
+            if (e == value) {
+                remove(i);
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     inline b32 contains(T *to_find) {
@@ -719,27 +755,10 @@ void init_chunk_array(Chunk_Array <T> *arr, i32 chunk_size, Allocator *allocator
 }
 
 template <typename T>
-Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy) {
-    Chunk_Array<T> result = {.allocator = to_copy->allocator};
+Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy, Allocator *allocator) {
+    Chunk_Array<T> result = {.allocator = allocator};
        
-    if (!to_copy->first_chunk) return result;
-    
-    result.chunk_size = to_copy->chunk_size;
-    result.chunks_count = to_copy->chunks_count;
-    
-    auto *copy_chunk = to_copy->first_chunk;
-    auto **my_chunk = &result.first_chunk;
-    for (i32 i = 0; i < to_copy->chunks_count; i++) {
-        result.init_chunk(my_chunk);
-        (*my_chunk)->occupied_count = copy_chunk->occupied_count;
-        
-        for (i32 j = 0; j < to_copy->chunk_size; j++) {
-            (*my_chunk)->elements[j] = copy_chunk->elements[j];
-        }
-             
-        my_chunk = &(*my_chunk)->next;
-        copy_chunk = copy_chunk->next;
-    }
+    result.copy_values(to_copy);
     
     return result;
 }

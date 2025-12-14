@@ -207,7 +207,7 @@ inline void mark_entity_destroyed(Entity *entity) {
 void free_entity(Entity *e) {
     // Free trigger.
     if (e->flags & TRIGGER) {
-        assert(e->trigger && e->trigger->index > -1);
+        assert(e->trigger);
     
         if (e->trigger->connected.capacity > 0) {
             e->trigger->connected.free_data();
@@ -220,80 +220,81 @@ void free_entity(Entity *e) {
             e->trigger->cam_rails_points.free_data();
         }
         
-        e->context->triggers.remove(e->trigger->index);
+        e->context->triggers.remove_by_pointer(e->trigger);
         e->propeller = NULL;
     }
     
-    // Free planning point.j
+    // Free planning point.
     if (e->flags & PLANNING_POINT) {
-        assert(e->planning_point && e->planning_point->index > -1);
-        e->context->planning_points.remove(e->planning_point->index);
-        e->planning_point = NULL;
+        assert(e->planning_point);
+        b32 success = e->context->planning_points.remove_by_pointer(e->planning_point);
+        assert(success);
+        e->planning_point = NULL; // @TODO: We should actually just make *e = {0} at the end.
     }
     
     // Free move sequence.
     if (e->flags & MOVE_SEQUENCE) {
-        assert(e->move_sequence && e->move_sequence->index >= 0);
+        assert(e->move_sequence);
         
         e->move_sequence->points.free_data();
         
-        e->context->move_sequences.remove(e->move_sequence->index);
+        e->context->move_sequences.remove_by_pointer(e->move_sequence);
         e->move_sequence = NULL;
     }
     
     // Free sticky texture.
     if (e->flags & STICKY_TEXTURE) {
-        assert(e->sticky_texture && e->sticky_texture->index > -1);
+        assert(e->sticky_texture);
         
-        e->context->sticky_textures.remove(e->sticky_texture->index);
+        e->context->sticky_textures.remove_by_pointer(e->sticky_texture);
         e->sticky_texture = NULL;
     }
     
     // Free propeller.
     if (e->flags & PROPELLER) {
-        assert(e->propeller && e->propeller->index >= 0);
-        e->context->propellers.remove(e->propeller->index);
+        assert(e->propeller);
+        e->context->propellers.remove_by_pointer(e->propeller);
         e->propeller = NULL;
     }
     
     // Free turret->.
     if (e->flags & TURRET) {
-        assert(e->turret && e->turret->index >= 0);
-        e->context->turrets.remove(e->turret->index);
+        assert(e->turret);
+        e->context->turrets.remove_by_pointer(e->turret);
         e->turret = NULL;
     }
     
     // Free bird enemy.
     if (e->flags & BIRD_ENEMY) {
-        assert(e->bird_enemy && e->bird_enemy->index >= 0);
+        assert(e->bird_enemy);
     
         bird_clear_formation(e->bird_enemy);
         
-        e->context->bird_enemies.remove(e->bird_enemy->index);
+        e->context->bird_enemies.remove_by_pointer(e->bird_enemy);
         e->bird_enemy = NULL;
     }
     
     // Free kill switch.
     if (e->flags & KILL_SWITCH) {
-        assert(e->kill_switch && e->kill_switch->index >= 0);
+        assert(e->kill_switch);
     
         e->kill_switch->connected.free_data();    
         
-        e->context->kill_switches.remove(e->kill_switch->index);
+        e->context->kill_switches.remove_by_pointer(e->kill_switch);
         e->kill_switch = NULL;
     }
     
     // Free centipede segment.
     if (e->flags & CENTIPEDE_SEGMENT) {
-        assert(e->centipede_segment && e->centipede_segment->index >= 0);
+        assert(e->centipede_segment);
         
-        e->context->centipede_segments.remove(e->centipede_segment->index);
+        e->context->centipede_segments.remove_by_pointer(e->centipede_segment);
         e->centipede_segment = NULL;
     }
     
     // Free centipede.
     if (e->flags & CENTIPEDE) {
-        assert(e->centipede && e->centipede->index >= 0);
+        assert(e->centipede);
         for_array (i, &e->centipede->segments) {
             Entity *segment = e->centipede->segments.get_value(i);
             mark_entity_destroyed(segment);
@@ -301,7 +302,7 @@ void free_entity(Entity *e) {
         
         e->centipede->segments.free_data();
         
-        e->context->centipedes.remove(e->centipede->index);
+        e->context->centipedes.remove_by_pointer(e->centipede);
         e->centipede = NULL;
     }
     
@@ -309,13 +310,13 @@ void free_entity(Entity *e) {
     if (e->flags & JUMP_SHOOTER) {
         e->jump_shooter->move_points.free_data();
         
-        e->context->jump_shooters.remove(e->jump_shooter->index);
+        e->context->jump_shooters.remove_by_pointer(e->jump_shooter);
         e->jump_shooter = NULL;
     }
     
     // Free win block.
     if (e->flags & WIN_BLOCK) {
-        e->context->win_blocks.remove(e->win_block->index);
+        e->context->win_blocks.remove_by_pointer(e->win_block);
         e->win_block = NULL;
     }
     
@@ -325,22 +326,19 @@ void free_entity(Entity *e) {
         e->lights.free_data();
     }
     
-    // Free enemy    .
+    // Free enemy.
     if (e->flags & ENEMY && e->union_enemy) { 
         // We'll be here if entity is marked as enemy and it was not previously freed, which should mean that all of his data        
         // is contained in base Enemy struct.
+        assert(e->union_enemy);
         
-        assert(e->union_enemy->index >= 0);
-        
-        e->context->just_enemies.remove(e->union_enemy->index);
+        e->context->just_enemies.remove_by_pointer(e->union_enemy);
         e->union_enemy = NULL;
     }
     
-    // Free projectile .
+    // Free projectile.
     if (e->flags & PROJECTILE && e->projectile) {
-        assert(e->projectile->index >= 0);
-        
-        e->context->projectiles.remove(e->projectile->index);
+        e->context->projectiles.remove_by_pointer(e->projectile);
         e->projectile = NULL;
     }
     
@@ -419,56 +417,10 @@ void pick_vertices(Entity *entity) {
     }
 }
 
-Entity make_entity(Vector2 _pos) {
+Entity make_default_entity(Context *context) {
     Entity e = {0};
-    e.flags = 0;
-    e.position = _pos;
     
-    add_rect_vertices(&e.vertices, e.pivot);
-
-    e.rotation = 0;
-    e.up = {0, 1};
-    e.right = {1, 0};
-    e.pivot = {0.5f, 0.5f};
-    
-    change_scale(&e, {1, 1});
-    setup_color_changer(&e);
-    
-    e.context = current_context;
-    
-    return e;
-}
-
-Entity make_entity(Vector2 _pos, Vector2 _scale) {
-    Entity e = {0};
-    e.flags = 0;
-    e.position = _pos;
-    
-    add_rect_vertices(&e.vertices, e.pivot);
-
-    e.rotation = 0;
-    e.up = {0, 1};
-    e.right = {1, 0};
-    change_scale(&e, _scale);
-    setup_color_changer(&e);
-    
-    e.context = current_context;
-    
-    return e;
-}
-
-Entity make_entity(Vector2 _pos, Vector2 _scale, f32 _rotation, FLAGS _flags) {
-    Entity e = {0};
-    e.flags    = _flags;
-    e.position = _pos;
-    pick_vertices(&e);
-    e.rotation = 0;
-    
-    rotate_to(&e, _rotation);
-    change_scale(&e, _scale);
-    setup_color_changer(&e);
-    
-    e.context = current_context;
+    e.context = context;
     
     return e;
 }
@@ -682,7 +634,7 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     }
     
     // First of all we just copying raw entities and then going through all of them deep copy properly into dest level context.
-    dest->entities = copy_chunk_array(&src->entities);
+    dest->entities.copy_values(&src->entities);
     for_chunk_array(i, (&src->entities)) {
         // NOTE: On copy_and_add_entity happening init_entity. Some entities (like centipede) would want to spawn things on initing
         // so someone might thing that it could be an issue that we're inserting entities here directly with index.
@@ -975,41 +927,41 @@ void init_spawn_objects() {
     str_copy(platform_object.name, "platform");
     spawn_objects.append(platform_object);
     
-    ////////////////////////////////////////////////
-    auto ammo_pack_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-    ammo_pack_entity->init_flags = AMMO_PACK;
-    ammo_pack_entity->color = ColorBrightness(RED, -0.1f);
-    setup_color_changer(ammo_pack_entity);
+    {
+        auto ammo_pack_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+        // ammo_pack_entity->planning_point->flags |= AMMO_PACK;
+        ammo_pack_entity->color = ColorBrightness(RED, -0.1f);
+        setup_color_changer(ammo_pack_entity);
+        
+        Spawn_Object ammo_pack_object = {0};
+        ammo_pack_object.entity = ammo_pack_entity;
+        str_copy(ammo_pack_object.name, "ammo_pack");
+        spawn_objects.append(ammo_pack_object);
+    }    
     
-    Spawn_Object ammo_pack_object = {0};
-    ammo_pack_object.entity = ammo_pack_entity;
-    str_copy(ammo_pack_object.name, "ammo_pack");
-    spawn_objects.append(ammo_pack_object);
-    ////////////////////////////////////////////////
+    {
+        auto item_point_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+        item_point_entity->planning_point->flags |= ITEM_POINT_FLAG;
+        item_point_entity->color = ColorBrightness(WHITE, -0.1f);
+        setup_color_changer(item_point_entity);
+        
+        Spawn_Object item_point_object = {0};
+        item_point_object.entity = item_point_entity;
+        str_copy(item_point_object.name, "item_point");
+        spawn_objects.append(item_point_object);
+    }    
     
-    ////////////////////////////////////////////////
-    auto item_point_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-    item_point_entity->init_flags = ITEM_POINT_FLAG;
-    item_point_entity->color = ColorBrightness(WHITE, -0.1f);
-    setup_color_changer(item_point_entity);
-    
-    Spawn_Object item_point_object = {0};
-    item_point_object.entity = item_point_entity;
-    str_copy(item_point_object.name, "item_point");
-    spawn_objects.append(item_point_object);
-    ////////////////////////////////////////////////
-    
-    ////////////////////////////////////////////////
-    auto space_point = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
-    space_point->init_flags = SPACE_POINT;
-    space_point->color = ColorBrightness(WHITE, -0.1f);
-    setup_color_changer(space_point);
-    
-    Spawn_Object space_point_object = {0};
-    space_point_object.entity = space_point;
-    str_copy(space_point_object.name, "space_point");
-    spawn_objects.append(space_point_object);
-    ////////////////////////////////////////////////
+    {
+        auto space_point = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
+        space_point->planning_point->flags |= SPACE_POINT_FLAG;
+        space_point->color = ColorBrightness(WHITE, -0.1f);
+        setup_color_changer(space_point);
+        
+        Spawn_Object space_point_object = {0};
+        space_point_object.entity = space_point;
+        str_copy(space_point_object.name, "space_point");
+        spawn_objects.append(space_point_object);
+    }
     
     auto big_sword_charge_giver_entity = add_entity({0, 0}, {10, 10}, {0.5f, 0.5f}, 0, ENEMY | GIVES_BIG_SWORD_CHARGE);
     big_sword_charge_giver_entity->color = ColorBrightness(GREEN, 0.5f);
@@ -1402,51 +1354,132 @@ inline void put_centipede_segment_at_right_start_position(Entity *segment, Entit
     segment->position = target_position;
 }
 
-template <typename T> 
-void add_entity_type_if_need(Chunk_Array <T> *arr, T **pointer_to_assign, b32 ignore_existing_types) {
-    if (!*pointer_to_assign || ignore_existing_types) {
-        i32 index = -1;
-        (*pointer_to_assign) = arr->append({0}, &index);
-        (*pointer_to_assign)->index = index;
+template <typename T>
+inline bool add_entity_type_if_need(Entity *entity, u64 type_flag, T **to_assign, Chunk_Array <T> *arr, i32 *match_count) {
+    if (entity->flags & type_flag) {
+        *match_count += 1;
+        b32 should_add = *to_assign == NULL;
+        if (should_add) {
+            // T val = {0};
+            *to_assign = arr->append({});
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+void add_entity_types(Entity *entity) {
+    assert(entity->context);   
+    assert(entity->id > 0 && get_entity(entity->id, entity->context)->id > 0);
+    
+    auto context = entity->context;
+    
+    // Technically we can assign to entity any flag - for example BIRD_ENEMY | CENTIPEDE, but that would be absolutely incorrect,
+    // because we have union of every group of types. 
+    // So with that match_count we're keeping track of how much entities there was actually matching the cryteria for that group of types
+    // and if it will be more than one - we're dead. That would mean that something gone wrong.
+    
+    {
+        i32 helper_type_match_count = 0;
+        
+        add_entity_type_if_need(entity, MOVE_SEQUENCE, &entity->move_sequence, &context->move_sequences, &helper_type_match_count);
+        
+        assert(helper_type_match_count <= 1);
+        if (helper_type_match_count >= 1) {
+            assert(entity->helper_type);
+        }
+    }
+    
+    {
+        i32 secondary_type_match_count = 0;
+        
+        add_entity_type_if_need(entity, TRIGGER, &entity->trigger, &context->triggers, &secondary_type_match_count);
+        add_entity_type_if_need(entity, PROJECTILE, &entity->projectile, &context->projectiles, &secondary_type_match_count);
+        add_entity_type_if_need(entity, PLANNING_POINT, &entity->planning_point, &context->planning_points, &secondary_type_match_count);
+        add_entity_type_if_need(entity, STICKY_TEXTURE, &entity->sticky_texture, &context->sticky_textures, &secondary_type_match_count);
+        
+        assert(secondary_type_match_count <= 1);
+        
+        if (secondary_type_match_count >= 1) {
+            assert(entity->secondary_type);
+        }
+    }
+    
+    {
+        i32 main_type_match_count = 0;
+        
+        add_entity_type_if_need(entity, BIRD_ENEMY, &entity->bird_enemy, &context->bird_enemies, &main_type_match_count);
+        add_entity_type_if_need(entity, KILL_SWITCH, &entity->kill_switch, &context->kill_switches, &main_type_match_count);
+        
+        // We don't want to set things that could be changed in editor (like shoot_every_tick) every time we init entity,
+        // because what would cancel any changes made in editor. 
+        // So we put that in here, under ignore_existing_types, because that's mean that we want to just put every 
+        // default value and that's full initialization.
+        //
+        // @NOTE: That's probably a rudiment and we should remove it.
+        if (add_entity_type_if_need(entity, TURRET, &entity->turret, &context->turrets, &main_type_match_count)) {
+            if (entity->flags & HOMING_TURRET) {
+                entity->turret->homing = true;
+                entity->turret->projectile_settings.launch_speed = 150;
+                entity->turret->projectile_settings.max_lifetime = 15;
+                entity->turret->shoot_every_tick = 8;
+            } else {
+                entity->turret->homing = false;
+                entity->turret->projectile_settings.launch_speed = 75;
+                entity->turret->projectile_settings.max_lifetime = 7;
+                entity->turret->shoot_every_tick = 3;
+            }
+        }
+        
+        add_entity_type_if_need(entity, CENTIPEDE, &entity->centipede, &context->centipedes, &main_type_match_count);
+        add_entity_type_if_need(entity, CENTIPEDE_SEGMENT, &entity->centipede_segment, &context->centipede_segments, &main_type_match_count);
+        add_entity_type_if_need(entity, JUMP_SHOOTER, &entity->jump_shooter, &context->jump_shooters, &main_type_match_count);
+        add_entity_type_if_need(entity, WIN_BLOCK, &entity->win_block, &context->win_blocks, &main_type_match_count);
+        add_entity_type_if_need(entity, PROPELLER, &entity->propeller, &context->propellers, &main_type_match_count);
+        
+        if (entity->flags & PLAYER) {
+            entity->player_data = &context->player;            
+            main_type_match_count += 1;
+        }
+        
+        if (main_type_match_count == 0) {
+            add_entity_type_if_need(entity, ENEMY, &entity->union_enemy, &context->just_enemies, &main_type_match_count);
+        }
+        
+        
+        assert(main_type_match_count <= 1);
+        if (main_type_match_count >= 1) {
+            assert(entity->main_type);
+        }
     }
 }
 
-// ignore_existing_types for situations when we want to add new type info even if one is non-zero.
-// For example on copy_and_add_entity we're doing thing like *entity = *to_copy, which means that we'll gonna have 
-// the same pointers to types as a copy (like trigger, propeller, some enemy etc.) and in that case we don't want to 
-// set this types to NULL, because we can forget something, so we're just telling that we should add new element to types 
-// array anyway.
-void init_entity(Entity *entity, b32 ignore_existing_types) {
+void init_entity(Entity *entity) {
     // We're initing only entities that already present in entity array of current level context.
     // That's because other entities or context or lights might want to get entity by it's id and it will fail if it's just 
     // entity that we created localy.
-    
     assert(entity->context);
     assert(entity->id > 0 && get_entity(entity->id, entity->context)->id > 0);
+
+    add_entity_types(entity);
 
     entity->color = entity->color_changer.start_color;
 
     
     // Init planning point.
     if (entity->flags & PLANNING_POINT) {
-        if (!entity->planning_point || ignore_existing_types) {
-            i32 index = -1;
-            entity->planning_point = entity->context->planning_points.append({0}, &index);
-            entity->planning_point->index = index;
-        }
         entity->planning_point->entity = entity;
         
-        if (entity->init_flags & AMMO_PACK) {
-            entity->texture = get_texture("Prop");
-            entity->planning_point->flags |= AMMO_PACK;
-        }
-        if (entity->init_flags & SPACE_POINT_FLAG){
+        // if (entity->planning_point->flags & AMMO_PACK) {
+        //     entity->texture = get_texture("Prop");
+        //     entity->planning_point->flags |= AMMO_PACK;
+        // }
+        if (entity->planning_point->flags & SPACE_POINT_FLAG){
             entity->texture = get_texture("SpacePoint");
-            entity->planning_point->flags |= SPACE_POINT_FLAG;
         }
-        if (entity->init_flags & ITEM_POINT_FLAG){
+        if (entity->planning_point->flags & ITEM_POINT_FLAG){
             entity->texture = get_texture("ItemPoint");
-            entity->planning_point->flags |= ITEM_POINT_FLAG;
         }
     }
     
@@ -1462,12 +1495,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
 
     // Init move sequence.
     if (entity->flags & MOVE_SEQUENCE) {
-        if (!entity->move_sequence || ignore_existing_types) {
-            i32 index = -1;
-            entity->move_sequence = entity->context->move_sequences.append({0}, &index);
-            entity->move_sequence->index = index;
-        }
-        
         if (entity->flags & CENTIPEDE) {
             entity->move_sequence->moving = true;
             entity->move_sequence->loop = true;
@@ -1490,8 +1517,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         change_scale(entity, {6, 10});
     
-        add_entity_type_if_need(&entity->context->bird_enemies, &entity->bird_enemy, ignore_existing_types);
-    
         entity->bird_enemy->max_hits_taken = 3;
         entity->bird_enemy->sword_kill_speed_modifier = 4;
         
@@ -1499,46 +1524,11 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         init_bird_emitters(entity);
     } else if (entity->flags & KILL_SWITCH) { // Init kill switch.
-        if (!entity->kill_switch || ignore_existing_types) {
-            i32 index = -1;
-            entity->kill_switch = entity->context->kill_switches.append({0}, &index);
-            entity->kill_switch->index = index;
-        }
-    
         entity->kill_switch->max_hits_taken = 1;
     } else if (entity->flags & TURRET) {  // Init turret.
-        if (!entity->turret || ignore_existing_types) {
-            i32 index = -1;
-            entity->turret = entity->context->turrets.append({0}, &index);
-            Turret *turret = entity->turret;
-            
-            // We don't want to set things that could be changed in editor (like shoot_every_tick) every time we init entity,
-            // because what would cancel any changes made in editor. 
-            // So we put that in here, under ignore_existing_types, because that's mean that we want to just put every 
-            // default value and that's full initialization.
-            turret->index = index;
-            if (entity->flags & HOMING_TURRET) {
-                turret->homing = true;
-                turret->projectile_settings.launch_speed = 150;
-                turret->projectile_settings.max_lifetime = 15;
-                turret->shoot_every_tick = 8;
-            } else {
-                turret->homing = false;
-                turret->projectile_settings.launch_speed = 75;
-                turret->projectile_settings.max_lifetime = 7;
-                turret->shoot_every_tick = 3;
-            }
-        }
-    
         entity->turret->player_cannot_kill = true;
         
     } else if (entity->flags & CENTIPEDE) { // Init centipede.
-        if (!entity->centipede || ignore_existing_types) {        
-            i32 index = -1;
-            entity->centipede = entity->context->centipedes.append({0}, &index);
-            entity->centipede->index = index;
-        }
-        
         assert(entity->centipede);     
         Centipede *centipede = entity->centipede;
         
@@ -1576,9 +1566,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
             remove_flag(&segment->flags, CENTIPEDE);
             remove_flag(&segment->flags, MOVE_SEQUENCE);
             
-            i32 my_index = segment->union_enemy->index;
             *segment->union_enemy = *entity->union_enemy; // Just copying enemy settings that were applied to centipede in editor.
-            segment->union_enemy->index =my_index;
                         
             assert(segment->flags & CENTIPEDE_SEGMENT);
                         
@@ -1587,18 +1575,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         // }
     } else if (entity->flags & CENTIPEDE_SEGMENT) {    // Init centipede segment.
         assert(!(entity->flags & CENTIPEDE));
-        if (!entity->centipede_segment || ignore_existing_types) {
-            i32 index = -1;
-            entity->centipede_segment = entity->context->centipede_segments.append({0}, &index);
-            entity->centipede_segment->index = index;
-        }
     } else if (entity->flags & JUMP_SHOOTER) { // Init jump shooter.
-        if (!entity->jump_shooter || ignore_existing_types) {
-            i32 index = -1;
-            entity->jump_shooter = entity->context->jump_shooters.append({0}, &index);
-            entity->jump_shooter->index = index;
-        }
-        
         entity->jump_shooter->max_hits_taken = 6;
         free_entity_particle_emitters(entity);
         entity->jump_shooter->trail_emitter_index  = add_entity_particle_emitter(entity, &air_dust_emitter);
@@ -1617,22 +1594,8 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
         
         entity->jump_shooter->sword_kill_speed_modifier = 10;
     } else if (entity->flags & WIN_BLOCK) { // Init win block.
-        if (!entity->win_block || ignore_existing_types) {
-            i32 index = -1;
-            entity->win_block = entity->context->win_blocks.append({0}, &index);
-            entity->win_block->index = index;
-        }
-    
         entity->win_block->max_hits_taken = 5;
     } else if (entity->flags & ENEMY) { // Init enemy.
-        if (!entity->union_enemy || ignore_existing_types) {
-            // We'll be here if entity is makred as enemy but was not previously inited, which means that it's just a enemy
-            // without separate type and array.
-                     
-            i32 index = -1;
-            entity->union_enemy = entity->context->just_enemies.append({0}, &index);
-            entity->union_enemy->index = index;
-        }
     }
     
     // That's for things that we want to init for every enemy.
@@ -1672,12 +1635,7 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     if (entity->flags & PROPELLER) {
         free_entity_particle_emitters(entity);
         
-        if (!entity->propeller || ignore_existing_types) {
-            i32 index = -1;
-            entity->propeller = entity->context->propellers.append({0}, &index);
-            entity->propeller->index = index;
-        }
-        assert(entity->propeller && entity->propeller->index >= 0);
+        assert(entity->propeller);
         
         entity->propeller->air_emitter_index = add_entity_particle_emitter(entity, &air_emitter_copy);
         
@@ -1690,17 +1648,11 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
     // Init door.
     if (entity->flags & DOOR) {
-        entity->flags |= TRIGGER;
+        assert(entity->flags & TRIGGER);
     }
     
     // Init trigger.
     if (entity->flags & TRIGGER) {
-        if (!entity->trigger || ignore_existing_types) {
-            i32 index = -1;
-            entity->trigger = entity->context->triggers.append({0}, &index);
-            entity->trigger->index = index;
-        }
-    
         if (entity->flags & KILL_TRIGGER) {
             entity->trigger->settings |= KILL_PLAYER;
         }
@@ -1721,11 +1673,6 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
     // Init sticky texture.
     if (entity->flags & STICKY_TEXTURE) { 
-        if (!entity->sticky_texture || ignore_existing_types) {
-            i32 index = -1;
-            entity->sticky_texture = entity->context->sticky_textures.append({0}, &index);
-            entity->sticky_texture->index = index;
-        }
     }
     
     // Init hit booster.
@@ -1834,18 +1781,12 @@ void init_entity(Entity *entity, b32 ignore_existing_types) {
     
     // Init projectile.
     if (entity->flags & PROJECTILE) {
-        if (!entity->projectile || ignore_existing_types) {
-            i32 index = -1;
-            entity->projectile = entity->context->projectiles.append({0}, &index);
-            entity->projectile->index = index;
-        }
+        assert(entity->projectile);
     }
     
     // Init player.
     if (entity->flags & PLAYER) { 
-        if (!entity->player_data || ignore_existing_types) {
-            entity->player_data = &entity->context->player;
-        }
+        assert(entity->player_data);
     }
     
     entity->name = register_entity_name(entity);
@@ -7056,7 +6997,6 @@ void shoot_projectile(Vector2 position, Vector2 direction, Projectile_Settings s
     // @CLEANUP: Right now we set additional projectile enemy flags directly to entity, but when we redo entity system we will 
     // want to set that on enemy of spawned projectile->
     Entity *projectile_entity = add_entity(position, scale, {0.5f, 0.5f}, 0, PROJECTILE | ENEMY | PARTICLE_EMITTER | settings.enemy_flags);
-    assert(projectile_entity->projectile->index >= 0);
     change_color(projectile_entity, color);
     projectile_entity->projectile->birth_time = current_context->game_time;
     projectile_entity->projectile->type = type;
@@ -9304,8 +9244,11 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
         id_to_set += 1;
     }
     *e = *to_copy;
-    // e->will_be_destroyed = false; // That could've shot when we're copying entity that will be destoryed for undo.
-    // e->destroyed = false;
+    
+    e->main_type = NULL;
+    e->secondary_type = NULL;
+    e->helper_type = NULL;
+    
     e->color = to_copy->color_changer.start_color;
     e->id = id_to_set;
     
@@ -9335,7 +9278,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
     
     if (to_copy->lights.count > 0) {
         // e->light_index = -1;
-        e->lights = copy_array(&to_copy->lights);
+        e->lights = copy_array(&to_copy->lights, HEAP_ALLOCATOR);
         e->lights.clear();
         for_array (i, &to_copy->lights) {
             Light *copy_light = to_copy->context->lights.get(to_copy->lights.get_value(i));  
@@ -9346,136 +9289,88 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
     rotate_to(e, e->rotation);
     setup_color_changer(e);
     
+    add_entity_types(e);
+        
+    assert(e->flags == to_copy->flags);
+    // Copy helper type.
+    if (e->helper_type) {
+        if (0) {
+        } else if (e->flags & MOVE_SEQUENCE) { // Copy move sequence.
+            *e->move_sequence = *to_copy->move_sequence;            
+            e->move_sequence->points = copy_array(&to_copy->move_sequence->points, HEAP_ALLOCATOR);
+        } else {
+            log("WARNING: Forgot to copy some helper type!", LOG_WARNING);
+        }
+    }
+    
+    // Copy secondary type.
+    if (e->secondary_type) {
+        if (0) {
+        } else if (e->flags & TRIGGER) { // Copy trigger.
+            *e->trigger = *to_copy->trigger;
+            e->trigger->connected = copy_array(&to_copy->trigger->connected, HEAP_ALLOCATOR);
+            e->trigger->tracking = copy_array(&to_copy->trigger->tracking, HEAP_ALLOCATOR);
+            e->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points, HEAP_ALLOCATOR);
+        } else if (e->flags & PROJECTILE) { // Copy projectile.
+            *e->projectile = *to_copy->projectile;
+        } else if (e->flags & PLANNING_POINT) { // Copy planning point.
+            *e->planning_point = *to_copy->planning_point;
+        } else if (e->flags & STICKY_TEXTURE) { // Copy sticky texture.
+            *e->sticky_texture = *to_copy->sticky_texture;
+        } else {
+            log("WARNING: Forgot to copy some secondary type!", LOG_WARNING);
+        }
+    }
+    
+    // Copy main type.
+    if (e->main_type) {
+        if (0) {
+        } else if (e->flags & BIRD_ENEMY) { // Copy bird enemy.
+            *e->bird_enemy = *to_copy->bird_enemy;
+        } else if (e->flags & KILL_SWITCH) { // Copy kill switch.
+            *e->kill_switch = *to_copy->kill_switch;
+            e->kill_switch->connected = copy_array(&to_copy->kill_switch->connected, HEAP_ALLOCATOR);
+        } else if (e->flags & TURRET) { // Copy turret.
+            *e->turret = *to_copy->turret;
+        } else if (e->flags & CENTIPEDE) { // Copy centipede.
+            *e->centipede = *to_copy->centipede;
+            e->centipede->segments = {0}; // They're gonna be added on init_entity.
+        } else if (e->flags & CENTIPEDE_SEGMENT) { // Copy centipede segment.
+            *e->centipede_segment = *to_copy->centipede_segment;
+        } else if (e->flags & JUMP_SHOOTER) { // Copy jump shooter.
+            *e->jump_shooter = *to_copy->jump_shooter;  
+            e->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points, HEAP_ALLOCATOR);
+        } else if (e->flags & WIN_BLOCK) { // Copy win block.
+            *e->win_block = *to_copy->win_block;    
+        } else if (e->flags & PROPELLER) { // Copy propeller.
+            *e->propeller = *to_copy->propeller;
+        } else if (e->flags & PLAYER) { // Copy player data.
+            *e->player_data = *to_copy->player_data;
+        } else if (e->flags & ENEMY) {
+            *e->union_enemy = *to_copy->union_enemy;
+        } else {
+            log("WARNING: Forgot to copy some main type!", LOG_WARNING);
+        }
+    }
+        
+    
     e->particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
-    init_entity(e, true);
-    
-    // On init_entity we're adding all the types to arrays and now entity have a fresh pointer to fresh type (like PROPELLER, 
-    // ENEMY etc.) and all the copying should happen after we're added new thing.
-    if (e->flags & PROPELLER && to_copy->propeller) {
-        assert(e->propeller);
-        i32 my_index = e->propeller->index;
-        *e->propeller = *to_copy->propeller;
-        e->propeller->index = my_index;
-    }
-    
-    // Copy sticky texture.
-    if (e->flags & STICKY_TEXTURE && to_copy->sticky_texture) {
-        assert(e->sticky_texture);
-        i32 my_index = e->sticky_texture->index;
-        *e->sticky_texture = *to_copy->sticky_texture;
-        e->sticky_texture->index = my_index;
-    }
-    
-    // Copy move sequence.
-    if (e->flags & MOVE_SEQUENCE && to_copy->move_sequence) {
-        assert(e->move_sequence);
-        i32 my_index = e->move_sequence->index;
-        *e->move_sequence = *to_copy->move_sequence;
-        e->move_sequence->index = my_index;
-        
-        e->move_sequence->points = {0};
-        e->move_sequence->points = copy_array(&to_copy->move_sequence->points);
-    }
-    
-    // Copy bird enemy.
-    if (e->flags & BIRD_ENEMY && to_copy->bird_enemy) {
-        assert(e->bird_enemy);
-        i32 my_index = e->bird_enemy->index;
-        *e->bird_enemy = *to_copy->bird_enemy;
-        e->bird_enemy->index = my_index;
-    }
-    
-    // Copy turret.
-    if (e->flags & TURRET && to_copy->turret) {
-        assert(e->turret);
-        i32 my_index = e->turret->index;
-        *e->turret = *to_copy->turret;
-        e->turret->index = my_index;
-    }
-    
-    // Copy jump shooter.
-    if (e->flags & JUMP_SHOOTER && to_copy->jump_shooter) {
-        assert(e->jump_shooter);
-        i32 my_index = e->jump_shooter->index;
-        *e->jump_shooter = *to_copy->jump_shooter;
-        e->jump_shooter->index = my_index;
-        
-        e->jump_shooter->move_points = {0};
-        e->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points);
-    }
-    
-    // Right now centipede in editor will be just it's head, so no need for strange segments copying.
-    // And in case of copying level context it's should work fine out of a box.
-    //
-    // Copy centipede.
-    if (e->flags & CENTIPEDE && to_copy->centipede) {
-        assert(e->centipede);
-        i32 my_index = e->centipede->index;
-        Array <Entity *> my_segments = e->centipede->segments;
-        *e->centipede = *to_copy->centipede;
-               
-        e->centipede->index = my_index;
-        e->centipede->segments = my_segments;
-    }
-    // // Copy centipede segment.
-    // if (e->flags & CENTIPEDE_SEGMENT && to_copy->centipede_segment) {
-    //     assert(!(e->flags & CENTIPEDE));
-    //     assert(e->centipede_segment);
-    //     i32 my_index = e->centipede_segment->index;
-    //     *e->centipede_segment = *to_copy->centipede_segment;
-    //     e->centipede_segment->index = my_index;
-    // }
-    
-    // Copy kill switch.
-    if (e->flags & KILL_SWITCH && to_copy->kill_switch) {
-        assert(e->kill_switch);
-    
-        i32 my_index = e->kill_switch->index;
-        *e->kill_switch = *to_copy->kill_switch;
-        e->kill_switch->index = my_index;
-        
-        
-        e->kill_switch->connected = {0};
-        e->kill_switch->connected = copy_array(&to_copy->kill_switch->connected);
-    }
-    
-    // Copy trigger.
-    if (e->flags & TRIGGER && to_copy->trigger) {
-        assert(e->trigger);
-        i32 my_index = e->trigger->index;
-        *e->trigger = *to_copy->trigger;
-        e->trigger->index = my_index;
-        
-        e->trigger->connected = {0};
-        e->trigger->connected = copy_array(&to_copy->trigger->connected);
-        e->trigger->tracking = {0};
-        e->trigger->tracking =  copy_array(&to_copy->trigger->tracking);
-        
-        e->trigger->cam_rails_points = {0};
-        e->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points);
-    }
-    
-    // We actually could copy all enemy data above, but that's not that importnat because data should stay the same.
-    // (Unless some type would make some manipulations on enemy data after copying, but we'll leave it be for now).
-    // Copy enemy.
-    if (e->flags & ENEMY && to_copy->union_enemy) {
-        assert(e->union_enemy);
-        
-        i32 my_index = e->union_enemy->index;
-        *e->union_enemy = *to_copy->union_enemy;
-        e->union_enemy->index = my_index;
-    }
-    
-    // Copy projectile.
-    if (e->flags & PROJECTILE && to_copy->projectile) {
-        assert(e->projectile);
-        
-        i32 my_index = e->projectile->index;
-        *e->projectile = *to_copy->projectile;
-        e->projectile->index = my_index;
-    }
+    init_entity(e);
     
     return e;
+}
+
+Entity *add_default_entity(Context *context) {
+    i32 id = 0;
+    auto default_entity = make_default_entity(context);
+    auto entity = context->entities.append(default_entity, &id);
+    id += 1;
+    entity->id = id;
+    entity->context = context;
+    
+    init_entity(entity);
+    
+    return entity;
 }
 
 Entity *add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {

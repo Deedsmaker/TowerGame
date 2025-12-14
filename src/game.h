@@ -248,7 +248,9 @@ Light *init_entity_light(Entity *entity, Light *copy_light = NULL, b32 free_ligh
 
 inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
-void init_entity(Entity *entity, b32 ignore_existing_types = false);
+
+void add_entity_types(Entity *entity);
+void init_entity(Entity *entity);
 
 void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size = SMALL_LIGHT, i32 entity_id = -1);
 
@@ -260,6 +262,7 @@ Entity *add_player_entity(Context *context, Player *data);
 
 Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32 id_to_insert = 0);
 //Entity* add_entity(Vector2 pos, Vector2 scale, f32 rotation, FLAGS flags);
+Entity *add_default_entity(Context *context);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture *texture, FLAGS flags);
 Entity* add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Color color, FLAGS flags);
