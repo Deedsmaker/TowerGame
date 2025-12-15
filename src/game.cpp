@@ -73,7 +73,6 @@ global_variable Entity mouse_entity = {0};
 Entity empty_entity = {0};
 
 // global_variable Entity *player_entity;
-global_variable b32 need_destroy_player = false;
 
 global_variable f32 frame_rnd;
 global_variable Vector2 frame_on_circle_rnd;
@@ -286,6 +285,8 @@ void free_entity(Entity *e) {
             // NOTE: ENEMY freeing should be always at the bottom, because other enemies should be checked before it.
             auto r = context->just_enemies.remove_by_pointer(e->union_enemy);
             assert(r);
+        } else if (e->flags & PLAYER) { // Free player.
+            destroy_player();
         } else {
             log("WARNING: Forgot to free some main type!", LOG_WARNING);
         }
@@ -7555,14 +7556,6 @@ void update_entities(Context *context, f32 dt) {
     // for (i32 entity_index = 0; entity_index < entities->capacity; entity_index++) {
     for_chunk_array(entity_index, entities) {
         Entity *e = entities->get(entity_index);
-        
-        if (e->flags & PLAYER) {
-            // @CLEANUP: Why that's here? It could be in free_entity.
-            if (need_destroy_player) {
-                destroy_player();   
-                need_destroy_player = false;
-            }
-        }
         
         if (maybe_destroy_entity(e)) {
             continue;

@@ -1,4 +1,4 @@
-name Dummy 
+name Light 
  id 13 
  position { -222.500000,  97.500000} 
  scale { 235.000000,  10.000000} 

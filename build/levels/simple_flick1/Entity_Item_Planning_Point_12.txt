@@ -1,6 +1,6 @@
 name Item_Planning_Point 
  id 12 
- position { -383.700562,  309.028412} 
+ position { -383.700562,  309.028381} 
  scale { 10.000000,  10.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 

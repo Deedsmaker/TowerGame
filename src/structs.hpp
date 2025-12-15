@@ -918,16 +918,16 @@ struct Entity {
     };
     
     union {
-        Enemy *union_enemy;
         Bird_Enemy *bird_enemy;
+        Kill_Switch *kill_switch;
+        Turret *turret;
         Centipede *centipede;
         Centipede_Segment *centipede_segment;
         Jump_Shooter *jump_shooter;
-        Kill_Switch *kill_switch;
-        Turret *turret;
         Win_Block *win_block;
         Propeller *propeller;
         Player *player_data;
+        Enemy *union_enemy;
         
         void *main_type; 
     };

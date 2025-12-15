@@ -1,0 +1,23 @@
+name Light 
+ id 15 
+ position { -405.000000,  260.000000} 
+ scale { 50.000000,  15.000000} 
+ pivot { 0.500000,  0.500000} 
+ rotation 90.000000 
+ color { 0,  228,  48,  127} 
+ flags 1077936128 
+ draw_order 100 
+ vertices [ { 8.207101,  -25.707106} { 8.207108,  25.707088} { -8.207108,  -25.707088} { -8.207101,  25.707106} ] 
+ unscaled_vertices [  { 0.500000,  -0.500000} { 0.500000,  0.500000} { -0.500000,  -0.500000} { -0.500000,  0.500000} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ light_shadows_size_flag 2 
+ light_backshadows_size_flag 2 
+ light_make_shadows 0 
+ light_make_backshadows 0 
+ light_bake_shadows 1 
+ light_radius 150.000000 
+ light_opacity 0.500000 
+ light_power 1.000000 
+ light_color { 165,  150,  131,  255} 
+ 
