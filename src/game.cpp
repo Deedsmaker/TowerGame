@@ -628,6 +628,16 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
         dest->lightmaps.append(src->lightmaps.get_value(i));
     }
     
+    // Copy planning data.
+    {
+        // In planning we care only about node positions and types for drawing lines, so copying only them.
+        assert(dest->planning.nodes.count == 0);
+        For (&src->planning.nodes) {
+            auto node = dest->planning.nodes.append(*it);             
+            node->entity = NULL;
+        }
+    }
+    
     switch_current_context(original_context);
     // editor_state = original_game_state;
 }
@@ -8514,6 +8524,7 @@ void draw_entities() {
 
     //Hash_Table_Int<Entity> *entities = &current_context->entities;
     Array <Entity> *entities = &global_data.entities_draw_queue;
+
     
     for (i32 entity_index = 0; entity_index < entities->count; entity_index++) {
         Entity *e = entities->get(entity_index);
@@ -8545,9 +8556,7 @@ void draw_entities() {
         draw_entity(e);
     }
     
-    if (game_state == GAME_PLANNING) {
-        planning_draw(current_context);
-    }
+    planning_draw(current_context);
 }
 
 void draw_game_space_editor() {

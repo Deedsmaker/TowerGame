@@ -326,11 +326,24 @@ void update_planning(Context *context) {
 
 void planning_draw(Context *context) {
     For (&context->planning.nodes) {
-        f32 radius = radius_from_node(it);
-        Color node_color = color_from_node(it);
-        Color radius_color = radius_color_from_node(it);
-        draw_game_circle(it->position, radius, radius_color);
-        draw_game_circle(it->position, 5.0f, node_color);
+        if (i > 0 && i < context->planning.nodes.count - 1) {
+            auto previous = context->planning.nodes.get(i - 1);
+            
+            auto color = Fade(SKYBLUE, 0.5f);
+            if (previous->type != SPACE_NODE) {
+                color = Fade(RED, 0.4f);
+            }
+            
+            make_line(previous->position, it->position, 0.5f, color);
+        }
+        
+        if (game_state == GAME_PLANNING) { 
+            f32 radius = radius_from_node(it);
+            Color node_color = color_from_node(it);
+            Color radius_color = radius_color_from_node(it);
+            draw_game_circle(it->position, radius, radius_color);
+            draw_game_circle(it->position, 5.0f, node_color);
+        }
     }
 }
 

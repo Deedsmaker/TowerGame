@@ -1193,7 +1193,7 @@ struct Planning_Data {
     Array <i32> spawned_ids = {0};
     
     i32 base_space_points = 6;
-    i32 base_item_points = 2;
+    i32 base_item_points = 1;
     
     b32 nodes_dirty = false;
     
