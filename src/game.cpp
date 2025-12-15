@@ -8052,6 +8052,9 @@ void fill_entities_draw_queue() {
         if (entity->flags & PLANNING_POINT) {
             if (entity->planning_point->taken) {
                 draw_game_circle(entity->position, entity->scale.x * 0.8f, Fade(SKYBLUE, 0.4f));
+                if (game_state == GAME_PLANNING) {
+                    draw_game_text(entity->position + Vector2_up * entity->scale.y * 1.2f, "+1", 40 / entity->context->cam.cam2D.zoom, YELLOW);
+                }
             }
         }
         

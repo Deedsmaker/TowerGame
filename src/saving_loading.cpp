@@ -749,7 +749,12 @@ b32 load_level(String name, u64 load_flags = 0) {
 b32 maybe_load_next_level() { 
     i32 current_level_index = global_data.level_order.find(current_context->level_name);
     if (current_level_index >= 0 && current_level_index < global_data.level_order.count - 1) {
-        b32 success  = load_level(global_data.level_order.get_value(current_level_index + 1), ENTER_GAME_STATE_AFTER);  
+        u64 flags = ENTER_GAME_STATE_AFTER;
+        if (editor_state == EDITOR) {
+            flags = 0;
+        }
+        
+        b32 success  = load_level(global_data.level_order.get_value(current_level_index + 1), flags);
         return success;
     }
     
