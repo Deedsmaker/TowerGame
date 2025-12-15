@@ -203,6 +203,21 @@ inline void mark_entity_destroyed(Entity *entity) {
     }
 }
 
+void destroy_player() {
+    if (!current_context->player_entity) {
+        log("Destroy player was called when there's no player_entity is present. That should not happen.\n", LOG_ERROR);
+        return;
+    }
+
+    mark_entity_destroyed(current_context->player_entity);
+    current_context->player_entity->enabled   = false;
+    
+    mark_entity_destroyed(get_entity(current_context->player.connected_entities_ids.ground_checker_id));
+    mark_entity_destroyed(get_entity(current_context->player.connected_entities_ids.sword_entity_id));
+    
+    current_context->player_entity = NULL;
+}
+
 void free_entity(Entity *e) {
     auto context = e->context;
     
@@ -2124,21 +2139,6 @@ void init_game() {
     i64 elapsed = pop_performance_timer_milliseconds();
     log(tstring("Finished initing game. Elapsed: %llums.", elapsed), POP_INDENTATION);
 } // end init game end
-
-void destroy_player() {
-    if (!current_context->player_entity) {
-        log("Destroy player was called when there's no player_entity is present. That should not happen.\n", LOG_ERROR);
-        return;
-    }
-
-    mark_entity_destroyed(current_context->player_entity);
-    current_context->player_entity->enabled   = false;
-    
-    mark_entity_destroyed(get_entity(current_context->player.connected_entities_ids.ground_checker_id));
-    mark_entity_destroyed(get_entity(current_context->player.connected_entities_ids.sword_entity_id));
-    
-    current_context->player_entity = NULL;
-}
 
 void clean_up_scene() {
     if (current_context) {
