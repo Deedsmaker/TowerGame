@@ -447,6 +447,37 @@ enum Load_Flags {
     ENTER_GAME_STATE_AFTER = 0x1,  
 };
 
+void finish_load_level(u64 load_flags) {
+    clear_context(&game_context);
+    
+    // This shit so that we don't overwrite level that we currently on.
+    do {
+        last_loaded_editor_context_index += 1;    
+        last_loaded_editor_context_index %= MAX_LOADED_LEVELS;    
+    } while (last_loaded_editor_context_index == current_editor_context_index);
+    editor_context = &loaded_editor_contexts[last_loaded_editor_context_index];
+    current_editor_context_index = last_loaded_editor_context_index;
+    clear_context(editor_context);
+    copy_context(editor_context, &loaded_context, true);
+    
+    if (load_flags & ENTER_GAME_STATE_AFTER) {
+        if (editor_state == EDITOR) {
+            editor_enter_game_state(&loaded_context);
+        } else {
+            copy_context(&planning_context, &loaded_context, true);
+            enter_planning_state(RESET_PLANNING_DATA);
+        }
+    } else {
+        editor_enter_editor_state();
+    }
+    
+    
+    current_context->cam.position = current_context->player_spawn_point;
+    current_context->cam.target = current_context->player_spawn_point;
+    
+    close_console();
+}
+
 b32 load_level(String name, u64 load_flags = 0) {
     clear_multiselected_entities();
 
@@ -467,16 +498,16 @@ b32 load_level(String name, u64 load_flags = 0) {
     log(tstring("Loading level %s", c_str(level_path)), PUSH_INDENTATION);
     
     clean_up_scene();
-    switch_current_context(&loaded_context, true);
+    // switch_current_context(&loaded_context, true);
     clear_context(&loaded_context);
     
     Context *context = &loaded_context;
     
-    if (!(current_context->level_name == name)) {
-        global_data.previous_level_name = copy_string(current_context->level_name, &current_context->memory_arena);
+    if (!(context->level_name == name)) {
+        global_data.previous_level_name = copy_string(context->level_name, &context->memory_arena);
     }
     
-    current_context->level_name = copy_string(name, &current_context->memory_arena);
+    context->level_name = copy_string(name, &context->memory_arena);
     
     setup_particles();
     
@@ -517,11 +548,11 @@ b32 load_level(String name, u64 load_flags = 0) {
         }
         
         i32 spawn_point_index = splitted.find(tstring("player_spawn_point"));
-        if (spawn_point_index >= 0) current_context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
+        if (spawn_point_index >= 0) context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
         
         i32 lightmaps_index = splitted.find(tstring("lightmaps"));
         if (lightmaps_index > 0) {
-            parse_lightmaps(&current_context->lightmaps, &splitted, lightmaps_index + 1);
+            parse_lightmaps(&context->lightmaps, &splitted, lightmaps_index + 1);
         }
     }
     
@@ -708,7 +739,7 @@ b32 load_level(String name, u64 load_flags = 0) {
             // Light loading.
             if (entity->flags & LIGHT) {
                 assert(entity->lights.count > 0);
-                Light *light = current_context->lights.get(entity->lights.get_value(0));
+                Light *light = context->lights.get(entity->lights.get_value(0));
                 
                 IF_FIND("light_shadows_size_flag")     light->shadows_size_flags = to_i32(splitted.get_value(i+1));
                 IF_FIND("light_backshadows_size_flag") light->backshadows_size_flags = to_i32(splitted.get_value(i+1));
@@ -728,7 +759,7 @@ b32 load_level(String name, u64 load_flags = 0) {
                 i32 note_content_index = string_find(entity_info, tstring("note_content"));
                 String note_string = parse_string(entity_info, note_content_index, temp);
                 
-                Note *note = current_context->notes.get(entity->note_index);
+                Note *note = context->notes.get(entity->note_index);
                 str_copy(note->content, c_str(note_string));
                 
                 IF_FIND("note_draw_in_game") note->draw_in_game = to_i32(splitted.get_value(i+1));
@@ -750,39 +781,12 @@ b32 load_level(String name, u64 load_flags = 0) {
         } // End of a entity file scope.
     } // End of a files for loop.
     
-    setup_context_cam(current_context);
-    current_context->cam.cam2D.zoom = 0.35f;
-    
-    clear_context(&game_context);
-    
-    // This shit so that we don't overwrite level that we currently on.
-    do {
-        last_loaded_editor_context_index += 1;    
-        last_loaded_editor_context_index %= MAX_LOADED_LEVELS;    
-    } while (last_loaded_editor_context_index == current_editor_context_index);
-    editor_context = &loaded_editor_contexts[last_loaded_editor_context_index];
-    current_editor_context_index = last_loaded_editor_context_index;
-    clear_context(editor_context);
-    copy_context(editor_context, &loaded_context, true);
-    
-    if (load_flags & ENTER_GAME_STATE_AFTER) {
-        if (editor_state == EDITOR) {
-            editor_enter_game_state(&loaded_context);
-        } else {
-            copy_context(&planning_context, &loaded_context, true);
-            enter_planning_state(RESET_PLANNING_DATA);
-        }
-    } else {
-        editor_enter_editor_state();
-    }
-    
-    
-    current_context->cam.position = current_context->player_spawn_point;
-    current_context->cam.target = current_context->player_spawn_point;
-    
-    close_console();
+    setup_context_cam(context);
+    context->cam.cam2D.zoom = 0.35f;
     
     log(tstring("Finished loading %s. Is hub level: %d", c_str(level_path), (current_context->flags & HUB_CONTEXT) > 0), POP_INDENTATION);
+    
+    finish_load_level(load_flags);
     
     return true;
 } // load level end.
