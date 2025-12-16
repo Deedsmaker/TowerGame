@@ -1221,19 +1221,19 @@ struct Planning_Point {
 };
 
 struct Context {
-    char name[64] = {};
-    Allocator memory_arena = {};
+    String name = {0};
+    Allocator memory_arena = {0};
 
-    Array <Array<Entity_Undo_Change>> undo_actions = {};
+    Array <Array<Entity_Undo_Change>> undo_actions = {0};
     i32 max_undos_added = 0;
-    Cam cam = {};
+    Cam cam = {0};
 
     b32 inited = false;
     
     b32 initially_simulated = true;
     
     Vector2 player_spawn_point = Vector2_zero;
-    String level_name = {};
+    String level_name = {0};
 
     i32 active_win_blocks_count = 0;
 

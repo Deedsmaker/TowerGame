@@ -40,13 +40,16 @@ i32 current_editor_context_index = 0;
 i32 last_loaded_editor_context_index = 0;
 
 global_variable Context spawn_objects_context = {0};
+global_variable Context checkpoint_context = {0};
+global_variable Context copied_entities_context = {0};
+global_variable Context undo_context = {0};
+
+global_variable Context hub_context = {0};
 global_variable Context game_context = {0};
 global_variable Context planning_context = {0};
-global_variable Context checkpoint_context = {0};
 global_variable Context loaded_context = {0};
-global_variable Context undo_context = {0};
-global_variable Context copied_entities_context = {0};
 global_variable Context *current_context = NULL;
+
 global_variable State_Context state_context = {0};
 global_variable Global_Data global_data = {0};
 
@@ -1938,12 +1941,14 @@ inline void play_sound(const char* name, f32 volume_multiplier, f32 base_pitch, 
 // #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
 // #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
 
-void init_context(Context *context) {
+void init_context(Context *context, String name) {
     assert(!context->inited);
-
+    
     current_context = context;
     
     init_allocator(&current_context->memory_arena, Megabytes(4));
+    
+    context->name = copy_string(name, HEAP_ALLOCATOR);
 
     init_array(&context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
     init_array(&context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
@@ -2052,32 +2057,22 @@ void init_game() {
 
     initing_game = true;
     
-    str_copy(loaded_context.name, "loaded_context");
-    // str_copy(editor_context.name, "editor_context");
-    str_copy(game_context.name, "game_context");
-    str_copy(planning_context.name, "planning_context");
-    str_copy(checkpoint_context.name, "checkpoint_context");
-    str_copy(undo_context.name, "undo_context");
-    str_copy(copied_entities_context.name, "copied_entities_context");
-    str_copy(spawn_objects_context.name, "spawn_objects_context");
     
-    
-    init_context(&spawn_objects_context);
+    init_context(&spawn_objects_context, tstring("spawn_objects_context"));
     
     // Now we need to init all level contexts once 
-    init_context(&loaded_context);
-    init_context(&game_context);
-    init_context(&planning_context);
-    init_context(&checkpoint_context);
-    init_context(&undo_context);
-    init_context(&copied_entities_context);
+    init_context(&loaded_context, tstring("loaded_context"));
+    init_context(&game_context, tstring("game_context"));
+    init_context(&planning_context, tstring("planning_context"));
+    init_context(&checkpoint_context, tstring("checkpoint_context"));
+    init_context(&undo_context, tstring("undo_context"));
+    init_context(&copied_entities_context, tstring("copied_entities_context"));
     
     load_all_textures();
     init_spawn_objects();
     
     for (i32 i = 0; i < MAX_LOADED_LEVELS; i++) {
-        str_copy(loaded_editor_contexts[i].name, tprintf("editor_context_%d", i));
-        init_context(&loaded_editor_contexts[i]);
+        init_context(&loaded_editor_contexts[i], tstring("editor_context_%d", i));
     }
     editor_context = &loaded_editor_contexts[0];
     
@@ -5024,7 +5019,7 @@ void update_editor() {
             // (10 is just arbitrary number).
             //
             // And we do all that only for copying pasting in the same level context.
-            if (spawned_ids.count < 10 && str_equal(spawned->context->name, editor.context_on_last_copy->name)) {
+            if (spawned_ids.count < 10 && spawned->context->name == editor.context_on_last_copy->name) {
                 for_chunk_array(j, &current_context->triggers) {
                     Trigger *trigger = current_context->triggers.get(j);
                     

@@ -114,7 +114,6 @@ void planning_validate_node_points(Context *context) {
         }
     }
     
-    game_log(used_item_points);
     planning->current_space_points = planning->base_space_points - used_space_points + collected_space_points;
     assert(planning->current_space_points >= 0 && planning->current_space_points <= planning->base_space_points + collected_space_points);
     
