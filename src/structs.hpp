@@ -272,6 +272,7 @@ enum Flags : FLAGS {
     KILL_SWITCH            = (static_cast<u64>(1) << 39),
     ENEMY_BARRIER          = (static_cast<u64>(1) << 40),
     KILL_TRIGGER           = (static_cast<u64>(1) << 41),
+    LEVEL_LOADER           = (static_cast<u64>(1) << 42),
     PLANNING_POINT         = (static_cast<u64>(1) << 43),
 };
 
@@ -447,6 +448,16 @@ struct Move_Sequence {
 };
 
 struct Win_Block : Enemy {
+};
+
+struct Level_Loader {
+    Entity *entity = NULL;
+    
+    b32 is_open = false;
+    
+    String level_to_load = {0};
+    
+    Array <i32> levels_to_open = {0};
 };
 
 struct Door {
@@ -925,6 +936,7 @@ struct Entity {
         Centipede_Segment *centipede_segment;
         Jump_Shooter *jump_shooter;
         Win_Block *win_block;
+        Level_Loader *level_loader;
         Propeller *propeller;
         Player *player_data;
         Enemy *union_enemy;
@@ -1258,6 +1270,7 @@ struct Context {
     Chunk_Array <Jump_Shooter> jump_shooters = {};
     Chunk_Array <Turret> turrets = {};
     Chunk_Array <Win_Block> win_blocks = {};
+    Chunk_Array <Level_Loader> level_loaders = {};
     Chunk_Array <Planning_Point> planning_points = {};
     
     Chunk_Array <Projectile> projectiles = {};
@@ -1452,6 +1465,7 @@ enum Press_Flags {
     SWORD_BIG          = 0x10,
     SHOOT_RELEASED     = 0x20,
     ENTER_GAMING_STATE = 0x40,
+    UP_KEY_PRESSED     = 0x80,
 };
 
 struct Input {
@@ -1605,6 +1619,7 @@ struct Editor {
     //----------ui-----------------
     b32 draw_entity_settings = true;
     b32 draw_trigger_settings = false;
+    b32 draw_level_loader_settings = false;
     b32 draw_enemy_settings = false;
     b32 draw_turret_settings = false;
     b32 draw_centipede_settings = false;

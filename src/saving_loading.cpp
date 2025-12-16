@@ -69,198 +69,198 @@ void save_level(String level_name) {
             continue;
         }
         
-        String_Builder builder = make_string_builder(256, temp);
+        String_Builder b = make_string_builder(256, temp);
         
         Color color = e->color_changer.start_color;
-        builder_append(&builder, tstring("name %s \n id %d \n position { %f,  %f} \n scale { %f,  %f} \n pivot { %f,  %f} \n rotation %f \n color { %d,  %d,  %d,  %d} \n flags %llu \n draw_order %d \n ", c_str(*e->name), e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order));
+        builder_append(&b, tstring("name %s \n id %d \n position { %f,  %f} \n scale { %f,  %f} \n pivot { %f,  %f} \n rotation %f \n color { %d,  %d,  %d,  %d} \n flags %llu \n draw_order %d \n ", c_str(*e->name), e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order));
         
-        builder_append(&builder, tstring("vertices [ "));
+        builder_append(&b, tstring("vertices [ "));
         for (i32 v = 0; v < e->vertices.count; v++) {
-            builder_append(&builder, tstring("{ %f,  %f} ", e->vertices.get_value(v).x, e->vertices.get_value(v).y)); 
+            builder_append(&b, tstring("{ %f,  %f} ", e->vertices.get_value(v).x, e->vertices.get_value(v).y)); 
         }
-        builder_append(&builder, tstring("] \n ")); 
+        builder_append(&b, tstring("] \n ")); 
         
-        builder_append(&builder, tstring("unscaled_vertices [  "));
+        builder_append(&b, tstring("unscaled_vertices [  "));
         for (i32 v = 0; v < e->unscaled_vertices.count; v++) {
-            builder_append(&builder, tstring("{ %f,  %f} ", e->unscaled_vertices.get_value(v).x, e->unscaled_vertices.get_value(v).y)); 
+            builder_append(&b, tstring("{ %f,  %f} ", e->unscaled_vertices.get_value(v).x, e->unscaled_vertices.get_value(v).y)); 
         }
-        builder_append(&builder, tstring("] \n ")); 
+        builder_append(&b, tstring("] \n ")); 
         
-        builder_append(&builder, tstring("hidden %d \n ", e->hidden));
-        builder_append(&builder, tstring("spawn_enemy_when_no_ammo %d \n ", e->spawn_enemy_when_no_ammo));
+        builder_append(&b, tstring("hidden %d \n ", e->hidden));
+        builder_append(&b, tstring("spawn_enemy_when_no_ammo %d \n ", e->spawn_enemy_when_no_ammo));
         
         // Save light.
         if (e->lights.count > 0) {
             Light *light = context->lights.get(e->lights.get_value(0));
-            builder_append(&builder, tstring("light_shadows_size_flag %d \n ",     light->shadows_size_flags));
-            builder_append(&builder, tstring("light_backshadows_size_flag %d \n ", light->backshadows_size_flags));
-            builder_append(&builder, tstring("light_make_shadows %d \n ",          light->make_shadows));
-            builder_append(&builder, tstring("light_make_backshadows %d \n ",      light->make_backshadows));
-            builder_append(&builder, tstring("light_bake_shadows %d \n ",          light->bake_shadows));
-            builder_append(&builder, tstring("light_radius %f \n ",                light->radius));
-            builder_append(&builder, tstring("light_opacity %f \n ",               light->opacity));
-            builder_append(&builder, tstring("light_power %f \n ",                 light->power));
-            builder_append(&builder, tstring("light_color { %d,  %d,  %d,  %d} \n ", (i32)light->color.r, (i32)light->color.g, (i32)light->color.b, (i32)light->color.a));
+            builder_append(&b, tstring("light_shadows_size_flag %d \n ",     light->shadows_size_flags));
+            builder_append(&b, tstring("light_backshadows_size_flag %d \n ", light->backshadows_size_flags));
+            builder_append(&b, tstring("light_make_shadows %d \n ",          light->make_shadows));
+            builder_append(&b, tstring("light_make_backshadows %d \n ",      light->make_backshadows));
+            builder_append(&b, tstring("light_bake_shadows %d \n ",          light->bake_shadows));
+            builder_append(&b, tstring("light_radius %f \n ",                light->radius));
+            builder_append(&b, tstring("light_opacity %f \n ",               light->opacity));
+            builder_append(&b, tstring("light_power %f \n ",                 light->power));
+            builder_append(&b, tstring("light_color { %d,  %d,  %d,  %d} \n ", (i32)light->color.r, (i32)light->color.g, (i32)light->color.b, (i32)light->color.a));
         }
         
         // Save trigger.
         if (e->flags & TRIGGER) {
             assert(e->trigger);
             if (e->trigger->connected.count > 0) {
-                builder_append(&builder, tstring("trigger_connected [ "));
+                builder_append(&b, tstring("trigger_connected [ "));
                 for (i32 v = 0; v < e->trigger->connected.count; v++) {
-                    builder_append(&builder, tstring("%d ", e->trigger->connected.get_value(v))); 
+                    builder_append(&b, tstring("%d ", e->trigger->connected.get_value(v))); 
                 }
-                builder_append(&builder, tstring("] \n ")); 
+                builder_append(&b, tstring("] \n ")); 
             }
             
             if (e->trigger->tracking.count > 0) {
-                builder_append(&builder, tstring("trigger_tracking [  "));
+                builder_append(&b, tstring("trigger_tracking [  "));
                 for (i32 v = 0; v < e->trigger->tracking.count; v++) {
-                    builder_append(&builder, tstring(" %d ", e->trigger->tracking.get_value(v))); 
+                    builder_append(&b, tstring(" %d ", e->trigger->tracking.get_value(v))); 
                 }
-                builder_append(&builder, tstring("] \n ")); 
+                builder_append(&b, tstring("] \n ")); 
             }
             
-            builder_append(&builder, tstring("trigger_settings %llu \n ", e->trigger->settings));
+            builder_append(&b, tstring("trigger_settings %llu \n ", e->trigger->settings));
             
-            builder_append(&builder, tstring("trigger_locked_camera_position { %f,  %f} \n ", e->trigger->locked_camera_position.x, e->trigger->locked_camera_position.y));
+            builder_append(&b, tstring("trigger_locked_camera_position { %f,  %f} \n ", e->trigger->locked_camera_position.x, e->trigger->locked_camera_position.y));
             
             if (e->trigger->settings & LOAD_LEVEL && strlen(e->trigger->level_name) > 1) {
-                builder_append(&builder, tstring("trigger_level_name %s \n ", e->trigger->level_name));
+                builder_append(&b, tstring("trigger_level_name %s \n ", e->trigger->level_name));
             }
             
             if (e->trigger->settings & PLAY_REPLAY && strlen(e->trigger->replay_name) > 1) {
-                builder_append(&builder, tstring("trigger_replay_name %s \n ", e->trigger->replay_name));
+                builder_append(&b, tstring("trigger_replay_name %s \n ", e->trigger->replay_name));
             }
             
             if (e->trigger->settings & CHANGE_ZOOM) {
-                builder_append(&builder, tstring("trigger_zoom_value %f \n ", e->trigger->zoom_value));
+                builder_append(&b, tstring("trigger_zoom_value %f \n ", e->trigger->zoom_value));
             }
             
             if (e->trigger->settings & PLAY_SOUND && strlen(e->trigger->sound_name) > 1) {
-                builder_append(&builder, tstring("trigger_sound_name %s \n ", e->trigger->sound_name));
+                builder_append(&b, tstring("trigger_sound_name %s \n ", e->trigger->sound_name));
             }
             
             if (e->trigger->cam_rails_points.count > 0) {
-                builder_append(&builder, tstring("trigger_cam_rails_points [  "));
+                builder_append(&b, tstring("trigger_cam_rails_points [  "));
                 for (i32 v = 0; v < e->trigger->cam_rails_points.count; v++) {
-                    builder_append(&builder, tstring("{ %f,  %f} ", e->trigger->cam_rails_points.get_value(v).x, e->trigger->cam_rails_points.get_value(v).y)); 
+                    builder_append(&b, tstring("{ %f,  %f} ", e->trigger->cam_rails_points.get_value(v).x, e->trigger->cam_rails_points.get_value(v).y)); 
                 }
-                builder_append(&builder, tstring("] \n ")); 
+                builder_append(&b, tstring("] \n ")); 
             }
         }
         
         // Save kill switch.
         if (e->flags & KILL_SWITCH) {
             if (e->kill_switch->connected.count > 0) {
-                builder_append(&builder, tstring("kill_switch_connected [  "));
+                builder_append(&b, tstring("kill_switch_connected [  "));
                 for (i32 v = 0; v < e->kill_switch->connected.count; v++) {
-                    builder_append(&builder, tstring(" %d ", e->kill_switch->connected.get_value(v))); 
+                    builder_append(&b, tstring(" %d ", e->kill_switch->connected.get_value(v))); 
                 }
-                builder_append(&builder, tstring("] \n ")); 
+                builder_append(&b, tstring("] \n ")); 
             }
         }
         
         // Save move sequence.
         if (e->flags & MOVE_SEQUENCE) {
             if (e->move_sequence->points.count > 0) {
-                builder_append(&builder, tstring("move_sequence_points [  "));
+                builder_append(&b, tstring("move_sequence_points [  "));
                 for (i32 v = 0; v < e->move_sequence->points.count; v++) {
-                    builder_append(&builder, tstring("{ %f,  %f} ", e->move_sequence->points.get_value(v).x, e->move_sequence->points.get_value(v).y)); 
+                    builder_append(&b, tstring("{ %f,  %f} ", e->move_sequence->points.get_value(v).x, e->move_sequence->points.get_value(v).y)); 
                 }
-                builder_append(&builder, tstring("] \n ")); 
+                builder_append(&b, tstring("] \n ")); 
             }
             
-            builder_append(&builder, tstring("move_sequence_moving %d \n ",                        e->move_sequence->moving));
-            builder_append(&builder, tstring("move_sequence_speed %f \n ",                         e->move_sequence->speed));
-            builder_append(&builder, tstring("move_sequence_loop %d \n ",                          e->move_sequence->loop));
-            builder_append(&builder, tstring("move_sequence_rotate %d \n ",                        e->move_sequence->rotate));
-            builder_append(&builder, tstring("move_sequence_speed_related_player_distance %d \n ", e->move_sequence->speed_related_player_distance));
-            builder_append(&builder, tstring("move_sequence_min_distance %f \n ",                  e->move_sequence->min_distance));
-            builder_append(&builder, tstring("move_sequence_max_distance %f \n ",                  e->move_sequence->max_distance));
-            builder_append(&builder, tstring("move_sequence_max_distance_speed %f \n ",            e->move_sequence->max_distance_speed));
+            builder_append(&b, tstring("move_sequence_moving %d \n ",                        e->move_sequence->moving));
+            builder_append(&b, tstring("move_sequence_speed %f \n ",                         e->move_sequence->speed));
+            builder_append(&b, tstring("move_sequence_loop %d \n ",                          e->move_sequence->loop));
+            builder_append(&b, tstring("move_sequence_rotate %d \n ",                        e->move_sequence->rotate));
+            builder_append(&b, tstring("move_sequence_speed_related_player_distance %d \n ", e->move_sequence->speed_related_player_distance));
+            builder_append(&b, tstring("move_sequence_min_distance %f \n ",                  e->move_sequence->min_distance));
+            builder_append(&b, tstring("move_sequence_max_distance %f \n ",                  e->move_sequence->max_distance));
+            builder_append(&b, tstring("move_sequence_max_distance_speed %f \n ",            e->move_sequence->max_distance_speed));
         }
         
         // Save centipede.
         if (e->flags & CENTIPEDE) {
-            builder_append(&builder, tstring("spikes_on_right %d \n ", e->centipede->spikes_on_right));
-            builder_append(&builder, tstring("spikes_on_left %d \n ", e->centipede->spikes_on_left));
-            builder_append(&builder, tstring("segments_count %d \n ", e->centipede->segments_to_spawn));
+            builder_append(&b, tstring("spikes_on_right %d \n ", e->centipede->spikes_on_right));
+            builder_append(&b, tstring("spikes_on_left %d \n ", e->centipede->spikes_on_left));
+            builder_append(&b, tstring("segments_count %d \n ", e->centipede->segments_to_spawn));
         }
         
         // Save jump shooter.
         if (e->flags & JUMP_SHOOTER) {
-            builder_append(&builder, tstring("jump_shooter_shots_count %d \n ", e->jump_shooter->shots_count));
-            builder_append(&builder, tstring("jump_shooter_spread %f \n ", e->jump_shooter->spread));
-            builder_append(&builder, tstring("jump_shooter_explosive_count %d \n ", e->jump_shooter->explosive_count));
-            builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers %d \n ", e->jump_shooter->shoot_sword_blockers));
-            // builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers_clockwise %d \n ", e->jump_shooter->shoot_sword_blockers_clockwise));
-            // builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers_random_direction %d \n ", e->jump_shooter->shoot_sword_blockers_random_direction));
-            builder_append(&builder, tstring("jump_shooter_shoot_sword_blockers_immortal %d \n ", e->jump_shooter->shoot_sword_blockers_immortal));
-            builder_append(&builder, tstring("jump_shooter_shoot_bullet_blockers %d \n ", e->jump_shooter->shoot_bullet_blockers));
+            builder_append(&b, tstring("jump_shooter_shots_count %d \n ", e->jump_shooter->shots_count));
+            builder_append(&b, tstring("jump_shooter_spread %f \n ", e->jump_shooter->spread));
+            builder_append(&b, tstring("jump_shooter_explosive_count %d \n ", e->jump_shooter->explosive_count));
+            builder_append(&b, tstring("jump_shooter_shoot_sword_blockers %d \n ", e->jump_shooter->shoot_sword_blockers));
+            // builder_append(&b, tstring("jump_shooter_shoot_sword_blockers_clockwise %d \n ", e->jump_shooter->shoot_sword_blockers_clockwise));
+            // builder_append(&b, tstring("jump_shooter_shoot_sword_blockers_random_direction %d \n ", e->jump_shooter->shoot_sword_blockers_random_direction));
+            builder_append(&b, tstring("jump_shooter_shoot_sword_blockers_immortal %d \n ", e->jump_shooter->shoot_sword_blockers_immortal));
+            builder_append(&b, tstring("jump_shooter_shoot_bullet_blockers %d \n ", e->jump_shooter->shoot_bullet_blockers));
         }
         
         // Save turret.
         if (e->flags & TURRET) {
             Turret *turret = e->turret;
-            builder_append(&builder, tstring("turret_projectile_flags %llu \n ", turret->projectile_settings.enemy_flags));
-            builder_append(&builder, tstring("turret_shoot_sword_blocker_clockwise %d \n ", turret->projectile_settings.blocker_clockwise));
-            builder_append(&builder, tstring("turret_activated %d \n ", turret->activated));
-            builder_append(&builder, tstring("turret_homing_projectiles %d \n ", turret->homing));
-            builder_append(&builder, tstring("turret_shoot_every_tick %d \n ", turret->shoot_every_tick));
-            builder_append(&builder, tstring("turret_start_tick_delay %d \n ", turret->start_tick_delay));
-            builder_append(&builder, tstring("turret_projectile_speed %f \n ", turret->projectile_settings.launch_speed));
-            builder_append(&builder, tstring("turret_projectile_max_lifetime %f \n ", turret->projectile_settings.max_lifetime));
-            builder_append(&builder, tstring("turret_shoot_width %f \n ", turret->shoot_width));
-            builder_append(&builder, tstring("turret_shoot_height %f \n ", turret->shoot_height));
+            builder_append(&b, tstring("turret_projectile_flags %llu \n ", turret->projectile_settings.enemy_flags));
+            builder_append(&b, tstring("turret_shoot_sword_blocker_clockwise %d \n ", turret->projectile_settings.blocker_clockwise));
+            builder_append(&b, tstring("turret_activated %d \n ", turret->activated));
+            builder_append(&b, tstring("turret_homing_projectiles %d \n ", turret->homing));
+            builder_append(&b, tstring("turret_shoot_every_tick %d \n ", turret->shoot_every_tick));
+            builder_append(&b, tstring("turret_start_tick_delay %d \n ", turret->start_tick_delay));
+            builder_append(&b, tstring("turret_projectile_speed %f \n ", turret->projectile_settings.launch_speed));
+            builder_append(&b, tstring("turret_projectile_max_lifetime %f \n ", turret->projectile_settings.max_lifetime));
+            builder_append(&b, tstring("turret_shoot_width %f \n ", turret->shoot_width));
+            builder_append(&b, tstring("turret_shoot_height %f \n ", turret->shoot_height));
         }
         
         // Save door.
         if (e->flags & DOOR) {
-            builder_append(&builder, tstring("door_open %d \n ", e->door.is_open));
+            builder_append(&b, tstring("door_open %d \n ", e->door.is_open));
         }
         
         // Save blocker.
         if (e->flags & BLOCKER) {
-            builder_append(&builder, tstring("blocker_clockwise %d \n ", e->union_enemy->blocker_clockwise));
-            builder_append(&builder, tstring("blocker_immortal %d \n ", e->union_enemy->blocker_immortal));
+            builder_append(&b, tstring("blocker_clockwise %d \n ", e->union_enemy->blocker_clockwise));
+            builder_append(&b, tstring("blocker_immortal %d \n ", e->union_enemy->blocker_immortal));
         }
         
         // Save sword size required.
         if (e->flags & SWORD_SIZE_REQUIRED) {
-            builder_append(&builder, tstring("enemy_big_or_small_killable %d \n ", e->union_enemy->big_sword_killable));
+            builder_append(&b, tstring("enemy_big_or_small_killable %d \n ", e->union_enemy->big_sword_killable));
         }
         
         // Save enemy.
         if (e->flags & ENEMY && e->union_enemy->sword_kill_speed_modifier != 1) {
-            builder_append(&builder, tstring("sword_kill_speed_modifier %.1f \n ", e->union_enemy->sword_kill_speed_modifier));
+            builder_append(&b, tstring("sword_kill_speed_modifier %.1f \n ", e->union_enemy->sword_kill_speed_modifier));
         }
         // Save enemy.
         if (e->flags & ENEMY) {
-            builder_append(&builder, tstring("enemy_gives_ammo %d \n ", e->union_enemy->gives_ammo));
+            builder_append(&b, tstring("enemy_gives_ammo %d \n ", e->union_enemy->gives_ammo));
         }
         
         // Save explosive.
         if (e->flags & EXPLOSIVE) {
-            builder_append(&builder, tstring("explosive_radius_multiplier %fs \n ", e->union_enemy->explosive_radius_multiplier));
+            builder_append(&b, tstring("explosive_radius_multiplier %fs \n ", e->union_enemy->explosive_radius_multiplier));
         }
         
         // Save propeller.
         if (e->flags & PROPELLER) {
-            builder_append(&builder, tstring("propeller_power %f \n ", e->propeller->power));
-            builder_append(&builder, tstring("propeller_spin_sensitive %d \n ", e->propeller->spin_sensitive));
+            builder_append(&b, tstring("propeller_power %f \n ", e->propeller->power));
+            builder_append(&b, tstring("propeller_spin_sensitive %d \n ", e->propeller->spin_sensitive));
         }
         
         // Save shoot blocker.
         if (e->flags & SHOOT_BLOCKER) {
-            builder_append(&builder, tstring("shoot_blocker_direction { %f,  %f} \n ", e->union_enemy->shoot_blocker_direction.x, e->union_enemy->shoot_blocker_direction.y));
-            builder_append(&builder, tstring("shoot_blocker_immortal %d \n ", e->union_enemy->shoot_blocker_immortal));
+            builder_append(&b, tstring("shoot_blocker_direction { %f,  %f} \n ", e->union_enemy->shoot_blocker_direction.x, e->union_enemy->shoot_blocker_direction.y));
+            builder_append(&b, tstring("shoot_blocker_immortal %d \n ", e->union_enemy->shoot_blocker_immortal));
         }
         
         // Save texture name.
         if (e->texture && strlen(e->texture_name) > 1) {
-            builder_append(&builder, tstring("texture_name %s \n ", e->texture_name));
+            builder_append(&b, tstring("texture_name %s \n ", e->texture_name));
         }
         
         // Save note.
@@ -268,18 +268,35 @@ void save_level(String level_name) {
             assert(e->note_index != -1);
             auto note = current_context->notes.get(e->note_index);
             if (strlen(note->content) > 1) {
-                builder_append(&builder, tstring("note_content \" %s \" \n ", note->content));
+                builder_append(&b, tstring("note_content \" %s \" \n ", note->content));
             }
                 
-            builder_append(&builder, tstring("note_draw_in_game %d \n ", note->draw_in_game));
+            builder_append(&b, tstring("note_draw_in_game %d \n ", note->draw_in_game));
+        }
+        
+        // Save level loader.
+        if (e->flags & LEVEL_LOADER) {
+            auto loader = e->level_loader;
+            
+            builder_append(&b, tstring("level_loader_is_open %d \n ", loader->is_open));
+            builder_append(&b, tstring("level_name_to_load %s \n ", c_str(loader->level_to_load)));
+            
+            if (loader->levels_to_open.count > 0) {
+                builder_append(&b, tstring("level_loader_levels_to_open [  "));
+                for (i32 v = 0; v < loader->levels_to_open.count; v++) {
+                    builder_append(&b, tstring(" %d ", loader->levels_to_open.get_value(v))); 
+                }
+                builder_append(&b, tstring("] \n ")); 
+            }
+
         }
         
         // Save planning point.
         if (e->flags & PLANNING_POINT) {
-            builder_append(&builder, tstring("planning_point_flags %llu \n ", e->planning_point->flags));
+            builder_append(&b, tstring("planning_point_flags %llu \n ", e->planning_point->flags));
         }
         
-        write_entire_file(tstring("%s/Entity_%s_%d.txt", c_str(level_directory_name), c_str(*e->name), e->id), &builder);
+        write_entire_file(tstring("%s/Entity_%s_%d.txt", c_str(level_directory_name), c_str(*e->name), e->id), &b);
     }
     
     delete_directory(old_directory_name);
@@ -588,6 +605,15 @@ b32 load_level(String name, u64 load_flags = 0) {
                 IF_FIND("trigger_level_name")                 str_copy(trigger->level_name, c_str(splitted.get_value(i+1)));
                 IF_FIND("trigger_sound_name")                 str_copy(trigger->sound_name, c_str(splitted.get_value(i+1)));
                 IF_FIND("trigger_replay_name")                str_copy(trigger->replay_name, c_str(splitted.get_value(i+1)));
+            }
+            
+            // Level loader loading.
+            if (entity->flags & LEVEL_LOADER) {
+                auto loader = entity-> level_loader;
+                
+                IF_FIND("level_loader_is_open")        loader->is_open        = to_i32(splitted.get_value(i+1));
+                IF_FIND("level_name_to_load")          loader->level_to_load  = copy_string(splitted.get_value(i+1), HEAP_ALLOCATOR);
+                IF_FIND("level_loader_levels_to_open") parse_i32_array(&loader->levels_to_open, &splitted, i+1);
             }
             
             // Kill switch loading.

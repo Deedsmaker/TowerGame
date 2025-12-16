@@ -148,6 +148,10 @@ inline b32 is_editor_active() {
     return editor_state == EDITOR || state_context.in_pause_editor;
 }
 
+inline b32 is_entity_static(Entity *entity) {
+    return entity->flags == GROUND || entity->flags == JUST_VISUAL || entity->flags == 0 || entity->flags & PLANNING_POINT || entity->flags & LEVEL_LOADER;
+}
+
 #include "logger.cpp"
 #include "random.hpp"
 #include "particles.hpp"
@@ -294,6 +298,12 @@ void free_entity(Entity *e) {
             assert(r);
         } else if (e->flags & WIN_BLOCK) { // Free win block.
             auto r = context->win_blocks.remove_by_pointer(e->win_block);
+            assert(r);
+        } else if (e->flags & LEVEL_LOADER) { // Free level loader.
+            e->level_loader->levels_to_open.free_data();
+            e->level_loader->level_to_load.free_data();
+            
+            auto r = context->level_loaders.remove_by_pointer(e->level_loader);
             assert(r);
         } else if (e->flags & PROPELLER) { // Free propeller.
             auto r = context->propellers.remove_by_pointer(e->propeller);
@@ -693,6 +703,7 @@ void clear_context(Context *context) {
     context->kill_switches.clear();
     context->turrets.clear();
     context->win_blocks.clear();
+    context->level_loaders.clear();
     
     context->projectiles.clear();
     
@@ -1002,22 +1013,37 @@ void init_spawn_objects() {
         spawn_objects.append(turret_homing_object);
     }
     
-    auto bird_entity = add_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
+    {
+        auto bird_entity = add_entity({0, 0}, {6, 10}, {0.5f, 0.5f}, 0, ENEMY | BIRD_ENEMY | PARTICLE_EMITTER);
+        
+        Spawn_Object enemy_bird_object = {0};
+        enemy_bird_object.entity = bird_entity;
+        str_copy(enemy_bird_object.name, "bird_enemy");
+        spawn_objects.append(enemy_bird_object);
+    }
     
-    Spawn_Object enemy_bird_object = {0};
-    enemy_bird_object.entity = bird_entity;
-    str_copy(enemy_bird_object.name, "bird_enemy");
-    spawn_objects.append(enemy_bird_object);
+    {
+        auto win_block_entity = add_entity({0, 0}, {50, 20}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | PLAYER_TOUCH_TIMER);
+        win_block_entity->color_changer.start_color = win_block_entity->color;
+        win_block_entity->color_changer.target_color = win_block_entity->color * 1.5f;
+        setup_color_changer(win_block_entity);
+        
+        Spawn_Object win_block_object = {0};
+        win_block_object.entity = win_block_entity;
+        str_copy(win_block_object.name, "win_block");
+        spawn_objects.append(win_block_object);
+    }
     
-    auto win_block_entity = add_entity({0, 0}, {50, 15}, {0.5f, 0.5f}, 0, WIN_BLOCK | ENEMY | PLAYER_TOUCH_TIMER);
-    win_block_entity->color_changer.start_color = win_block_entity->color;
-    win_block_entity->color_changer.target_color = win_block_entity->color * 1.5f;
-    setup_color_changer(win_block_entity);
-    
-    Spawn_Object win_block_object = {0};
-    win_block_object.entity = win_block_entity;
-    str_copy(win_block_object.name, "win_block");
-    spawn_objects.append(win_block_object);
+    {
+        auto level_loader_entity = add_entity({0, 0}, {25, 16}, {0.5f, 0.5f}, 0, LEVEL_LOADER);
+        level_loader_entity->color = WHITE;
+        setup_color_changer(level_loader_entity);
+        
+        Spawn_Object level_loader_object = {0};
+        level_loader_object.entity = level_loader_entity;
+        str_copy(level_loader_object.name, "level_loader");
+        spawn_objects.append(level_loader_object);
+    }
     
     auto agro_area_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     agro_area_entity->color = Fade(VIOLET, 0.6f);
@@ -1430,6 +1456,7 @@ void add_entity_types(Entity *entity) {
         add_entity_type_if_need(entity, CENTIPEDE_SEGMENT, &entity->centipede_segment, &context->centipede_segments, &main_type_match_count);
         add_entity_type_if_need(entity, JUMP_SHOOTER, &entity->jump_shooter, &context->jump_shooters, &main_type_match_count);
         add_entity_type_if_need(entity, WIN_BLOCK, &entity->win_block, &context->win_blocks, &main_type_match_count);
+        add_entity_type_if_need(entity, LEVEL_LOADER, &entity->level_loader, &context->level_loaders, &main_type_match_count);
         add_entity_type_if_need(entity, PROPELLER, &entity->propeller, &context->propellers, &main_type_match_count);
         
         if (entity->flags & PLAYER) {
@@ -1594,6 +1621,12 @@ void init_entity(Entity *entity) {
     } else if (entity->flags & ENEMY) { // Init enemy.
     }
     
+    if (entity->flags & LEVEL_LOADER) { // Init level loader.
+        entity->level_loader->entity = entity;
+        entity->texture = get_texture("LevelLoader");
+        strcpy(entity->texture_name, "LevelLoader");
+    }
+    
     // That's for things that we want to init for every enemy.
     if (entity->flags & ENEMY) {
         assert(entity->union_enemy);
@@ -1609,8 +1642,7 @@ void init_entity(Entity *entity) {
             // and after normal map name *could* be '_'.
             // For example normal map "Brick_normal_map" will go to "Brick" and "Brick_v1", but not to "Brick1".
             Texture_Data *normal_map = normal_maps.get(i);
-            if (str_start_with(entity->texture_name, normal_map->name)
-                && (entity->texture_name[str_len(normal_map->name)] == '_' || entity->texture_name[str_len(normal_map->name)] == '\0')) {
+            if (str_start_with(entity->texture_name, normal_map->name) && (entity->texture_name[str_len(normal_map->name)] == '_' || entity->texture_name[str_len(normal_map->name)] == '\0')) {
                 entity->have_normal_map = true;
                 entity->normal_map_texture = normal_map->texture;
             }
@@ -1969,7 +2001,8 @@ void init_context(Context *context, String name, u64 flags = 0) {
     init_chunk_array(&context->jump_shooters, 8, HEAP_ALLOCATOR);
     init_chunk_array(&context->kill_switches, 8, HEAP_ALLOCATOR);
     init_chunk_array(&context->turrets, 32, HEAP_ALLOCATOR);
-    init_chunk_array(&context->win_blocks, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&context->win_blocks, 4, HEAP_ALLOCATOR);
+    init_chunk_array(&context->level_loaders, 8, HEAP_ALLOCATOR);
     
     init_chunk_array(&context->projectiles, 256, HEAP_ALLOCATOR);
     
@@ -2774,6 +2807,10 @@ void update_game() {
         }
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
             input.press_flags |= SHOOT;
+        }
+        
+        if (IsKeyPressed(KEY_W)) {
+            input.press_flags |= UP_KEY_PRESSED;
         }
         
         if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
@@ -3750,6 +3787,24 @@ void update_editor_ui() {
             Old::make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
         }
+        
+        // Level loader inspector.
+        if (selected->flags & LEVEL_LOADER) {
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Level loader settings", "level_loader_settings")) {
+                editor.draw_level_loader_settings = !editor.draw_level_loader_settings;
+            }
+            v_pos += height_add;
+            
+            Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
+            if (make_input_field(c_str(selected->level_loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
+                selected->level_loader->level_to_load.free_data();
+                selected->level_loader->level_to_load = make_string(HEAP_ALLOCATOR, focus_input_field.content);
+            }
+            v_pos += height_add;
+            
+            Old::make_ui_text("Level loader settings::", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
+            type_info_v_pos += type_font_size;
+        } // End level loader inspector.
         
         if (selected->flags & KILL_SWITCH) {
             Old::make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_clear");
@@ -9318,6 +9373,10 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
             e->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points, HEAP_ALLOCATOR);
         } else if (e->flags & WIN_BLOCK) { // Copy win block.
             *e->win_block = *to_copy->win_block;    
+        } else if (e->flags & LEVEL_LOADER) { // Copy level loader.
+            *e->level_loader = *to_copy->level_loader;    
+            e->level_loader->levels_to_open = copy_array(&to_copy->level_loader->levels_to_open, HEAP_ALLOCATOR);
+            e->level_loader->level_to_load = copy_string(to_copy->level_loader->level_to_load, HEAP_ALLOCATOR);
         } else if (e->flags & PROPELLER) { // Copy propeller.
             *e->propeller = *to_copy->propeller;
         } else if (e->flags & PLAYER) { // Copy player data.

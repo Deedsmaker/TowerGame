@@ -883,6 +883,9 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
     if (player_data->dead_man) {
         return;
     }
+    
+    auto context = entity->context;
+    
     Entity *ground_checker     = get_entity(player_data->connected_entities_ids.ground_checker_id);
     Entity *left_wall_checker  = get_entity(player_data->connected_entities_ids.left_wall_checker_id);
     Entity *right_wall_checker = get_entity(player_data->connected_entities_ids.right_wall_checker_id);
@@ -1044,8 +1047,10 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         // After some time on wall we're starting to push player away from wall because with current movement player could just climb
         // any inclined wall without that.
         
+        u64 collision_flags = GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER | HIT_BOOSTER | WIN_BLOCK | LEVEL_LOADER;
+        
         // player left wall
-        fill_collisions(left_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+        fill_collisions(left_wall_checker, &collisions_buffer, collision_flags);
         for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
             Collision col = collisions_buffer.get_value(i);
             
@@ -1077,7 +1082,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         }
         
         // player right wall
-        fill_collisions(right_wall_checker, &collisions_buffer, GROUND | CENTIPEDE_SEGMENT | PLATFORM | BLOCKER | SHOOT_BLOCKER);
+        fill_collisions(right_wall_checker, &collisions_buffer, collision_flags);
         for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
             Collision col = collisions_buffer.get_value(i);
             
@@ -1114,7 +1119,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         
         b32 moving_object_detected = false;
         // Player ground checker.
-        FLAGS player_ground_collision_flags = GROUND | ENEMY_BARRIER | PLATFORM | CENTIPEDE_SEGMENT | NO_MOVE_BLOCK | PLAYER_TOUCH_TIMER;
+        FLAGS player_ground_collision_flags = collision_flags;
         fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
         b32 is_ground_huge_collision_speed = false;
         b32 found_no_move_block = false;
@@ -1144,6 +1149,15 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
             if (other->flags & ENEMY && can_sword_damage_enemy(other) && !(other->flags & CENTIPEDE_SEGMENT)) {
                 if (try_sword_damage_enemy(other, col.point)) {
                     continue;
+                }
+            }
+            
+            if (other->flags & LEVEL_LOADER) {              
+                make_texture(*get_texture("ArrowSign"), entity->position + Vector2_up * entity->scale.y * 4, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
+                
+                if (input.press_flags & UP_KEY_PRESSED && other->level_loader->level_to_load.count > 0) {
+                    load_level(other->level_loader->level_to_load);
+                    return;
                 }
             }
             
@@ -1244,7 +1258,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
         }
         
         // Player body collision.
-        fill_collisions(entity, &collisions_buffer, GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER | HIT_BOOSTER);
+        fill_collisions(entity, &collisions_buffer, collision_flags);
         
         b32 is_body_huge_collision_speed = false;
         b32 on_propeller = false;
