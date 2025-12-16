@@ -27,7 +27,7 @@ void save_level(String level_name) {
 
     b32 is_autosave = string_contains(level_directory_name, tstring("autosaves"));
     if (!is_autosave) {
-        log(tstring("Starting saving level %s", c_str(level_directory_name)));
+        log(tstring("Starting saving level %s", c_str(level_directory_name)), PUSH_INDENTATION);
     }
 
     String old_directory_name = tstring("%s_old", c_str(level_directory_name));
@@ -37,16 +37,21 @@ void save_level(String level_name) {
     
     make_directory_if_not_exists(level_directory_name);
     
+    Context *context = current_context;
+    
     { // First of all making file with level info
         String_Builder level_info_builder = make_string_builder(256, temp);
         
-        String spawn_point = tstring("player_spawn_point {%f, %f}\n ", current_context->player_spawn_point.x, current_context->player_spawn_point.y);
+        b32 is_hub_level = context->flags & HUB_CONTEXT;
+        builder_append(&level_info_builder, tstring("is_hub_level %d \n ", is_hub_level));
+        
+        String spawn_point = tstring("player_spawn_point {%f, %f}\n ", context->player_spawn_point.x, context->player_spawn_point.y);
         builder_append(&level_info_builder, spawn_point);
         
         String_Builder lightmaps_builder = make_string_builder(128, temp);
         builder_append(&lightmaps_builder, tstring("lightmaps [ "));
-        for (i32 i = 0; i < current_context->lightmaps.count; i++) {
-            Lightmap_Data* l = current_context->lightmaps.get(i);
+        for (i32 i = 0; i < context->lightmaps.count; i++) {
+            Lightmap_Data* l = context->lightmaps.get(i);
             builder_append(&lightmaps_builder, tstring("{ lightmap_position {%f, %f}, lightmap_size {%f, %f}}; ", l->position.x, l->position.y, l->game_size.x, l->game_size.y));
         }
         builder_append(&lightmaps_builder, tstring("];\n ")); 
@@ -57,8 +62,8 @@ void save_level(String level_name) {
     }
     
     // Now saving all entities. Each entity in separate file.
-    for_chunk_array(entity_index, (&current_context->entities)) {
-        Entity *e = current_context->entities.get(entity_index);
+    for_chunk_array(entity_index, (&context->entities)) {
+        Entity *e = context->entities.get(entity_index);
         
         if (e->runtime_only_flags & SHOULD_NOT_SAVE) {
             continue;
@@ -86,7 +91,7 @@ void save_level(String level_name) {
         
         // Save light.
         if (e->lights.count > 0) {
-            Light *light = current_context->lights.get(e->lights.get_value(0));
+            Light *light = context->lights.get(e->lights.get_value(0));
             builder_append(&builder, tstring("light_shadows_size_flag %d \n ",     light->shadows_size_flags));
             builder_append(&builder, tstring("light_backshadows_size_flag %d \n ", light->backshadows_size_flags));
             builder_append(&builder, tstring("light_make_shadows %d \n ",          light->make_shadows));
@@ -280,7 +285,7 @@ void save_level(String level_name) {
     delete_directory(old_directory_name);
     
     if (!is_autosave) {
-        log(tstring("Finished saving level %s", c_str(level_directory_name)));
+        log(tstring("Finished saving level %s", c_str(level_directory_name)), POP_INDENTATION);
         game_log("Saved.");
     }
     
@@ -448,6 +453,8 @@ b32 load_level(String name, u64 load_flags = 0) {
     switch_current_context(&loaded_context, true);
     clear_context(&loaded_context);
     
+    Context *context = &loaded_context;
+    
     if (!(current_context->level_name == name)) {
         global_data.previous_level_name = copy_string(current_context->level_name, &current_context->memory_arena);
     }
@@ -469,6 +476,8 @@ b32 load_level(String name, u64 load_flags = 0) {
     
     String level_info_file_name = tstring("Level_Info.txt");
     
+    b32 is_hub_level = false;
+    
     i32 level_info_file_index =  find_file_name_in_paths(&level_files, level_info_file_name);
     if (level_info_file_index < 0) {
         log(tstring("Failed to find %s file!\n", c_str(level_info_file_name)));
@@ -481,6 +490,14 @@ b32 load_level(String name, u64 load_flags = 0) {
         }
         
         split_string(&splitted, level_info, separators);
+        
+        i32 is_hub_level_index = splitted.find(tstring("is_hub_level"));
+        if (is_hub_level_index >= 0) {
+            is_hub_level = to_i32(splitted.get_value(is_hub_level_index + 1));
+            if (is_hub_level) {
+                context->flags |= HUB_CONTEXT;
+            }
+        }
         
         i32 spawn_point_index = splitted.find(tstring("player_spawn_point"));
         if (spawn_point_index >= 0) current_context->player_spawn_point = parse_vector2(&splitted, spawn_point_index + 1);
@@ -710,8 +727,6 @@ b32 load_level(String name, u64 load_flags = 0) {
     setup_context_cam(current_context);
     current_context->cam.cam2D.zoom = 0.35f;
     
-    // We do that so editor has latest level in it.
-    // switch_current_context(editor_level-cont)e
     clear_context(&game_context);
     
     // This shit so that we don't overwrite level that we currently on.
@@ -741,7 +756,7 @@ b32 load_level(String name, u64 load_flags = 0) {
     
     close_console();
     
-    log(tstring("Finished loading %s.", c_str(level_path)), POP_INDENTATION);
+    log(tstring("Finished loading %s. Is hub level: %d", c_str(level_path), (current_context->flags & HUB_CONTEXT) > 0), POP_INDENTATION);
     
     return true;
 } // load level end.

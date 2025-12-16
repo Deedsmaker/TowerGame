@@ -1,0 +1,4 @@
+is_hub_level 1
+player_spawn_point {-276.585022, 152.426208}
+ lightmaps [ ];
+ 

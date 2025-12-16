@@ -1,3 +1,4 @@
-player_spawn_point {-276.585022, 152.426208}
+is_hub_level 0 
+ player_spawn_point {-258.750000, 153.437500}
  lightmaps [ { lightmap_position {-340.000000, 270.000000}, lightmap_size {700.000000, 500.000000}}; ];
  

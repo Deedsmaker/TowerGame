@@ -44,7 +44,6 @@ global_variable Context checkpoint_context = {0};
 global_variable Context copied_entities_context = {0};
 global_variable Context undo_context = {0};
 
-global_variable Context hub_context = {0};
 global_variable Context game_context = {0};
 global_variable Context planning_context = {0};
 global_variable Context loaded_context = {0};
@@ -593,6 +592,8 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     
     dest->turret_state = src->turret_state;
     
+    dest->flags = src->flags;
+    
     if (should_init_entities) {
         // Particle emitters get's added on each entity init.
         // So when se init entities - we clear particle emitters, because they will be added again. 
@@ -732,6 +733,8 @@ void clear_context(Context *context) {
     
     // context->we_got_a_winner = false;
     // player_data = {0};
+    
+    context->flags = 0;
     
     clear_and_push_zeroes_to_allocator(&context->memory_arena);
     
@@ -1941,12 +1944,14 @@ inline void play_sound(const char* name, f32 volume_multiplier, f32 base_pitch, 
 // #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
 // #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
 
-void init_context(Context *context, String name) {
+void init_context(Context *context, String name, u64 flags = 0) {
     assert(!context->inited);
     
     current_context = context;
     
     init_allocator(&current_context->memory_arena, Megabytes(4));
+    
+    context->flags = flags;
     
     context->name = copy_string(name, HEAP_ALLOCATOR);
 

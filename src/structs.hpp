@@ -1220,9 +1220,15 @@ struct Planning_Point {
     b32 taken = false;
 };
 
+enum Context_Flags {   
+    HUB_CONTEXT = 0x1,
+};
+
 struct Context {
     String name = {0};
     Allocator memory_arena = {0};
+
+    u64 flags = 0;
 
     Array <Array<Entity_Undo_Change>> undo_actions = {0};
     i32 max_undos_added = 0;
@@ -1291,7 +1297,6 @@ struct State_Context { // @TODO: How can we rename this?
         f32 last_bird_attack_time = -11110;
         f32 last_jump_shooter_attack_time = -11110;
         f32 background_flash_time = -21;
-        f32 last_collision_cells_clear_time = -2;
         f32 last_projectile_hit_time = -12;
         f32 last_explosion_app_time = -12;
         f32 last_shoot_stoper_failed_shot_app_time = -12;

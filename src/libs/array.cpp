@@ -413,6 +413,8 @@ struct Static_Array {
 
 #define for_chunk_array(index, arr) for (i32 index = (arr)->next_avaliable_index(0, true); index < (arr)->chunks_count * (arr)->chunk_size; index = (arr)->next_avaliable_index(index + 1, true)) 
 
+#define ForChunks(arr) auto it = (arr)->maybe_get_first(); for (i32 index = (arr)->next_avaliable_index(0, true); index < (arr)->chunks_count * (arr)->chunk_size; index = (arr)->next_avaliable_index(index + 1, true), it = (arr)->maybe_get(i)) 
+
 template<typename T>
 struct Chunk_Array {
     struct Chunk_Element {
@@ -486,7 +488,7 @@ struct Chunk_Array {
         return chunks_count * chunk_size;
     }
     
-    T *get(i32 index) {
+    inline T *get(i32 index) {
         assert((index >= 0 && index < chunk_size * chunks_count) && "Index out of bounds!");
         
         Chunk *chunk = first_chunk;
