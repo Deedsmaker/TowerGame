@@ -13,7 +13,7 @@ String read_entire_file(String name, b32 *success, Memory_Arena *arena = HEAP_AL
         return {0};
     }
     
-    String s = make_string(arena, text_data);;
+    String s = string(arena, text_data);;
     
     UnloadFileText(text_data);    
     
@@ -69,7 +69,7 @@ Array <String> get_files_in_directory(String directory_name, Memory_Arena *arena
     Array <String> result_paths = {.arena = arena};
     
     for (u32 i = 0; i < files_paths.count; i++) {
-        result_paths.append(make_string(arena, files_paths.paths[i]));
+        result_paths.append(string(arena, files_paths.paths[i]));
     }
     
     UnloadDirectoryFiles(files_paths);
@@ -116,7 +116,7 @@ Array <String> get_file_names_in_directory(String directory_name, Memory_Arena *
     Array <String> result_paths = {.arena = arena};
     
     for (u32 i = 0; i < files_paths.count; i++) {
-        String full_path = make_string(temp, files_paths.paths[i]);
+        String full_path = string(temp, files_paths.paths[i]);
         String name = strip_path_to_just_name(full_path, arena);
     
         result_paths.append(name);

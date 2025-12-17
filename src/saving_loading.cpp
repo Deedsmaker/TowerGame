@@ -447,7 +447,10 @@ enum Load_Flags {
     ENTER_GAME_STATE_AFTER = 0x1,  
 };
 
-void finish_load_level(u64 load_flags) {
+global_variable b32 prepared_loaded_level = false;
+global_variable u64 last_load_flags = 0;
+
+void finish_load_level() {
     clear_context(&game_context);
     
     // This shit so that we don't overwrite level that we currently on.
@@ -460,7 +463,7 @@ void finish_load_level(u64 load_flags) {
     clear_context(editor_context);
     copy_context(editor_context, &loaded_context, true);
     
-    if (load_flags & ENTER_GAME_STATE_AFTER) {
+    if (last_load_flags & ENTER_GAME_STATE_AFTER) {
         if (editor_state == EDITOR) {
             editor_enter_game_state(&loaded_context);
         } else {
@@ -480,6 +483,8 @@ void finish_load_level(u64 load_flags) {
 
 b32 load_level(String name, u64 load_flags = 0) {
     clear_multiselected_entities();
+
+    last_load_flags = load_flags;
 
     name = copy_string(name, temp); // Beacuse we're just cleared temp arena and if "name" was temp allocated - it could go wrong.
     
@@ -787,10 +792,10 @@ b32 load_level(String name, u64 load_flags = 0) {
     
     log(tstring("Finished loading %s. Is hub level: %d", c_str(level_path), (current_context->flags & HUB_CONTEXT) > 0), POP_INDENTATION);
     
-    finish_load_level(load_flags);
+    prepared_loaded_level = true;
     
     return true;
-} // load level end.
+} // End load level.
 
 b32 maybe_load_next_level() { 
     i32 current_level_index = global_data.level_order.find(current_context->level_name);

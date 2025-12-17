@@ -546,7 +546,7 @@ const char *c_str(String string) {
     return string.data;
 }
 
-String make_string(Memory_Arena *arena, const char *text, ...){
+String string(Memory_Arena *arena, const char *text, ...){
     String result_string = {.arena = arena};
 
     if (!text) {
@@ -757,7 +757,7 @@ void builder_free(String_Builder *builder) {
 
 inline String make_string_from_builder(String_Builder *builder, Memory_Arena *arena) {
     // @TODO: This works while we're using null termination.
-    return make_string(arena, builder->data);
+    return string(arena, builder->data);
 }
 
 String_Builder make_string_builder(i32 capacity, Memory_Arena *arena) {

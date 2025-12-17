@@ -17,7 +17,7 @@ Old_File old_load_file(const char *name, const char *mode, Memory_Arena *allocat
     init_array(&loaded_file.lines, 128, allocator);
     //loaded_file.name = (char*)malloc(str_len(name) * sizeof(char));
     // str_copy(loaded_files.name, name);
-    loaded_file.name = make_string(allocator, name);
+    loaded_file.name = string(allocator, name);
     
     FILE *fptr = fopen(name, mode);
     
@@ -37,7 +37,7 @@ Old_File old_load_file(const char *name, const char *mode, Memory_Arena *allocat
         //     buffer[buffer_len] = '\0';
         // }
         
-        loaded_file.lines.append(make_string(allocator, buffer));
+        loaded_file.lines.append(string(allocator, buffer));
         // str_copy(loaded_file.lines.last()->data, buffer);
     }
     

@@ -830,43 +830,43 @@ void init_bird_emitters(Entity *entity) {
 String get_entity_name(Entity *entity, Memory_Arena *arena) {
     if (0) {
     } else if (entity->flags & GROUND) {
-        return make_string(arena, "Ground");  
+        return string(arena, "Ground");  
     } else if (entity->flags & BIRD_ENEMY) {
-        return make_string(arena, "Bird_enemy");  
+        return string(arena, "Bird_enemy");  
     } else if (entity->flags & STICKY_TEXTURE) {
-        return make_string(arena, "Sticky_texture");  
+        return string(arena, "Sticky_texture");  
     } else if (entity->flags & CENTIPEDE) {
-        return make_string(arena, "Centipede");  
+        return string(arena, "Centipede");  
     } else if (entity->flags & CENTIPEDE_SEGMENT) {
-        return make_string(arena, "Centipede_segment");  
+        return string(arena, "Centipede_segment");  
     } else if (entity->flags & AMMO_PACK) {
-        return make_string(arena, "Ammo_pack");  
+        return string(arena, "Ammo_pack");  
     } else if (entity->flags & TRIGGER) {
-        return make_string(arena, "Trigger");  
+        return string(arena, "Trigger");  
     } else if (entity->flags & KILL_SWITCH) {
-        return make_string(arena, "Kill_Switch");  
+        return string(arena, "Kill_Switch");  
     } else if (entity->flags & TURRET) {
-        return make_string(arena, "Turret");  
+        return string(arena, "Turret");  
     } else if (entity->flags & HIT_BOOSTER) {
-        return make_string(arena, "Hit_Booster");  
+        return string(arena, "Hit_Booster");  
     } else if (entity->flags & PLANNING_POINT) {
         if (entity->planning_point->flags & ITEM_POINT) {
-            return make_string(arena, "Item_Planning_Point");  
+            return string(arena, "Item_Planning_Point");  
         } else if (entity->planning_point->flags & SPACE_POINT) {
-            return make_string(arena, "Space_Planning_Point");
+            return string(arena, "Space_Planning_Point");
         } else {
-            return make_string(arena, "Some_Planning_Point");
+            return string(arena, "Some_Planning_Point");
         }
     } else if (entity->flags & DUMMY) {
         if (entity->flags & LIGHT) {
-            return make_string(arena, "Light");  
+            return string(arena, "Light");  
         }
-        return make_string(arena, "Dummy");  
+        return string(arena, "Dummy");  
     } else if (entity->texture) {
-        return make_string(arena, tprintf("Texture_%s", entity->texture_name));  
+        return string(arena, tprintf("Texture_%s", entity->texture_name));  
     } 
         
-    return make_string(arena, "No_name");
+    return string(arena, "No_name");
 }
 inline String temp_entity_name(Entity *entity) {
     return get_entity_name(entity, temp);
@@ -1235,7 +1235,7 @@ void add_spawn_object_from_texture(Texture *texture, const char *name, const cha
         
         if (tile_sheet_index == -1) {
             sheet = tile_sheets.append({0});
-            sheet->sheet_name = make_string(NULL, directory_name);
+            sheet->sheet_name = string(NULL, directory_name);
             sheet->textures = {0};
         } else {
             sheet = tile_sheets.get(tile_sheet_index);
@@ -2705,6 +2705,11 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
+    if (prepared_loaded_level) {
+        finish_load_level();
+        prepared_loaded_level = false;
+    }
+
     clear_memory_arena(temp);
 
     frame_rnd = rnd01();
@@ -3798,7 +3803,7 @@ void update_editor_ui() {
             Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
             if (make_input_field(c_str(selected->level_loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
                 selected->level_loader->level_to_load.free_data();
-                selected->level_loader->level_to_load = make_string(HEAP_ALLOCATOR, focus_input_field.content);
+                selected->level_loader->level_to_load = string(HEAP_ALLOCATOR, focus_input_field.content);
             }
             v_pos += height_add;
             
