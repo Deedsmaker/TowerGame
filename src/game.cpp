@@ -747,7 +747,7 @@ void clear_context(Context *context) {
     
     context->flags = 0;
     
-    clear_and_push_zeroes_to_allocator(&context->memory_arena);
+    clear_and_push_zeroes_to_memory_arena(&context->memory_arena);
     
     init_planning_data(context);
     
@@ -827,46 +827,46 @@ void init_bird_emitters(Entity *entity) {
     entity->bird_enemy->collision_emitter_index = add_entity_particle_emitter(entity, &rifle_bullet_emitter);
 }
 
-String get_entity_name(Entity *entity, Allocator *allocator) {
+String get_entity_name(Entity *entity, Memory_Arena *arena) {
     if (0) {
     } else if (entity->flags & GROUND) {
-        return make_string(allocator, "Ground");  
+        return make_string(arena, "Ground");  
     } else if (entity->flags & BIRD_ENEMY) {
-        return make_string(allocator, "Bird_enemy");  
+        return make_string(arena, "Bird_enemy");  
     } else if (entity->flags & STICKY_TEXTURE) {
-        return make_string(allocator, "Sticky_texture");  
+        return make_string(arena, "Sticky_texture");  
     } else if (entity->flags & CENTIPEDE) {
-        return make_string(allocator, "Centipede");  
+        return make_string(arena, "Centipede");  
     } else if (entity->flags & CENTIPEDE_SEGMENT) {
-        return make_string(allocator, "Centipede_segment");  
+        return make_string(arena, "Centipede_segment");  
     } else if (entity->flags & AMMO_PACK) {
-        return make_string(allocator, "Ammo_pack");  
+        return make_string(arena, "Ammo_pack");  
     } else if (entity->flags & TRIGGER) {
-        return make_string(allocator, "Trigger");  
+        return make_string(arena, "Trigger");  
     } else if (entity->flags & KILL_SWITCH) {
-        return make_string(allocator, "Kill_Switch");  
+        return make_string(arena, "Kill_Switch");  
     } else if (entity->flags & TURRET) {
-        return make_string(allocator, "Turret");  
+        return make_string(arena, "Turret");  
     } else if (entity->flags & HIT_BOOSTER) {
-        return make_string(allocator, "Hit_Booster");  
+        return make_string(arena, "Hit_Booster");  
     } else if (entity->flags & PLANNING_POINT) {
         if (entity->planning_point->flags & ITEM_POINT) {
-            return make_string(allocator, "Item_Planning_Point");  
+            return make_string(arena, "Item_Planning_Point");  
         } else if (entity->planning_point->flags & SPACE_POINT) {
-            return make_string(allocator, "Space_Planning_Point");
+            return make_string(arena, "Space_Planning_Point");
         } else {
-            return make_string(allocator, "Some_Planning_Point");
+            return make_string(arena, "Some_Planning_Point");
         }
     } else if (entity->flags & DUMMY) {
         if (entity->flags & LIGHT) {
-            return make_string(allocator, "Light");  
+            return make_string(arena, "Light");  
         }
-        return make_string(allocator, "Dummy");  
+        return make_string(arena, "Dummy");  
     } else if (entity->texture) {
-        return make_string(allocator, tprintf("Texture_%s", entity->texture_name));  
+        return make_string(arena, tprintf("Texture_%s", entity->texture_name));  
     } 
         
-    return make_string(allocator, "No_name");
+    return make_string(arena, "No_name");
 }
 inline String temp_entity_name(Entity *entity) {
     return get_entity_name(entity, temp);
@@ -1981,7 +1981,7 @@ void init_context(Context *context, String name, u64 flags = 0) {
     
     current_context = context;
     
-    init_allocator(&current_context->memory_arena, Megabytes(4));
+    init_memory_arena(&current_context->memory_arena, Megabytes(4));
     
     context->flags = flags;
     
@@ -2705,7 +2705,7 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
 }
 
 void update_game() {
-    clear_allocator(temp);
+    clear_memory_arena(temp);
 
     frame_rnd = rnd01();
     frame_on_circle_rnd = rnd_on_circle();
@@ -4998,7 +4998,7 @@ void update_editor() {
         
         assign_selected_entity(NULL);
         
-        Array <i32> spawned_ids = {.allocator = temp};
+        Array <i32> spawned_ids = {.arena = temp};
         
         clear_multiselected_entities();
         for (i32 i = 0; i < editor.copied_entities.count; i++) {

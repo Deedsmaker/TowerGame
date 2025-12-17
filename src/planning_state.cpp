@@ -50,7 +50,7 @@ void add_node_icon(Context *context, String name, Planning_Node_Type type, Entit
 }
 
 Array <Planning_Point *> get_points_around_node(Context *context, Planning_Node *node) {
-    Array <Planning_Point *> result = {.allocator = temp};
+    Array <Planning_Point *> result = {.arena = temp};
 
     f32 radius = radius_from_node(node);
     
@@ -123,10 +123,10 @@ void planning_validate_node_points(Context *context) {
 
 void init_planning_data(Context *context) {
     context->planning.nodes.clear();
-    context->planning.nodes.allocator = &context->memory_arena;
+    context->planning.nodes.arena = &context->memory_arena;
     
     context->planning.node_icons.clear();
-    context->planning.node_icons.allocator = &context->memory_arena;
+    context->planning.node_icons.arena = &context->memory_arena;
     
     add_node_icon(context, tstring("Space node"), SPACE_NODE, NULL);
     

@@ -2,7 +2,7 @@
 
 #include "string.cpp"
 #include "array.cpp"
-#include "Allocator.cpp"
+#include "memory_arena.cpp"
 #include "logger.h"
 
 String level_name_to_path(String name) {
@@ -10,7 +10,7 @@ String level_name_to_path(String name) {
 }
 
 void load_level_order() {
-    String level_order_path = tstring("levels/level_order.txt");
+    String level_order_path = S("levels/level_order.txt");
     
     b32 success = false;
     String content = read_entire_file(level_order_path, &success, temp);   
@@ -19,13 +19,13 @@ void load_level_order() {
         return;
     }
     
-    global_data.level_order = split_string(content, tstring("\n"), HEAP_ALLOCATOR);
+    global_data.level_order = split_string(content, S("\n"), HEAP_ALLOCATOR);
 }
 
 void save_level(String level_name) {
     String level_directory_name = level_name_to_path(level_name);
 
-    b32 is_autosave = string_contains(level_directory_name, tstring("autosaves"));
+    b32 is_autosave = string_contains(level_directory_name, S("autosaves"));
     if (!is_autosave) {
         log(tstring("Starting saving level %s", c_str(level_directory_name)), PUSH_INDENTATION);
     }
@@ -49,12 +49,12 @@ void save_level(String level_name) {
         builder_append(&level_info_builder, spawn_point);
         
         String_Builder lightmaps_builder = make_string_builder(128, temp);
-        builder_append(&lightmaps_builder, tstring("lightmaps [ "));
+        builder_append(&lightmaps_builder, S("lightmaps [ "));
         for (i32 i = 0; i < context->lightmaps.count; i++) {
             Lightmap_Data* l = context->lightmaps.get(i);
             builder_append(&lightmaps_builder, tstring("{ lightmap_position {%f, %f}, lightmap_size {%f, %f}}; ", l->position.x, l->position.y, l->game_size.x, l->game_size.y));
         }
-        builder_append(&lightmaps_builder, tstring("];\n ")); 
+        builder_append(&lightmaps_builder, S("];\n ")); 
         
         builder_append(&level_info_builder, make_string_from_builder(&lightmaps_builder, temp));
         
@@ -74,17 +74,17 @@ void save_level(String level_name) {
         Color color = e->color_changer.start_color;
         builder_append(&b, tstring("name %s \n id %d \n position { %f,  %f} \n scale { %f,  %f} \n pivot { %f,  %f} \n rotation %f \n color { %d,  %d,  %d,  %d} \n flags %llu \n draw_order %d \n ", c_str(*e->name), e->id, e->position.x, e->position.y, e->scale.x, e->scale.y, e->pivot.x, e->pivot.y, e->rotation, (i32)color.r, (i32)color.g, (i32)color.b, (i32)color.a, e->flags, e->draw_order));
         
-        builder_append(&b, tstring("vertices [ "));
+        builder_append(&b, S("vertices [ "));
         for (i32 v = 0; v < e->vertices.count; v++) {
             builder_append(&b, tstring("{ %f,  %f} ", e->vertices.get_value(v).x, e->vertices.get_value(v).y)); 
         }
-        builder_append(&b, tstring("] \n ")); 
+        builder_append(&b, S("] \n ")); 
         
-        builder_append(&b, tstring("unscaled_vertices [  "));
+        builder_append(&b, S("unscaled_vertices [  "));
         for (i32 v = 0; v < e->unscaled_vertices.count; v++) {
             builder_append(&b, tstring("{ %f,  %f} ", e->unscaled_vertices.get_value(v).x, e->unscaled_vertices.get_value(v).y)); 
         }
-        builder_append(&b, tstring("] \n ")); 
+        builder_append(&b, S("] \n ")); 
         
         builder_append(&b, tstring("hidden %d \n ", e->hidden));
         builder_append(&b, tstring("spawn_enemy_when_no_ammo %d \n ", e->spawn_enemy_when_no_ammo));
@@ -107,19 +107,19 @@ void save_level(String level_name) {
         if (e->flags & TRIGGER) {
             assert(e->trigger);
             if (e->trigger->connected.count > 0) {
-                builder_append(&b, tstring("trigger_connected [ "));
+                builder_append(&b, S("trigger_connected [ "));
                 for (i32 v = 0; v < e->trigger->connected.count; v++) {
                     builder_append(&b, tstring("%d ", e->trigger->connected.get_value(v))); 
                 }
-                builder_append(&b, tstring("] \n ")); 
+                builder_append(&b, S("] \n ")); 
             }
             
             if (e->trigger->tracking.count > 0) {
-                builder_append(&b, tstring("trigger_tracking [  "));
+                builder_append(&b, S("trigger_tracking [  "));
                 for (i32 v = 0; v < e->trigger->tracking.count; v++) {
                     builder_append(&b, tstring(" %d ", e->trigger->tracking.get_value(v))); 
                 }
-                builder_append(&b, tstring("] \n ")); 
+                builder_append(&b, S("] \n ")); 
             }
             
             builder_append(&b, tstring("trigger_settings %llu \n ", e->trigger->settings));
@@ -143,33 +143,33 @@ void save_level(String level_name) {
             }
             
             if (e->trigger->cam_rails_points.count > 0) {
-                builder_append(&b, tstring("trigger_cam_rails_points [  "));
+                builder_append(&b, S("trigger_cam_rails_points [  "));
                 for (i32 v = 0; v < e->trigger->cam_rails_points.count; v++) {
                     builder_append(&b, tstring("{ %f,  %f} ", e->trigger->cam_rails_points.get_value(v).x, e->trigger->cam_rails_points.get_value(v).y)); 
                 }
-                builder_append(&b, tstring("] \n ")); 
+                builder_append(&b, S("] \n ")); 
             }
         }
         
         // Save kill switch.
         if (e->flags & KILL_SWITCH) {
             if (e->kill_switch->connected.count > 0) {
-                builder_append(&b, tstring("kill_switch_connected [  "));
+                builder_append(&b, S("kill_switch_connected [  "));
                 for (i32 v = 0; v < e->kill_switch->connected.count; v++) {
                     builder_append(&b, tstring(" %d ", e->kill_switch->connected.get_value(v))); 
                 }
-                builder_append(&b, tstring("] \n ")); 
+                builder_append(&b, S("] \n ")); 
             }
         }
         
         // Save move sequence.
         if (e->flags & MOVE_SEQUENCE) {
             if (e->move_sequence->points.count > 0) {
-                builder_append(&b, tstring("move_sequence_points [  "));
+                builder_append(&b, S("move_sequence_points [  "));
                 for (i32 v = 0; v < e->move_sequence->points.count; v++) {
                     builder_append(&b, tstring("{ %f,  %f} ", e->move_sequence->points.get_value(v).x, e->move_sequence->points.get_value(v).y)); 
                 }
-                builder_append(&b, tstring("] \n ")); 
+                builder_append(&b, S("] \n ")); 
             }
             
             builder_append(&b, tstring("move_sequence_moving %d \n ",                        e->move_sequence->moving));
@@ -282,11 +282,11 @@ void save_level(String level_name) {
             builder_append(&b, tstring("level_name_to_load %s \n ", c_str(loader->level_to_load)));
             
             if (loader->levels_to_open.count > 0) {
-                builder_append(&b, tstring("level_loader_levels_to_open [  "));
+                builder_append(&b, S("level_loader_levels_to_open [  "));
                 for (i32 v = 0; v < loader->levels_to_open.count; v++) {
                     builder_append(&b, tstring(" %d ", loader->levels_to_open.get_value(v))); 
                 }
-                builder_append(&b, tstring("] \n ")); 
+                builder_append(&b, S("] \n ")); 
             }
 
         }
@@ -406,7 +406,7 @@ void parse_vertices_array(Static_Array <Vector2, MAX_VERTICES> *array, Array <St
 // String should have qute symbols marking start and end (note_content "some content").
 // index in meaning that it's not index of string beginning, but rather note_content index from example above. 
 // Then we'll find start and end of content string by yourself.
-String parse_string(String whole_data, i32 index, Allocator *allocator) {
+String parse_string(String whole_data, i32 index, Memory_Arena *arena) {
     i32 start_index = string_find_from(whole_data, tstring("\""), index);
     start_index += 1; // So now it's pointing at actual beginning of a content.
     
@@ -415,7 +415,7 @@ String parse_string(String whole_data, i32 index, Allocator *allocator) {
     
     if (start_index < 0 || end_index < 0 || end_index < start_index) return {0};
     
-    String s = make_substring(whole_data, start_index, end_index, allocator);
+    String s = make_substring(whole_data, start_index, end_index, arena);
     return s;
 }
 
@@ -481,7 +481,7 @@ void finish_load_level(u64 load_flags) {
 b32 load_level(String name, u64 load_flags = 0) {
     clear_multiselected_entities();
 
-    name = copy_string(name, temp); // Beacuse we're just cleared temp allocator and if "name" was temp allocated - it could go wrong.
+    name = copy_string(name, temp); // Beacuse we're just cleared temp arena and if "name" was temp allocated - it could go wrong.
     
     // editor_enter_editor_state();
     // editor_state = EDITOR; // @TODO: Do we really need this? Edit: Right now yes, for convinience.
@@ -489,8 +489,9 @@ b32 load_level(String name, u64 load_flags = 0) {
     global_data.playing_replay = false;
     String level_path = level_name_to_path(name);
     
+    
     if (!directory_exists(level_path)) {
-        builder_append(&console.content_builder, tstring("Level does not exists! Will create new"));
+        builder_append(&console.content_builder, S("Level does not exists! Will create new"));
         create_level(name);
         return true;
     }
@@ -511,8 +512,8 @@ b32 load_level(String name, u64 load_flags = 0) {
     
     setup_particles();
     
-    Array <String> splitted = {.allocator = temp};
-    // Array <Entity> loaded_entities = {.allocator = temp};
+    Array <String> splitted = {.arena = temp};
+    // Array <Entity> loaded_entities = {.arena = temp};
     
     Array <String> level_files = get_files_in_directory(level_path, temp);
     if (level_files.count == 0) {
@@ -520,13 +521,13 @@ b32 load_level(String name, u64 load_flags = 0) {
         return false;
     }
     
-    String separators = tstring(":{}[], ;");
+    String separators = S(":{}[], ;");
     
-    String level_info_file_name = tstring("Level_Info.txt");
+    String level_info_file_name = S("Level_Info.txt");
     
     b32 is_hub_level = false;
     
-    i32 level_info_file_index =  find_file_name_in_paths(&level_files, level_info_file_name);
+    i32 level_info_file_index = find_file_name_in_paths(&level_files, level_info_file_name, temp);
     if (level_info_file_index < 0) {
         log(tstring("Failed to find %s file!\n", c_str(level_info_file_name)));
     } else {

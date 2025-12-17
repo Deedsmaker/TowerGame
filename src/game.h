@@ -72,7 +72,7 @@ void setup_context_cam(Context *context);
 inline Light *get_light(i32 index, Context *context = NULL);
 inline Entity *get_entity(i32 id, Context *context = NULL);
 inline String temp_entity_name(Entity *entity);
-String get_entity_name(Entity *entity, Allocator *allocator);
+String get_entity_name(Entity *entity, Memory_Arena *arena);
 inline Entity *maybe_get_entity(i32 id, Context *context = NULL);
 
 Vector2 get_entity_velocity(Entity *entity);

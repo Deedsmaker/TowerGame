@@ -88,7 +88,7 @@ void pop_log_indentation() {
 }
 
 inline void log(String message, u64 flags) { 
-    String_Builder builder = {.allocator = temp};
+    String_Builder builder = {.arena = temp};
     
     for (i32 i = 0; i < logs_indentation_count; i++) {
         builder_append(&builder, tstring("\t"));    

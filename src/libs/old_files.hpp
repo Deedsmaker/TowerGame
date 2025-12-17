@@ -9,10 +9,10 @@ struct Old_File {
     b32 loaded = false;
     String name;
     Array<String> lines = {0};
-    Allocator *allocator;
+    Memory_Arena *allocator;
 };
 
-Old_File old_load_file(const char *name, const char *mode, Allocator *allocator){
+Old_File old_load_file(const char *name, const char *mode, Memory_Arena *allocator){
     Old_File loaded_file = {0};
     init_array(&loaded_file.lines, 128, allocator);
     //loaded_file.name = (char*)malloc(str_len(name) * sizeof(char));

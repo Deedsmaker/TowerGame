@@ -1238,7 +1238,7 @@ enum Context_Flags {
 
 struct Context {
     String name = {0};
-    Allocator memory_arena = {0};
+    Memory_Arena memory_arena = {0};
 
     u64 flags = 0;
 
