@@ -667,6 +667,8 @@ enum Player_States : FLAGS {
     PREPARING_SWORD             = 0x8,
     SWORD_ATTACKING             = 0x10,
     JUST_ENDED_PREPARING_ATTACK = 0x20,
+    BOOSTED_LEFT_WALL           = 0x40,
+    BOOSTED_RIGHT_WALL          = 0x80,
 };
 
 struct Player {
@@ -677,14 +679,12 @@ struct Player {
         f32 died_time = -12;
         f32 air_jump_press_time = -12;
         f32 jump_press_time = -12;
-        f32 wall_jump_time = -12;
         f32 since_jump_timer = 0;
         f32 since_airborn_timer = 0;
         f32 rifle_shake_start_time = 0;
         f32 rifle_activate_time = 0;
         f32 rifle_shoot_time = 0;
         f32 last_bullet_shot_time = -12;
-        f32 wall_enter_vertical_boost_time = -12;
         f32 hit_booster_time = -12;
         f32 slowmo_timer = 0;
     };
