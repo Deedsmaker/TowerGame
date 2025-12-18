@@ -1,6 +1,6 @@
 name Texture_LevelLoader 
  id 23 
- position { -210.266922,  146.451706} 
+ position { -220.000000,  147.500000} 
  scale { 25.000000,  16.000000} 
  pivot { 0.500000,  0.500000} 
  rotation 0.000000 
@@ -13,6 +13,5 @@ name Texture_LevelLoader
  spawn_enemy_when_no_ammo 0 
  texture_name LevelLoader 
  level_loader_is_open 0 
- level_name_to_load 
-planning_turret_wall1 
+ level_name_to_load planning_turret_wall1 
  

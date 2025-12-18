@@ -1156,7 +1156,7 @@ void update_movement(Entity *entity, Player *player_data, Input input, f32 dt) {
                 make_texture(*get_texture("ArrowSign"), entity->position + Vector2_up * entity->scale.y * 4, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
                 
                 if (input.press_flags & UP_KEY_PRESSED && other->level_loader->level_to_load.count > 0) {
-                    load_level(other->level_loader->level_to_load);
+                    load_level(other->level_loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
                     return;
                 }
             }

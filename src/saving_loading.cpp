@@ -445,12 +445,14 @@ void create_level(String name) {
 
 enum Load_Flags {
     ENTER_GAME_STATE_AFTER = 0x1,  
+    ERROR_IF_NO_SUCH_LEVEL = 0x2,
 };
 
 global_variable b32 prepared_loaded_level = false;
 global_variable u64 last_load_flags = 0;
 
 void finish_load_level() {
+    clean_up_scene();
     clear_context(&game_context);
     
     // This shit so that we don't overwrite level that we currently on.
@@ -496,14 +498,20 @@ b32 load_level(String name, u64 load_flags = 0) {
     
     
     if (!directory_exists(level_path)) {
-        builder_append(&console.content_builder, S("Level does not exists! Will create new"));
-        create_level(name);
-        return true;
+        if (load_flags & ERROR_IF_NO_SUCH_LEVEL) {
+            log(string(temp, "No level named %s", c_str(name)), LOG_ERROR);
+            game_log(string(temp, "No level named %s", c_str(name)));
+            return false;
+        } else {
+            builder_append(&console.content_builder, S("Level does not exists! Will create new"));
+            create_level(name);
+            return true;
+        }
     }
     
     log(tstring("Loading level %s", c_str(level_path)), PUSH_INDENTATION);
     
-    clean_up_scene();
+    // clean_up_scene();
     // switch_current_context(&loaded_context, true);
     clear_context(&loaded_context);
     
