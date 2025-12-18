@@ -2184,6 +2184,8 @@ void clean_up_scene() {
         }
     }
 
+    current_context->player.standing_on_entities.clear();
+
     state_context = {0};
     checkpoint_trigger_id = -1;
     
@@ -2704,6 +2706,23 @@ Cam get_cam_for_resolution(i32 width, i32 height) {
     return cam;
 }
 
+inline void update_standing_on_entities(Entity *player_entity, Player *player) {
+    if (!player_entity || !player) return;
+
+    For (&player->standing_on_entities) {
+        auto other = *it;
+        if (other->flags & LEVEL_LOADER) {
+            if (other->flags & LEVEL_LOADER) {              
+                make_texture(*get_texture("ArrowSign"), player_entity->position + Vector2_up * player_entity->scale.y * 4, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
+                
+                if (input.press_flags & UP_KEY_PRESSED && other->level_loader->level_to_load.count > 0) {
+                    load_level(other->level_loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
+                }
+            }
+        }
+    }
+}
+
 void update_game() {
     if (prepared_loaded_level) {
         finish_load_level();
@@ -3041,6 +3060,8 @@ void update_game() {
     } else {
         fixed_game_update(current_context, core.time.real_dt);
     }
+    
+    update_standing_on_entities(current_context->player_entity, &current_context->player);
     
     // Update speedrun timer.
     if (editor_state == GAME && (global_data.speedrun_timer.level_timer_active || global_data.speedrun_timer.game_timer_active)) {

@@ -1058,7 +1058,8 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
             } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
                 // Here 90 is straight wall.
                 f32 wall_angle = fangle(col.normal, Vector2_up);
-                // That's looks a bit complicated so here's explanation.
+                // That's looks a bit complicated so here's explanation:
+                //
                 // Angles that we might consider "wall" is 45..90, so part with "-0.5f" and "* 2" is for 
                 // remaping angle to 0..1, where 1 will be straight wall. Next we do "1 - x", so now angle 45 will be maximum power
                 // and 90 is no additional down power at all.
@@ -1115,6 +1116,8 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         Vector2 last_collision_point = Vector2_zero;
         Vector2 last_collision_normal = Vector2_one;
         
+        player->standing_on_entities.clear();
+        
         b32 moving_object_detected = false;
         // Player ground checker.
         FLAGS player_ground_collision_flags = collision_flags;
@@ -1150,14 +1153,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
                 }
             }
             
-            if (other->flags & LEVEL_LOADER) {              
-                make_texture(*get_texture("ArrowSign"), entity->position + Vector2_up * entity->scale.y * 4, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
-                
-                if (input.press_flags & UP_KEY_PRESSED && other->level_loader->level_to_load.count > 0) {
-                    load_level(other->level_loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
-                    return;
-                }
-            }
+            player->standing_on_entities.append(other);
             
             if (other->flags & NO_MOVE_BLOCK) {
                 found_no_move_block = true;
