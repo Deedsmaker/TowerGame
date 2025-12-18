@@ -74,17 +74,23 @@ void update_input_field(){
 
         while (key > 0)
         {
-            if ((key >= 32) && (key <= 125) && (focus_input_field.chars_count < INPUT_FIELD_MAX_CHARS))
+            if ((key >= 32) && (focus_input_field.chars_count < INPUT_FIELD_MAX_CHARS))
             {
                 just_focused = false;
                 int content_len = str_len(focus_input_field.content);
-                char char_key = (char)key;
+                // char char_key = (char)key;
                 
-                //NO SPACES OR SLASHES FIRST
-                if ((char_key != ' ' && char_key != '/') || content_len > 0){
-                    focus_input_field.content[focus_input_field.chars_count] = char_key;
-                    focus_input_field.content[focus_input_field.chars_count+1] = '\0';
-                    focus_input_field.chars_count++;
+                // NO SPACES OR SLASHES FIRST
+                if ((key != ' ' && key != '/') || content_len > 0){
+                    
+                    int len = 0;
+                    const char *str = CodepointToUTF8(key, &len);                    
+                    for (i32 i = 0; i < len; i++) {
+                        char character = str[i];
+                        focus_input_field.content[focus_input_field.chars_count] = character;
+                        focus_input_field.content[focus_input_field.chars_count+1] = '\0';
+                        focus_input_field.chars_count++;
+                    }
                     
                     focus_input_field.changed = true;
                 }

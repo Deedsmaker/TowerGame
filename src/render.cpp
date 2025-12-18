@@ -5,6 +5,7 @@ Font main_font = {0};
 void init_fonts() {
     Array <i32> codepoints = {.arena = temp};
     
+    // To the cyrillic codepoints.
     for (int i = 0; i <= 0x04FF ; i++) {
         codepoints.append(i);
     }
