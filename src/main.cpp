@@ -1,5 +1,9 @@
 #define _CRT_SECURE_NO_DEPRECATE
 
+#ifndef UNICODE
+    #define UNICODE
+#endif
+
 #include <stdio.h>
 #include <stdlib.h> 
 //#include <string.h>

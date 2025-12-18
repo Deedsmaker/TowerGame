@@ -2089,12 +2089,14 @@ void load_render() {
     global_illumination_shader = load_shader(0, "./resources/shaders/global_illumination1.fs");
 }
 
+
 void init_game() {
     push_performance_timer();
     log(tstring("Initing game."), PUSH_INDENTATION);
 
+    init_fonts();
+
     initing_game = true;
-    
     
     init_context(&spawn_objects_context, tstring("spawn_objects_context"));
     
@@ -9245,8 +9247,8 @@ void draw_game() {
     }
     
     if (debug.info_particle_count) {
-        draw_text(tprintf("Particles count: %d", enabled_particles_count), 10, v_pos, font_size, RED);
-        v_pos += font_size;
+        // draw_text(tprintf("Particles count: %d", enabled_particles_count), 10, v_pos, font_size, RED);
+        // v_pos += font_size;
     }
     
     if (debug.info_player_speed) {

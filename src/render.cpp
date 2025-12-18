@@ -2,6 +2,15 @@
 
 Font main_font = {0};
 
+void init_fonts() {
+    Array <i32> codepoints = {.arena = temp};
+    
+    for (int i = 0; i <= 0x04FF ; i++) {
+        codepoints.append(i);
+    }
+
+    main_font = LoadFontEx("Inter-VariableFont_opsz,wght.ttf", 72, codepoints.data, codepoints.count);
+}
 
 inline void draw_texture(Texture tex, Vector2 pos, Color tint){
     DrawTextureV(tex, pos, tint);
@@ -90,7 +99,7 @@ inline void draw_line(Vector2 start, Vector2 end, f32 thick, Color color){
 
 inline void draw_text(const char *text, Vector2 pos, float size, Color color){
     // DrawTextEx(main_font, text, pos, size, 2, color);
-    DrawText(text, pos.x, pos.y, size, color);
+    DrawTextEx(main_font, text, pos, size, 2, color);
 }
 
 inline void draw_text(const char *text, float x, float y, float size, Color color){
@@ -132,7 +141,8 @@ void draw_text_boxed(const char *text, Rectangle rec, float fontSize, float spac
     float textOffsetY = 0;        
     float textOffsetX = 0.0f;     
 
-    Font font = GetFontDefault();
+    // Font font = GetFontDefault();
+    Font font = main_font;
     float scaleFactor = fontSize/(float)font.baseSize; 
 
     // Word/character wrapping mechanism variables
