@@ -2715,10 +2715,15 @@ inline void update_standing_on_entities(Entity *player_entity, Player *player) {
         auto other = *it;
         if (other->flags & LEVEL_LOADER) {
             if (other->flags & LEVEL_LOADER) {              
-                make_texture(*get_texture("ArrowSign"), player_entity->position + Vector2_up * player_entity->scale.y * 4, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
+                auto loader = other->level_loader;
+            
+                make_texture(*get_texture("ArrowSign"), player_entity->position + Vector2_up * player_entity->scale.y * 6, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
                 
-                if (input.press_flags & UP_KEY_PRESSED && other->level_loader->level_to_load.count > 0) {
-                    load_level(other->level_loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
+                Vector2 pos = {300, 300};
+                Old::make_ui_text(c_str(loader->level_to_load), pos, 60, WHITE, "level_loader_text");
+                
+                if (input.press_flags & UP_KEY_PRESSED && loader->level_to_load.count > 0) {
+                    load_level(loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
                 }
             }
         }
