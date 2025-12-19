@@ -1035,9 +1035,11 @@ void init_spawn_objects() {
     }
     
     {
-        auto level_loader_entity = add_entity({0, 0}, {25, 16}, {0.5f, 0.5f}, 0, LEVEL_LOADER);
+        auto level_loader_entity = add_entity({0, 0}, {25, 16}, {0.5f, 0.5f}, 0, LEVEL_LOADER | TRIGGER);
         level_loader_entity->color = WHITE;
         setup_color_changer(level_loader_entity);
+        
+        remove_flag(&level_loader_entity->trigger->settings, PLAYER_TOUCH);
         
         Spawn_Object level_loader_object = {0};
         level_loader_object.entity = level_loader_entity;
@@ -2717,13 +2719,16 @@ inline void update_standing_on_entities(Entity *player_entity, Player *player) {
             if (other->flags & LEVEL_LOADER) {              
                 auto loader = other->level_loader;
             
-                make_texture(*get_texture("ArrowSign"), player_entity->position + Vector2_up * player_entity->scale.y * 6, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
+                Color color = loader->flags & LEVEL_LOADER_OPEN ? WHITE : ColorBrightness(WHITE, -0.4f);
                 
-                Vector2 pos = {300, 300};
-                Old::make_ui_text(c_str(loader->level_to_load), pos, 60, WHITE, "level_loader_text");
+                Vector2 pos = {screen_width * 0.4f, 300};
+                Old::make_ui_text(c_str(loader->level_to_load), pos, 60, color, "level_loader_text");
                 
-                if (input.press_flags & UP_KEY_PRESSED && loader->level_to_load.count > 0) {
-                    load_level(loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
+                if (loader->flags & LEVEL_LOADER_OPEN) {
+                    make_texture(*get_texture("ArrowSign"), player_entity->position + Vector2_up * player_entity->scale.y * 6, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
+                    if (input.press_flags & UP_KEY_PRESSED && loader->level_to_load.count > 0) {
+                        load_level(loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
+                    }
                 }
             }
         }
@@ -3717,7 +3722,25 @@ void update_editor_ui() {
             }
         }
         
-        // trigger inspector
+        // Level loader inspector.
+        if (selected->flags & LEVEL_LOADER) {
+            auto loader = selected->level_loader;
+        
+            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Level loader settings", "level_loader_settings")) {
+                editor.draw_level_loader_settings = !editor.draw_level_loader_settings;
+            }
+            v_pos += height_add;
+            
+            INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LEVEL_LOADER_OPEN, );
+            Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
+            if (make_input_field(c_str(loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
+                loader->level_to_load.free_data();
+                loader->level_to_load = string(HEAP_ALLOCATOR, focus_input_field.content);
+            }
+            v_pos += height_add;
+        } // End level loader inspector.
+        
+        // Trigger inspector.
         if (selected->flags & TRIGGER) {
             if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Trigger settings", "trigger_settings")) {
                 editor.draw_trigger_settings = !editor.draw_trigger_settings;
@@ -3820,24 +3843,6 @@ void update_editor_ui() {
             Old::make_ui_text("Trigger settings:", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
             type_info_v_pos += type_font_size;
         }
-        
-        // Level loader inspector.
-        if (selected->flags & LEVEL_LOADER) {
-            if (Old::make_button({inspector_position.x + inspector_size.x * 0.05f, v_pos}, {inspector_size.x * 0.9f, height_add}, "Level loader settings", "level_loader_settings")) {
-                editor.draw_level_loader_settings = !editor.draw_level_loader_settings;
-            }
-            v_pos += height_add;
-            
-            Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
-            if (make_input_field(c_str(selected->level_loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
-                selected->level_loader->level_to_load.free_data();
-                selected->level_loader->level_to_load = string(HEAP_ALLOCATOR, focus_input_field.content);
-            }
-            v_pos += height_add;
-            
-            Old::make_ui_text("Level loader settings::", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, SKYBLUE * 0.9f, "trigger_settings");
-            type_info_v_pos += type_font_size;
-        } // End level loader inspector.
         
         if (selected->flags & KILL_SWITCH) {
             Old::make_ui_text("Clear ALL Connected: Ctrl+L", {inspector_position.x - 150, (f32)screen_height - type_info_v_pos}, type_font_size, ColorBrightness(RED, -0.2f), "kill_switch_clear");
@@ -5306,7 +5311,7 @@ void update_editor() {
         }
     }
     
-    //editor components management
+    // Editor components management.
     if (editor.selected) {
         Entity *selected = editor.selected;
         if (selected->flags & TRIGGER) {
@@ -5382,7 +5387,7 @@ void update_editor() {
                 selected->trigger->cam_rails_points.clear();
                 undo_mark_entity_changed(selected);
             }
-        }
+        } // End if TRIGGER.
         
         if (selected->flags & KILL_SWITCH) {
             b32 wanna_assign = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_A);
@@ -5414,6 +5419,10 @@ void update_editor() {
                 kill_switch->connected.clear();
                 undo_mark_entity_changed(selected);
             }
+        } // End if KILL_SWITCH.
+        
+        if (selected->flags & LEVEL_LOADER) {
+            
         }
         
         // editor enemy components
@@ -6763,6 +6772,10 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     if (connected->flags & TURRET) {
         activate_turret(connected);
     }
+    
+    if (connected->flags & LEVEL_LOADER) {
+        connected->level_loader->flags |= LEVEL_LOADER_OPEN;
+    }
 }
 
 i32 update_trigger(Entity *e) {
@@ -7169,6 +7182,15 @@ inline b32 update_entity(Entity *e, f32 dt) {
     update_color_changer(e, dt);            
     
     Entity *player_entity = current_context->player_entity;
+    
+    if (e->flags & LEVEL_LOADER) {
+        auto loader = e->level_loader;
+        if (loader->flags & LEVEL_LOADER_OPEN) {
+            e->color = WHITE;
+        } else {
+            e->color = ColorBrightness(WHITE, -0.4f);
+        }
+    }
     
     //update light on entity (Lights itself updates in separate place).
     if (e->flags & LIGHT) {
@@ -8608,7 +8630,6 @@ void draw_entities() {
 
     //Hash_Table_Int<Entity> *entities = &current_context->entities;
     Array <Entity> *entities = &global_data.entities_draw_queue;
-
     
     for (i32 entity_index = 0; entity_index < entities->count; entity_index++) {
         Entity *e = entities->get(entity_index);

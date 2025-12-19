@@ -450,10 +450,14 @@ struct Move_Sequence {
 struct Win_Block : Enemy {
 };
 
+enum Level_Loader_Flags {
+    LEVEL_LOADER_OPEN = 0x1,  
+};
+
 struct Level_Loader {
     Entity *entity = NULL;
     
-    b32 is_open = false;
+    u64 flags = 0;
     
     String level_to_load = {0};
     

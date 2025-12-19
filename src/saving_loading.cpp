@@ -278,16 +278,16 @@ void save_level(String level_name) {
         if (e->flags & LEVEL_LOADER) {
             auto loader = e->level_loader;
             
-            builder_append(&b, tstring("level_loader_is_open %d \n ", loader->is_open));
+            builder_append(&b, tstring("level_loader_flags %lld \n ", loader->flags));
             builder_append(&b, tstring("level_name_to_load %s \n ", c_str(loader->level_to_load)));
             
-            if (loader->levels_to_open.count > 0) {
-                builder_append(&b, S("level_loader_levels_to_open [  "));
-                for (i32 v = 0; v < loader->levels_to_open.count; v++) {
-                    builder_append(&b, tstring(" %d ", loader->levels_to_open.get_value(v))); 
-                }
-                builder_append(&b, S("] \n ")); 
-            }
+            // if (loader->levels_to_open.count > 0) {
+                // builder_append(&b, S("level_loader_levels_to_open [  "));
+                // for (i32 v = 0; v < loader->levels_to_open.count; v++) {
+                //     builder_append(&b, tstring(" %d ", loader->levels_to_open.get_value(v))); 
+                // }
+                // builder_append(&b, S("] \n ")); 
+            // }
 
         }
         
@@ -656,9 +656,9 @@ b32 load_level(String name, u64 load_flags = 0) {
             if (entity->flags & LEVEL_LOADER) {
                 auto loader = entity-> level_loader;
                 
-                IF_FIND("level_loader_is_open")        loader->is_open        = to_i32(splitted.get_value(i+1));
+                IF_FIND("level_loader_flags")          loader->flags          = to_u64(splitted.get_value(i+1));
                 IF_FIND("level_name_to_load")          loader->level_to_load  = copy_string(splitted.get_value(i+1), HEAP_ALLOCATOR);
-                IF_FIND("level_loader_levels_to_open") parse_i32_array(&loader->levels_to_open, &splitted, i+1);
+                // IF_FIND("level_loader_levels_to_open") parse_i32_array(&loader->levels_to_open, &splitted, i+1);
             }
             
             // Kill switch loading.
