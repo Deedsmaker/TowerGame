@@ -13,11 +13,7 @@ void record_completed_level(String name) {
     static const String FILE_NAME = S("levels/completed_levels.txt");
     b32 success = false;
     
-    if (file_exists(FILE_NAME) == false) {
-        goto append_level_name;
-    }
-    
-    {
+    if (file_exists(FILE_NAME)) {
         auto file_content = read_entire_file(FILE_NAME, &success, temp);
         if (!success) {
             log(string(temp, "Failed to read %s file for recording completed level!", c_str(FILE_NAME)), LOG_ERROR);
@@ -30,7 +26,6 @@ void record_completed_level(String name) {
         }
     }
     
-append_level_name:
     success = append_text_to_file(FILE_NAME, string(temp, "%s\n", c_str(name)));
     if (!success) {
         log(string(temp, "Failed to append level name %s to file %s", c_str(name), c_str(FILE_NAME)), LOG_ERROR);
