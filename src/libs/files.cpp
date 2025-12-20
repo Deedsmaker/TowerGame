@@ -25,6 +25,19 @@ String read_entire_file(String name, b32 *success, Memory_Arena *arena = HEAP_AL
 b32 write_entire_file(String name, String_Builder *builder) {
     return SaveFileText(c_str(name), (char *)c_str(builder));
 }
+
+b32 append_text_to_file(String file_name, String to_append) {
+    FILE *file = fopen(c_str(file_name), "a");
+    if (!file) {
+        return false;
+    }
+    
+    fprintf(file, c_str(to_append));
+    
+    fclose(file);
+    
+    return true;
+}
     
 b32 directory_exists(String name) {
     return DirectoryExists(c_str(name));

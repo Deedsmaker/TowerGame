@@ -5696,6 +5696,8 @@ void win_level() {
     if (!state_context.we_got_a_winner) {    
         state_context.we_got_a_winner = true;
         kill_player();
+        
+        record_completed_level(current_context->level_name);
     }
 }
 
