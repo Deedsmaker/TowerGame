@@ -21,7 +21,6 @@ void load_completed_levels() {
     b32 success = false;
     auto file_content = read_entire_file(COMPLETED_LEVELS_FILE_NAME, &success, temp);
     if (!success) {
-        log(string(temp, "Failed to read %s file for recording completed level!", c_str(COMPLETED_LEVELS_FILE_NAME)), LOG_ERROR);
         return;
     }
     
@@ -42,6 +41,20 @@ void record_completed_level(String name) {
     }
     
     global_data.completed_levels.append(copy_string(name, global_data.completed_levels.arena));
+}
+
+void clear_completed_levels() {
+    global_data.completed_levels.clear();
+    if (!file_exists(COMPLETED_LEVELS_FILE_NAME)) {
+        return;
+    }
+       
+    b32 success = write_entire_file(COMPLETED_LEVELS_FILE_NAME, S(""));
+    if (!success) {
+        log(string(temp, "Failed to clear %s file!", c_str(COMPLETED_LEVELS_FILE_NAME)), LOG_ERROR);
+    }
+    
+    validate_level_loaders(current_context);
 }
 
 void load_level_order() {

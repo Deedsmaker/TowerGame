@@ -404,6 +404,8 @@ void init_console() {
     
     console.commands.append(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale));
     
+    console.commands.append(make_console_command("clear_completed_levels", clear_completed_levels, NULL));
+    
     // console.commands.append(make_console_command("create",    print_create_level_hint, create_level));
     // console.commands.append(make_console_command("new_level", print_create_level_hint, create_level));
     

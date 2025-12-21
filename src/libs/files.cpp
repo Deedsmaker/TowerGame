@@ -26,6 +26,10 @@ b32 write_entire_file(String name, String_Builder *builder) {
     return SaveFileText(c_str(name), (char *)c_str(builder));
 }
 
+b32 write_entire_file(String name, String string) {
+    return SaveFileText(c_str(name), (char *)c_str(string));
+}
+
 b32 append_text_to_file(String file_name, String to_append) {
     FILE *file = fopen(c_str(file_name), "a");
     if (!file) {
