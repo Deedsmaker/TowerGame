@@ -1,4 +1,3 @@
 planning_turret_wall1
-
-simple_flick1
 planning_turret_wall2
+simple_flick1

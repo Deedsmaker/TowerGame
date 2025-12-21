@@ -1364,6 +1364,8 @@ struct State_Context { // @TODO: How can we rename this?
 struct Global_Data{
     Array <Entity> entities_draw_queue = {};
     
+    Array <String> completed_levels = {0};
+    
     // Array <Light> temp_lights = {};
     
     i32 temp_lights_count = 512;

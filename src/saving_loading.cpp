@@ -9,28 +9,39 @@ String level_name_to_path(String name) {
     return tstring("levels/%s", c_str(name));
 }
 
-void record_completed_level(String name) {
-    static const String FILE_NAME = S("levels/completed_levels.txt");
-    b32 success = false;
+static const String COMPLETED_LEVELS_FILE_NAME = S("levels/completed_levels.txt");
+void load_completed_levels() { 
+    For (&global_data.completed_levels) it->free_data();
+    global_data.completed_levels.clear();  
     
-    if (file_exists(FILE_NAME)) {
-        auto file_content = read_entire_file(FILE_NAME, &success, temp);
-        if (!success) {
-            log(string(temp, "Failed to read %s file for recording completed level!", c_str(FILE_NAME)), LOG_ERROR);
-            return;
-        }
-        
-        b32 record_exists = string_contains(file_content, name);
-        if (record_exists) {
-            return;
-        }
-    }
-    
-    success = append_text_to_file(FILE_NAME, string(temp, "%s\n", c_str(name)));
-    if (!success) {
-        log(string(temp, "Failed to append level name %s to file %s", c_str(name), c_str(FILE_NAME)), LOG_ERROR);
+    if (!file_exists(COMPLETED_LEVELS_FILE_NAME)) {
         return;
     }
+    
+    b32 success = false;
+    auto file_content = read_entire_file(COMPLETED_LEVELS_FILE_NAME, &success, temp);
+    if (!success) {
+        log(string(temp, "Failed to read %s file for recording completed level!", c_str(COMPLETED_LEVELS_FILE_NAME)), LOG_ERROR);
+        return;
+    }
+    
+    auto completed_in_file = split_string(file_content, S("\n "), global_data.completed_levels.arena);
+    global_data.completed_levels.append_another_array(&completed_in_file);
+    completed_in_file.free_data();
+}
+
+void record_completed_level(String name) {
+    if (global_data.completed_levels.contains(name)) {
+        return;
+    }
+
+    b32 success = append_text_to_file(COMPLETED_LEVELS_FILE_NAME, string(temp, "%s\n", c_str(name)));
+    if (!success) {
+        log(string(temp, "Failed to append level name %s to file %s", c_str(name), c_str(COMPLETED_LEVELS_FILE_NAME)), LOG_ERROR);
+        return;
+    }
+    
+    global_data.completed_levels.append(copy_string(name, global_data.completed_levels.arena));
 }
 
 void load_level_order() {
@@ -478,6 +489,8 @@ global_variable u64 last_load_flags = 0;
 void finish_load_level() {
     clean_up_scene();
     clear_context(&game_context);
+    
+    validate_level_loaders(&loaded_context);
     
     // This shit so that we don't overwrite level that we currently on.
     do {

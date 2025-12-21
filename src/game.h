@@ -83,6 +83,8 @@ inline Collision get_ray_collision_to_player(Entity *entity, FLAGS collision_fla
 
 void kill_player();
 
+void trigger_entity(Entity *trigger_entity, Entity *entity);
+
 b32 is_action_queued(Repeat_Action *repeat_data, b32 pressed, b32 hold);
 
 b32 is_enemy_should_trigger_death_instinct(Entity *entity, Vector2 velocity, Vector2 dir_to_player, f32 distance_to_player, b32 check_if_flying_towards);
@@ -298,3 +300,5 @@ void change_right(Entity *entity, Vector2 new_right);
 void rotate_to(Entity *entity, f32 new_rotation, b32 add_to_undo = false);
 inline void rotate(Entity *entity, f32 rotation, b32 add_to_undo = false);
 void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation);
+
+void validate_level_loaders(Context *context);

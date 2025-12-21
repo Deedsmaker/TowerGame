@@ -1,12 +1,30 @@
 #pragma once
 
-inline void level_loader_validate_color(Entity *entity) {
+inline void level_loader_validate(Entity *entity) {
     auto loader = entity->level_loader;
     
-    if (loader->flags & LEVEL_LOADER_OPEN) {
-        change_color(entity, WHITE);
-    } else {
-        change_color(entity, ColorBrightness(WHITE, -0.4f));
+    // Here we will check if level loader level is completed and if it is - trigger all connected entities
+    // so any connected level loaders will become open.
+    //
+    // We don't check if level loader itself is open now on purpuse - becauase that way check order will not matter and we probably 
+    // will see any bugs visually anyway.
+    // (For clarification - loader "open" means that we can enter level from that level loader
+    // and "connected" would be mainly other level loaders that we will want to "open" after that level is completed.
+    // Could happen that we will "open" other level loaders before current loader itself is considered open, 
+    // but that situation should occur only during loading).
+    
+    b32 level_completed = global_data.completed_levels.contains(loader->level_to_load);
+    if (level_completed) {
+        For (&entity->trigger->connected) {
+            auto connected = get_entity(*it, entity->context);
+            trigger_entity(entity, connected);
+        }
+    }
+}
+
+void validate_level_loaders(Context *context) {
+    for_chunk_array(i, &context->level_loaders) {
+        level_loader_validate(context->level_loaders.get(i)->entity);
     }
 }
 

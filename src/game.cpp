@@ -1629,7 +1629,7 @@ void init_entity(Entity *entity) {
         entity->texture = get_texture("LevelLoader");
         strcpy(entity->texture_name, "LevelLoader");
         
-        level_loader_validate_color(entity);
+        // level_loader_validate(entity);
     }
     
     // That's for things that we want to init for every enemy.
@@ -2100,6 +2100,7 @@ void init_game() {
     log(tstring("Initing game."), PUSH_INDENTATION);
 
     init_fonts();
+    load_completed_levels();
 
     initing_game = true;
     
@@ -3720,7 +3721,7 @@ void update_editor_ui() {
             }
             v_pos += height_add;
             
-            INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LEVEL_LOADER_OPEN, level_loader_validate_color(selected));
+            INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LEVEL_LOADER_OPEN, level_loader_validate(selected));
             Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
             if (make_input_field(c_str(loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
                 loader->level_to_load.free_data();
@@ -6766,7 +6767,6 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     
     if (connected->flags & LEVEL_LOADER) {
         connected->level_loader->flags |= LEVEL_LOADER_OPEN;
-        level_loader_validate_color(connected);
     }
 }
 
@@ -8217,6 +8217,15 @@ void draw_entity(Entity *e) {
     }
     
     b32 drawed_texture = false;
+    
+    if (e->flags & LEVEL_LOADER) {
+        auto loader = e->level_loader;
+        if (loader->flags & LEVEL_LOADER_OPEN) {
+            change_color(e, WHITE);
+        } else {
+            change_color(e, ColorBrightness(WHITE, -0.4f));
+        }
+    }
     
     if (e->texture) {
         // draw texture

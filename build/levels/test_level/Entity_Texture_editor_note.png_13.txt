@@ -12,6 +12,6 @@ name Texture_editor_note.png
  hidden 0 
  spawn_enemy_when_no_ammo 0 
  texture_name editor_note.png 
- note_content "                                       wrte                                       " 
+ note_content "                                        wrte                                        " 
  note_draw_in_game 0 
  
