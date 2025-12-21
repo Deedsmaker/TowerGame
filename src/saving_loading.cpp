@@ -882,3 +882,8 @@ b32 maybe_load_next_level() {
     
     return false;
 }
+
+void load_hub_level() {
+    load_level(S("hub"), ENTER_GAME_STATE_AFTER);
+}
+

@@ -450,6 +450,7 @@ struct Win_Block : Enemy {
 
 enum Level_Loader_Flags {
     LEVEL_LOADER_OPEN = 0x1,  
+    LEVEL_LOADER_BIG = 0x2,  
 };
 
 struct Level_Loader {

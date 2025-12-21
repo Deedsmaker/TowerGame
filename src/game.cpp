@@ -168,6 +168,7 @@ inline b32 is_entity_static(Entity *entity) {
 #include "player.cpp"
 #include "bird_enemy.cpp"
 #include "level_loader.cpp"
+#include "game_ui.cpp"
 
 void setup_context_cam(Context *context) {
     context->cam.width = global_cam_data.width;
@@ -1047,6 +1048,20 @@ void init_spawn_objects() {
         str_copy(level_loader_object.name, "level_loader");
         spawn_objects.append(level_loader_object);
     }
+    {
+        auto big_level_loader_entity = add_entity({0, 0}, {50, 16}, {0.5f, 0.5f}, 0, LEVEL_LOADER | TRIGGER);
+        big_level_loader_entity->color = WHITE;
+        setup_color_changer(big_level_loader_entity);
+        
+        big_level_loader_entity->level_loader->flags |= LEVEL_LOADER_BIG;
+        
+        remove_flag(&big_level_loader_entity->trigger->settings, PLAYER_TOUCH);
+        
+        Spawn_Object big_level_loader_object = {0};
+        big_level_loader_object.entity = big_level_loader_entity;
+        str_copy(big_level_loader_object.name, "big_level_loader");
+        spawn_objects.append(big_level_loader_object);
+    }
     
     auto agro_area_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     agro_area_entity->color = Fade(VIOLET, 0.6f);
@@ -1625,9 +1640,16 @@ void init_entity(Entity *entity) {
     }
     
     if (entity->flags & LEVEL_LOADER) { // Init level loader.
-        entity->level_loader->entity = entity;
-        entity->texture = get_texture("LevelLoader");
-        strcpy(entity->texture_name, "LevelLoader");
+        auto loader = entity->level_loader;
+        loader->entity = entity;
+        
+        if (loader->flags & LEVEL_LOADER_BIG) {
+            entity->texture = get_texture("LevelLoader_Big");
+            strcpy(entity->texture_name, "LevelLoader_Big");
+        } else {
+            entity->texture = get_texture("LevelLoader");
+            strcpy(entity->texture_name, "LevelLoader");
+        }
         
         // level_loader_validate(entity);
     }
@@ -2168,7 +2190,7 @@ void init_game() {
     if (0 && RELEASE_BUILD) {
         str_copy(level_name_to_load, first_level_name);
     } else {
-        str_copy(level_name_to_load, "test_level");
+        str_copy(level_name_to_load, "hub");
     }
     
     load_level_order();
@@ -3064,6 +3086,7 @@ void update_game() {
     }
     
     update_standing_on_entities(current_context->player_entity, &current_context->player);
+    update_ui(current_context);
     
     // Update speedrun timer.
     if (editor_state == GAME && (global_data.speedrun_timer.level_timer_active || global_data.speedrun_timer.game_timer_active)) {
