@@ -167,6 +167,7 @@ inline b32 is_entity_static(Entity *entity) {
 #include "console.cpp"
 #include "player.cpp"
 #include "bird_enemy.cpp"
+#include "level_loader.cpp"
 
 void setup_context_cam(Context *context) {
     context->cam.width = global_cam_data.width;
@@ -1627,6 +1628,8 @@ void init_entity(Entity *entity) {
         entity->level_loader->entity = entity;
         entity->texture = get_texture("LevelLoader");
         strcpy(entity->texture_name, "LevelLoader");
+        
+        level_loader_validate_color(entity);
     }
     
     // That's for things that we want to init for every enemy.
@@ -2716,21 +2719,7 @@ inline void update_standing_on_entities(Entity *player_entity, Player *player) {
     For (&player->standing_on_entities) {
         auto other = *it;
         if (other->flags & LEVEL_LOADER) {
-            if (other->flags & LEVEL_LOADER) {              
-                auto loader = other->level_loader;
-            
-                Color color = loader->flags & LEVEL_LOADER_OPEN ? WHITE : ColorBrightness(WHITE, -0.4f);
-                
-                Vector2 pos = {screen_width * 0.4f, 300};
-                Old::make_ui_text(c_str(loader->level_to_load), pos, 60, color, "level_loader_text");
-                
-                if (loader->flags & LEVEL_LOADER_OPEN) {
-                    make_texture(*get_texture("ArrowSign"), player_entity->position + Vector2_up * player_entity->scale.y * 6, Vector2_one * 15, {0.5f, 0.5f}, -90, WHITE);
-                    if (input.press_flags & UP_KEY_PRESSED && loader->level_to_load.count > 0) {
-                        load_level(loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
-                    }
-                }
-            }
+            update_standing_on_level_loader(other, player_entity);
         }
     }
 }
@@ -3731,7 +3720,7 @@ void update_editor_ui() {
             }
             v_pos += height_add;
             
-            INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LEVEL_LOADER_OPEN, );
+            INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LEVEL_LOADER_OPEN, level_loader_validate_color(selected));
             Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
             if (make_input_field(c_str(loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
                 loader->level_to_load.free_data();
@@ -6777,6 +6766,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     
     if (connected->flags & LEVEL_LOADER) {
         connected->level_loader->flags |= LEVEL_LOADER_OPEN;
+        level_loader_validate_color(connected);
     }
 }
 
@@ -7186,12 +7176,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
     Entity *player_entity = current_context->player_entity;
     
     if (e->flags & LEVEL_LOADER) {
-        auto loader = e->level_loader;
-        if (loader->flags & LEVEL_LOADER_OPEN) {
-            e->color = WHITE;
-        } else {
-            e->color = ColorBrightness(WHITE, -0.4f);
-        }
+        update_level_loader(e);
     }
     
     //update light on entity (Lights itself updates in separate place).
