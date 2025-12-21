@@ -5,8 +5,16 @@
 #include "memory_arena.cpp"
 #include "logger.h"
 
-String level_name_to_path(String name) {
-    return tstring("levels/%s", c_str(name));
+String level_name_to_path(String name, Memory_Arena *arena) {
+    return string(arena, "levels/%s", c_str(name));
+}
+
+b32 level_exists(String name, Memory_Arena *arena) {
+    auto path = level_name_to_path(name, arena);
+    
+    b32 result = directory_exists(path);    
+    
+    return result;
 }
 
 static const String COMPLETED_LEVELS_FILE_NAME = S("levels/completed_levels.txt");
@@ -31,6 +39,11 @@ void load_completed_levels() {
 
 void record_completed_level(String name) {
     if (global_data.completed_levels.contains(name)) {
+        return;
+    }
+    
+    if (!level_exists(name, temp)) {
+        log(string(temp, "Level %s does not exists and we've tried to record it's complition!", c_str(name)), LOG_ERROR);
         return;
     }
 
@@ -71,7 +84,7 @@ void load_level_order() {
 }
 
 void save_level(String level_name) {
-    String level_directory_name = level_name_to_path(level_name);
+    String level_directory_name = level_name_to_path(level_name, temp);
 
     b32 is_autosave = string_contains(level_directory_name, S("autosaves"));
     if (!is_autosave) {
@@ -470,7 +483,7 @@ String parse_string(String whole_data, i32 index, Memory_Arena *arena) {
 #define IF_FIND(str) if ((i = splitted.find(tstring(str))) >= 0)
 
 void create_level(String name) {
-    String path = level_name_to_path(name);
+    String path = level_name_to_path(name, temp);
     
     if (directory_exists(path)) {
         return;
@@ -544,7 +557,7 @@ b32 load_level(String name, u64 load_flags = 0) {
     // editor_state = EDITOR; // @TODO: Do we really need this? Edit: Right now yes, for convinience.
     
     global_data.playing_replay = false;
-    String level_path = level_name_to_path(name);
+    String level_path = level_name_to_path(name, temp);
     
     
     if (!directory_exists(level_path)) {

@@ -302,3 +302,4 @@ inline void rotate(Entity *entity, f32 rotation, b32 add_to_undo = false);
 void rotate_around_point(Vector2 *target, Vector2 origin, f32 rotation);
 
 void validate_level_loaders(Context *context);
+void win_level();

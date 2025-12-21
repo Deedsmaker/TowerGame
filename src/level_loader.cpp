@@ -46,6 +46,11 @@ inline void update_standing_on_level_loader(Entity *entity, Entity *player_entit
         
             load_level(loader->level_to_load, ERROR_IF_NO_SUCH_LEVEL | ENTER_GAME_STATE_AFTER);
         }
+        
+        if (IsKeyPressed(KEY_P)) {
+            record_completed_level(loader->level_to_load);
+            level_loader_validate(entity);
+        }
     }
 }
 
