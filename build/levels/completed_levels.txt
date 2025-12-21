@@ -1,2 +1,0 @@
-planning_turret_wall1
-planning_turret_wall2
