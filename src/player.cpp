@@ -879,6 +879,12 @@ void player_air_move(Entity *entity, Player *player, f32 dt) {
     }
 }
 
+b32 in_coyote_time(Player *player) {
+    static const f32 COYOTE_TIME = 0.08f;
+    b32 result = player->timers.since_airborn_timer <= COYOTE_TIME && player->timers.since_jump_timer > COYOTE_TIME;
+    return result;
+}
+
 void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
     if (player->dead_man) {
         return;
@@ -983,7 +989,10 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
             
         } 
         
-        player->velocity.y -= player->gravity * player->gravity_mult * dt;
+        b32 should_apply_gravity = !in_coyote_time(player);
+        if (should_apply_gravity) {
+            player->velocity.y -= player->gravity * player->gravity_mult * dt;
+        }
         
         if (player->velocity.y < max_downwards_speed) {
             player->velocity.y = lerp(player->velocity.y, max_downwards_speed, 30 * dt);
@@ -1011,7 +1020,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         
         b32 need_jump = (input.press_flags & JUMP && player->grounded)
                      || (player->grounded && time_since_air_jump_press <= player->jump_buffer_time) 
-                     || (input.press_flags & JUMP && player->timers.since_airborn_timer <= player->coyote_time && player->timers.since_jump_timer > player->coyote_time);
+                     || (input.press_flags & JUMP && in_coyote_time(player));
         
         // Player jump.
         if (need_jump) {

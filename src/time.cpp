@@ -58,7 +58,7 @@ i64 pop_performance_timer_milliseconds() {
     struct timespec *start = performance_timers.pop();
     if (!start) {
         log("Poped performance timer while no timers on the list!", LOG_ERROR);
-        return 0;   
+        return 0;
     }
 
     struct timespec end;

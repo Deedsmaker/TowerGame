@@ -8,8 +8,6 @@ typedef u64 FLAGS;
 // #define MAX_COLLISIONS 128
 #define MAX_ENTITY_EMITTERS 8
 #define GRAVITY 100
-#define PLAYER_MASS 10
-
 struct Context;
 
 #define LINE_TRAIL_MAX_POINTS 128
@@ -728,7 +726,6 @@ struct Player {
     f32 gravity_mult = 1;
     f32 max_blood_amount = 100;
     
-    f32 coyote_time = 0.3f;
     f32 jump_buffer_time = 0.2f;
     f32 wall_jump_buffer_time = 0.2f;
     

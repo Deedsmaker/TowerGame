@@ -670,7 +670,7 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     
     switch_current_context(original_context);
     // editor_state = original_game_state;
-}
+} // End copy context.
 
 void clear_context(Context *context) {
     // Remember that currently we init level context only in very beginnning, so nobody should set inited to false.
