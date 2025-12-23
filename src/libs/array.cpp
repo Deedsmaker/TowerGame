@@ -263,6 +263,7 @@ struct Array {
     }
     
     inline T *last() {
+        if (count == 0) return NULL;
         return &data[count - 1];
     }
     inline T last_value() {
@@ -402,6 +403,7 @@ struct Static_Array {
     }
     
     inline T *last() {
+        if (count == 0) return NULL;
         return &data[count - 1];
     }
     inline T last_value() {

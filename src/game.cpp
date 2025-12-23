@@ -2300,24 +2300,24 @@ void game_setup_collisions() {
     update_all_collision_cells(update_static_collision_cells);
 }
 
-void enter_gaming_state() {
+void enter_gaming_state(Context *from_context) {
     b32 should_init_entities = false;
     
     clean_up_scene();
     clear_context(&game_context);
     
-    planning_prepare_to_enter_gaming(current_context);
+    planning_prepare_to_enter_gaming(from_context);
     
-    copy_context(&game_context, current_context, should_init_entities);
+    copy_context(&game_context, from_context, should_init_entities);
     
     switch_current_context(&game_context);
     game_state = GAMING;
     
     state_context.we_got_a_winner = false;
     
-    if (!current_context->player_entity) {
-        current_context->player = {0};
-        add_player_entity(current_context, &current_context->player);
+    if (!game_context.player_entity) {
+        game_context.player = {0};
+        add_player_entity(&game_context, &game_context.player);
     }
     
     game_setup_collisions();
@@ -2339,24 +2339,26 @@ void enter_gaming_state() {
     current_context->cam.position = current_context->player_spawn_point;
 }
 
+// Currently do not pass here from which context enter and not copying anything in actual planning context because 
+// we can enter planning context from gaming state and we don't want anything changed.
+// It will probably be changed.
 void enter_planning_state(u64 enter_flags) {
     assert(editor_state == GAME);
-    
-    clean_up_scene();
-    
-    // if (current_context->flags & HUB_CONTEXT) {
-    //     enter_gaming_state();
-    // }
-    
-    game_state = GAME_PLANNING;
-    
-    clear_context(&game_context);
-    
-    switch_current_context(&planning_context);
     
     if (enter_flags & RESET_PLANNING_DATA) {
         reset_planning_data(&planning_context);
     }
+    
+    if (current_context->flags & HUB_CONTEXT) {
+        // Everything level related should be in plannig context at this point.
+        enter_gaming_state(&planning_context);
+        return;
+    }
+    
+    clean_up_scene();
+    game_state = GAME_PLANNING;
+    
+    switch_current_context(&planning_context);
     
     state_context.we_got_a_winner = false;
     
@@ -2526,7 +2528,7 @@ void fixed_game_update(Context *context, f32 dt) {
 
     if (game_state == GAME_PLANNING && editor_state == GAME) {
         if (input.press_flags & ENTER_GAMING_STATE) {
-            enter_gaming_state();
+            enter_gaming_state(&planning_context);
         } else {
             // Update_entities(-1);.
         }

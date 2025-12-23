@@ -143,8 +143,8 @@ void reset_planning_data(Context *context) {
     planning->selected_icon_index = 0;
     
     planning->nodes.clear();
-    planning->nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // First is the base node.
-    planning->nodes.append({.position = current_context->player_spawn_point, .type = SPACE_NODE}); // Second is the new node. We're always keeping node that will be spawned, even if we have no points for it.
+    planning->nodes.append({.position = context->player_spawn_point, .type = SPACE_NODE}); // First is the base node.
+    planning->nodes.append({.position = context->player_spawn_point, .type = SPACE_NODE}); // Second is the new node. We're always keeping node that will be spawned, even if we have no points for it.
     
     planning->current_space_points = 0;
     planning->current_item_points  = 0;
@@ -213,6 +213,7 @@ void planning_prepare_to_enter_gaming(Context *context) {
     // So when it will no longer exists (as on entering gaming state) - we'll mark it NO_NODE and removing entity that it was 
     // holding.
     auto corner_node = planning->nodes.last();
+    assert(corner_node);
     if (corner_node->entity != NULL) {
         mark_entity_destroyed(corner_node->entity);
         corner_node->entity = NULL;
