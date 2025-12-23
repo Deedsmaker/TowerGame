@@ -456,6 +456,7 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
         }
             
         if (player->sword_mode == SWORD_MODE) {
+            // Preparing sword for attack.
             if (player->sword_prepare_timer < player->SWORD_PREPARE_TIME) { 
                 player->sword_prepare_timer += dt;
                 
@@ -480,7 +481,8 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                     
                     player->to_spin_angle_amount = 1440;
                     
-                    player->velocity.x += 200 * player->sword_spin_direction;
+                    player->velocity.x = 200 * player->sword_spin_direction;
+                    player->velocity.y = 80;
                 }
             } 
             
@@ -908,8 +910,9 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
     } else if (player_in_hit_booster) {
           
     } else if (player->state_flags & PREPARING_SWORD) {
-        player->velocity.x = move_towards(player->velocity.x, 0.0f, 400, dt);
-        player->velocity.y = move_towards(player->velocity.y, 0.0f, 100, dt);
+        // player->velocity.x = move_towards(player->velocity.x, 0.0f, 400, dt);
+        // player->velocity.y = move_towards(player->velocity.y, 0.0f, 100, dt);
+        player->velocity = move_towards(player->velocity, Vector2_zero, 300, dt);
     } else if (player->state_flags & KILLING_CENTIPEDE) {
         assert(player->last_killed_segment);
         

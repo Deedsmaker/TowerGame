@@ -2303,6 +2303,9 @@ void game_setup_collisions() {
 void enter_gaming_state() {
     b32 should_init_entities = false;
     
+    clean_up_scene();
+    clear_context(&game_context);
+    
     planning_prepare_to_enter_gaming(current_context);
     
     copy_context(&game_context, current_context, should_init_entities);
@@ -2338,11 +2341,17 @@ void enter_gaming_state() {
 
 void enter_planning_state(u64 enter_flags) {
     assert(editor_state == GAME);
+    
+    clean_up_scene();
+    
+    // if (current_context->flags & HUB_CONTEXT) {
+    //     enter_gaming_state();
+    // }
+    
     game_state = GAME_PLANNING;
     
     clear_context(&game_context);
     
-    clean_up_scene();
     switch_current_context(&planning_context);
     
     if (enter_flags & RESET_PLANNING_DATA) {
