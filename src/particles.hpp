@@ -544,10 +544,12 @@ void setup_particles(){
     blood_pop_emitter_copy.gravity_multiplier = 0.1f;
     blood_pop_emitter_copy.color             = Fade(RED, 0.2f);
     blood_pop_emitter_copy.enabled           = true;
+    blood_pop_emitter_copy.additional_emitters.clear();
     blood_pop_emitter_copy.additional_emitters.append(&sword_sparks_emitter_copy);
     str_copy(blood_pop_emitter_copy.tag_16, "blood");
     
     sword_kill_medium_emitter_copy = blood_pop_emitter_copy;
+    sword_kill_medium_emitter_copy.additional_emitters.clear();
     sword_kill_medium_emitter_copy.additional_emitters.clear();
     sword_kill_medium_emitter_copy.additional_emitters.append(&sparks_emitter_copy);
     sword_kill_medium_emitter_copy.additional_emitters.append(&ultra_small_shockwave_emitter_copy);
@@ -564,6 +566,7 @@ void setup_particles(){
     str_copy(sword_kill_medium_emitter_copy.tag_16, "sw_kill_medium");
     
     sword_kill_big_emitter_copy = sword_kill_medium_emitter_copy;
+    sword_kill_big_emitter_copy.additional_emitters.clear();
     sword_kill_big_emitter_copy.additional_emitters.clear();
     sword_kill_big_emitter_copy.additional_emitters.append(&sparks_emitter_copy);
     sword_kill_big_emitter_copy.additional_emitters.append(&small_shockwave_emitter_copy);
@@ -744,6 +747,7 @@ void setup_particles(){
     explosion_emitter_copy.gravity_multiplier = 1;
     explosion_emitter_copy.color              = Fade(ORANGE, 0.7f);
     explosion_emitter_copy.enabled            = false;
+    explosion_emitter_copy.additional_emitters.clear();
     explosion_emitter_copy.additional_emitters.append(&shockwave_emitter_copy);
     str_copy(explosion_emitter_copy.tag_16, "explosion");
     
@@ -787,9 +791,11 @@ void setup_particles(){
     
     big_explosion_emitter_copy = explosion_emitter_copy;
     big_explosion_emitter_copy.additional_emitters.clear();
+    big_explosion_emitter_copy.additional_emitters.clear();
     big_explosion_emitter_copy.additional_emitters.append(&big_shockwave_emitter_copy);
     str_copy(big_explosion_emitter_copy.tag_16, "big_explos");
     
+    fire_emitter.additional_emitters.clear();
     fire_emitter.additional_emitters.append(&smoke_fire_emitter_copy);
     fire_emitter.spawn_radius       = 1.5f;
     fire_emitter.over_distance      = 1;
@@ -930,6 +936,7 @@ void setup_particles(){
     str_copy(bullet_hit_emitter_copy.tag_16, "bullet_hit");
     
     bullet_strong_hit_emitter_copy = bullet_hit_emitter_copy;
+    bullet_strong_hit_emitter_copy.additional_emitters.clear();
     bullet_strong_hit_emitter_copy.additional_emitters.clear();
     bullet_strong_hit_emitter_copy.additional_emitters.append(&magical_trails_emitter_copy);
     str_copy(bullet_hit_emitter_copy.tag_16, "bullet_str_hit");
