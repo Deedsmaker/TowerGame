@@ -504,7 +504,6 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                 }
                                 
                 bool last_enemy_blocks_change_direction = player->last_flicked_enemy_flags & HIT_BOOSTER;
-                game_log(last_enemy_blocks_change_direction);
                 static const f32 AFTER_FLICK_DIRECTION_BUFFER = 0.2f;
                 if (player->since_flick_timer <= AFTER_FLICK_DIRECTION_BUFFER && !last_enemy_blocks_change_direction) {
                     player->sword_spin_direction = input.last_non_zero_x;
@@ -917,10 +916,11 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
     
     Vector2 input_direction = input.sum_direction;
     
+    bool last_flicked_hit_booster = player->last_flicked_enemy_flags & HIT_BOOSTER;
+    bool in_hit_boost = last_flicked_hit_booster && player->since_flick_timer < 0.3f;
+    
     // Player moving calculations.
     if (0) {
-    // } else if (player_in_hit_booster) {
-          
     } else if (player->state_flags & PREPARING_SWORD) {
         // player->velocity.x = move_towards(player->velocity.x, 0.0f, 400, dt);
         // player->velocity.y = move_towards(player->velocity.y, 0.0f, 100, dt);
@@ -961,6 +961,8 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
             player->velocity = Vector2_zero;
         }
         // Player ground move.
+    } else if (in_hit_boost) {
+        
     } else if (player->grounded && !is_player_in_stun(entity) && !player->on_propeller) {
         player_ground_move(entity, player, dt);
         
