@@ -119,7 +119,17 @@ void flick_to_enemy(Entity *player_entity, Player *player, Entity *enemy_entity)
     add_hitstop(0.5f);
     
     player_entity->position = enemy_entity->position;
-    player->velocity.y = 100;
+    
+    if (enemy_entity->flags & HIT_BOOSTER) {
+        player->velocity = enemy_entity->up * 200;
+        if (enemy_entity->up.x * player->sword_spin_direction < 0) {
+            player->sword_spin_direction *= -1;
+        }
+    } else {
+        player->velocity.y = 100;
+    }
+    
+    player->last_flicked_enemy_flags = enemy_entity->flags;
     
     player->since_flick_timer = 0;
     
@@ -493,8 +503,10 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
                 } else {
                 }
                                 
+                bool last_enemy_blocks_change_direction = player->last_flicked_enemy_flags & HIT_BOOSTER;
+                game_log(last_enemy_blocks_change_direction);
                 static const f32 AFTER_FLICK_DIRECTION_BUFFER = 0.2f;
-                if (player->since_flick_timer <= AFTER_FLICK_DIRECTION_BUFFER) {
+                if (player->since_flick_timer <= AFTER_FLICK_DIRECTION_BUFFER && !last_enemy_blocks_change_direction) {
                     player->sword_spin_direction = input.last_non_zero_x;
                 }
                                 
@@ -900,14 +912,14 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
     
     update_connected_entities_positions(entity);    
     
-    f32 since_hit_booster = current_context->game_time - player->timers.hit_booster_time;
-    b32 player_in_hit_booster = since_hit_booster <= HIT_BOOSTER_BOOST_TIME; // @TODO: Remove.
+    // f32 since_hit_booster = current_context->game_time - player->timers.hit_booster_time;
+    // b32 player_in_hit_booster = since_hit_booster <= HIT_BOOSTER_BOOST_TIME; // @TODO: Remove.
     
     Vector2 input_direction = input.sum_direction;
     
     // Player moving calculations.
     if (0) {
-    } else if (player_in_hit_booster) {
+    // } else if (player_in_hit_booster) {
           
     } else if (player->state_flags & PREPARING_SWORD) {
         // player->velocity.x = move_towards(player->velocity.x, 0.0f, 400, dt);

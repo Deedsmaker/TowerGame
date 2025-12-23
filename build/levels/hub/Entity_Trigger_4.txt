@@ -14,6 +14,6 @@ name Trigger
  trigger_settings 3208 
  trigger_locked_camera_position { 0.000000,  0.000000} 
  texture_name LevelLoader_Big 
- level_loader_flags 2 
+ level_loader_flags 3 
  level_name_to_load planning_turret_wall2 
  

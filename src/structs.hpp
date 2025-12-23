@@ -741,6 +741,7 @@ struct Player {
     
     f32 killing_centipede_timer = 0;
     
+    u64 last_flicked_enemy_flags = 0;
     f32 since_flick_timer = 0;
     
     inline static const f32 SWORD_PREPARE_TIME = 0.4f;
