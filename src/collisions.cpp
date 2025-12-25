@@ -218,7 +218,7 @@ inline Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
 }
 
 Array <Collision_Grid_Cell *> get_affected_collision_cells(Vector2 position, Bounds bounds, Vector2 pivot) {
-    Array <Collision_Grid_Cell *> out_cells = {.arena = temp};
+    Array <Collision_Grid_Cell *> out_cells = {.allocator = temp};
     Collision_Grid grid = current_context->collision_grid;
     Vector2 center = position + bounds.offset;
     center += {(0.5f - pivot.x) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
@@ -313,7 +313,7 @@ void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vert
         Collision_Grid_Cell *cell = cells.get_value(i);
         
         // Here we just combine static and dynamic entities.
-        Array <i32> entities_in_cell = {.arena = temp};
+        Array <i32> entities_in_cell = {.allocator = temp};
         entities_in_cell.append_another_array(&cell->dynamic_entities);
         entities_in_cell.append_another_array(&cell->static_entities);
         
@@ -344,7 +344,7 @@ void fill_collisions(Entity *entity, Array <Collision> *result, FLAGS include_fl
 }
 
 Array <Collision> get_tcollisions(Entity *entity, FLAGS include_flags) {
-    Array <Collision> collisions = {.arena = temp};
+    Array <Collision> collisions = {.allocator = temp};
     fill_collisions(entity, &collisions, include_flags);
     return collisions;
 }

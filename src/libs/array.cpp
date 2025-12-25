@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
-#include "memory_arena.cpp"
+#include "Allocator.cpp"
 #include "my_defines.hpp"
 #include "logger.h"
 
@@ -38,7 +38,7 @@ inline void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 cu
 template<typename T>
 struct Array {
     T *data;  
-    Memory_Arena *arena;
+    Allocator *allocator;
     
     i32 count;
     i32 capacity;
@@ -190,7 +190,7 @@ struct Array {
     // Returns a array of elements that present in one and not in another.
     // Does not tries to look at duplicates, checks only for unique elements.
     inline Array <T> get_unique_elements_differences(Array <T> *another_array) {
-        Array <T> result = {.arena = temp};
+        Array <T> result = {.allocator = temp};
         
         Array <T> *biggest = count > another_array->count ? this : another_array;
         Array <T> *smallest = count > another_array->count ? another_array : this;
@@ -249,7 +249,7 @@ struct Array {
     
     void free_data() {
         if (data) {
-            free_data_in_memory_arena(arena, data);
+            free_data_in_allocator(allocator, data);
             data = NULL;
         } else {
             assert(capacity == 0 && count == 0);
@@ -272,19 +272,19 @@ struct Array {
 };
 
 template<typename T>
-void init_array(Array<T> *array, i32 capacity, Memory_Arena *arena) {
+void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
     // assert(array->data == NULL && "We probably should init array only when it is not initialized");
     array->capacity = capacity;
     
     if (capacity > 0) {
-        array->data = (T*) alloc(arena, capacity * sizeof(T));
+        array->data = (T*) alloc(allocator, capacity * sizeof(T));
     }
 }
 
 template <typename T>
-Array <T> copy_array(Array<T> *to_copy, Memory_Arena *arena) {
-    Array <T> result = {.arena = arena};
-    init_array(&result, to_copy->capacity, arena);
+Array <T> copy_array(Array<T> *to_copy, Allocator *allocator) {
+    Array <T> result = {.allocator = allocator};
+    init_array(&result, to_copy->capacity, allocator);
     
     for_array (i, to_copy) {
         result.append(*to_copy->get(i));
@@ -429,7 +429,7 @@ struct Chunk_Array {
         
         Chunk *next;
     };
-    Memory_Arena *arena;
+    Allocator *allocator;
     Chunk *first_chunk;
     i32 chunk_size = 32;
     i32 chunks_count;
@@ -523,8 +523,8 @@ struct Chunk_Array {
         for (i32 i = 0; i < chunks_count - 1; i++) last_chunk = last_chunk->next;
         assert(last_chunk);
         
-        last_chunk->next = (Chunk *)alloc(arena, sizeof(Chunk));
-        last_chunk->next->elements = (Chunk_Element *)alloc(arena, chunk_size * sizeof(Chunk_Element));
+        last_chunk->next = (Chunk *)alloc(allocator, sizeof(Chunk));
+        last_chunk->next->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
         chunks_count += 1;
     }
     
@@ -715,14 +715,14 @@ struct Chunk_Array {
     }
     
     void free_data() {
-        // Our arena currently is just arena and we don't free individual elemnts in arena.
-        if (arena || !first_chunk) return;
+        // Our allocator currently is just allocator and we don't free individual elemnts in allocator.
+        if (allocator || !first_chunk) return;
         
         Chunk *current = first_chunk;
         Chunk *next;
         while (current) {
             next = current->next;
-            free_data_in_memory_arena(arena, current);
+            free_data_in_allocator(allocator, current);
             current->occupied_count = 0;
             current = next;
         }
@@ -731,8 +731,8 @@ struct Chunk_Array {
     }
     
     inline void init_chunk(Chunk **chunk) {
-        *chunk = (Chunk *)alloc(arena, sizeof(Chunk));
-        (*chunk)->elements = (Chunk_Element *)alloc(arena, chunk_size * sizeof(Chunk_Element));
+        *chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
+        (*chunk)->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
     }
     
     inline i32 get_occupied_count() {
@@ -748,19 +748,19 @@ struct Chunk_Array {
 };
 
 template <typename T>
-void init_chunk_array(Chunk_Array <T> *arr, i32 chunk_size, Memory_Arena *arena) {
+void init_chunk_array(Chunk_Array <T> *arr, i32 chunk_size, Allocator *allocator) {
     // assert(arr->chunks_count == 0);
     arr->chunks_count = 0;
     
-    arr->arena = arena;
+    arr->allocator = allocator;
     arr->chunk_size = chunk_size;
     arr->init_chunk(&arr->first_chunk);
     arr->chunks_count += 1;    
 }
 
 template <typename T>
-Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy, Memory_Arena *arena) {
-    Chunk_Array<T> result = {.arena = arena};
+Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy, Allocator *allocator) {
+    Chunk_Array<T> result = {.allocator = allocator};
        
     result.copy_values(to_copy);
     

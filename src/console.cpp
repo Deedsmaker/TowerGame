@@ -467,10 +467,10 @@ void update_console() {
         
                 
         local_persist i32 last_level_autocomplete_index = -1; // That's for going through all of levels with tab key.
-        local_persist String first_level_autocomplete_name = {.arena = HEAP_ALLOCATOR};
+        local_persist String first_level_autocomplete_name = {.allocator = HEAP_ALLOCATOR};
         
         if (console.args.count == 2 && (console.args.get_value(0) == "level" || console.args.get_value(0) == "l" || console.args.get_value(0) == "load")) {
-            Array <String> matching_level_names = {.arena = temp};
+            Array <String> matching_level_names = {.allocator = temp};
         
             if (last_level_autocomplete_index < 0) {
                 first_level_autocomplete_name.free_data();

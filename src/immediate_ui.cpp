@@ -3,11 +3,11 @@
 struct Ui_Panel {
     Rectangle rect = {0};
     
-    Array <Rectangle> childs = {.arena = temp};
+    Array <Rectangle> childs = {.allocator = temp};
 };
 
-Array <Ui_Panel> active_panels = {.arena = temp};
-Array <Ui_Panel> panels = {.arena = temp};
+Array <Ui_Panel> active_panels = {.allocator = temp};
+Array <Ui_Panel> panels = {.allocator = temp};
 
 void begin_panel(Rectangle rect) {
     Ui_Panel panel = {0};

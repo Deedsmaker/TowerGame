@@ -11,7 +11,7 @@
 #include <assert.h>
 
 #include "my_defines.hpp"
-#include "memory_arena.cpp"
+#include "Allocator.cpp"
 
 #include "my_math.cpp"
 #include "string.cpp"
@@ -150,7 +150,7 @@ void make_thing() {
 }
 
 int main(){
-    init_memory_arena(temp, Megabytes(16));
+    init_allocator(temp, Megabytes(16));
 
     // make_thing();
     

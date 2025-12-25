@@ -2,14 +2,14 @@
 
 #include <stdarg.h>
 #include <stdlib.h>
-#include "memory_arena.cpp"
+#include "Allocator.cpp"
 #include "my_defines.hpp"
 
 #define MEDIUM_STR_LEN 1024
 #define MAX_TEMP_LINES 16
 
 struct String_Builder {
-    Memory_Arena *arena = NULL;
+    Allocator *allocator = NULL;
 
     char *data = NULL;
     i32 count = 0;
@@ -421,7 +421,7 @@ f32 to_f32(const char *text){
 }
 
 struct String {
-    Memory_Arena *arena = NULL;
+    Allocator *allocator = NULL;
     char *data;
     i32 count = 0;
 
@@ -448,15 +448,15 @@ struct String {
     }
 
     void free_data(){
-        free_data_in_memory_arena(arena, data);
+        free_data_in_allocator(allocator, data);
         count = 0;
     }
 };
 
 // This string will convert default static string to our string format.
 constexpr inline String S(const char *str) {
-    // Setting arena to temp so it won't be freed on free_data.
-    String result = {.arena = temp, .data = (char *)str, .count = str_len(str)};
+    // Setting allocator to temp so it won't be freed on free_data.
+    String result = {.allocator = temp, .data = (char *)str, .count = str_len(str)};
     
     return result;
 }
@@ -546,8 +546,8 @@ const char *c_str(String string) {
     return string.data;
 }
 
-String string(Memory_Arena *arena, const char *text, ...){
-    String result_string = {.arena = arena};
+String string(Allocator *allocator, const char *text, ...){
+    String result_string = {.allocator = allocator};
 
     if (!text) {
         return result_string;
@@ -556,7 +556,7 @@ String string(Memory_Arena *arena, const char *text, ...){
     va_list args;
     va_start(args, text);
     i32 byte_count = vsnprintf(result_string.data, 0, text, args);
-    result_string.data = alloc(result_string.arena, byte_count + 1);
+    result_string.data = alloc(result_string.allocator, byte_count + 1);
     vsnprintf(result_string.data, byte_count + 1, text, args);
     va_end(args);
 
@@ -565,10 +565,10 @@ String string(Memory_Arena *arena, const char *text, ...){
     return result_string;
 }
 
-String copy_string(String other, Memory_Arena *arena) {
-    String s = {.arena = arena};
+String copy_string(String other, Allocator *allocator) {
+    String s = {.allocator = allocator};
 
-    s.data = alloc(s.arena, other.count + 1);
+    s.data = alloc(s.allocator, other.count + 1);
     mem_copy(s.data, other.data, other.count);
     s.count = other.count;
     s.data[s.count] = 0;
@@ -577,8 +577,8 @@ String copy_string(String other, Memory_Arena *arena) {
 }
 
 // end_index included.
-String make_substring(String original_string, int start_index, int end_index, Memory_Arena *arena) {
-    String new_string = {.arena = arena};
+String make_substring(String original_string, int start_index, int end_index, Allocator *allocator) {
+    String new_string = {.allocator = allocator};
 
     if (end_index < start_index) {
         return new_string;
@@ -586,7 +586,7 @@ String make_substring(String original_string, int start_index, int end_index, Me
 
     new_string.count = end_index - start_index + 1; // +1 because if end_index - start_index == 0 we need to add that exact index to substring etc..
 
-    new_string.data = alloc(new_string.arena,  new_string.count + 1); // +1 for null termination.
+    new_string.data = alloc(new_string.allocator,  new_string.count + 1); // +1 for null termination.
     // @TODO: think about null termination.
     mem_copy(new_string.data, original_string.data + start_index, new_string.count * sizeof(char));
     new_string.data[new_string.count] = '\0';
@@ -640,16 +640,16 @@ inline b32 string_contains(String s, String to_find) {
 void builder_append(String_Builder *builder, char ch);
 void builder_append(String_Builder *builder, const char *str);
 void builder_append(String_Builder *builder, String string);
-String make_string_from_builder(String_Builder *builder, Memory_Arena *arena);
+String make_string_from_builder(String_Builder *builder, Allocator *allocator);
 const char *c_str(String_Builder *builder);
 
 String tstring(const char *text, ...) {
-    String result_string = {.arena = temp};
+    String result_string = {.allocator = temp};
     
     va_list args;
     va_start(args, text);
     i32 byte_count = vsnprintf(result_string.data, 0, text, args);
-    result_string.data = alloc(result_string.arena, byte_count + 1);
+    result_string.data = alloc(result_string.allocator, byte_count + 1);
     vsnprintf(result_string.data, byte_count + 1, text, args);
     va_end(args);
     
@@ -690,7 +690,7 @@ const char *c_str(String_Builder *builder) {
 void init_string_builder(String_Builder *builder, i32 capacity) {
     assert(!builder->data);
     assert(builder->capacity == 0);
-    builder->data = alloc(builder->arena, capacity);
+    builder->data = alloc(builder->allocator, capacity);
     builder->capacity = capacity;
     builder->count = 0;
 }
@@ -707,10 +707,10 @@ static inline void builder_grow_if_need(String_Builder *builder, int appended_co
             builder->capacity *= 2;
         }
 
-        builder->data = alloc(builder->arena, builder->capacity);
+        builder->data = alloc(builder->allocator, builder->capacity);
         mem_copy(builder->data, old_data, builder->count * sizeof(char));
 
-        free_data_in_memory_arena(builder->arena, old_data);
+        free_data_in_allocator(builder->allocator, old_data);
     }
 }
 
@@ -752,21 +752,21 @@ void builder_append(String_Builder *builder, char ch) {
 
 void builder_free(String_Builder *builder) {
     assert(builder->data);
-    free_data_in_memory_arena(builder->arena, builder->data);
+    free_data_in_allocator(builder->allocator, builder->data);
 }
 
-inline String make_string_from_builder(String_Builder *builder, Memory_Arena *arena) {
+inline String make_string_from_builder(String_Builder *builder, Allocator *allocator) {
     // @TODO: This works while we're using null termination.
-    return string(arena, builder->data);
+    return string(allocator, builder->data);
 }
 
-String_Builder make_string_builder(i32 capacity, Memory_Arena *arena) {
-    String_Builder builder = {.arena = arena};
+String_Builder make_string_builder(i32 capacity, Allocator *allocator) {
+    String_Builder builder = {.allocator = allocator};
     init_string_builder(&builder, capacity);
     return builder;
 }
-String_Builder make_string_builder(String string, Memory_Arena *arena) {
-    String_Builder builder = {.arena = arena};
+String_Builder make_string_builder(String string, Allocator *allocator) {
+    String_Builder builder = {.allocator = allocator};
     init_string_builder(&builder, string.count);
     builder_append(&builder, string);
     return builder;
@@ -795,7 +795,7 @@ void split_string(Array <String> *splitted, String to_split, String separators) 
             if (to_split.data[i] == separators.data[s]) {
                 // That check exists for continuous separators.
                 if (ground_index < i) {
-                    splitted->append(make_substring(to_split, ground_index, i - 1, splitted->arena)); // i - 1 because make_substring include end index and we don't want to add separator to string.
+                    splitted->append(make_substring(to_split, ground_index, i - 1, splitted->allocator)); // i - 1 because make_substring include end index and we don't want to add separator to string.
                 }
 
                 ground_index = i + 1;
@@ -806,12 +806,12 @@ void split_string(Array <String> *splitted, String to_split, String separators) 
     // At that point ground index should be equal to (last separator + 1) and we need to add last substring to array.
     // So if last separator was last symbol - ground_index would be equal to to_split.count.
     if (ground_index <= to_split.count - 1) {
-        splitted->append(make_substring(to_split, ground_index, to_split.count - 1, splitted->arena));
+        splitted->append(make_substring(to_split, ground_index, to_split.count - 1, splitted->allocator));
     }
 }
 
-Array <String> split_string(String to_split, String separators, Memory_Arena *arena) {
-    Array <String> result = {.arena = arena};
+Array <String> split_string(String to_split, String separators, Allocator *allocator) {
+    Array <String> result = {.allocator = allocator};
     split_string(&result, to_split, separators);
     return result;
 }

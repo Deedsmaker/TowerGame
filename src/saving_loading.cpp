@@ -2,15 +2,15 @@
 
 #include "string.cpp"
 #include "array.cpp"
-#include "memory_arena.cpp"
+#include "Allocator.cpp"
 #include "logger.h"
 
-String level_name_to_path(String name, Memory_Arena *arena) {
-    return string(arena, "levels/%s", c_str(name));
+String level_name_to_path(String name, Allocator *allocator) {
+    return string(allocator, "levels/%s", c_str(name));
 }
 
-b32 level_exists(String name, Memory_Arena *arena) {
-    auto path = level_name_to_path(name, arena);
+b32 level_exists(String name, Allocator *allocator) {
+    auto path = level_name_to_path(name, allocator);
     
     b32 result = directory_exists(path);    
     
@@ -32,7 +32,7 @@ void load_completed_levels() {
         return;
     }
     
-    auto completed_in_file = split_string(file_content, S("\n "), global_data.completed_levels.arena);
+    auto completed_in_file = split_string(file_content, S("\n "), global_data.completed_levels.allocator);
     global_data.completed_levels.append_another_array(&completed_in_file);
     completed_in_file.free_data();
 }
@@ -53,7 +53,7 @@ void record_completed_level(String name) {
         return;
     }
     
-    global_data.completed_levels.append(copy_string(name, global_data.completed_levels.arena));
+    global_data.completed_levels.append(copy_string(name, global_data.completed_levels.allocator));
 }
 
 void clear_completed_levels() {
@@ -467,7 +467,7 @@ void parse_vertices_array(Static_Array <Vector2, MAX_VERTICES> *array, Array <St
 // String should have qute symbols marking start and end (note_content "some content").
 // index in meaning that it's not index of string beginning, but rather note_content index from example above. 
 // Then we'll find start and end of content string by yourself.
-String parse_string(String whole_data, i32 index, Memory_Arena *arena) {
+String parse_string(String whole_data, i32 index, Allocator *allocator) {
     i32 start_index = string_find_from(whole_data, tstring("\""), index);
     start_index += 1; // So now it's pointing at actual beginning of a content.
     
@@ -476,7 +476,7 @@ String parse_string(String whole_data, i32 index, Memory_Arena *arena) {
     
     if (start_index < 0 || end_index < 0 || end_index < start_index) return {0};
     
-    String s = make_substring(whole_data, start_index, end_index, arena);
+    String s = make_substring(whole_data, start_index, end_index, allocator);
     return s;
 }
 
@@ -495,7 +495,7 @@ void create_level(String name) {
     // switch_current_context(&loaded_context);
     // clear_context(&loaded_context);
     clear_context(editor_context);
-    editor_context->level_name = copy_string(name, &editor_context->memory_arena);
+    editor_context->level_name = copy_string(name, &editor_context->allocator);
     
     // save_level(name);
     editor_enter_editor_state();
@@ -551,7 +551,7 @@ b32 load_level(String name, u64 load_flags = 0) {
 
     last_load_flags = load_flags;
 
-    name = copy_string(name, temp); // Beacuse we're just cleared temp arena and if "name" was temp allocated - it could go wrong.
+    name = copy_string(name, temp); // Beacuse we're just cleared temp allocator and if "name" was temp allocated - it could go wrong.
     
     // editor_enter_editor_state();
     // editor_state = EDITOR; // @TODO: Do we really need this? Edit: Right now yes, for convinience.
@@ -581,15 +581,15 @@ b32 load_level(String name, u64 load_flags = 0) {
     Context *context = &loaded_context;
     
     if (!(context->level_name == name)) {
-        global_data.previous_level_name = copy_string(context->level_name, &context->memory_arena);
+        global_data.previous_level_name = copy_string(context->level_name, &context->allocator);
     }
     
-    context->level_name = copy_string(name, &context->memory_arena);
+    context->level_name = copy_string(name, &context->allocator);
     
     setup_particles();
     
-    Array <String> splitted = {.arena = temp};
-    // Array <Entity> loaded_entities = {.arena = temp};
+    Array <String> splitted = {.allocator = temp};
+    // Array <Entity> loaded_entities = {.allocator = temp};
     
     Array <String> level_files = get_files_in_directory(level_path, temp);
     if (level_files.count == 0) {

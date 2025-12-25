@@ -86,7 +86,7 @@ constexpr i32 MAX_PARTICLES = BIG_COUNT_PARTICLES_START_INDEX + MAX_BIG_COUNT_PA
 
 // @OPTIMIZATION:
 // Right now particles in emitters are stored as simple static array so Particle_Emmiter occupies many memory, which
-// goes heavily on cache. When we'll come to memory arenas we can allocate memory for all particles and in emitter
+// goes heavily on cache. When we'll come to memory allocators we can allocate memory for all particles and in emitter
 // just keep pointer to start, so he can access that without storing all in himself.
 // That generally makes it harder for single emmiter to get his particles, but in the broad sceme - emitter most likely
 // will not be active, so reduced memory capacity will be good.
@@ -100,7 +100,7 @@ constexpr i32 MAX_PARTICLES = BIG_COUNT_PARTICLES_START_INDEX + MAX_BIG_COUNT_PA
 // to emitters array (and up watermark in level context). Next we only need to know how to find them on add 
 //
 // Right now we'll go with static arrays per emitter. We'll see if i can figure out something simple so we don't keep 
-// everything in emitter. If that will happen - that will be after i'll work with arenas.
+// everything in emitter. If that will happen - that will be after i'll work with allocators.
 //
 // Actually... We'll go with one particles array and three groups (big_count, medium_count, small_count). 
 // That will be the equivalent of three static arrays, but in one block in memory with just marks.
@@ -710,7 +710,7 @@ struct Player {
     
     b32 is_sword_accelerating = false;
     
-    Array <Entity *> standing_on_entities = {.arena = temp};
+    Array <Entity *> standing_on_entities = {.allocator = temp};
     
     // f32 max_speed_multiplier = 1.0f;
     f32 ground_walk_speed = 100.0f;  
@@ -1243,7 +1243,7 @@ enum Context_Flags {
 
 struct Context {
     String name = {0};
-    Memory_Arena memory_arena = {0};
+    Allocator allocator = {0};
 
     u64 flags = 0;
 

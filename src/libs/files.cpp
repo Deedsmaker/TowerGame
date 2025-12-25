@@ -1,10 +1,10 @@
 #pragma once 
 
 #include "string.cpp"
-#include "memory_arena.cpp"
+#include "Allocator.cpp"
 #include "array.cpp"
 
-String read_entire_file(String name, b32 *success, Memory_Arena *arena = HEAP_ALLOCATOR) {
+String read_entire_file(String name, b32 *success, Allocator *allocator = HEAP_ALLOCATOR) {
     
     char *text_data = LoadFileText(c_str(name));
     
@@ -13,7 +13,7 @@ String read_entire_file(String name, b32 *success, Memory_Arena *arena = HEAP_AL
         return {0};
     }
     
-    String s = string(arena, text_data);;
+    String s = string(allocator, text_data);;
     
     UnloadFileText(text_data);    
     
@@ -78,15 +78,15 @@ b32 rename_directory(String name, String new_name) {
 }
 
 // Files or directories.
-Array <String> get_files_in_directory(String directory_name, Memory_Arena *arena = HEAP_ALLOCATOR) {
+Array <String> get_files_in_directory(String directory_name, Allocator *allocator = HEAP_ALLOCATOR) {
     if (!directory_exists(directory_name)) return {0};
     
     FilePathList files_paths = LoadDirectoryFiles(c_str(directory_name));
     
-    Array <String> result_paths = {.arena = arena};
+    Array <String> result_paths = {.allocator = allocator};
     
     for (u32 i = 0; i < files_paths.count; i++) {
-        result_paths.append(string(arena, files_paths.paths[i]));
+        result_paths.append(string(allocator, files_paths.paths[i]));
     }
     
     UnloadDirectoryFiles(files_paths);
@@ -95,20 +95,20 @@ Array <String> get_files_in_directory(String directory_name, Memory_Arena *arena
 }
 
 // Will replace string level/file.txt to just file.txt (detects / or \\).
-String strip_path_to_just_name(String path, Memory_Arena *arena) {
+String strip_path_to_just_name(String path, Allocator *allocator) {
     i32 slash_index = string_find_from_back(path, S("/"));
     i32 backslash_index = string_find_from_back(path, S("\\"));
     
     i32 index_from = (slash_index > backslash_index ? slash_index : backslash_index) + 1; // +1 so that we'll start form real name.
     
-    return make_substring(path, index_from, path.count - 1, arena);
+    return make_substring(path, index_from, path.count - 1, allocator);
 }
 
-String remove_extension(String name, Memory_Arena *arena) {
+String remove_extension(String name, Allocator *allocator) {
     i32 dot_index = string_find_from_back(name, S("."));
     if (dot_index <= 0) return {0};
     
-    String s = make_substring(name, 0, dot_index - 1, arena);
+    String s = make_substring(name, 0, dot_index - 1, allocator);
     return s;
 }
 
@@ -116,7 +116,7 @@ u64 get_file_modification_time(String path) {
     return GetFileModTime(c_str(path));
 }
 
-inline i32 find_file_name_in_paths(Array <String> *paths, String name_to_find, Memory_Arena *arena) {
+inline i32 find_file_name_in_paths(Array <String> *paths, String name_to_find, Allocator *allocator) {
     for_array (i, paths) {
         String name = strip_path_to_just_name(paths->get_value(i), temp);
         if (name == name_to_find) return i;
@@ -125,16 +125,16 @@ inline i32 find_file_name_in_paths(Array <String> *paths, String name_to_find, M
     return -1;
 }
 
-Array <String> get_file_names_in_directory(String directory_name, Memory_Arena *arena) {
+Array <String> get_file_names_in_directory(String directory_name, Allocator *allocator) {
     if (!directory_exists(directory_name)) return {0};
     
     FilePathList files_paths = LoadDirectoryFiles(c_str(directory_name));
     
-    Array <String> result_paths = {.arena = arena};
+    Array <String> result_paths = {.allocator = allocator};
     
     for (u32 i = 0; i < files_paths.count; i++) {
         String full_path = string(temp, files_paths.paths[i]);
-        String name = strip_path_to_just_name(full_path, arena);
+        String name = strip_path_to_just_name(full_path, allocator);
     
         result_paths.append(name);
     }

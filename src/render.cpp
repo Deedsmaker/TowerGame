@@ -3,7 +3,7 @@
 Font main_font = {0};
 
 void init_fonts() {
-    Array <i32> codepoints = {.arena = temp};
+    Array <i32> codepoints = {.allocator = temp};
     
     // To the cyrillic codepoints.
     for (int i = 0; i <= 0x04FF ; i++) {
