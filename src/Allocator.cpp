@@ -56,7 +56,9 @@ char *alloc(Allocator *allocator, size_t size) {
 
     if (!allocator) return (char *)calloc(1, size);
     
-    assert(allocator->arena.watermark + size < allocator->arena.reserved && "We don't handle situation where memory allocator consumed more than it could handle. Alloc more on the start or think about your behaviour.");
+    if (allocator->arena.watermark + size >= allocator->arena.reserved) {
+        return NULL;
+    }
     
     char *result = allocator->arena.start + allocator->arena.watermark;
     memset(result, 0, size);
