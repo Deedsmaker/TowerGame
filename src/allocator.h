@@ -49,7 +49,6 @@ void set_next_chunks_size(Allocator *allocator, size_t size);
 Allocator init_allocator(size_t size, Allocator_Type type, Allocator *optional_allocator = NULL);
 void free_allocator(Allocator *allocator);
 inline void free_data_in_allocator(Allocator *allocator, void *data);
-void clear_and_push_zeroes_to_allocator(Allocator *allocator);
-void clear_allocator(Allocator *allocator);
+void clear_allocator(Allocator *allocator, bool zero_data = false);
 
 

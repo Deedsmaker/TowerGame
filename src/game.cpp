@@ -749,7 +749,7 @@ void clear_context(Context *context) {
     
     context->flags = 0;
     
-    clear_and_push_zeroes_to_allocator(&context->allocator);
+    clear_allocator(&context->allocator, true);
     
     init_planning_data(context);
     

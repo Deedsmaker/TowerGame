@@ -7,14 +7,37 @@
 #include "logger.h"
 #include "allocator.h"
 
-void clear_allocator(Allocator *allocator) {
-    allocator->arena_data.watermark = 0;
-    allocator->arena_data.current = allocator->arena_data.current;
-}
-
-void clear_and_push_zeroes_to_allocator(Allocator *allocator) {
-    allocator->arena_data.watermark = 0;
-    memset(allocator->arena_data.start, 0, allocator->arena_data.reserved);
+void clear_allocator(Allocator *allocator, bool zero_data) {
+    switch (allocator->type) {
+        case DEFAULT_ALLOCATOR: {
+            // Do not clear default allocator.
+        } break;
+        case ARENA_ALLOCATOR: {
+            auto arena = &allocator->arena_data;
+            arena->watermark = 0;
+            arena->current = arena->current;
+            if (zero_data) {
+                memset(arena->start, 0, arena->reserved);
+            }
+        } break;
+        case CHUNK_ARENA_ALLOCATOR: {
+            auto chunk_data = &allocator->chunk_data;
+            auto chunk = &chunk_data->first;
+            
+            while (chunk) {
+                chunk->watermark = 0;
+                chunk->current = chunk->start;
+                if (zero_data) {
+                    memset(chunk->start, 0, chunk->reserved);
+                }
+                chunk = chunk->next;
+            }
+        } break;
+        default: {
+            // @TODO: Log unhandled allocator type.
+        } break;
+    }
+    
 }
 
 inline void free_data_in_allocator(Allocator *allocator, void *data) {
