@@ -129,29 +129,34 @@ char *alloc(Allocator *allocator, size_t size) {
         } break;
         case CHUNK_ARENA_ALLOCATOR: {
             auto chunk_data = &allocator->chunk_data;
-            auto last_chunk = &chunk_data->first;
-            while (last_chunk->next) last_chunk = last_chunk->next;
             
-            i64 avaliable = last_chunk->reserved - last_chunk->watermark;
-            if (avaliable >= size) {
-                auto result = alloc_arena_data(last_chunk, size);
-                assert(result && "We have checked for avaliable space, but alloc returned NULL"); 
-                return result;
-            } else {
-                // Here we will allocate new chunk and new chunk size would be max(size, chunk_data->default_chunks_size), 
-                // because we could ask for far more than chunk allocator itself was set to store (for example on array growth).
-                
-                auto new_chunk = (Chunk_Arena_Data::Chunk *)alloc(chunk_data->allocator, sizeof(Chunk_Arena_Data::Chunk));
-                last_chunk->next = new_chunk;
-                
-                bool success = init_arena_data(new_chunk, __max(chunk_data->default_chunks_size, size), chunk_data->allocator);
-                if (!success) {
-                    // @TODO: Log error.
+            auto chunk = &chunk_data->first;
+            while (chunk) {
+                i64 avaliable = chunk->reserved - chunk->watermark;
+                if (avaliable >= size) {
+                    auto result = alloc_arena_data(chunk, size);
+                    assert(result && "We have checked for avaliable space, but alloc returned NULL"); 
+                    return result;
                 }
-                
-                auto result = alloc_arena_data(new_chunk, size);
-                return result;
+            
+                chunk = chunk->next;
             }
+            
+            // If we here - we did not found space in any chunk for current data.
+            //
+            // Here we will allocate new chunk and new chunk size would be max(size, chunk_data->default_chunks_size), 
+            // because we could ask for far more than chunk allocator itself was set to store (for example on array growth).
+                
+            auto new_chunk = (Chunk_Arena_Data::Chunk *)alloc(chunk_data->allocator, sizeof(Chunk_Arena_Data::Chunk));
+            chunk->next = new_chunk;
+            
+            bool success = init_arena_data(new_chunk, __max(chunk_data->default_chunks_size, size), chunk_data->allocator);
+            if (!success) {
+                // @TODO: Log error.
+            }
+            
+            auto result = alloc_arena_data(new_chunk, size);
+            return result;
         } break;
         default: {
             // @TODO: Log unhandled allocator.
