@@ -36,7 +36,7 @@ b32 open_or_create_log_file() {
     }
     
     log_file.opened = true;   
-    log_file.name = copy_string(name, HEAP_ALLOCATOR);
+    log_file.name = copy_string(name, &default_allocator);
     
     return true;
 }

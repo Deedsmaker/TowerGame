@@ -1,5 +1,7 @@
 #pragma once
 
+struct String;
+
 enum Log_Flags : u64 {
     LOG_ERROR        = 0x1, 
     PUSH_INDENTATION = 0x2,

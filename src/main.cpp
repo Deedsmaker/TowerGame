@@ -11,12 +11,15 @@
 #include <assert.h>
 
 #include "my_defines.hpp"
-#include "Allocator.cpp"
-
 #include "my_math.cpp"
+
+#include "allocator.h"
+
 #include "string.cpp"
 #include "array.cpp"
 #include "old_files.hpp"
+
+#include "allocator.cpp"
 
 #include "raylib.h"
 #include "raymath.h"
@@ -150,7 +153,7 @@ void make_thing() {
 }
 
 int main(){
-    *temp = init_allocator(Megabytes(16));
+    *temp = init_allocator(Megabytes(16), ARENA_ALLOCATOR);
 
     // make_thing();
     

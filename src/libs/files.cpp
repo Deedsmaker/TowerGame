@@ -1,10 +1,10 @@
 #pragma once 
 
 #include "string.cpp"
-#include "Allocator.cpp"
+#include "allocator.cpp"
 #include "array.cpp"
 
-String read_entire_file(String name, b32 *success, Allocator *allocator = HEAP_ALLOCATOR) {
+String read_entire_file(String name, b32 *success, Allocator *allocator = &default_allocator) {
     
     char *text_data = LoadFileText(c_str(name));
     
@@ -78,7 +78,7 @@ b32 rename_directory(String name, String new_name) {
 }
 
 // Files or directories.
-Array <String> get_files_in_directory(String directory_name, Allocator *allocator = HEAP_ALLOCATOR) {
+Array <String> get_files_in_directory(String directory_name, Allocator *allocator = &default_allocator) {
     if (!directory_exists(directory_name)) return {0};
     
     FilePathList files_paths = LoadDirectoryFiles(c_str(directory_name));

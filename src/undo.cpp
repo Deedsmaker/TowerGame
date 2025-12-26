@@ -49,7 +49,7 @@ Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *
     return changes;
 }
 
-Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *original, Allocator *allocator = HEAP_ALLOCATOR) {
+Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *original, Allocator *allocator = &default_allocator) {
     // @LEAK Probably. Could think about using undo level context memory allocator in undo_actions. Could work if we'll reuse things.
     Array <Entity_Undo_Change> changes = {.allocator = allocator};
 
@@ -138,7 +138,7 @@ inline void update_undo_logic() {
         // actions will be in one undo.
         b32 found_one_that_will_be_destroyed = false;
         
-        Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
+        Array <Entity_Undo_Change> changes = {.allocator = &default_allocator};
         
         for_chunk_array(i, &current_context->entities) {
             Entity *entity = current_context->entities.get(i);
@@ -167,7 +167,7 @@ inline void update_undo_logic() {
         
         assert(found_one_that_will_be_destroyed);
     } else if (editor.just_spawned_ids.count > 0) {
-        Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
+        Array <Entity_Undo_Change> changes = {.allocator = &default_allocator};
         for_array (i, &editor.just_spawned_ids) {
             Entity *spawned = get_entity(editor.just_spawned_ids.get_value(i));    
             
@@ -238,7 +238,7 @@ inline void update_undo_logic() {
     } else if (editor.multiselection.entities.count > 0) {
         assert(editor.multiselection.entities.count == editor.multiselection.unchanged_copies.count);
         if (get_entity(editor.multiselection.entities.get_value(0))->runtime_only_flags & EDITOR_CHANGED) {
-            Array <Entity_Undo_Change> changes = {.allocator = HEAP_ALLOCATOR};
+            Array <Entity_Undo_Change> changes = {.allocator = &default_allocator};
             
             for_array (i, &editor.multiselection.entities) {
                 Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
@@ -260,7 +260,7 @@ inline void update_undo_logic() {
     } else if (editor.selected && editor.selected->runtime_only_flags & EDITOR_CHANGED) {
         editor.selected->runtime_only_flags ^= EDITOR_CHANGED;
         
-        Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected, editor.selected_unchanged_copy, HEAP_ALLOCATOR);
+        Array <Entity_Undo_Change> changes = get_entities_difference(editor.selected, editor.selected_unchanged_copy, &default_allocator);
         
         add_changes_to_undo(&changes);
         

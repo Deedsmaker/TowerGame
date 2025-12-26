@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdlib.h>
-#include "Allocator.cpp"
+#include "allocator.cpp"
 #include "my_defines.hpp"
 #include "logger.h"
 

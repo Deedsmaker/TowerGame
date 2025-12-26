@@ -1385,7 +1385,7 @@ String *register_entity_name(Entity *entity) {
     
     i32 index = entities_names.find(name);
     if (index < 0) {
-        return entities_names.append(get_entity_name(entity, HEAP_ALLOCATOR));
+        return entities_names.append(get_entity_name(entity, &default_allocator));
     }
     
     return entities_names.get(index);
@@ -2008,36 +2008,36 @@ void init_context(Context *context, String name, u64 flags = 0) {
     
     context->flags = flags;
     
-    context->name = copy_string(name, HEAP_ALLOCATOR);
+    context->name = copy_string(name, &default_allocator);
 
-    init_array(&context->particles, MAX_PARTICLES, HEAP_ALLOCATOR);
-    init_array(&context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, HEAP_ALLOCATOR);
+    init_array(&context->particles, MAX_PARTICLES, &default_allocator);
+    init_array(&context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, &default_allocator);
     
-    init_array(&context->notes, 64, HEAP_ALLOCATOR);
+    init_array(&context->notes, 64, &default_allocator);
     
-    init_chunk_array(&context->entities, 512, HEAP_ALLOCATOR);
-    init_chunk_array(&context->propellers, 16, HEAP_ALLOCATOR);
-    init_chunk_array(&context->triggers, 32, HEAP_ALLOCATOR);
-    init_chunk_array(&context->sticky_textures, 128, HEAP_ALLOCATOR);
-    init_chunk_array(&context->move_sequences, 128, HEAP_ALLOCATOR);
-    init_chunk_array(&context->bird_enemies, 64, HEAP_ALLOCATOR);
-    init_chunk_array(&context->jump_shooters, 8, HEAP_ALLOCATOR);
-    init_chunk_array(&context->kill_switches, 8, HEAP_ALLOCATOR);
-    init_chunk_array(&context->turrets, 32, HEAP_ALLOCATOR);
-    init_chunk_array(&context->win_blocks, 4, HEAP_ALLOCATOR);
-    init_chunk_array(&context->level_loaders, 8, HEAP_ALLOCATOR);
+    init_chunk_array(&context->entities, 512, &default_allocator);
+    init_chunk_array(&context->propellers, 16, &default_allocator);
+    init_chunk_array(&context->triggers, 32, &default_allocator);
+    init_chunk_array(&context->sticky_textures, 128, &default_allocator);
+    init_chunk_array(&context->move_sequences, 128, &default_allocator);
+    init_chunk_array(&context->bird_enemies, 64, &default_allocator);
+    init_chunk_array(&context->jump_shooters, 8, &default_allocator);
+    init_chunk_array(&context->kill_switches, 8, &default_allocator);
+    init_chunk_array(&context->turrets, 32, &default_allocator);
+    init_chunk_array(&context->win_blocks, 4, &default_allocator);
+    init_chunk_array(&context->level_loaders, 8, &default_allocator);
     
-    init_chunk_array(&context->projectiles, 256, HEAP_ALLOCATOR);
+    init_chunk_array(&context->projectiles, 256, &default_allocator);
     
-    init_chunk_array(&context->just_enemies, 64, HEAP_ALLOCATOR);
+    init_chunk_array(&context->just_enemies, 64, &default_allocator);
     
-    init_chunk_array(&context->centipedes, 8, HEAP_ALLOCATOR);
-    init_chunk_array(&context->centipede_segments, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&context->centipedes, 8, &default_allocator);
+    init_chunk_array(&context->centipede_segments, 128, &default_allocator);
     
-    init_chunk_array(&context->planning_points, 32, HEAP_ALLOCATOR);
+    init_chunk_array(&context->planning_points, 32, &default_allocator);
     
     
-    init_chunk_array(&context->lights, 128, HEAP_ALLOCATOR);
+    init_chunk_array(&context->lights, 128, &default_allocator);
 
     //init context
     // for (i32 i = 0; i < context->lights.capacity; i++) {
@@ -2087,7 +2087,7 @@ void init_context(Context *context, String name, u64 flags = 0) {
     i32 cells_rows    = (i32)(current_context->collision_grid.size.y / current_context->collision_grid.cell_size.y);
     size_t cells_count = cells_columns * cells_rows;
     
-    init_array(&current_context->collision_grid.cells, cells_count, HEAP_ALLOCATOR);
+    init_array(&current_context->collision_grid.cells, cells_count, &default_allocator);
     
     for (i32 i = 0; i < cells_count; i++) {
         current_context->collision_grid.cells.append({0});
@@ -3755,7 +3755,7 @@ void update_editor_ui() {
             Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
             if (make_input_field(c_str(loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
                 loader->level_to_load.free_data();
-                loader->level_to_load = string(HEAP_ALLOCATOR, focus_input_field.content);
+                loader->level_to_load = string(&default_allocator, focus_input_field.content);
             }
             v_pos += height_add;
         } // End level loader inspector.
@@ -9389,7 +9389,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
     
     if (to_copy->lights.count > 0) {
         // e->light_index = -1;
-        e->lights = copy_array(&to_copy->lights, HEAP_ALLOCATOR);
+        e->lights = copy_array(&to_copy->lights, &default_allocator);
         e->lights.clear();
         for_array (i, &to_copy->lights) {
             Light *copy_light = to_copy->context->lights.get(to_copy->lights.get_value(i));  
@@ -9408,7 +9408,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
         if (0) {
         } else if (e->flags & MOVE_SEQUENCE) { // Copy move sequence.
             *e->move_sequence = *to_copy->move_sequence;            
-            e->move_sequence->points = copy_array(&to_copy->move_sequence->points, HEAP_ALLOCATOR);
+            e->move_sequence->points = copy_array(&to_copy->move_sequence->points, &default_allocator);
         } else {
             log("WARNING: Forgot to copy some helper type!", LOG_WARNING);
         }
@@ -9419,9 +9419,9 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
         if (0) {
         } else if (e->flags & TRIGGER) { // Copy trigger.
             *e->trigger = *to_copy->trigger;
-            e->trigger->connected = copy_array(&to_copy->trigger->connected, HEAP_ALLOCATOR);
-            e->trigger->tracking = copy_array(&to_copy->trigger->tracking, HEAP_ALLOCATOR);
-            e->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points, HEAP_ALLOCATOR);
+            e->trigger->connected = copy_array(&to_copy->trigger->connected, &default_allocator);
+            e->trigger->tracking = copy_array(&to_copy->trigger->tracking, &default_allocator);
+            e->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points, &default_allocator);
         } else if (e->flags & PROJECTILE) { // Copy projectile.
             *e->projectile = *to_copy->projectile;
         } else if (e->flags & PLANNING_POINT) { // Copy planning point.
@@ -9440,7 +9440,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
             *e->bird_enemy = *to_copy->bird_enemy;
         } else if (e->flags & KILL_SWITCH) { // Copy kill switch.
             *e->kill_switch = *to_copy->kill_switch;
-            e->kill_switch->connected = copy_array(&to_copy->kill_switch->connected, HEAP_ALLOCATOR);
+            e->kill_switch->connected = copy_array(&to_copy->kill_switch->connected, &default_allocator);
         } else if (e->flags & TURRET) { // Copy turret.
             *e->turret = *to_copy->turret;
         } else if (e->flags & CENTIPEDE) { // Copy centipede.
@@ -9450,13 +9450,13 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
             *e->centipede_segment = *to_copy->centipede_segment;
         } else if (e->flags & JUMP_SHOOTER) { // Copy jump shooter.
             *e->jump_shooter = *to_copy->jump_shooter;  
-            e->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points, HEAP_ALLOCATOR);
+            e->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points, &default_allocator);
         } else if (e->flags & WIN_BLOCK) { // Copy win block.
             *e->win_block = *to_copy->win_block;    
         } else if (e->flags & LEVEL_LOADER) { // Copy level loader.
             *e->level_loader = *to_copy->level_loader;    
-            e->level_loader->levels_to_open = copy_array(&to_copy->level_loader->levels_to_open, HEAP_ALLOCATOR);
-            e->level_loader->level_to_load = copy_string(to_copy->level_loader->level_to_load, HEAP_ALLOCATOR);
+            e->level_loader->levels_to_open = copy_array(&to_copy->level_loader->levels_to_open, &default_allocator);
+            e->level_loader->level_to_load = copy_string(to_copy->level_loader->level_to_load, &default_allocator);
         } else if (e->flags & PROPELLER) { // Copy propeller.
             *e->propeller = *to_copy->propeller;
         } else if (e->flags & PLAYER) { // Copy player data.

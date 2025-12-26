@@ -70,7 +70,7 @@ void reload_level_names() {
     for_array (i, &levels) {
         String path = levels.get_value(i);
         if (!directory_exists(path)) continue;
-        String name = strip_path_to_just_name(path, HEAP_ALLOCATOR);
+        String name = strip_path_to_just_name(path, &default_allocator);
         if (name == tstring("autosaves") || name == tstring("temp")) {
             name.free_data();
             continue;
@@ -363,8 +363,8 @@ void console_win_level() {
 }
 
 void init_console() {
-    init_array(&console.args, 8, HEAP_ALLOCATOR);
-    init_array(&console.commands, 128, HEAP_ALLOCATOR);
+    init_array(&console.args, 8, &default_allocator);
+    init_array(&console.commands, 128, &default_allocator);
 
     reload_level_names();    
 
@@ -467,14 +467,14 @@ void update_console() {
         
                 
         local_persist i32 last_level_autocomplete_index = -1; // That's for going through all of levels with tab key.
-        local_persist String first_level_autocomplete_name = {.allocator = HEAP_ALLOCATOR};
+        local_persist String first_level_autocomplete_name = {.allocator = &default_allocator};
         
         if (console.args.count == 2 && (console.args.get_value(0) == "level" || console.args.get_value(0) == "l" || console.args.get_value(0) == "load")) {
             Array <String> matching_level_names = {.allocator = temp};
         
             if (last_level_autocomplete_index < 0) {
                 first_level_autocomplete_name.free_data();
-                first_level_autocomplete_name = copy_string(console.args.get_value(1), HEAP_ALLOCATOR);
+                first_level_autocomplete_name = copy_string(console.args.get_value(1), &default_allocator);
             }
         
             for_array (i, &console.level_names) {

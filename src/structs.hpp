@@ -1243,7 +1243,7 @@ enum Context_Flags {
 
 struct Context {
     String name = {0};
-    Allocator allocator = {0};
+    Allocator allocator = {.type = DEFAULT_ALLOCATOR};
 
     u64 flags = 0;
 

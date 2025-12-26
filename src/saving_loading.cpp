@@ -2,7 +2,7 @@
 
 #include "string.cpp"
 #include "array.cpp"
-#include "Allocator.cpp"
+#include "allocator.cpp"
 #include "logger.h"
 
 String level_name_to_path(String name, Allocator *allocator) {
@@ -80,7 +80,7 @@ void load_level_order() {
         return;
     }
     
-    global_data.level_order = split_string(content, S("\n"), HEAP_ALLOCATOR);
+    global_data.level_order = split_string(content, S("\n"), &default_allocator);
 }
 
 void save_level(String level_name) {
@@ -720,7 +720,7 @@ b32 load_level(String name, u64 load_flags = 0) {
                 auto loader = entity-> level_loader;
                 
                 IF_FIND("level_loader_flags")          loader->flags          = to_u64(splitted.get_value(i+1));
-                IF_FIND("level_name_to_load")          loader->level_to_load  = copy_string(splitted.get_value(i+1), HEAP_ALLOCATOR);
+                IF_FIND("level_name_to_load")          loader->level_to_load  = copy_string(splitted.get_value(i+1), &default_allocator);
                 // IF_FIND("level_loader_levels_to_open") parse_i32_array(&loader->levels_to_open, &splitted, i+1);
             }
             
