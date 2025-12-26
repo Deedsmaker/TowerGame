@@ -694,6 +694,8 @@ void clear_context(Context *context) {
     context->player_entity = NULL;
     context->player = {0};
     
+    context->entity_allocators.clear();
+    
     context->entities.clear();
     
     context->propellers.clear();
@@ -1494,6 +1496,24 @@ void add_entity_types(Entity *entity) {
     }
 }
 
+Allocator *occupy_entity_allocator(Context *context) {
+    for_chunk_array(i, &context->entity_allocators) {
+        auto entity_allocator = context->entity_allocators.get(i);
+        if (!entity_allocator->occupied) {
+            entity_allocator->occupied = true;
+            assert(entity_allocator->allocator.type != NOT_INITED_ALLOCATOR);
+            return &entity_allocator->allocator;
+        }
+    }
+    
+    // If we here - we did not found any previously added non-occupied allocator so we will add new and init allocator.
+    auto entity_allocator = context->entity_allocators.append({});
+    entity_allocator->allocator = init_allocator(128, CHUNK_ARENA_ALLOCATOR, &context->allocator);
+    entity_allocator->occupied = true;
+    
+    return &entity_allocator->allocator;
+}
+
 void init_entity(Entity *entity) {
     // We're initing only entities that already present in entity array of current level context.
     // That's because other entities or context or lights might want to get entity by it's id and it will fail if it's just 
@@ -2015,7 +2035,10 @@ void init_context(Context *context, String name, u64 flags = 0) {
     
     init_array(&context->notes, 64, &default_allocator);
     
+    init_chunk_array(&context->entity_allocators, 512, &default_allocator);
+    
     init_chunk_array(&context->entities, 512, &default_allocator);
+    
     init_chunk_array(&context->propellers, 16, &default_allocator);
     init_chunk_array(&context->triggers, 32, &default_allocator);
     init_chunk_array(&context->sticky_textures, 128, &default_allocator);

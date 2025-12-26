@@ -873,6 +873,8 @@ struct Entity {
     b32 visible = true;
     b32 hidden = false;
     
+    Allocator *allocator = NULL;
+    
     Context *context = NULL;
     
     String *name = NULL;
@@ -1241,6 +1243,11 @@ enum Context_Flags {
     HUB_CONTEXT = 0x1,
 };
 
+struct Entity_Allocator {
+    Allocator allocator = {};
+    bool occupied = false;  
+};
+
 struct Context {
     String name = {0};
     Allocator allocator = {.type = DEFAULT_ALLOCATOR};
@@ -1263,6 +1270,8 @@ struct Context {
     f32 game_time = 0;
     
     Turret_State turret_state = {};
+
+    Chunk_Array <Entity_Allocator> entity_allocators = {};
 
     Chunk_Array <Entity> entities = {};
     

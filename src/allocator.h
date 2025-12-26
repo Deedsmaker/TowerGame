@@ -3,9 +3,10 @@
 struct Allocator;
 
 enum Allocator_Type {
-    DEFAULT_ALLOCATOR = 0,
-    ARENA_ALLOCATOR = 1,
-    CHUNK_ARENA_ALLOCATOR = 2,
+    NOT_INITED_ALLOCATOR = 0,
+    DEFAULT_ALLOCATOR = 1,
+    ARENA_ALLOCATOR = 2,
+    CHUNK_ARENA_ALLOCATOR = 3,
 };
 
 struct Arena_Data {
@@ -31,7 +32,7 @@ struct Chunk_Arena_Data {
 };
 
 struct Allocator {
-    Allocator_Type type = DEFAULT_ALLOCATOR;
+    Allocator_Type type = NOT_INITED_ALLOCATOR;
     
     union {
         Arena_Data arena_data;
