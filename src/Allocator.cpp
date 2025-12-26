@@ -130,6 +130,7 @@ char *alloc(Allocator *allocator, size_t size) {
         case CHUNK_ARENA_ALLOCATOR: {
             auto chunk_data = &allocator->chunk_data;
             
+            Chunk_Arena_Data::Chunk *last = NULL;
             auto chunk = &chunk_data->first;
             while (chunk) {
                 i64 avaliable = chunk->reserved - chunk->watermark;
@@ -139,6 +140,7 @@ char *alloc(Allocator *allocator, size_t size) {
                     return result;
                 }
             
+                last = chunk;
                 chunk = chunk->next;
             }
             
@@ -148,7 +150,7 @@ char *alloc(Allocator *allocator, size_t size) {
             // because we could ask for far more than chunk allocator itself was set to store (for example on array growth).
                 
             auto new_chunk = (Chunk_Arena_Data::Chunk *)alloc(chunk_data->allocator, sizeof(Chunk_Arena_Data::Chunk));
-            chunk->next = new_chunk;
+            last->next = new_chunk;
             
             bool success = init_arena_data(new_chunk, __max(chunk_data->default_chunks_size, size), chunk_data->allocator);
             if (!success) {
