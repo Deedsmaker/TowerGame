@@ -150,7 +150,7 @@ void make_thing() {
 }
 
 int main(){
-    init_allocator(temp, Megabytes(16));
+    *temp = init_allocator(Megabytes(16));
 
     // make_thing();
     

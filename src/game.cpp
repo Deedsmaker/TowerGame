@@ -1988,9 +1988,8 @@ void play_sound(const char* name, Vector2 position, f32 volume_multiplier, f32 b
         }
     }
     if (!found_handler) {
-        printf("NO SOUND found %s\n", name);
+        log(tprintf("WARNING: NO SOUND found %s\n", name), LOG_WARNING);
         found_handler = missing_sound;
-        // return;
     }
     
     play_sound(found_handler, position, volume_multiplier, base_pitch, pitch_variation);
@@ -2000,15 +1999,12 @@ inline void play_sound(const char* name, f32 volume_multiplier, f32 base_pitch, 
     play_sound(name, current_context->cam.position, volume_multiplier, base_pitch, pitch_variation);
 }
 
-// #define LIGHT_TEXTURE_SCALING_FACTOR 0.25f
-// #define LIGHT_TEXTURE_SIZE_MULTIPLIER 2.0f
-
 void init_context(Context *context, String name, u64 flags = 0) {
     assert(!context->inited);
     
     current_context = context;
     
-    init_allocator(&current_context->allocator, Megabytes(4));
+    current_context->allocator = init_allocator(Megabytes(64), ARENA_ALLOCATOR);
     
     context->flags = flags;
     
