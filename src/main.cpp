@@ -17,10 +17,8 @@
 
 #include "string.cpp"
 #include "array.cpp"
-#include "old_files.hpp"
 
 #include "allocator.cpp"
-
 #include "raylib.h"
 #include "raymath.h"
 #include "rlgl.h"

@@ -2,7 +2,7 @@
 
 #include <stdarg.h>
 #include <stdlib.h>
-#include "allocator.cpp"
+#include "allocator.h"
 #include "my_defines.hpp"
 
 #define MEDIUM_STR_LEN 1024

@@ -34,7 +34,7 @@ void clear_allocator(Allocator *allocator, bool zero_data) {
             }
         } break;
         default: {
-            // @TODO: Log unhandled allocator type.
+            log(tprintf("On clear_allocator we got allocator of type we don't know: %d", (i32)allocator->type), LOG_ERROR);
         } break;
     }
     
@@ -78,7 +78,7 @@ void free_allocator(Allocator *allocator) {
             }
         } break;
         default: {
-            // @TODO: Log unhandled allocator.
+            log(tprintf("On free_allocator we got allocator of type we don't know: %d", (i32)allocator->type), LOG_ERROR);
         }
     }
 }
@@ -122,7 +122,7 @@ char *alloc(Allocator *allocator, size_t size) {
         case ARENA_ALLOCATOR: {
             char *result = alloc_arena_data(&allocator->arena_data, size);
             if (!result) {            
-                // @TODO: Log error.
+                log(tprintf("Failed to alloc arena allocator! Arena reserved: %d, alloc size required: %d", allocator->arena_data.reserved, size), LOG_ERROR);
             }
             
             return result;
@@ -154,14 +154,14 @@ char *alloc(Allocator *allocator, size_t size) {
             
             bool success = init_arena_data(new_chunk, __max(chunk_data->default_chunks_size, size), chunk_data->allocator);
             if (!success) {
-                // @TODO: Log error.
+                log("Failed to init arena data on chunk arena allocator!", LOG_ERROR);
             }
             
             auto result = alloc_arena_data(new_chunk, size);
             return result;
         } break;
         default: {
-            // @TODO: Log unhandled allocator.
+            log(tprintf("On alloc we got allocator of type we don't know: %d", (i32)allocator->type), LOG_ERROR);
             return NULL;
         }
     }
@@ -185,7 +185,7 @@ Allocator init_allocator(size_t size, Allocator_Type type, Allocator *optional_a
         case ARENA_ALLOCATOR: {
             bool success = init_arena_data(&result.arena_data, size, optional_allocator);
             if (!success) {
-                // @TODO: Log error.
+                log("Failed to init arena data on init arena allocator!", LOG_ERROR);
             }
         } break;
         case CHUNK_ARENA_ALLOCATOR: {
@@ -195,11 +195,11 @@ Allocator init_allocator(size_t size, Allocator_Type type, Allocator *optional_a
             
             bool success = init_arena_data(&chunk_data->first, size, optional_allocator);
             if (!success) {
-                // @TODO: Log error.
+                log("Failed to init arena data on first chunk of chunk arena allocator!", LOG_ERROR);
             }
         };
         default: {
-            // @TODO: Log unhandled allocator.
+            log(tprintf("On init_allocator we got allocator of type we don't know: %d", (i32)type), LOG_ERROR);
         }
     }
     
