@@ -226,6 +226,44 @@ void destroy_player() {
     current_context->player_entity = NULL;
 }
 
+Allocator *take_entity_allocator(Context *context) {
+    for_chunk_array(i, &context->entity_allocators) {
+        auto entity_allocator = context->entity_allocators.get(i);
+        if (!entity_allocator->occupied) {
+            entity_allocator->occupied = true;
+            assert(entity_allocator->allocator.type != NOT_INITED_ALLOCATOR);
+            return &entity_allocator->allocator;
+        }
+    }
+    
+    // If we here - we did not found any previously added non-occupied allocator so we will add new and init allocator.
+    auto entity_allocator = context->entity_allocators.append({});
+    entity_allocator->allocator = init_allocator(128, CHUNK_ARENA_ALLOCATOR, &context->allocator);
+    entity_allocator->occupied = true;
+    
+    return &entity_allocator->allocator;
+}
+
+void release_entity_allocator(Context *context, Allocator *allocator) {
+    bool found = false;
+    for_chunk_array(i, &context->entity_allocators) {
+        auto entity_allocator = context->entity_allocators.get(i);
+        if (&entity_allocator->allocator == allocator) {
+            if (!entity_allocator->occupied) {
+                log("On release_entity_allocator we've found allocator, but it was not occupied and that's a error!", LOG_ERROR);
+            }
+            entity_allocator->occupied = false;
+            clear_allocator(&entity_allocator->allocator);
+            found = true;
+            break;
+        }
+    }
+    
+    if (!found) {
+        log("On release_entity_allocator did not found passed allocator!", LOG_ERROR);
+    }
+}
+
 void free_entity(Entity *e) {
     auto context = e->context;
     
@@ -330,6 +368,8 @@ void free_entity(Entity *e) {
     e->color_changer.changing = false;
     
     free_entity_particle_emitters(e);
+    
+    release_entity_allocator(e->context, e->allocator);
     
     e->context->entities.remove(e->id - 1);
     
@@ -1412,45 +1452,6 @@ inline void put_centipede_segment_at_right_start_position(Entity *segment, Entit
     segment->position = target_position;
 }
 
-
-Allocator *take_entity_allocator(Context *context) {
-    for_chunk_array(i, &context->entity_allocators) {
-        auto entity_allocator = context->entity_allocators.get(i);
-        if (!entity_allocator->occupied) {
-            entity_allocator->occupied = true;
-            assert(entity_allocator->allocator.type != NOT_INITED_ALLOCATOR);
-            return &entity_allocator->allocator;
-        }
-    }
-    
-    // If we here - we did not found any previously added non-occupied allocator so we will add new and init allocator.
-    auto entity_allocator = context->entity_allocators.append({});
-    entity_allocator->allocator = init_allocator(128, CHUNK_ARENA_ALLOCATOR, &context->allocator);
-    entity_allocator->occupied = true;
-    
-    return &entity_allocator->allocator;
-}
-
-void release_entity_allocator(Context *context, Allocator *allocator) {
-    bool found = false;
-    for_chunk_array(i, &context->entity_allocators) {
-        auto entity_allocator = context->entity_allocators.get(i);
-        if (&entity_allocator->allocator == allocator) {
-            if (!entity_allocator->occupied) {
-                log("On release_entity_allocator we've found allocator, but it was not occupied and that's a error!", LOG_ERROR);
-            }
-            entity_allocator->occupied = false;
-            clear_allocator(&entity_allocator->allocator);
-            found = true;
-            break;
-        }
-    }
-    
-    if (!found) {
-        log("On release_entity_allocator did not found passed allocator!", LOG_ERROR);
-    }
-}
-
 template <typename T>
 inline bool add_entity_type_if_need(Entity *entity, u64 type_flag, T **to_assign, Chunk_Array <T> *arr, i32 *match_count) {
     if (entity->flags & type_flag) {
@@ -1465,7 +1466,7 @@ inline bool add_entity_type_if_need(Entity *entity, u64 type_flag, T **to_assign
     return false;
 }
 
-void add_entity_types(Entity *entity) {
+void add_entity_types_and_take_allocator(Entity *entity) {
     assert(entity->context);   
     assert(entity->id > 0 && get_entity(entity->id, entity->context)->id > 0);
     
@@ -1629,7 +1630,7 @@ void init_entity(Entity *entity, Entity *to_copy) {
     assert(entity->context);
     assert(entity->id > 0 && get_entity(entity->id, entity->context)->id > 0);
 
-    add_entity_types(entity);
+    add_entity_types_and_take_allocator(entity);
     
     assert(entity->allocator);
     Allocator *allocator = entity->allocator;

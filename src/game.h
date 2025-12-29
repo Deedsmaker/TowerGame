@@ -251,7 +251,7 @@ Light *init_entity_light(Entity *entity, Light *copy_light = NULL, b32 free_ligh
 inline void loop_entities(void (func)(Entity*));
 inline void init_loaded_entity(Entity *entity);
 
-void add_entity_types(Entity *entity);
+void add_entity_types_and_take_allocator(Entity *entity);
 void init_entity(Entity *entity, Entity *to_copy = NULL);
 
 void add_explosion_light(Vector2 position, f32 radius, f32 grow_time, f32 shrink_time, Color color, i32 size = SMALL_LIGHT, i32 entity_id = -1);

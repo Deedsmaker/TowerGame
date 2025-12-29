@@ -663,7 +663,7 @@ b32 load_level(String name, u64 load_flags = 0) {
             
             IF_FIND("flags") dummy_entity->flags = to_u64(splitted.get_value(i+1));
             
-            add_entity_types(dummy_entity);
+            add_entity_types_and_take_allocator(dummy_entity);
             
             auto entity = copy_and_add_entity(dummy_entity, &loaded_context, id);
             
