@@ -879,7 +879,7 @@ struct Entity {
     
     String *name = NULL;
 
-    b32 enabled = 12;
+    b32 enabled = true;
     
     Texture *texture = NULL;
     char texture_name[64];
@@ -895,10 +895,6 @@ struct Entity {
     
     Vector2 up = {0, 1};
     Vector2 right = {1, 0};
-    
-    // That's for detecting how many systems now changing this entity and that's required for undo to correctly detect multiple
-    // continuous changes.
-    i8 editor_changing_count = 0;
     
     FLAGS flags = 0;
     FLAGS runtime_only_flags = 0;
@@ -951,7 +947,7 @@ struct Entity {
         void *main_type; 
     };
     
-    Door door;
+    Door door = {};
     
     Static_Array <i32, MAX_ENTITY_EMITTERS> particle_emitters_indexes = {};
     i32 note_index = -1;

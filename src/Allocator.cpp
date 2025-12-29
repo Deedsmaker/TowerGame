@@ -181,6 +181,7 @@ Allocator init_allocator(size_t size, Allocator_Type type, Allocator *optional_a
 
     switch (type) {
         case DEFAULT_ALLOCATOR: {
+            // No need for init.
         } break;
         case ARENA_ALLOCATOR: {
             bool success = init_arena_data(&result.arena_data, size, optional_allocator);
@@ -197,7 +198,7 @@ Allocator init_allocator(size_t size, Allocator_Type type, Allocator *optional_a
             if (!success) {
                 log("Failed to init arena data on first chunk of chunk arena allocator!", LOG_ERROR);
             }
-        };
+        } break;
         default: {
             log(tprintf("On init_allocator we got allocator of type we don't know: %d", (i32)type), LOG_ERROR);
         }

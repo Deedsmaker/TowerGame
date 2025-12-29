@@ -248,15 +248,15 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         // every enemy that take hit, so it have sense to set it where actual hit is delivered.
         enemy->last_hit_time = current_context->game_time;
         
-        f32 max_speed_boost = 6 * player->sword_spin_direction * enemy->sword_kill_speed_modifier;
-        f32 max_vertical_speed_boost = player->grounded ? 0 : 20;
-        if (player->velocity.y > 0) {
-            max_vertical_speed_boost *= 0.3f;   
-        }
+        // f32 max_speed_boost = 6 * player->sword_spin_direction * enemy->sword_kill_speed_modifier;
+        // f32 max_vertical_speed_boost = player->grounded ? 0 : 20;
+        // if (player->velocity.y > 0) {
+        //     max_vertical_speed_boost *= 0.3f;   
+        // }
         
-        if (!player->grounded) {
-            player->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
-        }
+        // if (!player->grounded) {
+        //     player->velocity += Vector2_up * max_vertical_speed_boost + Vector2_right * max_speed_boost; 
+        // }
                          
         if (was_alive_before_hit) {
             add_hitstop(0.01f + hitstop_add);
