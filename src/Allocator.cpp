@@ -15,7 +15,7 @@ void clear_allocator(Allocator *allocator, bool zero_data) {
         case ARENA_ALLOCATOR: {
             auto arena = &allocator->arena_data;
             arena->watermark = 0;
-            arena->current = arena->current;
+            arena->current = arena->start;
             if (zero_data) {
                 memset(arena->start, 0, arena->reserved);
             }

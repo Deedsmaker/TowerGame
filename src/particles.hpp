@@ -49,9 +49,9 @@ global_variable Particle_Emitter bullet_trail_emitter_copy = {};
 global_variable i32 enabled_particles_count = 0;
 // i32 last_added_index = -1;
 
-void add_line_trail_position(Line_Trail *line_trail, Vector2 point){
+void add_line_trail_position(Line_Trail *line_trail, Vector2 point) {
     Vector2 *spot = NULL;
-    if (line_trail->positions.count < LINE_TRAIL_MAX_POINTS){
+    if (line_trail->positions.count < LINE_TRAIL_MAX_POINTS) {
         spot = line_trail->positions.append({});
     } else{
         spot = line_trail->positions.get(line_trail->start_index);    
@@ -62,10 +62,10 @@ void add_line_trail_position(Line_Trail *line_trail, Vector2 point){
     line_trail->last_added_position = point;
 }
 
-i32 add_line_trail(Vector2 start_position){
-    for (i32 i = 0; i < current_context->line_trails.capacity; i++){
+i32 add_line_trail(Vector2 start_position) {
+    for (i32 i = 0; i < current_context->line_trails.capacity; i++) {
         Line_Trail *line_trail = current_context->line_trails.get(i);
-        if (!line_trail->occupied){
+        if (!line_trail->occupied) {
             line_trail->occupied = true;            
             // line_trail->positions.append(start_position);
             add_line_trail_position(line_trail, start_position);
@@ -77,14 +77,14 @@ i32 add_line_trail(Vector2 start_position){
     return -1;
 }
 
-inline Line_Trail *get_line_trail(i32 index){
-    if (index < 0 || index >= MAX_LINE_TRAILS){
+inline Line_Trail *get_line_trail(i32 index) {
+    if (index < 0 || index >= MAX_LINE_TRAILS) {
         printf("WARNING: Tried to get line trail with bad index %d\n", index);
         return NULL;
     }
     
     Line_Trail *line_trail = current_context->line_trails.get(index);
-    if (!line_trail || !line_trail->occupied){
+    if (!line_trail || !line_trail->occupied) {
         printf("WARNING: Trying to get line trail that wasn't occupied with index %d\n", index);
         line_trail = NULL;
     }
@@ -92,79 +92,79 @@ inline Line_Trail *get_line_trail(i32 index){
     return line_trail;
 }
 
-inline void free_line_trail(i32 index){
-    if (index < 0 || index >= MAX_LINE_TRAILS){
+inline void free_line_trail(i32 index) {
+    if (index < 0 || index >= MAX_LINE_TRAILS) {
         printf("WARNING: Tried to free line trail with bad index %d\n", index);
         return;
     }
     
     Line_Trail *line_trail = get_line_trail(index);
-    if (line_trail){
+    if (line_trail) {
         *line_trail = {};
     }
 }
 
-void update_line_trail(i32 index, Vector2 current_position){
+void update_line_trail(i32 index, Vector2 current_position) {
     Line_Trail *line_trail = get_line_trail(index);
-    if (!line_trail){
+    if (!line_trail) {
         return;
     }
     
     Vector2 moved = current_position - line_trail->last_added_position;
-    if (sqr_magnitude(moved) >= 4.0f * 4.0f){
+    if (sqr_magnitude(moved) >= 4.0f * 4.0f) {
         add_line_trail_position(line_trail, current_position);
     }
 }
 
-inline void enable_emitter(Particle_Emitter *emitter){
-    if (emitter && !emitter->enabled){
+inline void enable_emitter(Particle_Emitter *emitter) {
+    if (emitter && !emitter->enabled) {
         emitter->last_emitted_position = emitter->position;
         emitter->enabled = true;
     }
 }
 
-inline void enable_emitter(Particle_Emitter *emitter, Vector2 position){
-    if (emitter && !emitter->enabled){   
+inline void enable_emitter(Particle_Emitter *emitter, Vector2 position) {
+    if (emitter && !emitter->enabled) {   
         // That's so next enable_emitter set last_emitted_position to this position and we don't have particle trail across map.
         emitter->position = position;
         enable_emitter(emitter);
     }
 }
 
-inline void enable_emitter(i32 index){
+inline void enable_emitter(i32 index) {
     Particle_Emitter *emitter = get_particle_emitter(index);
-    if (emitter){
+    if (emitter) {
         enable_emitter(emitter);
     }
 }
 
-inline void enable_emitter(i32 index, Vector2 position){
+inline void enable_emitter(i32 index, Vector2 position) {
     Particle_Emitter *emitter = get_particle_emitter(index);
-    if (emitter){
+    if (emitter) {
         enable_emitter(emitter, position);
     }
 }
 
-inline void disable_emitter(Particle_Emitter *emitter){
-    if (emitter){
+inline void disable_emitter(Particle_Emitter *emitter) {
+    if (emitter) {
         emitter->enabled = false;
     }
 }
 
-inline void disable_emitter(i32 index){
+inline void disable_emitter(i32 index) {
     Particle_Emitter *emitter = get_particle_emitter(index);
-    if (emitter){
+    if (emitter) {
         disable_emitter(emitter);
     }
 }
 
-inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 direction, f32 speed_multiplier){
+inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 direction, f32 speed_multiplier) {
     Particle particle = {};
     particle.position = position + emitter->spawn_offset;
     
-    switch (emitter->spawn_type){
+    switch (emitter->spawn_type) {
         case CIRCLE:{
-            if (emitter->spawn_radius > 0){
+            if (emitter->spawn_radius > 0) {
                 particle.position += rnd_in_circle() * emitter->spawn_radius;
             }
         } break;
@@ -188,7 +188,7 @@ inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 
     particle.max_lifetime = lifetime;
     
     particle.color = emitter->color;;
-    if (emitter->color.a < 240){
+    if (emitter->color.a < 240) {
         particle.color = color_fade(particle.color, rnd(0.5f, 1.0f));
     }
     particle.start_color = particle.color;
@@ -199,20 +199,20 @@ inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 
     
     particle.enabled = true;
     
-    if (emitter->particle_trail_emitter){
+    if (emitter->particle_trail_emitter) {
         particle.trail_emitter_index = add_particle_emitter(emitter->particle_trail_emitter);
         Particle_Emitter *em = get_particle_emitter(particle.trail_emitter_index);
-        if (em){
+        if (em) {
             em->position = particle.position;
             enable_emitter(em);
         }
     }
     
-    if (emitter->particle_line_trail){
+    if (emitter->particle_line_trail) {
         particle.line_trail_index = add_line_trail(position);
     }
     
-    if (!current_context->particles.get_value(emitter->last_added_index).enabled){
+    if (!current_context->particles.get_value(emitter->last_added_index).enabled) {
         enabled_particles_count++;
     }
     
@@ -220,17 +220,17 @@ inline void shoot_particle(Particle_Emitter *emitter, Vector2 position, Vector2 
     
     // emitter->last_added_index = (last_added_index + 1) % current_context->particles.capacity;
     emitter->last_added_index += 1;
-    if (emitter->last_added_index >= emitter->particles_max_index){
+    if (emitter->last_added_index >= emitter->particles_max_index) {
         emitter->last_added_index = emitter->particles_start_index;
     }
 }
 
-void emit_particles(Particle_Emitter *emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1){
+void emit_particles(Particle_Emitter *emitter, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1) {
     // There we could receive emitter that actually already connected to some entity and we just want emit it. 
     // Also we can receive just setuped emitter and in that case we want to create new emitter that will be updated.
-    if (!emitter->occupied){ // Means that's just arbitrary emitter.
+    if (!emitter->occupied) { // Means that's just arbitrary emitter.
         i32 new_emitter_index = add_particle_emitter(emitter);
-        if (new_emitter_index < 0){
+        if (new_emitter_index < 0) {
             // print("WARNING: Could not find emitter on emit_particles");
             return;
         }
@@ -242,28 +242,28 @@ void emit_particles(Particle_Emitter *emitter, Vector2 position, Vector2 directi
 
     normalize(&direction);
     i32 count = rnd((int)emitter->count_min, (int)emitter->count_max);
-    if (count >= 10){
+    if (count >= 10) {
         count = (i32)((f32)count * count_multiplier); 
     }
     
     emitter->spawn_radius *= area_multiplier;
     
     Vector2 emitter_direction = direction;
-    if (emitter->gravity_multiplier > 2){
+    if (emitter->gravity_multiplier > 2) {
         emitter->direction = normalized(direction + Vector2_up);
     }
     
-    for (i32 i = 0; i < count; i++){
+    for (i32 i = 0; i < count; i++) {
         shoot_particle(emitter, position, direction, speed_multiplier);
     }
     
-    for (i32 i = 0; i < emitter->additional_emitters.count; i++){
+    for (i32 i = 0; i < emitter->additional_emitters.count; i++) {
         emit_particles(emitter->additional_emitters.get_value(i), position, direction, count_multiplier, speed_multiplier, area_multiplier);
     }
 }
 
-inline void emit_particles(i32 emitter_index, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1){
-    if (emitter_index == -1){
+inline void emit_particles(i32 emitter_index, Vector2 position, Vector2 direction = Vector2_up, f32 count_multiplier = 1, f32 speed_multiplier = 1, f32 area_multiplier = 1) {
+    if (emitter_index == -1) {
         print("WARNING: Trying to emit particles with emitter index -1");
         return;
     }
@@ -271,17 +271,17 @@ inline void emit_particles(i32 emitter_index, Vector2 position, Vector2 directio
     emit_particles(get_particle_emitter(emitter_index), position, direction, count_multiplier, speed_multiplier, area_multiplier);
 }
 
-void update_overtime_emitter(Particle_Emitter *emitter, f32 dt){
+void update_overtime_emitter(Particle_Emitter *emitter, f32 dt) {
     emitter->emitting_timer += dt;
     f32 emit_delay = 1.0f / (emitter->over_time * emitter->count_multiplier);
-    while (emitter->emitting_timer >= emit_delay){
+    while (emitter->emitting_timer >= emit_delay) {
         emitter->emitting_timer -= emit_delay;
         shoot_particle(emitter, emitter->position, emitter->direction, emitter->speed_multiplier);
     }
 }
 
-void update_overdistance_emitter(Particle_Emitter *emitter){
-    if (emitter->just_born){
+void update_overdistance_emitter(Particle_Emitter *emitter) {
+    if (emitter->just_born) {
         emitter->last_emitted_position = emitter->position;
         emitter->just_born = false;
         return;
@@ -292,7 +292,7 @@ void update_overdistance_emitter(Particle_Emitter *emitter){
     Vector2 moved_vector = emitter->position - emitter->last_emitted_position;
     Vector2 moved_direction = normalized(moved_vector);
     
-    if (emitter->direction_to_move){
+    if (emitter->direction_to_move) {
         emitter->direction = moved_direction;
     }
     
@@ -300,7 +300,7 @@ void update_overdistance_emitter(Particle_Emitter *emitter){
     
     f32 distance_to_emit = 1.0f / (emitter->over_distance * emitter->count_multiplier);
     
-    while (moved_distance > distance_to_emit){
+    while (moved_distance > distance_to_emit) {
         moved_distance -= distance_to_emit;
         emitter->last_emitted_position += moved_direction * distance_to_emit;
         emitter->position = emitter->last_emitted_position;
@@ -310,39 +310,39 @@ void update_overdistance_emitter(Particle_Emitter *emitter){
     emitter->position = current_emitter_position;
 }
 
-inline void disable_particle(Particle *particle){
+inline void disable_particle(Particle *particle) {
     particle->enabled = false;
     enabled_particles_count--;
     
-    if (particle->trail_emitter_index != -1){
+    if (particle->trail_emitter_index != -1) {
         Particle_Emitter *em = get_particle_emitter(particle->trail_emitter_index);
-        if (em){
+        if (em) {
             em->should_extinct = true;
         }
     }
     
-    if (particle->line_trail_index >= 0){    
+    if (particle->line_trail_index >= 0) {    
         free_line_trail(particle->line_trail_index);   
     }
 }
 
-internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt){
+internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt) {
     emitter->alive_particles_count = 0;
-    for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++){
-        if (!current_context->particles.get_value(i).enabled){
+    for (i32 i = emitter->particles_start_index; i < emitter->particles_max_index; i++) {
+        if (!current_context->particles.get_value(i).enabled) {
             continue;
         }
     
         Particle *particle = current_context->particles.get(i);
         // dt = game_state == EDITOR ? core.time.real_dt : dt;
         
-        if (particle->lifetime <= 0.2f && editor_state == GAME){
+        if (particle->lifetime <= 0.2f && editor_state == GAME) {
             // dt = core.time.real_dt;
         }
         
         particle->lifetime += dt;
         
-        if (particle->lifetime >= particle->max_lifetime){
+        if (particle->lifetime >= particle->max_lifetime) {
             disable_particle(particle);
             continue;
         }
@@ -351,23 +351,23 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         
         f32 t_lifetime = particle->lifetime / particle->max_lifetime;
         
-        if (emitter->shape == PARTICLE_TEXTURE || emitter->fade_till_death){
-            if (emitter->grow_till_death){
+        if (emitter->shape == PARTICLE_TEXTURE || emitter->fade_till_death) {
+            if (emitter->grow_till_death) {
                 particle->color = lerp(particle->start_color, Fade(particle->start_color, 0), sqrtf(t_lifetime));            
             } else{
                 particle->color = lerp(particle->start_color, Fade(particle->start_color, 0), t_lifetime * t_lifetime);            
             }
         }
         
-        if (emitter->grow_till_death){
+        if (emitter->grow_till_death) {
             particle->scale = lerp(Vector2_zero, particle->original_scale, sqrtf(t_lifetime));
         } else{
-            if (emitter->grow_after_birth && t_lifetime <= 0.2f){
+            if (emitter->grow_after_birth && t_lifetime <= 0.2f) {
                 f32 t = clamp01(t_lifetime / 0.2f);
                 particle->scale = lerp(Vector2_zero, particle->original_scale, t);
             }
             
-            if (emitter->shrink_before_death && t_lifetime >= 0.3f){
+            if (emitter->shrink_before_death && t_lifetime >= 0.3f) {
                 f32 t = clamp01((t_lifetime - 0.3f) / 0.7f);
                 particle->scale = lerp(particle->original_scale, Vector2_zero, t * t);
             }
@@ -376,13 +376,13 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         f32 gravity = -50 * emitter->gravity_multiplier;
         particle->velocity.y += gravity * dt;
         
-        if (emitter->individual_noise_movement){
+        if (emitter->individual_noise_movement) {
             particle->velocity += get_perlin_in_circle(emitter->noise_speed, particle->position.x, particle->position.y) * emitter->noise_power * dt; 
-        } else if (emitter->random_movement){
+        } else if (emitter->random_movement) {
             particle->velocity += frame_on_circle_rnd * 100 * dt;
         }
         
-        if (emitter->stop_before_death && t_lifetime > emitter->lifetime_t_to_start_stopping){
+        if (emitter->stop_before_death && t_lifetime > emitter->lifetime_t_to_start_stopping) {
             particle->velocity *= 1.0f - dt * (t_lifetime * 0.5f + 1.0f);
         }
         
@@ -392,13 +392,13 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
         
         particle->position = next_position;
         
-        if (emitter->should_collide){
+        if (emitter->should_collide) {
             local_persist Static_Array<Vector2, MAX_VERTICES> vertices = Static_Array<Vector2, MAX_VERTICES>();
             add_rect_vertices(&vertices, {0.5f, 0.5f});
             local_persist Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
             
             fill_collisions(particle->position, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
-            if (collisions_buffer.count > 0){
+            if (collisions_buffer.count > 0) {
                 Collision col = collisions_buffer.get_value(0);
                 emit_particles(&air_dust_emitter, col.point, col.normal);
                 disable_particle(particle);
@@ -406,68 +406,68 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
             }
         }   
         
-        if (particle->line_trail_index != -1){
+        if (particle->line_trail_index != -1) {
             update_line_trail(particle->line_trail_index, particle->position);
         }
         
-        if (particle->trail_emitter_index != -1){
+        if (particle->trail_emitter_index != -1) {
             Particle_Emitter *em = get_particle_emitter(particle->trail_emitter_index);
-            if (em){
+            if (em) {
                 em->position = particle->position;
             }
         }   
     }
 }
 
-inline void update_emitter(Particle_Emitter *emitter, f32 dt){
+inline void update_emitter(Particle_Emitter *emitter, f32 dt) {
     emitter->emitter_lifetime += dt;
     
     // We don't want to spawn new particles when emitter is preparing to die.
-    if (emitter->enabled && !emitter->should_extinct){
-        if (emitter->over_time > 0){
+    if (emitter->enabled && !emitter->should_extinct) {
+        if (emitter->over_time > 0) {
             update_overtime_emitter(emitter, dt);
         }
         
-        if (emitter->over_distance > 0){
+        if (emitter->over_distance > 0) {
             update_overdistance_emitter(emitter);
         }
-    } else if (!emitter->enabled){
+    } else if (!emitter->enabled) {
         emitter->emitter_lifetime = 0;
     }
     
     update_emitter_particles(emitter, dt);
     
-    if (emitter->should_extinct && emitter->alive_particles_count == 0){
+    if (emitter->should_extinct && emitter->alive_particles_count == 0) {
         free_particle_emitter(emitter->index);
     }
 }
 
-void update_particle_emitters(f32 dt){
+void update_particle_emitters(f32 dt) {
     i32 emitters_count = 0;
-    for (int i = 0; i < current_context->particle_emitters.capacity; i++){
+    for (int i = 0; i < current_context->particle_emitters.capacity; i++) {
         Particle_Emitter *emitter = current_context->particle_emitters.get(i);
-        if (!emitter->occupied){
+        if (!emitter->occupied) {
             continue;              
         }
         emitters_count++;
-        if (emitter->destroyed){
+        if (emitter->destroyed) {
         }
         
         update_emitter(emitter, dt);        
     }
 }
 
-void free_emitter(Particle_Emitter *emitter){
+void free_emitter(Particle_Emitter *emitter) {
     emitter = NULL;
 }
 
-void copy_emitter(Particle_Emitter *dest, Particle_Emitter *src, Vector2 start_position){
+void copy_emitter(Particle_Emitter *dest, Particle_Emitter *src, Vector2 start_position) {
     *dest = *src;
     dest->last_emitted_position = start_position;
     dest->position              = start_position;
 }
 
-void setup_particles(){
+void setup_particles() {
     // free_emitter(chainsaw_emitter);
     // chainsaw_emitter = add_emitter();
     chainsaw_emitter_copy.count_type = BIG_PARTICLE_COUNT;

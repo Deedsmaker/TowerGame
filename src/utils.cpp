@@ -182,22 +182,22 @@ void print(Array<Vector2> *arr){
     printf("]; %.4f\n", core.time.app_time);
 }
 
-char* to_string(int num){
-    char* text = (char*)malloc(10 * sizeof(char));
-    sprintf(text, "%d", num);
-    return text;
-}
+// char* to_string(int num){
+//     char* text = (char*)malloc(10 * sizeof(char));
+//     sprintf(text, "%d", num);
+//     return text;
+// }
 
-char* to_string(f32 num){
-    char* text = (char*)malloc(10 * sizeof(char));
-    sprintf(text, "%f", num);
-    return text;
-}
-char* to_string(f64 num){
-    char* text = (char*)malloc(30 * sizeof(char));
-    sprintf(text, "%f", num);
-    return text;
-}
+// char* to_string(f32 num){
+//     char* text = (char*)malloc(10 * sizeof(char));
+//     sprintf(text, "%f", num);
+//     return text;
+// }
+// char* to_string(f64 num){
+//     char* text = (char*)malloc(30 * sizeof(char));
+//     sprintf(text, "%f", num);
+//     return text;
+// }
 
 const char* to_string(Color color){
     return TextFormat("{%d, %d, %d, %d}", color.r, color.g, color.b, color.a);

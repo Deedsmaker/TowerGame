@@ -1670,8 +1670,7 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
         }
     }
         
-    
-    entity->particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
+    // entity->particle_emitters_indexes.clear(); // Because on init entities add emitters themselves.
 }
 
 void init_entity(Entity *entity, Entity *to_copy) {

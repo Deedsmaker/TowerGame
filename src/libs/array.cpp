@@ -12,29 +12,6 @@
 #define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
 #define for_array_backwards(index, array) for (i32 index = (array)->count - 1; index >= 0; index--)
 
-inline void grow_if_need(void **data, size_t element_size, i32 *capacity, i32 current_count, i32 appended_count) {
-    i32 new_count = current_count + appended_count;
-    if (new_count > *capacity) {
-        void *old_data = *data;
-        
-        while (new_count > *capacity) {
-            if (*capacity == 0) {
-                *capacity = 8;
-            } else {
-                *capacity *= 2;
-            }
-        }
-        
-        *data = calloc(1, *capacity * element_size);
-        // old_data could be not present if we growing for the first time (so data was null).
-        if (old_data) {
-            memcpy(*data, old_data, current_count * element_size);
-            free(old_data);
-        }
-        
-    }
-}
-
 template<typename T>
 struct Array {
     T *data;  
@@ -60,8 +37,31 @@ struct Array {
         return data[index];
     }
     
+    inline void grow_if_need(i32 appended_count) {
+        i32 new_count = count + appended_count;
+        if (new_count > capacity) {
+            T *old_data = data;
+            
+            while (new_count > capacity) {
+                if (capacity == 0) {
+                    capacity = 8;
+                } else {
+                    capacity *= 2;
+                }
+            }
+            
+            data = (T *)alloc(allocator, capacity * sizeof(T));
+            // old_data could be not present if we growing for the first time (so data was null).
+            if (old_data) {
+                memcpy(data, old_data, count * sizeof(T));
+                free_data_in_allocator(allocator, old_data);
+            }
+            
+        }
+    }
+    
     T *append(T value) {
-        grow_if_need((void **)(&data), sizeof(T), &capacity, count, 1);
+        grow_if_need(1);
         
         data[count] = value;
         count += 1;
