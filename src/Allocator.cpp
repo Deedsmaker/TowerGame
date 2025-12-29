@@ -100,7 +100,7 @@ bool init_arena_data(Arena_Data *data, size_t size, Allocator *allocator = NULL)
 }
 
 inline char *alloc_arena_data(Arena_Data *data, size_t size) { 
-    if (data->watermark + size >= data->reserved) {
+    if (data->watermark + size > data->reserved) {
         return NULL;
     }
     

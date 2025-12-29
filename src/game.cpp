@@ -1544,22 +1544,31 @@ void add_entity_types_and_take_allocator(Entity *entity) {
 // variable of entity - we do this in this function and call it inside init_entity, so every entity will have proper allocators
 // set and we have to write allocator assignment only there.
 void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
+    bool should_copy = true;
+
     // We don't require proper to_copy entity because we want to use this function also just for setting allocators.
     //
-    // Copy function will go through all dynamic variables anyway (because it needs to deep copy them), so we will set allocators
-    // there aswell so everything is in one place.
-    if (!to_copy) to_copy = entity;
+    // Copying requires us to go through all dynamic variables anyway (because it needs to deep copy them), 
+    // so we will set allocators there aswell so everything is in one place.
+    if (!to_copy) { 
+        should_copy = false;
+        // to_copy = entity;
+    } else {
+        assert(entity->flags == to_copy->flags);
+    }
     
     auto allocator = entity->allocator;
-        
-    assert(entity->flags == to_copy->flags);
     
     // Copy helper type.
     if (entity->helper_type) {
         if (0) {
         } else if (entity->flags & MOVE_SEQUENCE) { // Copy move sequence.
-            *entity->move_sequence = *to_copy->move_sequence;            
-            entity->move_sequence->points = copy_array(&to_copy->move_sequence->points, allocator);
+            if (should_copy) {
+                *entity->move_sequence = *to_copy->move_sequence;
+                
+                entity->move_sequence->points = copy_array(&to_copy->move_sequence->points, allocator);
+            }
+            entity->move_sequence->points.allocator = allocator;
         } else {
             log("WARNING: Forgot to copy some helper type!", LOG_WARNING);
         }
@@ -1569,16 +1578,28 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
     if (entity->secondary_type) {
         if (0) {
         } else if (entity->flags & TRIGGER) { // Copy trigger.
-            *entity->trigger = *to_copy->trigger;
-            entity->trigger->connected = copy_array(&to_copy->trigger->connected, allocator);
-            entity->trigger->tracking = copy_array(&to_copy->trigger->tracking, allocator);
-            entity->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points, allocator);
+            if (should_copy) {
+                *entity->trigger = *to_copy->trigger;
+                
+                entity->trigger->connected = copy_array(&to_copy->trigger->connected, allocator);
+                entity->trigger->tracking = copy_array(&to_copy->trigger->tracking, allocator);
+                entity->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points, allocator);
+            }
+            entity->trigger->connected.allocator = allocator;
+            entity->trigger->tracking.allocator = allocator;
+            entity->trigger->cam_rails_points.allocator = allocator;
         } else if (entity->flags & PROJECTILE) { // Copy projectile.
-            *entity->projectile = *to_copy->projectile;
+            if (should_copy) {
+                *entity->projectile = *to_copy->projectile;
+            }
         } else if (entity->flags & PLANNING_POINT) { // Copy planning point.
-            *entity->planning_point = *to_copy->planning_point;
+            if (should_copy) {
+                *entity->planning_point = *to_copy->planning_point;
+            }
         } else if (entity->flags & STICKY_TEXTURE) { // Copy sticky texture.
-            *entity->sticky_texture = *to_copy->sticky_texture;
+            if (should_copy) {
+                *entity->sticky_texture = *to_copy->sticky_texture;
+            }
         } else {
             log("WARNING: Forgot to copy some secondary type!", LOG_WARNING);
         }
@@ -1588,32 +1609,62 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
     if (entity->main_type) {
         if (0) {
         } else if (entity->flags & BIRD_ENEMY) { // Copy bird enemy.
-            *entity->bird_enemy = *to_copy->bird_enemy;
+            if (should_copy) {
+                *entity->bird_enemy = *to_copy->bird_enemy;
+            }
         } else if (entity->flags & KILL_SWITCH) { // Copy kill switch.
-            *entity->kill_switch = *to_copy->kill_switch;
-            entity->kill_switch->connected = copy_array(&to_copy->kill_switch->connected, allocator);
+            if (should_copy) {
+                *entity->kill_switch = *to_copy->kill_switch;
+                
+                entity->kill_switch->connected = copy_array(&to_copy->kill_switch->connected, allocator);
+            }
+            entity->kill_switch->connected.allocator = allocator;
         } else if (entity->flags & TURRET) { // Copy turret.
-            *entity->turret = *to_copy->turret;
+            if (should_copy) {
+                *entity->turret = *to_copy->turret;
+            }
         } else if (entity->flags & CENTIPEDE) { // Copy centipede.
-            *entity->centipede = *to_copy->centipede;
-            entity->centipede->segments = {0}; // They're gonna be added on init_entity.
+            if (should_copy) {
+                *entity->centipede = *to_copy->centipede;
+                
+                entity->centipede->segments = {.allocator = allocator}; // They're gonna be added on init_entity.
+            }
+            entity->centipede->segments.allocator = allocator;
         } else if (entity->flags & CENTIPEDE_SEGMENT) { // Copy centipede segment.
-            *entity->centipede_segment = *to_copy->centipede_segment;
+            if (should_copy) {
+                *entity->centipede_segment = *to_copy->centipede_segment;
+            }
         } else if (entity->flags & JUMP_SHOOTER) { // Copy jump shooter.
-            *entity->jump_shooter = *to_copy->jump_shooter;  
-            entity->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points, allocator);
+            if (should_copy) {
+                *entity->jump_shooter = *to_copy->jump_shooter;  
+                
+                entity->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points, allocator);
+            }
+            entity->jump_shooter->move_points.allocator = allocator;            
         } else if (entity->flags & WIN_BLOCK) { // Copy win block.
-            *entity->win_block = *to_copy->win_block;    
+            if (should_copy) {
+                *entity->win_block = *to_copy->win_block;    
+            }
         } else if (entity->flags & LEVEL_LOADER) { // Copy level loader.
-            *entity->level_loader = *to_copy->level_loader;    
-            entity->level_loader->levels_to_open = copy_array(&to_copy->level_loader->levels_to_open, allocator);
-            entity->level_loader->level_to_load = copy_string(to_copy->level_loader->level_to_load, allocator);
+            if (should_copy) {
+                *entity->level_loader = *to_copy->level_loader;    
+                entity->level_loader->levels_to_open = copy_array(&to_copy->level_loader->levels_to_open, allocator);
+                entity->level_loader->level_to_load = copy_string(to_copy->level_loader->level_to_load, allocator);
+            }
+            entity->level_loader->levels_to_open.allocator = allocator;
+            entity->level_loader->level_to_load.allocator = allocator;
         } else if (entity->flags & PROPELLER) { // Copy propeller.
-            *entity->propeller = *to_copy->propeller;
+            if (should_copy) {
+                *entity->propeller = *to_copy->propeller;
+            }
         } else if (entity->flags & PLAYER) { // Copy player data.
-            *entity->player_data = *to_copy->player_data;
+            if (should_copy) {
+                *entity->player_data = *to_copy->player_data;
+            }
         } else if (entity->flags & ENEMY) {
-            *entity->union_enemy = *to_copy->union_enemy;
+            if (should_copy) {
+                *entity->union_enemy = *to_copy->union_enemy;
+            }
         } else {
             log("WARNING: Forgot to copy some main type!", LOG_WARNING);
         }
@@ -3892,7 +3943,7 @@ void update_editor_ui() {
             INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LEVEL_LOADER_OPEN, level_loader_validate(selected));
             Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
             if (make_input_field(c_str(loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
-                loader->level_to_load.free_data();
+                loader->level_to_load.free_data(); // @TODO: Make this string builder.
                 loader->level_to_load = string(&default_allocator, focus_input_field.content);
             }
             v_pos += height_add;
