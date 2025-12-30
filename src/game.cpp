@@ -2539,6 +2539,7 @@ void enter_planning_state(u64 enter_flags) {
         return;
     }
     
+    
     clean_up_scene();
     game_state = GAME_PLANNING;
     

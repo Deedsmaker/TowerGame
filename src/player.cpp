@@ -1142,6 +1142,10 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         Vector2 last_collision_point = Vector2_zero;
         Vector2 last_collision_normal = Vector2_one;
         
+        if (!player->standing_on_entities.allocator) {
+            assert(player->standing_on_entities.count == 0);
+            player->standing_on_entities.allocator = entity->allocator;
+        }
         player->standing_on_entities.clear();
         
         b32 moving_object_detected = false;

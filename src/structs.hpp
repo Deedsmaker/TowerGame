@@ -710,7 +710,7 @@ struct Player {
     
     b32 is_sword_accelerating = false;
     
-    Array <Entity *> standing_on_entities = {.allocator = temp};
+    Array <Entity *> standing_on_entities = {};
     
     // f32 max_speed_multiplier = 1.0f;
     f32 ground_walk_speed = 100.0f;  
