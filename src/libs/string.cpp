@@ -782,7 +782,7 @@ i32 string_find_digit(String s) {
 
 #include "array.cpp"
 
-void split_string(Array <String> *splitted, String to_split, String separators) {
+void split_string(Array <String> *splitted, String to_split, String separators, Allocator *allocator) {
     if (separators.count <= 0) {
         return;
     }
@@ -795,7 +795,7 @@ void split_string(Array <String> *splitted, String to_split, String separators) 
             if (to_split.data[i] == separators.data[s]) {
                 // That check exists for continuous separators.
                 if (ground_index < i) {
-                    splitted->append(make_substring(to_split, ground_index, i - 1, splitted->allocator)); // i - 1 because make_substring include end index and we don't want to add separator to string.
+                    splitted->append(make_substring(to_split, ground_index, i - 1, allocator), allocator); // i - 1 because make_substring include end index and we don't want to add separator to string.
                 }
 
                 ground_index = i + 1;
@@ -806,13 +806,13 @@ void split_string(Array <String> *splitted, String to_split, String separators) 
     // At that point ground index should be equal to (last separator + 1) and we need to add last substring to array.
     // So if last separator was last symbol - ground_index would be equal to to_split.count.
     if (ground_index <= to_split.count - 1) {
-        splitted->append(make_substring(to_split, ground_index, to_split.count - 1, splitted->allocator));
+        splitted->append(make_substring(to_split, ground_index, to_split.count - 1, allocator), allocator);
     }
 }
 
 Array <String> split_string(String to_split, String separators, Allocator *allocator) {
-    Array <String> result = {.allocator = allocator};
-    split_string(&result, to_split, separators);
+    Array <String> result = {};
+    split_string(&result, to_split, separators, allocator);
     return result;
 }
 

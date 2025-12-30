@@ -15,7 +15,7 @@
 template<typename T>
 struct Array {
     T *data;  
-    Allocator *allocator;
+    // Allocator *allocator;
     
     i32 count;
     i32 capacity;
@@ -37,7 +37,7 @@ struct Array {
         return data[index];
     }
     
-    inline void grow_if_need(i32 appended_count) {
+    inline void grow_if_need(i32 appended_count, Allocator *allocator) {
         i32 new_count = count + appended_count;
         if (new_count > capacity) {
             T *old_data = data;
@@ -60,8 +60,8 @@ struct Array {
         }
     }
     
-    T *append(T value) {
-        grow_if_need(1);
+    T *append(T value, Allocator *allocator) {
+        grow_if_need(1, allocator);
         
         data[count] = value;
         count += 1;
@@ -189,14 +189,14 @@ struct Array {
     
     // Returns a array of elements that present in one and not in another.
     // Does not tries to look at duplicates, checks only for unique elements.
-    inline Array <T> get_unique_elements_differences(Array <T> *another_array) {
-        Array <T> result = {.allocator = temp};
+    inline Array <T> get_unique_elements_differences(Array <T> *another_array, Allocator *allocator) {
+        Array <T> result = {};
         
         Array <T> *biggest = count > another_array->count ? this : another_array;
         Array <T> *smallest = count > another_array->count ? another_array : this;
         for_array (i, biggest) {
             if (!smallest->contains(biggest->get(i))) {
-                result.append(biggest->get_value(i));
+                result.append(biggest->get_value(i), allocator);
             }
         }
         
@@ -247,7 +247,7 @@ struct Array {
         return NULL;
     }
     
-    void free_data() {
+    void free_data(Allocator *allocator) {
         if (data) {
             free_data_in_allocator(allocator, data);
             data = NULL;
@@ -429,7 +429,7 @@ struct Chunk_Array {
         
         Chunk *next;
     };
-    Allocator *allocator;
+    // Allocator *allocator;
     Chunk *first_chunk;
     i32 chunk_size = 32;
     i32 chunks_count;
@@ -518,7 +518,7 @@ struct Chunk_Array {
         return !chunk->elements[index - (chunk_index * chunk_size)].occupied;
     }
     
-    void add_chunk() {
+    void add_chunk(Allocator *allocator) {
         Chunk *last_chunk = first_chunk;
         for (i32 i = 0; i < chunks_count - 1; i++) last_chunk = last_chunk->next;
         assert(last_chunk);
@@ -528,7 +528,7 @@ struct Chunk_Array {
         chunks_count += 1;
     }
     
-    i32 find_free_space_and_grow_if_need() {
+    i32 find_free_space_and_grow_if_need(Allocator *allocator) {
         if (!first_chunk) {
             init_chunk(&first_chunk);
             chunks_count += 1;
@@ -554,7 +554,7 @@ struct Chunk_Array {
         // If we're here then we did not found any free space in existing chunks, so we creating new chunk.
         
         // Right now "chunk" variable should be last chunk.
-        add_chunk();
+        add_chunk(allocator);
         
         // So we returning the first index of newly created chunk. If it was second chunk and chunk_size is 32 - we're returning 32.
         // return chunks_count * (chunk_size - 1);
@@ -595,7 +595,7 @@ struct Chunk_Array {
         if (chunk_index >= chunks_count) {
             i32 chunks_to_add = chunk_index - chunks_count + 1;
             for (i32 i = 0; i < chunks_to_add; i++) {
-                add_chunk();
+                add_chunk(allocator);
             }
         }
         
@@ -625,7 +625,7 @@ struct Chunk_Array {
         return &chunk_element->value;
     }
     
-    inline void copy_values(Chunk_Array <T> *to_copy) {
+    inline void copy_values(Chunk_Array <T> *to_copy, Allocator *allocator) {
         clear();
         if (!to_copy->first_chunk) return;
     
@@ -635,7 +635,7 @@ struct Chunk_Array {
         auto *copy_chunk = to_copy->first_chunk;
         auto **my_chunk = &first_chunk;
         for (i32 i = 0; i < to_copy->chunks_count; i++) {
-            init_chunk(my_chunk);
+            init_chunk(my_chunk, allocator);
             (*my_chunk)->occupied_count = copy_chunk->occupied_count;
             
             for (i32 j = 0; j < to_copy->chunk_size; j++) {
@@ -714,9 +714,9 @@ struct Chunk_Array {
         }
     }
     
-    void free_data() {
+    void free_data(Allocator *allocator) {
         // Our allocator currently is just allocator and we don't free individual elemnts in allocator.
-        if (allocator || !first_chunk) return;
+        if (!first_chunk) return;
         
         Chunk *current = first_chunk;
         Chunk *next;
@@ -730,7 +730,7 @@ struct Chunk_Array {
         // Should we tell that chunks count is zero and actually nullify all of the chunks?
     }
     
-    inline void init_chunk(Chunk **chunk) {
+    inline void init_chunk(Chunk **chunk, Allocator *allocator) {
         *chunk = (Chunk *)alloc(allocator, sizeof(Chunk));
         (*chunk)->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
     }
@@ -752,17 +752,17 @@ void init_chunk_array(Chunk_Array <T> *arr, i32 chunk_size, Allocator *allocator
     // assert(arr->chunks_count == 0);
     arr->chunks_count = 0;
     
-    arr->allocator = allocator;
+    // arr->allocator = allocator;
     arr->chunk_size = chunk_size;
-    arr->init_chunk(&arr->first_chunk);
+    arr->init_chunk(&arr->first_chunk, allocator);
     arr->chunks_count += 1;    
 }
 
 template <typename T>
 Chunk_Array <T> copy_chunk_array(Chunk_Array <T> *to_copy, Allocator *allocator) {
-    Chunk_Array<T> result = {.allocator = allocator};
+    Chunk_Array<T> result = {};
        
-    result.copy_values(to_copy);
+    result.copy_values(to_copy, allocator);
     
     return result;
 }

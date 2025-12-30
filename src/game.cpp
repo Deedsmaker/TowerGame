@@ -237,7 +237,7 @@ Allocator *take_entity_allocator(Context *context) {
     }
     
     // If we here - we did not found any previously added non-occupied allocator so we will add new and init allocator.
-    auto entity_allocator = context->entity_allocators.append({});
+    auto entity_allocator = context->entity_allocators.append({}, &default_allocator);
     entity_allocator->allocator = init_allocator(128, CHUNK_ARENA_ALLOCATOR, &context->allocator);
     entity_allocator->occupied = true;
     
@@ -697,7 +697,7 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     // @TODO: check this because I changed lightmaps.count to lightmaps.capacity because we're clearing before.
     // We're actually clearing dest and we should go through src lightmaps count that that's should be fine.
     for (i32 i = 0; i < src->lightmaps.count; i++) {
-        dest->lightmaps.append(src->lightmaps.get_value(i));
+        dest->lightmaps.append(src->lightmaps.get_value(i), &dest->allocator);
     }
     
     // Copy planning data.
@@ -705,7 +705,7 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
         // In planning we care only about node positions and types for drawing lines, so copying only them.
         assert(dest->planning.nodes.count == 0);
         For (&src->planning.nodes) {
-            auto node = dest->planning.nodes.append(*it);             
+            auto node = dest->planning.nodes.append(*it, &dest->allocator);
             node->entity = NULL;
         }
     }
@@ -938,7 +938,7 @@ void init_spawn_objects() {
     Spawn_Object block_base_object = {0};
     block_base_object.entity = block_base_entity;
     str_copy(block_base_object.name, "block_base");
-    spawn_objects.append(block_base_object);
+    spawn_objects.append(block_base_object, &spawn_objects_context.allocator);
     
     auto no_move_block_entity = add_entity({0, 0}, {50, 10}, {0.5f, 0.5f}, 0, GROUND | NO_MOVE_BLOCK | LIGHT);
     no_move_block_entity->color = PURPLE;
@@ -947,7 +947,7 @@ void init_spawn_objects() {
     Spawn_Object no_move_block_object = {0};
     no_move_block_object.entity = no_move_block_entity;
     str_copy(no_move_block_object.name, "no_move_block");
-    spawn_objects.append(no_move_block_object);
+    spawn_objects.append(no_move_block_object, &spawn_objects_context.allocator);
     
     auto note_entity = add_entity({0, 0}, {20, 15}, {0.5f, 0.5f}, 0, NOTE);
     note_entity->color = Fade(WHITE, 0.7f);
@@ -958,7 +958,7 @@ void init_spawn_objects() {
     Spawn_Object note_object = {0};
     note_object.entity = note_entity;
     str_copy(note_object.name, "note");
-    spawn_objects.append(note_object);
+    spawn_objects.append(note_object, &spawn_objects_context.allocator);
     
     auto dummy_entity = add_entity({0, 0}, {10, 5}, {0.5f, 0.5f}, 0, DUMMY);
     dummy_entity->color  = Fade(GREEN, 0.5f);
@@ -968,7 +968,7 @@ void init_spawn_objects() {
     Spawn_Object dummy_object = {0};
     dummy_object.entity = dummy_entity;
     str_copy(dummy_object.name, "dummy_entity");
-    spawn_objects.append(dummy_object);
+    spawn_objects.append(dummy_object, &spawn_objects_context.allocator);
     
     auto platform_entity = add_entity({0, 0}, {50, 5}, {0.5f, 0.5f}, 0, PLATFORM);
     platform_entity->color = Fade(ColorBrightness(BROWN, -0.1f), 0.1f);
@@ -977,7 +977,7 @@ void init_spawn_objects() {
     Spawn_Object platform_object = {0};
     platform_object.entity = platform_entity;
     str_copy(platform_object.name, "platform");
-    spawn_objects.append(platform_object);
+    spawn_objects.append(platform_object, &spawn_objects_context.allocator);
     
     {
         auto ammo_pack_entity = add_entity({0, 0}, {5, 5}, {0.5f, 0.5f}, 0, PLANNING_POINT);
@@ -988,7 +988,7 @@ void init_spawn_objects() {
         Spawn_Object ammo_pack_object = {0};
         ammo_pack_object.entity = ammo_pack_entity;
         str_copy(ammo_pack_object.name, "ammo_pack");
-        spawn_objects.append(ammo_pack_object);
+        spawn_objects.append(ammo_pack_object, &spawn_objects_context.allocator);
     }    
     
     {
@@ -1000,7 +1000,7 @@ void init_spawn_objects() {
         Spawn_Object item_point_object = {0};
         item_point_object.entity = item_point_entity;
         str_copy(item_point_object.name, "item_point");
-        spawn_objects.append(item_point_object);
+        spawn_objects.append(item_point_object, &spawn_objects_context.allocator);
     }    
     
     {
@@ -1012,7 +1012,7 @@ void init_spawn_objects() {
         Spawn_Object space_point_object = {0};
         space_point_object.entity = space_point;
         str_copy(space_point_object.name, "space_point");
-        spawn_objects.append(space_point_object);
+        spawn_objects.append(space_point_object, &spawn_objects_context.allocator);
     }
     
     {
@@ -1023,7 +1023,7 @@ void init_spawn_objects() {
         Spawn_Object big_sword_charge_giver_object = {0};
         big_sword_charge_giver_object.entity = big_sword_charge_giver_entity;
         str_copy(big_sword_charge_giver_object.name, "big_sword_charge_giver");
-        spawn_objects.append(big_sword_charge_giver_object);
+        spawn_objects.append(big_sword_charge_giver_object, &spawn_objects_context.allocator);
     }
     
     {
@@ -1038,7 +1038,7 @@ void init_spawn_objects() {
         Spawn_Object turret_direct_object = {0};
         turret_direct_object.entity = turret_direct_entity;
         str_copy(turret_direct_object.name, "turret_direct");
-        spawn_objects.append(turret_direct_object);
+        spawn_objects.append(turret_direct_object, &spawn_objects_context.allocator);
     }
     
     {
@@ -1054,7 +1054,7 @@ void init_spawn_objects() {
         Spawn_Object turret_homing_object = {0};
         turret_homing_object.entity = turret_homing_entity;
         str_copy(turret_homing_object.name, "turret_homing");
-        spawn_objects.append(turret_homing_object);
+        spawn_objects.append(turret_homing_object, &spawn_objects_context.allocator);
     }
     
     {
@@ -1063,7 +1063,7 @@ void init_spawn_objects() {
         Spawn_Object enemy_bird_object = {0};
         enemy_bird_object.entity = bird_entity;
         str_copy(enemy_bird_object.name, "bird_enemy");
-        spawn_objects.append(enemy_bird_object);
+        spawn_objects.append(enemy_bird_object, &spawn_objects_context.allocator);
     }
     
     {
@@ -1075,7 +1075,7 @@ void init_spawn_objects() {
         Spawn_Object win_block_object = {0};
         win_block_object.entity = win_block_entity;
         str_copy(win_block_object.name, "win_block");
-        spawn_objects.append(win_block_object);
+        spawn_objects.append(win_block_object, &spawn_objects_context.allocator);
     }
     
     {
@@ -1088,7 +1088,7 @@ void init_spawn_objects() {
         Spawn_Object level_loader_object = {0};
         level_loader_object.entity = level_loader_entity;
         str_copy(level_loader_object.name, "level_loader");
-        spawn_objects.append(level_loader_object);
+        spawn_objects.append(level_loader_object, &spawn_objects_context.allocator);
     }
     {
         auto big_level_loader_entity = add_entity({0, 0}, {50, 16}, {0.5f, 0.5f}, 0, LEVEL_LOADER | TRIGGER);
@@ -1102,7 +1102,7 @@ void init_spawn_objects() {
         Spawn_Object big_level_loader_object = {0};
         big_level_loader_object.entity = big_level_loader_entity;
         str_copy(big_level_loader_object.name, "big_level_loader");
-        spawn_objects.append(big_level_loader_object);
+        spawn_objects.append(big_level_loader_object, &spawn_objects_context.allocator);
     }
     
     auto agro_area_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
@@ -1114,7 +1114,7 @@ void init_spawn_objects() {
     Spawn_Object argo_area_object = {0};
     argo_area_object.entity = agro_area_entity;
     str_copy(argo_area_object.name, "agro_area");
-    spawn_objects.append(argo_area_object);
+    spawn_objects.append(argo_area_object, &spawn_objects_context.allocator);
     
     auto trigger_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER);
     trigger_entity->color = Fade(GREEN, 0.6f);
@@ -1123,7 +1123,7 @@ void init_spawn_objects() {
     Spawn_Object trigger_object = {0};
     trigger_object.entity = trigger_entity;
     str_copy(trigger_object.name, "trigger");
-    spawn_objects.append(trigger_object);
+    spawn_objects.append(trigger_object, &spawn_objects_context.allocator);
     
     auto bomb_entity = add_entity({0, 0}, {13, 13}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
     bomb_entity->color = ColorBrightness(RED, 0.2f);
@@ -1132,7 +1132,7 @@ void init_spawn_objects() {
     Spawn_Object bomb_object = {0};
     bomb_object.entity = bomb_entity;
     str_copy(bomb_object.name, "bomb");
-    spawn_objects.append(bomb_object);
+    spawn_objects.append(bomb_object, &spawn_objects_context.allocator);
     
     auto kill_trigger_entity = add_entity({0, 0}, {20, 20}, {0.5f, 0.5f}, 0, TRIGGER | KILL_TRIGGER);
     kill_trigger_entity->color = Fade(RED, 0.6f);
@@ -1141,7 +1141,7 @@ void init_spawn_objects() {
     Spawn_Object kill_trigger_object = {0};
     kill_trigger_object.entity = kill_trigger_entity;
     str_copy(kill_trigger_object.name, "kill_trigger");
-    spawn_objects.append(kill_trigger_object);
+    spawn_objects.append(kill_trigger_object, &spawn_objects_context.allocator);
     
     auto kill_switch_entity = add_entity({0, 0}, {20, 10}, {0.5f, 0.5f}, 0, ENEMY | KILL_SWITCH);
     kill_switch_entity->color = ColorBrightness(RED, 0.3f);
@@ -1150,7 +1150,7 @@ void init_spawn_objects() {
     Spawn_Object kill_switch_object = {0};
     kill_switch_object.entity = kill_switch_entity;
     str_copy(kill_switch_object.name, "kill_switch");
-    spawn_objects.append(kill_switch_object);
+    spawn_objects.append(kill_switch_object, &spawn_objects_context.allocator);
     
     auto enemy_barrier_entity = add_entity({0, 0}, {20, 80}, {0.5f, 0.5f}, 0, ENEMY | ENEMY_BARRIER | PLAYER_TOUCH_TIMER);
     enemy_barrier_entity->color = ColorBrightness(GRAY, 0.2f);
@@ -1159,7 +1159,7 @@ void init_spawn_objects() {
     Spawn_Object enemy_barrier_object = {0};
     enemy_barrier_object.entity = enemy_barrier_entity;
     str_copy(enemy_barrier_object.name, "enemy_barrier");
-    spawn_objects.append(enemy_barrier_object);
+    spawn_objects.append(enemy_barrier_object, &spawn_objects_context.allocator);
     
     auto spikes_entity = add_entity({0, 0}, {20, 5}, {0.5f, 0.5f}, 0, TRIGGER | SPIKES | KILL_TRIGGER);
     spikes_entity->color = Fade(RED, 0.9f);
@@ -1168,7 +1168,7 @@ void init_spawn_objects() {
     Spawn_Object spikes_object = {0};
     spikes_object.entity = spikes_entity;
     str_copy(spikes_object.name, "spikes");
-    spawn_objects.append(spikes_object);
+    spawn_objects.append(spikes_object, &spawn_objects_context.allocator);
     
     auto propeller_entity = add_entity({0, 0}, {20, 120}, {0.5f, 1.0f}, 0, PROPELLER);
     propeller_entity->color = Fade(BLUE, 0.4f);
@@ -1179,7 +1179,7 @@ void init_spawn_objects() {
     Spawn_Object propeller_object = {0};
     propeller_object.entity = propeller_entity;
     str_copy(propeller_object.name, "propeller");
-    spawn_objects.append(propeller_object);
+    spawn_objects.append(propeller_object, &spawn_objects_context.allocator);
     
     auto door_entity = add_entity({0, 0}, {5, 80}, {0.5f, 0.5f}, 0, DOOR | GROUND | TRIGGER);
     door_entity->color = ColorBrightness(PURPLE, 0.6f);
@@ -1188,7 +1188,7 @@ void init_spawn_objects() {
     Spawn_Object door_object = {0};
     door_object.entity = door_entity;
     str_copy(door_object.name, "door");
-    spawn_objects.append(door_object);
+    spawn_objects.append(door_object, &spawn_objects_context.allocator);
     
     auto enemy_trigger_entity = add_entity({0, 0}, {15, 75}, {0.5f, 0.5f}, 0, ENEMY | TRIGGER);
     enemy_trigger_entity->color = ColorBrightness(BLUE, 0.6f);
@@ -1197,7 +1197,7 @@ void init_spawn_objects() {
     Spawn_Object enemy_trigger_object = {0};
     enemy_trigger_object.entity = enemy_trigger_entity;
     str_copy(enemy_trigger_object.name, "enemy_trigger");
-    spawn_objects.append(enemy_trigger_object);
+    spawn_objects.append(enemy_trigger_object, &spawn_objects_context.allocator);
     
     auto centipede_segment_entity = add_entity({0, 0}, {4, 6}, {0.5f, 0.5f}, 0, ENEMY | CENTIPEDE_SEGMENT);
     centipede_segment_entity->color = ColorBrightness(ORANGE, 0.3f);
@@ -1206,7 +1206,7 @@ void init_spawn_objects() {
     Spawn_Object centipede_segment_object = {0};
     centipede_segment_object.entity = centipede_segment_entity;
     str_copy(centipede_segment_object.name, "centipede_segment");
-    spawn_objects.append(centipede_segment_object);
+    spawn_objects.append(centipede_segment_object, &spawn_objects_context.allocator);
     
     auto centipede_entity = add_entity({0, 0}, {9, 10}, {0.5f, 0.5f}, 0, CENTIPEDE | MOVE_SEQUENCE | ENEMY);
     centipede_entity->color = ColorBrightness(RED, 0.6f);
@@ -1215,7 +1215,7 @@ void init_spawn_objects() {
     Spawn_Object centipede_object = {0};
     centipede_object.entity = centipede_entity;
     str_copy(centipede_object.name, "centipede");
-    spawn_objects.append(centipede_object);
+    spawn_objects.append(centipede_object, &spawn_objects_context.allocator);
     
     auto shoot_stoper_entity = add_entity({0, 0}, {8, 14}, {0.5f, 0.5f}, 0, ENEMY | SHOOT_STOPER);
     shoot_stoper_entity->color = ColorBrightness(BLACK, 0.3f);
@@ -1224,7 +1224,7 @@ void init_spawn_objects() {
     Spawn_Object shoot_stoper_object = {0};
     shoot_stoper_object.entity = shoot_stoper_entity;
     str_copy(shoot_stoper_object.name, "shoot_stoper");
-    spawn_objects.append(shoot_stoper_object);
+    spawn_objects.append(shoot_stoper_object, &spawn_objects_context.allocator);
     
     auto hit_booster_entity = add_entity({0, 0}, {8, 12}, {0.5f, 0.5f}, 0, ENEMY | HIT_BOOSTER);
     hit_booster_entity->color = ColorBrightness(YELLOW, 0.3f);
@@ -1235,7 +1235,7 @@ void init_spawn_objects() {
     hit_booster_object.entity = hit_booster_entity;
     hit_booster_object.flags |= PLANNING_OBJECT;
     str_copy(hit_booster_object.name, "hit_booster");
-    spawn_objects.append(hit_booster_object);
+    spawn_objects.append(hit_booster_object, &spawn_objects_context.allocator);
     
     auto explosive_entity = add_entity({0, 0}, {8, 8}, {0.5f, 0.5f}, 0, ENEMY | EXPLOSIVE);
     explosive_entity->color = ColorBrightness(RED, 0.3f);
@@ -1245,7 +1245,7 @@ void init_spawn_objects() {
     explosive_object.entity = explosive_entity;
     explosive_object.flags |= PLANNING_OBJECT;
     str_copy(explosive_object.name, "explosive");
-    spawn_objects.append(explosive_object);
+    spawn_objects.append(explosive_object, &spawn_objects_context.allocator);
     
     // we use move sequence on jump shooter only to set jump points
     auto jump_shooter_entity = add_entity({0, 0}, {10, 14}, {0.5f, 0.5f}, 0, ENEMY | JUMP_SHOOTER | MOVE_SEQUENCE | PARTICLE_EMITTER);
@@ -1257,7 +1257,7 @@ void init_spawn_objects() {
     Spawn_Object jump_shooter_object = {0};
     jump_shooter_object.entity = jump_shooter_entity;
     str_copy(jump_shooter_object.name, "jump_shooter");
-    spawn_objects.append(jump_shooter_object);
+    spawn_objects.append(jump_shooter_object, &spawn_objects_context.allocator);
     
     switch_current_context(original_context);
 } // End init spawn objects.
@@ -1294,7 +1294,7 @@ void add_spawn_object_from_texture(Texture *texture, const char *name, const cha
         Tile_Sheet *sheet = NULL;
         
         if (tile_sheet_index == -1) {
-            sheet = tile_sheets.append({0});
+            sheet = tile_sheets.append({0}, &default_allocator);
             sheet->sheet_name = string(NULL, directory_name);
             sheet->textures = {0};
         } else {
@@ -1303,7 +1303,7 @@ void add_spawn_object_from_texture(Texture *texture, const char *name, const cha
         
         assert(sheet);
         
-        Texture_Data *new_data = sheet->textures.append({0});
+        Texture_Data *new_data = sheet->textures.append({0}, &default_allocator);
         str_copy(new_data->name, name);
         new_data->texture = *texture;
     }
@@ -1314,7 +1314,7 @@ void add_spawn_object_from_texture(Texture *texture, const char *name, const cha
     texture_object.entity = texture_entity;
     str_copy(texture_object.name, name);
     
-    spawn_objects.append(texture_object);
+    spawn_objects.append(texture_object, &spawn_objects_context.allocator);
     
     switch_current_context(original_context);
 }
@@ -1365,9 +1365,9 @@ void load_textures(const char* path, b32 in_root_textures_directory) {
         
         if (str_contains(data.name, "_normal_map")) {
             substring_before_line(data.name, "_normal_map");
-            normal_maps.append(data);
+            normal_maps.append(data, &default_allocator);
         } else {
-            auto new_texture_data = loaded_textures.append(data);
+            auto new_texture_data = loaded_textures.append(data, &default_allocator);
             add_spawn_object_from_texture(&new_texture_data->texture, name, in_root_textures_directory ? 0 : path);
         }
     }
@@ -1427,7 +1427,7 @@ String *register_entity_name(Entity *entity) {
     
     i32 index = entities_names.find(name);
     if (index < 0) {
-        return entities_names.append(get_entity_name(entity, &default_allocator));
+        return entities_names.append(get_entity_name(entity, &default_allocator), &default_allocator);
     }
     
     return entities_names.get(index);
@@ -1771,7 +1771,7 @@ void init_entity(Entity *entity, Entity *to_copy) {
             segment->centipede_segment->head = entity;
             change_up(segment, entity->up);
             segment->draw_order = entity->draw_order + 1;
-            centipede->segments.append(segment);
+            centipede->segments.append(segment, entity->allocator);
             if (i > 0) segment->centipede_segment->previous = centipede->segments.get_value(i-1);
             else       segment->centipede_segment->previous = entity;
             
@@ -2102,13 +2102,13 @@ void load_sounds() {
         str_copy(handler.name, name);
         
         for (i32 s = 0; s < handler.buffer.capacity; s++) {
-            handler.buffer.append(LoadSoundAlias(sound));
+            handler.buffer.append(LoadSoundAlias(sound), &default_allocator);
         }
         
         // i64 hash = hash_str(name);
         //UnloadSound(sound);
         
-        sounds_array.append(handler);
+        sounds_array.append(handler, &default_allocator);
         
         if (str_contains(name, "MissingSound")) {
             missing_sound = sounds_array.last();
@@ -2258,16 +2258,16 @@ void init_context(Context *context, String name, u64 flags = 0) {
     // }
     
     for (i32 i = 0; i < context->particles.capacity; i++) {
-        context->particles.append({0});
+        context->particles.append({0}, &default_allocator);
     }
     for (i32 i = 0; i < context->particle_emitters.capacity; i++) {
-        context->particle_emitters.append({0});
+        context->particle_emitters.append({0}, &default_allocator);
     }
     for (i32 i = 0; i < context->line_trails.capacity; i++) {
-        context->line_trails.append({0});
+        context->line_trails.append({0}, &default_allocator);
     }
     for (i32 i = 0; i < context->notes.capacity; i++) {
-        context->notes.append({0});
+        context->notes.append({0}, &default_allocator);
     }
     
     // Init collison grid.
@@ -2278,7 +2278,7 @@ void init_context(Context *context, String name, u64 flags = 0) {
     init_array(&current_context->collision_grid.cells, cells_count, &default_allocator);
     
     for (i32 i = 0; i < cells_count; i++) {
-        current_context->collision_grid.cells.append({0});
+        current_context->collision_grid.cells.append({0}, &default_allocator);
     }
     
     context->inited = true;
@@ -2685,9 +2685,9 @@ void fixed_game_update(Context *context, f32 dt) {
             if (level_replay.input_record.count >= MAX_INPUT_RECORDS - 1) {
                 // level_replay.input_record.remove_first_half();
             } else {
-                input.rnd_state = rnd_state;
-                input.player_position = player_entity->position;
-                level_replay.input_record.append({input});
+                // input.rnd_state = rnd_state;
+                // input.player_position = player_entity->position;
+                // level_replay.input_record.append({input}, &default_allocator);
             }
         } else {
             i32 frame = global_data.game_frame_count - level_replay.start_frame;
@@ -4338,7 +4338,7 @@ void update_editor_ui() {
                 Entity *entity = copy_and_add_entity(obj.entity, current_context);
                 need_close_create_box = true;
                 
-                editor.just_spawned_ids.append(entity->id);
+                editor.just_spawned_ids.append(entity->id, &default_allocator);
             }
             
             if (obj.entity->texture) {
@@ -4418,7 +4418,7 @@ Entity *editor_spawn_entity(const char *name, Vector2 position) {
     Entity *entity = spawn_object_by_name(name, round_to_factor(input.mouse_position, 5), current_context);
     
     if (entity) {
-        editor.just_spawned_ids.append(entity->id);
+        editor.just_spawned_ids.append(entity->id, &default_allocator);
     }
     
     return entity;
@@ -4531,9 +4531,9 @@ inline void add_to_multiselection(i32 id) {
         Entity *entity = get_entity(id);
         if (entity->runtime_only_flags & SHOULD_NOT_COPY) return;
     
-        editor.multiselection.entities.append(id);
+        editor.multiselection.entities.append(id, &default_allocator);
         
-        editor.multiselection.unchanged_copies.append(copy_and_add_entity(get_entity(id), &undo_context));
+        editor.multiselection.unchanged_copies.append(copy_and_add_entity(get_entity(id), &undo_context), &default_allocator);
     }
 }
 
@@ -4977,7 +4977,7 @@ void update_editor() {
                 }
                 
                 if (!removed) {
-                    editor.place_cursor_entities.append(editor.selected); // @CLEANUP: Do not know what is place_cursor_entities. Maybe we should make it just temp array.
+                    editor.place_cursor_entities.append(editor.selected, &default_allocator); // @CLEANUP: Do not know what is place_cursor_entities. Maybe we should make it just temp array.
                     
                     editor.selected_this_click = true;
                 }
@@ -5031,7 +5031,7 @@ void update_editor() {
                 continue;
             }
             
-            multiselection->selection_entities.append(other->id);
+            multiselection->selection_entities.append(other->id, &default_allocator);
             
             if (!multiselection->excluding) {
                 other->color_changer.frame_changing = true;
@@ -5222,12 +5222,12 @@ void update_editor() {
                 Entity *entity_to_copy = get_entity(multiselection->entities.get_value(i), original_context);   
                 // We keep id here so later we could verify different connected entities by ids. 
                 // @LEAK: Check that we're actually freeing copied entities.
-                editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_context, entity_to_copy->id));
+                editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_context, entity_to_copy->id), &default_allocator);
             }
             editor.copied_entities_center = multiselection->center;
         } else {
             Entity *entity_to_copy = get_entity(editor.selected->id, original_context);   
-            editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_context, entity_to_copy->id));
+            editor.copied_entities.append(copy_and_add_entity(entity_to_copy, &copied_entities_context, entity_to_copy->id), &default_allocator);
             // copy_entity(&editor.copied_entity, editor.selected);
             editor.copied_entities_center = entity_to_copy->position;
         }
@@ -5245,17 +5245,17 @@ void update_editor() {
         
         assign_selected_entity(NULL);
         
-        Array <i32> spawned_ids = {.allocator = temp};
+        Array <i32> spawned_ids = {};
         
         clear_multiselected_entities();
         for (i32 i = 0; i < editor.copied_entities.count; i++) {
             Entity *to_spawn = editor.copied_entities.get_value(i);
             Entity *spawned = copy_and_add_entity(to_spawn, current_context);
-            spawned_ids.append(spawned->id);
+            spawned_ids.append(spawned->id, temp);
             spawned->position += paste_position - editor.copied_entities_center;
             editor_move_entity_points(spawned, paste_position - editor.copied_entities_center);
             
-            editor.just_spawned_ids.append(spawned->id);
+            editor.just_spawned_ids.append(spawned->id, &default_allocator);
             
             if (editor.copied_entities.count == 1) {
                 assign_selected_entity(spawned);
@@ -5264,7 +5264,6 @@ void update_editor() {
             }
         }
         assert(spawned_ids.count == editor.copied_entities.count);
-        
         
         // Right now we want to verify connected entities only to triggers.
         // Again - that's because when we copy trigger and in multiselected was his connected guys - they will have different
