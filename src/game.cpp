@@ -5292,10 +5292,10 @@ void update_editor() {
                 for (i32 x = 0; x < spawned_ids.count; x++) {
                     Entity *other_copied_entity = editor.copied_entities.get_value(x);
                     if (copied_trigger->connected.contains(other_copied_entity->id)) {
-                        spawned_trigger->connected.append(spawned_ids.get_value(x));
+                        spawned_trigger->connected.append(spawned_ids.get_value(x), spawned->allocator);
                     }
                     if (copied_trigger->tracking.contains(other_copied_entity->id)) {
-                        spawned_trigger->tracking.append(spawned_ids.get_value(x));
+                        spawned_trigger->tracking.append(spawned_ids.get_value(x), spawned->allocator);
                     }
                 }
             }
@@ -5309,7 +5309,7 @@ void update_editor() {
                 for (i32 x = 0; x < spawned_ids.count; x++) {
                     Entity *other_copied = editor.copied_entities.get_value(x);
                     if (copied_kill_switch->connected.contains(other_copied->id)) {
-                        spawned_kill_switch->connected.append(spawned_ids.get_value(x));
+                        spawned_kill_switch->connected.append(spawned_ids.get_value(x), spawned->allocator);
                     }
                 }
             }
@@ -5328,14 +5328,15 @@ void update_editor() {
             if (spawned_ids.count < 10 && spawned->context->name == editor.context_on_last_copy->name) {
                 for_chunk_array(j, &current_context->triggers) {
                     Trigger *trigger = current_context->triggers.get(j);
+                    Entity *entity = trigger->entity;
                     
                     if (trigger->connected.contains(copied->id)) {
                         assert(!trigger->connected.contains(spawned->id));
-                        trigger->connected.append(spawned->id);
+                        trigger->connected.append(spawned->id, entity->allocator);
                     }
                     if (trigger->tracking.contains(copied->id)) {
                         assert(!trigger->tracking.contains(spawned->id));
-                        trigger->tracking.append(spawned->id);
+                        trigger->tracking.append(spawned->id, entity->allocator);
                     }
                 }
                 for_chunk_array(j, &current_context->kill_switches) {
@@ -5343,7 +5344,7 @@ void update_editor() {
                     
                     if (kill_switch->connected.contains(copied->id)) {
                         assert(!kill_switch->connected.contains(spawned->id));
-                        kill_switch->connected.append(spawned->id);
+                        kill_switch->connected.append(spawned->id, entity->allocator);
                     }
                 }
             }
@@ -5539,7 +5540,7 @@ void update_editor() {
                     Collision col = collisions_buffer.get_value(i);
                     
                     if (wanna_assign && !wanna_remove && !selected->trigger->connected.contains(col.other_entity->id)) {
-                        selected->trigger->connected.append(col.other_entity->id);
+                        selected->trigger->connected.append(col.other_entity->id, selected->allocator);
                         undo_mark_entity_changed(selected);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
@@ -5565,7 +5566,7 @@ void update_editor() {
                     Collision col = collisions_buffer.get_value(i);
                     
                     if (!selected->trigger->tracking.contains(col.other_entity->id)) {
-                        selected->trigger->tracking.append(col.other_entity->id);
+                        selected->trigger->tracking.append(col.other_entity->id, selected->allocator);
                         undo_mark_entity_changed(selected);
                     }
                 }
@@ -5588,7 +5589,7 @@ void update_editor() {
                 }
             }
             if (wanna_add_cam_rails_point) {
-                selected->trigger->cam_rails_points.append(input.mouse_position);
+                selected->trigger->cam_rails_points.append(input.mouse_position, selected->allocator);
                 undo_mark_entity_changed(selected);
             }
             if (wanna_clear_cam_rails_points) {
@@ -5609,7 +5610,7 @@ void update_editor() {
                     Collision col = collisions_buffer.get_value(i);
                     
                     if (wanna_assign && !wanna_remove && !kill_switch->connected.contains(col.other_entity->id)) {
-                        kill_switch->connected.append(col.other_entity->id);
+                        kill_switch->connected.append(col.other_entity->id, selected->allocator);
                         undo_mark_entity_changed(selected);
                         break;
                     } else if (wanna_remove && !wanna_assign) {
@@ -5690,7 +5691,7 @@ void update_editor() {
                 }
             }
             if (wanna_add) {
-                selected->move_sequence->points.append(input.mouse_position);
+                selected->move_sequence->points.append(input.mouse_position, selected->allocator);
             }
             if (wanna_clear) {
                 selected->move_sequence->points.clear();
@@ -7671,7 +7672,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                 f32 angle = -shooter->spread * 0.5f;
                 f32 angle_step = shooter->spread / shooter->shots_count;
                 
-                local_persist Static_Array <i32, 64> explosive_indexes;
+                Array <i32> explosive_indexes = {};
                 explosive_indexes.clear();
                 
                 for (i32 i = 0; i < shooter->explosive_count; i++) {
@@ -7679,7 +7680,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
                     while (explosive_indexes.contains(explosive_index)) {
                         explosive_index = (explosive_index+1) % shooter->shots_count;
                     }
-                    explosive_indexes.append(explosive_index);
+                    explosive_indexes.append(explosive_index, temp);
                 }
                 
                 i32 explosive_shots = 0;
@@ -8374,7 +8375,7 @@ void fill_entities_draw_queue() {
             entity->visible = true;
         }
         
-        global_data.entities_draw_queue.append(*entity);
+        global_data.entities_draw_queue.append(*entity, &default_allocator);
     }
     
     qsort(global_data.entities_draw_queue.data, global_data.entities_draw_queue.count, sizeof(Entity), compare_entities_draw_order);
@@ -9155,7 +9156,7 @@ void make_texture(Texture texture, Vector2 position, Vector2 scale, Vector2 pivo
     im_texture.rotation = rotation;
     im_texture.color    = color;
     
-    render.textures_to_draw.append(im_texture);
+    render.textures_to_draw.append(im_texture, &default_allocator);
 }
 
 void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color color, f32 lifetime) {
@@ -9170,9 +9171,9 @@ void make_line(Vector2 start_position, Vector2 target_position, f32 thick, Color
     line.lifetime = lifetime;
     
     if (line.lifetime <= 0) {
-        render.lines_to_draw.append(line);
+        render.lines_to_draw.append(line, &default_allocator);
     } else {
-        render.lines_to_draw_persistent.append(line);
+        render.lines_to_draw_persistent.append(line, &default_allocator);
     }
 }
 
@@ -9193,7 +9194,7 @@ void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, f32 thick, 
     rect.pivot = pivot;
     rect.thick = thick;
     rect.color = color;
-    render.rect_lines_to_draw.append(rect);
+    render.rect_lines_to_draw.append(rect, &default_allocator);
 }
 
 inline void make_rect_lines(Vector2 position, Vector2 scale, Vector2 pivot, Color color) {
@@ -9212,7 +9213,7 @@ inline void make_outline(Vector2 position, Static_Array <Vector2, MAX_VERTICES> 
     outline.position = position;
     outline.vertices = vertices;
     outline.color = color;
-    render.outlines_to_draw.append(outline);
+    render.outlines_to_draw.append(outline, &default_allocator);
 }
 
 void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 segments, Color color) {
@@ -9225,7 +9226,7 @@ void make_ring_lines(Vector2 center, f32 inner_radius, f32 outer_radius, i32 seg
     ring.outer_radius = outer_radius;
     ring.segments = segments;
     ring.color = color;
-    render.ring_lines_to_draw.append(ring);
+    render.ring_lines_to_draw.append(ring, &default_allocator);
 }
 
 void draw_screen_space_editor() {
