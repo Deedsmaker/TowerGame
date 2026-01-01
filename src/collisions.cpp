@@ -40,7 +40,7 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
     return result;
 }
 
-inline void fill_arr_with_normals(Array <Vector2> *normals, Static_Array <Vector2, MAX_VERTICES> vertices) {
+inline void fill_arr_with_normals(Array <Vector2> *normals, Static_Array <Vector2, MAX_VERTICES> vertices, Allocator *allocator) {
     //@INCOMPLETE now only for rects and triangles, need to find proper algorithm for calculating edge normals from vertices because 
     //we add vertices in triangle shape
     // Update 03.03.2025: Graham scan algorithm should do the job if we will really need it.
@@ -48,25 +48,25 @@ inline void fill_arr_with_normals(Array <Vector2> *normals, Static_Array <Vector
     if (vertices.count == 4) {
         //up
         Vector2 edge1 = vertices.get_value(0) - vertices.get_value(1);
-        normals->append(normalized(get_rotated_vector_90(edge1, 1)));
+        normals->append(normalized(get_rotated_vector_90(edge1, 1)), allocator);
         //left
         Vector2 edge2 = vertices.get_value(1) - vertices.get_value(3);
-        normals->append(normalized(get_rotated_vector_90(edge2, 1)));
+        normals->append(normalized(get_rotated_vector_90(edge2, 1)), allocator);
         //bottom
         Vector2 edge3 = vertices.get_value(3) - vertices.get_value(2);
-        normals->append(normalized(get_rotated_vector_90(edge3, 1)));
+        normals->append(normalized(get_rotated_vector_90(edge3, 1)), allocator);
         //right
         Vector2 edge4 = vertices.get_value(2) - vertices.get_value(0);
-        normals->append(normalized(get_rotated_vector_90(edge4, 1)));
+        normals->append(normalized(get_rotated_vector_90(edge4, 1)), allocator);
     } else if (vertices.count == 3) {
         Vector2 edge1 = vertices.get_value(0) - vertices.get_value(1);
-        normals->append(normalized(get_rotated_vector_90(edge1, 1)));
+        normals->append(normalized(get_rotated_vector_90(edge1, 1)), allocator);
         
         Vector2 edge2 = vertices.get_value(1) - vertices.get_value(2);
-        normals->append(normalized(get_rotated_vector_90(edge2, 1)));
+        normals->append(normalized(get_rotated_vector_90(edge2, 1)), allocator);
         
         Vector2 edge3 = vertices.get_value(2) - vertices.get_value(0);
-        normals->append(normalized(get_rotated_vector_90(edge3, 1)));
+        normals->append(normalized(get_rotated_vector_90(edge3, 1)), allocator);
     } else {
         assert(false);
     }
@@ -122,8 +122,8 @@ Collision check_collision(Vector2 position1, Vector2 position2, Static_Array <Ve
     }
 
     global_normals.clear();
-    fill_arr_with_normals(&global_normals, vertices1);
-    fill_arr_with_normals(&global_normals, vertices2);
+    fill_arr_with_normals(&global_normals, vertices1, &default_allocator);
+    fill_arr_with_normals(&global_normals, vertices2, &default_allocator);
     
     f32 overlap = INFINITY;
     Vector2 min_overlap_axis = Vector2_zero;
@@ -218,7 +218,7 @@ inline Collision_Grid_Cell *get_collision_cell_from_position(Vector2 position) {
 }
 
 Array <Collision_Grid_Cell *> get_affected_collision_cells(Vector2 position, Bounds bounds, Vector2 pivot) {
-    Array <Collision_Grid_Cell *> out_cells = {.allocator = temp};
+    Array <Collision_Grid_Cell *> out_cells = {};
     Collision_Grid grid = current_context->collision_grid;
     Vector2 center = position + bounds.offset;
     center += {(0.5f - pivot.x) * bounds.size.x, (pivot.y - 0.5f) * bounds.size.y};
@@ -234,14 +234,14 @@ Array <Collision_Grid_Cell *> get_affected_collision_cells(Vector2 position, Bou
             Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, v_pos});
             if (cell) {
                 assert(!out_cells.contains(cell));
-                out_cells.append(cell);
+                out_cells.append(cell, temp);
             }
         }
         
         // Here checking one more up cell, because we might not actually hit it earlier.
         Collision_Grid_Cell *cell = get_collision_cell_from_position({h_pos, center.y + bounds.size.y * 0.5f});
         if (cell && !out_cells.contains(cell)) {
-            out_cells.append(cell);
+            out_cells.append(cell, temp);
         }
     }
     
@@ -249,14 +249,14 @@ Array <Collision_Grid_Cell *> get_affected_collision_cells(Vector2 position, Bou
     for (f32 v_pos = center.y - bounds.size.y * 0.5f; v_pos < center.y + bounds.size.y * 0.5f; v_pos += grid.cell_size.y) {
         Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, v_pos});
         if (cell && !out_cells.contains(cell)) {
-            out_cells.append(cell);
+            out_cells.append(cell, temp);
         }
     }
     
     // Lastly checking right-up bounds corner that we might not hit before.
     Collision_Grid_Cell *cell = get_collision_cell_from_position({center.x + bounds.size.x * 0.5f, center.y + bounds.size.y * 0.5f});
     if (cell && !out_cells.contains(cell)) {
-        out_cells.append(cell);
+        out_cells.append(cell, temp);
     }
     
     return out_cells;
@@ -278,7 +278,7 @@ inline void update_entity_collision_cells(Entity *entity, b32 update_cells_for_s
         
         if (cell) {
             assert(!cell_entities->contains(entity->id));
-            cell_entities->append(entity->id);
+            cell_entities->append(entity->id, &default_allocator);
         }
     }
 }
@@ -313,9 +313,9 @@ void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vert
         Collision_Grid_Cell *cell = cells.get_value(i);
         
         // Here we just combine static and dynamic entities.
-        Array <i32> entities_in_cell = {.allocator = temp};
-        entities_in_cell.append_another_array(&cell->dynamic_entities);
-        entities_in_cell.append_another_array(&cell->static_entities);
+        Array <i32> entities_in_cell = {};
+        entities_in_cell.append_another_array(&cell->dynamic_entities, temp);
+        entities_in_cell.append_another_array(&cell->static_entities, temp);
         
         for (i32 c = 0; c < entities_in_cell.count; c++) {
             Entity *other = get_entity(entities_in_cell.get_value(c));
@@ -327,9 +327,9 @@ void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vert
             Collision col = check_collision(position, other->position, vertices, other->vertices, pivot, other->pivot);
             
             if (col.collided) {
-                added_collision_ids.append(other->id);
+                added_collision_ids.append(other->id, &default_allocator);
                 col.other_entity = other;
-                result->append(col);
+                result->append(col, &default_allocator);
             }
         }
     }

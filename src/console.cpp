@@ -76,7 +76,7 @@ void reload_level_names() {
             continue;
         }
         
-        console.level_names.append(name);
+        console.level_names.append(name, &default_allocator);
     }
 }
 
@@ -368,55 +368,55 @@ void init_console() {
 
     reload_level_names();    
 
-    console.commands.append(make_console_command("hotkeys", print_hotkeys_to_console));
-    console.commands.append(make_console_command("hotkey",  print_hotkeys_to_console));
-    console.commands.append(make_console_command("key",     print_hotkeys_to_console));
-    console.commands.append(make_console_command("keys",    print_hotkeys_to_console));
-    console.commands.append(make_console_command("help",    print_hotkeys_to_console));
+    console.commands.append(make_console_command("hotkeys", print_hotkeys_to_console), &default_allocator);
+    console.commands.append(make_console_command("hotkey",  print_hotkeys_to_console), &default_allocator);
+    console.commands.append(make_console_command("key",     print_hotkeys_to_console), &default_allocator);
+    console.commands.append(make_console_command("keys",    print_hotkeys_to_console), &default_allocator);
+    console.commands.append(make_console_command("help",    print_hotkeys_to_console), &default_allocator);
     
-    console.commands.append(make_console_command("debug",          print_debug_commands_to_console));
-    console.commands.append(make_console_command("player_speed",   debug_toggle_player_speed));
-    console.commands.append(make_console_command("entities_count", debug_print_entities_count));
-    console.commands.append(make_console_command("infinite_ammo",  debug_infinite_ammo));
-    console.commands.append(make_console_command("die",  kill_player));
-    console.commands.append(make_console_command("enemy_ai",       debug_enemy_ai));
-    console.commands.append(make_console_command("god_mode",       debug_god_mode));
-    console.commands.append(make_console_command("add_ammo",       debug_add_100_ammo));
-    console.commands.append(make_console_command("unlock_camera",  debug_unlock_camera));
-    console.commands.append(make_console_command("full_light",     debug_toggle_full_light));
-    console.commands.append(make_console_command("collision_grid", debug_toggle_collision_grid));
-    console.commands.append(make_console_command("draw_triggers", debug_toggle_draw_triggers));
+    console.commands.append(make_console_command("debug",          print_debug_commands_to_console), &default_allocator);
+    console.commands.append(make_console_command("player_speed",   debug_toggle_player_speed), &default_allocator);
+    console.commands.append(make_console_command("entities_count", debug_print_entities_count), &default_allocator);
+    console.commands.append(make_console_command("infinite_ammo",  debug_infinite_ammo), &default_allocator);
+    console.commands.append(make_console_command("die",  kill_player), &default_allocator);
+    console.commands.append(make_console_command("enemy_ai",       debug_enemy_ai), &default_allocator);
+    console.commands.append(make_console_command("god_mode",       debug_god_mode), &default_allocator);
+    console.commands.append(make_console_command("add_ammo",       debug_add_100_ammo), &default_allocator);
+    console.commands.append(make_console_command("unlock_camera",  debug_unlock_camera), &default_allocator);
+    console.commands.append(make_console_command("full_light",     debug_toggle_full_light), &default_allocator);
+    console.commands.append(make_console_command("collision_grid", debug_toggle_collision_grid), &default_allocator);
+    console.commands.append(make_console_command("draw_triggers", debug_toggle_draw_triggers), &default_allocator);
     
-    console.commands.append(make_console_command("find", editor_print_select_entity_by_id_hint, editor_select_entity_by_id));
+    console.commands.append(make_console_command("find", editor_print_select_entity_by_id_hint, editor_select_entity_by_id), &default_allocator);
     
-    console.commands.append(make_console_command("save",     save_current_level, save_level_by_name));
-    console.commands.append(make_console_command("load",     NULL, load_level_by_name));
-    console.commands.append(make_console_command("level",    print_current_level, load_level_by_name));
-    console.commands.append(make_console_command("l",    print_current_level, load_level_by_name));
-    console.commands.append(make_console_command("rename_current_level",    NULL, rename_current_level));
-    console.commands.append(make_console_command("next",     try_load_next_level, NULL));
-    console.commands.append(make_console_command("previous", try_load_previous_level, NULL));
-    console.commands.append(make_console_command("reload",   reload_level, NULL));
+    console.commands.append(make_console_command("save",     save_current_level, save_level_by_name), &default_allocator);
+    console.commands.append(make_console_command("load",     NULL, load_level_by_name), &default_allocator);
+    console.commands.append(make_console_command("level",    print_current_level, load_level_by_name), &default_allocator);
+    console.commands.append(make_console_command("l",    print_current_level, load_level_by_name), &default_allocator);
+    console.commands.append(make_console_command("rename_current_level",    NULL, rename_current_level), &default_allocator);
+    console.commands.append(make_console_command("next",     try_load_next_level, NULL), &default_allocator);
+    console.commands.append(make_console_command("previous", try_load_previous_level, NULL), &default_allocator);
+    console.commands.append(make_console_command("reload",   reload_level, NULL), &default_allocator);
     
-    console.commands.append(make_console_command("save_lightmap", save_lightmaps_to_file, NULL));
+    console.commands.append(make_console_command("save_lightmap", save_lightmaps_to_file, NULL), &default_allocator);
     
-    console.commands.append(make_console_command("restart_game",      restart_game, NULL));
-    console.commands.append(make_console_command("first",             restart_game, NULL));
-    console.commands.append(make_console_command("level_speedrun",    begin_level_speedrun, NULL));
-    console.commands.append(make_console_command("game_speedrun",     begin_game_speedrun, NULL));
-    console.commands.append(make_console_command("speedrun_disable",  disable_speedrun, NULL));
+    console.commands.append(make_console_command("restart_game",      restart_game, NULL), &default_allocator);
+    console.commands.append(make_console_command("first",             restart_game, NULL), &default_allocator);
+    console.commands.append(make_console_command("level_speedrun",    begin_level_speedrun, NULL), &default_allocator);
+    console.commands.append(make_console_command("game_speedrun",     begin_game_speedrun, NULL), &default_allocator);
+    console.commands.append(make_console_command("speedrun_disable",  disable_speedrun, NULL), &default_allocator);
     
-    console.commands.append(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale));
+    console.commands.append(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale), &default_allocator);
     
-    console.commands.append(make_console_command("clear_completed_levels", clear_completed_levels, NULL));
-    console.commands.append(make_console_command("win", console_win_level, NULL));
+    console.commands.append(make_console_command("clear_completed_levels", clear_completed_levels, NULL), &default_allocator);
+    console.commands.append(make_console_command("win", console_win_level, NULL), &default_allocator);
     
-    // console.commands.append(make_console_command("create",    print_create_level_hint, create_level));
-    // console.commands.append(make_console_command("new_level", print_create_level_hint, create_level));
+    // console.commands.append(make_console_command("create",    print_create_level_hint, create_level), &default_allocator);
+    // console.commands.append(make_console_command("new_level", print_create_level_hint, create_level), &default_allocator);
     
-    console.commands.append(make_console_command("play_replay", debug_toggle_play_replay, NULL));
-    console.commands.append(make_console_command("save_replay", save_temp_replay, save_replay));
-    console.commands.append(make_console_command("replay_load", load_temp_replay, load_replay));
+    console.commands.append(make_console_command("play_replay", debug_toggle_play_replay, NULL), &default_allocator);
+    console.commands.append(make_console_command("save_replay", save_temp_replay, save_replay), &default_allocator);
+    console.commands.append(make_console_command("replay_load", load_temp_replay, load_replay), &default_allocator);
 }
 
 void close_console() {
@@ -470,7 +470,7 @@ void update_console() {
         local_persist String first_level_autocomplete_name = {.allocator = &default_allocator};
         
         if (console.args.count == 2 && (console.args.get_value(0) == "level" || console.args.get_value(0) == "l" || console.args.get_value(0) == "load")) {
-            Array <String> matching_level_names = {.allocator = temp};
+            Array <String> matching_level_names = {};
         
             if (last_level_autocomplete_index < 0) {
                 first_level_autocomplete_name.free_data();
@@ -479,7 +479,7 @@ void update_console() {
         
             for_array (i, &console.level_names) {
                 if (string_contains(console.level_names.get_value(i), first_level_autocomplete_name)) {
-                    matching_level_names.append(console.level_names.get_value(i));
+                    matching_level_names.append(console.level_names.get_value(i), temp);
                 }
             }
             
@@ -549,7 +549,7 @@ void update_console() {
             
             Medium_Str history_str;            
             str_copy(history_str.data, focus_input_field.content);
-            console.history.append(history_str);
+            console.history.append(history_str, &default_allocator);
             console.history_max = console.history.count;
             
             clear_focus_input_field();

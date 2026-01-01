@@ -8928,7 +8928,7 @@ void draw_game_space_editor() {
         b32 draw_normals = false;
         if (draw_normals) {
             global_normals.clear();
-            fill_arr_with_normals(&global_normals, e->vertices);
+            fill_arr_with_normals(&global_normals, e->vertices, &default_allocator);
             
             for (i32 n = 0; n < global_normals.count; n++) {
                 Vector2 start = e->position + global_normals.get_value(n) * 4; 
