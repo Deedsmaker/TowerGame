@@ -5,7 +5,7 @@ inline f32 get_light_zoom(f32 radius) {
 }
 
 inline void add_light_to_draw_queue(Light light) {
-    render.lights_draw_queue.append(light);
+    render.lights_draw_queue.append(light, &default_allocator);
 }
 
 void init_light(Light *light) {
@@ -124,7 +124,7 @@ void free_lights_connected_to_entity(Entity *entity) {
 
 inline Light *copy_and_add_light(Light *to_copy) {
     Context *context = to_copy->context ? to_copy->context : current_context;
-    return context->lights.append(copy_light(to_copy));
+    return context->lights.append(copy_light(to_copy), &context->allocator);
 }
 
 Light *copy_and_add_light_to_entity(Entity *entity, Light *to_copy, b32 free_all_entity_lights_first = false) {
@@ -133,11 +133,11 @@ Light *copy_and_add_light_to_entity(Entity *entity, Light *to_copy, b32 free_all
     }
     
     i32 light_index = 0;
-    Light *new_light = entity->context->lights.append(copy_light(to_copy), &light_index);
+    Light *new_light = entity->context->lights.append(copy_light(to_copy), &entity->context->allocator, &light_index);
     new_light->context = entity->context;
     new_light->connected_entity_id = entity->id;
     init_light(new_light);
-    entity->lights.append(light_index);
+    entity->lights.append(light_index, entity->allocator);
     
     return new_light;
 }

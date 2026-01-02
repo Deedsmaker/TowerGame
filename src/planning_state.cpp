@@ -46,11 +46,11 @@ void add_node_icon(Context *context, String name, Planning_Node_Type type, Entit
     icon.name = copy_string(name, &context->allocator);
     icon.type = type;
     icon.entity_to_spawn = node_entity;
-    context->planning.node_icons.append(icon);
+    context->planning.node_icons.append(icon, &context->allocator);
 }
 
 Array <Planning_Point *> get_points_around_node(Context *context, Planning_Node *node) {
-    Array <Planning_Point *> result = {.allocator = temp};
+    Array <Planning_Point *> result = {};
 
     f32 radius = radius_from_node(node);
     
@@ -64,7 +64,7 @@ Array <Planning_Point *> get_points_around_node(Context *context, Planning_Node 
         assert(point);
         
         if (len <= radius + ITEMS_RADIUS) {
-            result.append(point);
+            result.append(point, temp);
         }
     }
     
@@ -123,10 +123,10 @@ void planning_validate_node_points(Context *context) {
 
 void init_planning_data(Context *context) {
     context->planning.nodes.clear();
-    context->planning.nodes.allocator = &context->allocator;
+    // context->planning.nodes.allocator = &context->allocator;
     
     context->planning.node_icons.clear();
-    context->planning.node_icons.allocator = &context->allocator;
+    // context->planning.node_icons.allocator = &context->allocator;
     
     add_node_icon(context, tstring("Space node"), SPACE_NODE, NULL);
     
@@ -143,8 +143,8 @@ void reset_planning_data(Context *context) {
     planning->selected_icon_index = 0;
     
     planning->nodes.clear();
-    planning->nodes.append({.position = context->player_spawn_point, .type = SPACE_NODE}); // First is the base node.
-    planning->nodes.append({.position = context->player_spawn_point, .type = SPACE_NODE}); // Second is the new node. We're always keeping node that will be spawned, even if we have no points for it.
+    planning->nodes.append({.position = context->player_spawn_point, .type = SPACE_NODE}, &context->allocator); // First is the base node.
+    planning->nodes.append({.position = context->player_spawn_point, .type = SPACE_NODE}, &context->allocator); // Second is the new node. We're always keeping node that will be spawned, even if we have no points for it.
     
     planning->current_space_points = 0;
     planning->current_item_points  = 0;
@@ -309,7 +309,7 @@ void update_planning(Context *context) {
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
         if (can_place_corner_node) {
             // new_node already in array, now we're adding something node that will be "next new_entity".
-            auto added_node = planning->nodes.append({.position = target_position, .type = node_icon->type}); 
+            auto added_node = planning->nodes.append({.position = target_position, .type = node_icon->type}, &context->allocator); 
             validate_corner_node(context);
             
             planning_validate_node_points(context);
