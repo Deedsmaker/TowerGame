@@ -65,13 +65,13 @@ void reload_level_names() {
     }
     console.level_names.clear();
     
-    Array <String> levels = get_files_in_directory(tstring("levels"), temp);
+    Array <String> levels = get_files_in_directory(S("levels"), temp);
     
     for_array (i, &levels) {
         String path = levels.get_value(i);
         if (!directory_exists(path)) continue;
         String name = strip_path_to_just_name(path, &default_allocator);
-        if (name == tstring("autosaves") || name == tstring("temp")) {
+        if (name == S("autosaves") || name == S("temp")) {
             name.free_data();
             continue;
         }
@@ -448,7 +448,7 @@ void update_console() {
         
         console.args.clear();
         // split_str(focus_input_field.content, " ", &console.args);
-        split_string(&console.args, tstring(focus_input_field.content), tstring(" "));
+        split_string(&console.args, S(focus_input_field.content), S(" "), &default_allocator);
         
         b32 content_changed = false;
         for (i32 i = 0; i < console.commands.count && console.args.count == 1; i++) {
@@ -525,7 +525,7 @@ void update_console() {
             if (content_changed) {
                 console.args.clear();
                 // split_str(focus_input_field.content, " ", &console.args);
-                split_string(&console.args, tstring(focus_input_field.content), tstring(" "));
+                split_string(&console.args, S(focus_input_field.content), S(" "), &default_allocator);
             }
             
             b32 found_command = false;

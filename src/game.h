@@ -176,9 +176,9 @@ inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity
 
 void resolve_collision(Entity *entity, Collision col);
 //Static_Array<Collision> get_collisions(Entity *entity);
-void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision> *result, FLAGS include_flags, i32 my_id = -1);
-void fill_collisions(Entity *entity, Array<Collision> *result);
-void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<Collision> *result, FLAGS include_flags);
+void fill_collisions(Vector2 position, Static_Array<Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array<Collision> *result, FLAGS include_flags, Allocator *allocator, i32 my_id = -1);
+void fill_collisions(Entity *entity, Array<Collision> *result, Allocator *allocator);
+void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array<Collision> *result, FLAGS include_flags, Allocator *allocator);
 Array <Collision> get_tcollisions(Entity *entity, FLAGS include_flags);
 Collision check_rectangles_col(Entity *entity1, Entity *entity2);
 Collision get_nearest_ground_collision(Vector2 point, f32 radius);

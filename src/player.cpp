@@ -301,7 +301,7 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
 }
 
 void calculate_sword_collisions(Entity *sword, Entity *player_entity) {
-    fill_collisions(sword, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE);
+    fill_collisions(sword, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | CENTIPEDE_SEGMENT | PLATFORM | BLOCK_ROPE, &default_allocator);
     
     assert(player_entity->player_data);
     Player *player_data = player_entity->player_data;
@@ -1074,7 +1074,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         u64 collision_flags = GROUND | ENEMY_BARRIER | PROPELLER | CENTIPEDE_SEGMENT | PLATFORM | NO_MOVE_BLOCK | TURRET | PLAYER_TOUCH_TIMER | HIT_BOOSTER | WIN_BLOCK | LEVEL_LOADER;
         
         // Player left wall collisions.
-        fill_collisions(left_wall_checker, &collisions_buffer, collision_flags);
+        fill_collisions(left_wall_checker, &collisions_buffer, collision_flags, &default_allocator);
         for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
             Collision col = collisions_buffer.get_value(i);
             
@@ -1107,7 +1107,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         }
         
         // Player right wall collision.
-        fill_collisions(right_wall_checker, &collisions_buffer, collision_flags);
+        fill_collisions(right_wall_checker, &collisions_buffer, collision_flags, &default_allocator);
         for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
             Collision col = collisions_buffer.get_value(i);
             
@@ -1142,16 +1142,12 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         Vector2 last_collision_point = Vector2_zero;
         Vector2 last_collision_normal = Vector2_one;
         
-        if (!player->standing_on_entities.allocator) {
-            assert(player->standing_on_entities.count == 0);
-            player->standing_on_entities.allocator = entity->allocator;
-        }
         player->standing_on_entities.clear();
         
         b32 moving_object_detected = false;
         // Player ground checker.
         FLAGS player_ground_collision_flags = collision_flags;
-        fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags);
+        fill_collisions(ground_checker, &collisions_buffer, player_ground_collision_flags, &default_allocator);
         b32 is_ground_huge_collision_speed = false;
         b32 found_no_move_block = false;
         for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
@@ -1183,7 +1179,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
                 }
             }
             
-            player->standing_on_entities.append(other);
+            player->standing_on_entities.append(other, entity->allocator);
             
             if (other->flags & NO_MOVE_BLOCK) {
                 found_no_move_block = true;
@@ -1282,7 +1278,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         }
         
         // Player body collision.
-        fill_collisions(entity, &collisions_buffer, collision_flags);
+        fill_collisions(entity, &collisions_buffer, collision_flags, &default_allocator);
         
         b32 is_body_huge_collision_speed = false;
         b32 on_propeller = false;

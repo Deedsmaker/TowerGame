@@ -32,7 +32,7 @@ void load_completed_levels() {
         return;
     }
     
-    auto completed_in_file = split_string(file_content, S("\n "), global_data.completed_levels.allocator);
+    auto completed_in_file = split_string(file_content, S("\n "), &default_allocator);
     global_data.completed_levels.append_another_array(&completed_in_file);
     completed_in_file.free_data();
 }
@@ -53,7 +53,7 @@ void record_completed_level(String name) {
         return;
     }
     
-    global_data.completed_levels.append(copy_string(name, global_data.completed_levels.allocator));
+    global_data.completed_levels.append(copy_string(name, &default_allocator), &default_allocator);
 }
 
 void clear_completed_levels() {
@@ -391,7 +391,7 @@ Color parse_color(Array <String> *splitted, i32 start_index) {
     return c;
 }
 
-void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted, i32 start_index) {
+void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted, i32 start_index, Allocator *allocator) {
     i32 end_index = splitted->find_from(tstring("\n"), start_index);
     if (end_index <= start_index) {
         // printf("End index was somehow less than a start index. That could mean that there was no breakline character at the end.\n");
@@ -418,13 +418,13 @@ void parse_lightmaps(Array <Lightmap_Data> *lightmaps, Array <String> *splitted,
             lightmap.has_loaded_texture = true;
         }
         
-        lightmaps->append(lightmap);
+        lightmaps->append(lightmap, allocator);
         
         i--; // We're on a next lightmap_position index right now, so subtracting one and for loop i++ won't break our jaw.
     }
 }
 
-void parse_i32_array(Array <i32> *array, Array <String> *splitted, i32 start_index) {
+void parse_i32_array(Array <i32> *array, Array <String> *splitted, i32 start_index, Allocator *allocator) {
     i32 end_index = splitted->find_from(tstring("\n"), start_index); 
     if (end_index <= start_index) {
         printf("Could not find breakline in parse i32 array!\n");
@@ -433,11 +433,11 @@ void parse_i32_array(Array <i32> *array, Array <String> *splitted, i32 start_ind
     
     for (i32 i = start_index; i < end_index; i++) {
         i32 number = to_i32(splitted->get_value(i));        
-        array->append(number);        
+        array->append(number, allocator);
     }
 }
 
-void parse_vector2_array(Array <Vector2> *array, Array <String> *splitted, i32 start_index) {
+void parse_vector2_array(Array <Vector2> *array, Array <String> *splitted, i32 start_index, Allocator *allocator) {
     i32 end_index = splitted->find_from(tstring("\n"), start_index); 
     if (end_index <= start_index) {
         printf("Could not find breakline in parse vector2 array!\n");
@@ -447,7 +447,7 @@ void parse_vector2_array(Array <Vector2> *array, Array <String> *splitted, i32 s
     for (i32 i = start_index; i < end_index; i++) {
         Vector2 v = parse_vector2(splitted, i);
         i += 1;
-        array->append(v);        
+        array->append(v, allocator);
     }
 }
 void parse_vertices_array(Static_Array <Vector2, MAX_VERTICES> *array, Array <String> *splitted, i32 start_index) {
@@ -460,7 +460,7 @@ void parse_vertices_array(Static_Array <Vector2, MAX_VERTICES> *array, Array <St
     for (i32 i = start_index; i < end_index && array->count < MAX_VERTICES; i++) {
         Vector2 v = parse_vector2(splitted, i);
         i += 1;
-        array->append(v);        
+        array->append(v);
     }
 }
 
@@ -588,7 +588,7 @@ b32 load_level(String name, u64 load_flags = 0) {
     
     setup_particles();
     
-    Array <String> splitted = {.allocator = temp};
+    Array <String> splitted = {};
     // Array <Entity> loaded_entities = {.allocator = temp};
     
     Array <String> level_files = get_files_in_directory(level_path, temp);
@@ -614,7 +614,7 @@ b32 load_level(String name, u64 load_flags = 0) {
             return false;
         }
         
-        split_string(&splitted, level_info, separators);
+        split_string(&splitted, level_info, separators, temp);
         
         i32 is_hub_level_index = splitted.find(tstring("is_hub_level"));
         if (is_hub_level_index >= 0) {
@@ -629,7 +629,7 @@ b32 load_level(String name, u64 load_flags = 0) {
         
         i32 lightmaps_index = splitted.find(tstring("lightmaps"));
         if (lightmaps_index > 0) {
-            parse_lightmaps(&context->lightmaps, &splitted, lightmaps_index + 1);
+            parse_lightmaps(&context->lightmaps, &splitted, lightmaps_index + 1, &context->allocator);
         }
     }
     
@@ -653,7 +653,7 @@ b32 load_level(String name, u64 load_flags = 0) {
                 continue;
             }
             
-            split_string(&splitted, entity_info, separators);
+            split_string(&splitted, entity_info, separators, temp);
             
             auto dummy_entity = add_default_entity(&copied_entities_context); // It's here just for setting data for initing.
             
@@ -702,9 +702,9 @@ b32 load_level(String name, u64 load_flags = 0) {
                 assert(entity->trigger);
                 Trigger *trigger = entity->trigger;
                 // @TODO: All this thousand bools of trigger should be just flags...
-                IF_FIND("trigger_connected")                  parse_i32_array(&trigger->connected, &splitted, i+1);
-                IF_FIND("trigger_tracking")                   parse_i32_array(&trigger->tracking, &splitted, i+1);
-                IF_FIND("trigger_cam_rails_points")           parse_vector2_array(&trigger->cam_rails_points, &splitted, i+1);
+                IF_FIND("trigger_connected")                  parse_i32_array(&trigger->connected, &splitted, i+1, entity->allocator);
+                IF_FIND("trigger_tracking")                   parse_i32_array(&trigger->tracking, &splitted, i+1, entity->allocator);
+                IF_FIND("trigger_cam_rails_points")           parse_vector2_array(&trigger->cam_rails_points, &splitted, i+1, entity->allocator);
                 IF_FIND("trigger_locked_camera_position")     trigger->locked_camera_position     = parse_vector2(&splitted, i+1);
                 
                 IF_FIND("trigger_settings") trigger->settings = to_u64(splitted.get_value(i+1));
@@ -727,7 +727,7 @@ b32 load_level(String name, u64 load_flags = 0) {
             // Kill switch loading.
             if (entity->flags & KILL_SWITCH) {
                 assert(entity->kill_switch);
-                IF_FIND("kill_switch_connected") parse_i32_array(&entity->kill_switch->connected, &splitted, i+1);
+                IF_FIND("kill_switch_connected") parse_i32_array(&entity->kill_switch->connected, &splitted, i+1, entity->allocator);
             }
             
             // Jump shooter loading.
@@ -773,7 +773,7 @@ b32 load_level(String name, u64 load_flags = 0) {
                 IF_FIND("move_sequence_max_distance")                  sequence->max_distance = to_f32(splitted.get_value(i+1));
                 IF_FIND("move_sequence_max_distance_speed")            sequence->max_distance_speed = to_f32(splitted.get_value(i+1));
                 IF_FIND("move_sequence_speed")                         sequence->speed = to_f32(splitted.get_value(i+1));
-                IF_FIND("move_sequence_points")                        parse_vector2_array(&sequence->points, &splitted, i+1);
+                IF_FIND("move_sequence_points")                        parse_vector2_array(&sequence->points, &splitted, i+1, entity->allocator);
             }
             
             // Door loading.

@@ -24,7 +24,7 @@ Collision raycast(Vector2 start_position, Vector2 direction, f32 len, FLAGS incl
         
         Bounds ray_bounds = get_bounds(ray_vertices, {0.5f, 1.0f});
     
-        fill_collisions(start_position, ray_vertices, ray_bounds, {0.5f, 1.0f}, &collisions_buffer, include_flags, my_id);
+        fill_collisions(start_position, ray_vertices, ray_bounds, {0.5f, 1.0f}, &collisions_buffer, include_flags, &default_allocator, my_id);
     
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             result = collisions_buffer.get_value(i);
@@ -303,7 +303,7 @@ void update_all_collision_cells(b32 update_cells_for_static_entities) {
 
 global_variable Array <i32> added_collision_ids = {0};
 
-void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array <Collision> *result, FLAGS include_flags, i32 my_id) {
+void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vertices, Bounds bounds, Vector2 pivot, Array <Collision> *result, FLAGS include_flags, Allocator *allocator, i32 my_id) {
     result->clear();
     
     auto cells = get_affected_collision_cells(position, bounds, pivot);
@@ -335,21 +335,21 @@ void fill_collisions(Vector2 position, Static_Array <Vector2, MAX_VERTICES> vert
     }
 }
 
-void fill_collisions(Entity *entity, Array <Collision> *result, FLAGS include_flags) {
+void fill_collisions(Entity *entity, Array <Collision> *result, FLAGS include_flags, Allocator *allocator) {
     if (entity->destroyed || !entity->enabled) {
         return;
     }
     
-    fill_collisions(entity->position, entity->vertices, entity->bounds, entity->pivot, result, include_flags, entity->id);
+    fill_collisions(entity->position, entity->vertices, entity->bounds, entity->pivot, result, include_flags, allocator, entity->id);
 }
 
 Array <Collision> get_tcollisions(Entity *entity, FLAGS include_flags) {
-    Array <Collision> collisions = {.allocator = temp};
-    fill_collisions(entity, &collisions, include_flags);
+    Array <Collision> collisions = {};
+    fill_collisions(entity, &collisions, include_flags, temp);
     return collisions;
 }
 
-void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array <Collision> *result, FLAGS include_flags) {
+void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array <Collision> *result, FLAGS include_flags, Allocator *allocator) {
     Static_Array <Vector2, MAX_VERTICES> vertices = Static_Array <Vector2, MAX_VERTICES>();
     add_rect_vertices(&vertices, pivot);    
     for (i32 i = 0; i < vertices.count; i++) {
@@ -361,6 +361,6 @@ void fill_collisions_rect(Vector2 position, Vector2 scale, Vector2 pivot, Array 
     make_rect_lines(position, bounds.size, pivot, 5, RED);
     
     
-    fill_collisions(position, vertices, bounds, pivot, result, include_flags);   
+    fill_collisions(position, vertices, bounds, pivot, result, include_flags, allocator);
 }
 

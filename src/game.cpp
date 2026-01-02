@@ -271,7 +271,7 @@ void free_entity(Entity *e) {
     if (e->helper_type) {
         if (0) {
         } else if (e->flags & MOVE_SEQUENCE) { // Free move sequence.
-            e->move_sequence->points.free_data();
+            // e->move_sequence->points.free_data(e->allocator);
             b32 r = context->move_sequences.remove_by_pointer(e->move_sequence);
             assert(r);
         } else {
@@ -283,9 +283,9 @@ void free_entity(Entity *e) {
     if (e->secondary_type) {
         if (0) {
         } else if (e->flags & TRIGGER) { // Free trigger.
-            e->trigger->connected.free_data();
-            e->trigger->tracking.free_data(); 
-            e->trigger->cam_rails_points.free_data();
+            // e->trigger->connected.free_data();
+            // e->trigger->tracking.free_data(); 
+            // e->trigger->cam_rails_points.free_data();
             
             auto r = context->triggers.remove_by_pointer(e->trigger);
             assert(r);
@@ -312,7 +312,7 @@ void free_entity(Entity *e) {
             auto r = context->bird_enemies.remove_by_pointer(e->bird_enemy);
             assert(r);
         } else if (e->flags & KILL_SWITCH) { // Free kill switch.
-            e->kill_switch->connected.free_data();
+            // e->kill_switch->connected.free_data();
             
             auto r = context->kill_switches.remove_by_pointer(e->kill_switch);
             assert(r);
@@ -324,7 +324,7 @@ void free_entity(Entity *e) {
                 mark_entity_destroyed(*it);
             }
             
-            e->centipede->segments.free_data();
+            // e->centipede->segments.free_data();
             
             auto r = e->context->centipedes.remove_by_pointer(e->centipede);
             assert(r);
@@ -332,7 +332,7 @@ void free_entity(Entity *e) {
             auto r = context->centipede_segments.remove_by_pointer(e->centipede_segment);
             assert(r);
         } else if (e->flags & JUMP_SHOOTER) { // Free jump shooter.
-            e->jump_shooter->move_points.free_data();
+            // e->jump_shooter->move_points.free_data();
             
             auto r = context->jump_shooters.remove_by_pointer(e->jump_shooter);
             assert(r);
@@ -340,8 +340,8 @@ void free_entity(Entity *e) {
             auto r = context->win_blocks.remove_by_pointer(e->win_block);
             assert(r);
         } else if (e->flags & LEVEL_LOADER) { // Free level loader.
-            e->level_loader->levels_to_open.free_data();
-            e->level_loader->level_to_load.free_data();
+            // e->level_loader->levels_to_open.free_data();
+            // e->level_loader->level_to_load.free_data();
             
             auto r = context->level_loaders.remove_by_pointer(e->level_loader);
             assert(r);
@@ -362,7 +362,7 @@ void free_entity(Entity *e) {
     // Free light.
     if (e->lights.count > 0) {
         free_lights_connected_to_entity(e);
-        e->lights.free_data();
+        // e->lights.free_data();
     }
     
     e->color_changer.changing = false;
@@ -663,7 +663,7 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
     }
     
     // First of all we just copying raw entities and then going through all of them deep copy properly into dest level context.
-    dest->entities.copy_values(&src->entities);
+    dest->entities.copy_values(&src->entities, &default_allocator);
     for_chunk_array(i, (&src->entities)) {
         // NOTE: On copy_and_add_entity happening init_entity. Some entities (like centipede) would want to spawn things on initing
         // so someone might thing that it could be an issue that we're inserting entities here directly with index.
@@ -1568,7 +1568,7 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
                 
                 entity->move_sequence->points = copy_array(&to_copy->move_sequence->points, allocator);
             }
-            entity->move_sequence->points.allocator = allocator;
+            // entity->move_sequence->points.allocator = allocator;
         } else {
             log("WARNING: Forgot to copy some helper type!", LOG_WARNING);
         }
@@ -1585,9 +1585,9 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
                 entity->trigger->tracking = copy_array(&to_copy->trigger->tracking, allocator);
                 entity->trigger->cam_rails_points = copy_array(&to_copy->trigger->cam_rails_points, allocator);
             }
-            entity->trigger->connected.allocator = allocator;
-            entity->trigger->tracking.allocator = allocator;
-            entity->trigger->cam_rails_points.allocator = allocator;
+            // entity->trigger->connected.allocator = allocator;
+            // entity->trigger->tracking.allocator = allocator;
+            // entity->trigger->cam_rails_points.allocator = allocator;
         } else if (entity->flags & PROJECTILE) { // Copy projectile.
             if (should_copy) {
                 *entity->projectile = *to_copy->projectile;
@@ -1618,7 +1618,7 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
                 
                 entity->kill_switch->connected = copy_array(&to_copy->kill_switch->connected, allocator);
             }
-            entity->kill_switch->connected.allocator = allocator;
+            // entity->kill_switch->connected.allocator = allocator;
         } else if (entity->flags & TURRET) { // Copy turret.
             if (should_copy) {
                 *entity->turret = *to_copy->turret;
@@ -1627,9 +1627,9 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
             if (should_copy) {
                 *entity->centipede = *to_copy->centipede;
                 
-                entity->centipede->segments = {.allocator = allocator}; // They're gonna be added on init_entity.
+                entity->centipede->segments = {}; // They're gonna be added on init_entity.
             }
-            entity->centipede->segments.allocator = allocator;
+            // entity->centipede->segments.allocator = allocator;
         } else if (entity->flags & CENTIPEDE_SEGMENT) { // Copy centipede segment.
             if (should_copy) {
                 *entity->centipede_segment = *to_copy->centipede_segment;
@@ -1640,7 +1640,7 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
                 
                 entity->jump_shooter->move_points = copy_array(&to_copy->jump_shooter->move_points, allocator);
             }
-            entity->jump_shooter->move_points.allocator = allocator;            
+            // entity->jump_shooter->move_points.allocator = allocator;            
         } else if (entity->flags & WIN_BLOCK) { // Copy win block.
             if (should_copy) {
                 *entity->win_block = *to_copy->win_block;    
@@ -1651,8 +1651,8 @@ void set_allocators_and_copy_types_if_need(Entity *entity, Entity *to_copy) {
                 entity->level_loader->levels_to_open = copy_array(&to_copy->level_loader->levels_to_open, allocator);
                 entity->level_loader->level_to_load = copy_string(to_copy->level_loader->level_to_load, allocator);
             }
-            entity->level_loader->levels_to_open.allocator = allocator;
-            entity->level_loader->level_to_load.allocator = allocator;
+            // entity->level_loader->levels_to_open.allocator = allocator;
+            // entity->level_loader->level_to_load.allocator = allocator;
         } else if (entity->flags & PROPELLER) { // Copy propeller.
             if (should_copy) {
                 *entity->propeller = *to_copy->propeller;
@@ -2102,7 +2102,7 @@ void load_sounds() {
         str_copy(handler.name, name);
         
         for (i32 s = 0; s < handler.buffer.capacity; s++) {
-            handler.buffer.append(LoadSoundAlias(sound), &default_allocator);
+            handler.buffer.append(LoadSoundAlias(sound));
         }
         
         // i64 hash = hash_str(name);
@@ -4378,7 +4378,7 @@ Entity *get_cursor_entity() {
     
     b32 mouse_on_selected_entity = editor.selected && check_entities_collision(&mouse_entity, editor.selected).collided;
     
-    fill_collisions(&mouse_entity, &collisions_buffer, 0);
+    fill_collisions(&mouse_entity, &collisions_buffer, 0, &default_allocator);
     
     for (i32 i = 0; i < collisions_buffer.count; i++) {
         Entity *e = collisions_buffer.get_value(i).other_entity;
@@ -5023,7 +5023,7 @@ void update_editor() {
         else pivot.y = 0;
         
         Vector2 scale = {abs(input.mouse_position.x - multiselection->start_point.x), abs(input.mouse_position.y - multiselection->start_point.y)};
-        fill_collisions_rect(multiselection->start_point, scale, pivot, &collisions_buffer, 0);
+        fill_collisions_rect(multiselection->start_point, scale, pivot, &collisions_buffer, 0, &default_allocator);
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Entity *other = collisions_buffer.get(i)->other_entity;
@@ -5341,6 +5341,7 @@ void update_editor() {
                 }
                 for_chunk_array(j, &current_context->kill_switches) {
                     Kill_Switch *kill_switch = current_context->kill_switches.get(j);
+                    Entity *entity = kill_switch->entity;
                     
                     if (kill_switch->connected.contains(copied->id)) {
                         assert(!kill_switch->connected.contains(spawned->id));
@@ -5534,7 +5535,7 @@ void update_editor() {
             b32 wanna_clear_cam_rails_points = IsKeyDown(KEY_LEFT_CONTROL) && IsKeyPressed(KEY_L);
             //trigger assign or remove
             if (wanna_assign || wanna_remove) {
-                fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY);
+                fill_collisions(&mouse_entity, &collisions_buffer, DOOR | ENEMY | SPIKES | GROUND | PLATFORM | MOVE_SEQUENCE | TRIGGER | DUMMY, &default_allocator);
                 
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
                     Collision col = collisions_buffer.get_value(i);
@@ -5561,7 +5562,7 @@ void update_editor() {
             }
             
             if (wanna_assign_tracking_enemy) {
-                fill_collisions(&mouse_entity, &collisions_buffer, ENEMY | CENTIPEDE);
+                fill_collisions(&mouse_entity, &collisions_buffer, ENEMY | CENTIPEDE, &default_allocator);
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
                     Collision col = collisions_buffer.get_value(i);
                     
@@ -5605,7 +5606,7 @@ void update_editor() {
             Kill_Switch *kill_switch = selected->kill_switch;
             //kill switch assign or remove
             if (wanna_assign || wanna_remove) {
-                fill_collisions(&mouse_entity, &collisions_buffer, ENEMY);
+                fill_collisions(&mouse_entity, &collisions_buffer, ENEMY, &default_allocator);
                 for (i32 i = 0; i < collisions_buffer.count; i++) {
                     Collision col = collisions_buffer.get_value(i);
                     
@@ -5924,7 +5925,7 @@ inline void cut_rope(Entity *entity, Vector2 point) {
 }
 
 inline void calculate_collisions(void (respond_func)(Entity*, Collision), Entity *entity) {
-    fill_collisions(entity, &collisions_buffer, entity->collision_flags);
+    fill_collisions(entity, &collisions_buffer, entity->collision_flags, &default_allocator);
     
     for (i32 i = 0; i < collisions_buffer.count; i++) {
         Collision col = collisions_buffer.get_value(i);
@@ -6479,7 +6480,7 @@ void calculate_projectile_collisions(Entity *entity) {
     
     // Player projectile collisions.
     if (projectile->type == PLAYER_RIFLE_PROJECTILE) {
-        fill_collisions(entity, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT);
+        fill_collisions(entity, &collisions_buffer, GROUND | ENEMY | WIN_BLOCK | ROPE_POINT, &default_allocator);
         // Player *player = player_data;
         
         b32 damaged_enemy = false;
@@ -6646,7 +6647,7 @@ void calculate_projectile_collisions(Entity *entity) {
             }
         }
     } else if (projectile->type == JUMP_SHOOTER_PROJECTILE) {
-        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
+        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK, &default_allocator);
         // @CLEANUP We don't need JUMP_SHOOTER_PROJECTILE anymore because we don't want jump shooter.        
         assert(entity->union_enemy);
         Enemy *enemy = entity->union_enemy;
@@ -6679,7 +6680,7 @@ void calculate_projectile_collisions(Entity *entity) {
             }
         }
     } else if (projectile->type == TURRET_DIRECT_PROJECTILE || projectile->type == TURRET_HOMING_PROJECTILE) {
-        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK);
+        fill_collisions(entity, &collisions_buffer, GROUND | PLAYER | CENTIPEDE_SEGMENT | ENEMY_BARRIER | NO_MOVE_BLOCK, &default_allocator);
         assert(entity->union_enemy);
         Enemy *enemy = entity->union_enemy;
         
@@ -7012,7 +7013,7 @@ i32 update_trigger(Entity *e) {
     }
     
     if (trigger->settings & KILL_ENEMIES) {
-        fill_collisions(e, &collisions_buffer, ENEMY);
+        fill_collisions(e, &collisions_buffer, ENEMY, &default_allocator);
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
             kill_enemy(col.other_entity, col.point, col.normal);            
@@ -7193,7 +7194,7 @@ Collision get_nearest_ground_collision(Vector2 point, f32 radius) {
         
         Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
         
-        fill_collisions(point, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
+        fill_collisions(point, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND, &default_allocator);
         
         for (i32 i = 0; i < collisions_buffer.count; i++) {
             Collision col = collisions_buffer.get_value(i);
@@ -9537,10 +9538,10 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
     Entity *e = NULL;
     
     if (id_to_insert > 0) {
-        e = context_for_deep_copy->entities.insert({0}, id_to_insert - 1);
+        e = context_for_deep_copy->entities.insert({0}, &context_for_deep_copy->allocator, id_to_insert - 1);
         id_to_set = id_to_insert;
     } else {
-        e = context_for_deep_copy->entities.append({0}, &id_to_set);
+        e = context_for_deep_copy->entities.append({0}, &context_for_deep_copy->allocator, &id_to_set);
         // Because append gives us index and entity id is index + 1 so id 0 is invalid.
         id_to_set += 1;
     }
@@ -9600,7 +9601,7 @@ Entity *copy_and_add_entity(Entity *to_copy, Context *context_for_deep_copy, i32
 Entity *add_default_entity(Context *context) {
     i32 id = 0;
     auto default_entity = make_default_entity(context);
-    auto entity = context->entities.append(default_entity, &id);
+    auto entity = context->entities.append(default_entity, &context->allocator, &id);
     id += 1;
     entity->id = id;
     entity->context = context;
@@ -9612,7 +9613,7 @@ Entity *add_default_entity(Context *context) {
 
 Entity *add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAGS flags) {
     i32 id = 0;
-    Entity *e = current_context->entities.append({0}, &id);
+    Entity *e = current_context->entities.append({0}, &current_context->allocator, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
     id += 1;
     *e = make_entity(pos, scale, pivot, rotation, flags);    
@@ -9626,7 +9627,7 @@ Entity *add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, FLAG
 
 Entity *add_entity(Vector2 pos, Vector2 scale, Vector2 pivot, f32 rotation, Texture *texture, FLAGS flags) {
     i32 id = 0;
-    Entity *e = current_context->entities.append({0}, &id);
+    Entity *e = current_context->entities.append({0}, &current_context->allocator, &id);
     // Because append gives us index and entity id is index + 1 so id 0 is invalid.
     id += 1;
     *e = make_entity(pos, scale, pivot, rotation, texture, flags);    

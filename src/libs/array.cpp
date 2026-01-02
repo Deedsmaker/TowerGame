@@ -530,7 +530,7 @@ struct Chunk_Array {
     
     i32 find_free_space_and_grow_if_need(Allocator *allocator) {
         if (!first_chunk) {
-            init_chunk(&first_chunk);
+            init_chunk(&first_chunk, allocator);
             chunks_count += 1;
             return 0;
         }
@@ -562,15 +562,16 @@ struct Chunk_Array {
         return chunk_size * (chunks_count - 1);
     }
     
-    T *append(T value, i32 *added_index = NULL) {
+    T *append(T value, Allocator *allocator, i32 *added_index = NULL) {
         if (chunk_size == 0) chunk_size = 32;
     
-        i32 append_index = find_free_space_and_grow_if_need();
+        i32 append_index = find_free_space_and_grow_if_need(allocator);
         assert(append_index >= 0);
     
         Chunk *chunk = first_chunk;
         i32 chunk_index = append_index / chunk_size;
         assert(chunk_index < chunks_count);
+        
         for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;
         
         assert(index_in_chunk(append_index, chunk, chunk_index) && "Chunk array append bug!");
@@ -586,7 +587,7 @@ struct Chunk_Array {
         return &chunk_element->value;
     }
     
-    T *insert(T value, i32 index) {
+    T *insert(T value, Allocator *allocator, i32 index) {
         assert(index >= 0);
         
         Chunk *chunk = first_chunk;
