@@ -1458,7 +1458,7 @@ inline bool add_entity_type_if_need(Entity *entity, u64 type_flag, T **to_assign
         *match_count += 1;
         b32 should_add = *to_assign == NULL;
         if (should_add) {
-            *to_assign = arr->append({});
+            *to_assign = arr->append({}, &entity->context->allocator);
             return true;
         }
     }

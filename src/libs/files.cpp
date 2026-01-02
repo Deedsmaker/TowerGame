@@ -83,10 +83,10 @@ Array <String> get_files_in_directory(String directory_name, Allocator *allocato
     
     FilePathList files_paths = LoadDirectoryFiles(c_str(directory_name));
     
-    Array <String> result_paths = {.allocator = allocator};
+    Array <String> result_paths = {};
     
     for (u32 i = 0; i < files_paths.count; i++) {
-        result_paths.append(string(allocator, files_paths.paths[i]));
+        result_paths.append(string(allocator, files_paths.paths[i]), allocator);
     }
     
     UnloadDirectoryFiles(files_paths);
@@ -130,13 +130,13 @@ Array <String> get_file_names_in_directory(String directory_name, Allocator *all
     
     FilePathList files_paths = LoadDirectoryFiles(c_str(directory_name));
     
-    Array <String> result_paths = {.allocator = allocator};
+    Array <String> result_paths = {};
     
     for (u32 i = 0; i < files_paths.count; i++) {
         String full_path = string(temp, files_paths.paths[i]);
         String name = strip_path_to_just_name(full_path, allocator);
     
-        result_paths.append(name);
+        result_paths.append(name, allocator);
     }
     
     UnloadDirectoryFiles(files_paths);

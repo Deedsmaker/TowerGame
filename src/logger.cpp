@@ -55,7 +55,7 @@ void log_to_file(String message) {
 }
 
 void game_log(const char *str) {
-    Log_Message *new_log = debug.log_messages_short.append({0});
+    Log_Message *new_log = debug.log_messages_short.append({0}, &default_allocator);
     str_copy(new_log->data, str);
     
     // Printing |'s just to see that we printing something if there's much of the same things going on.

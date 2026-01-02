@@ -67,7 +67,7 @@ static Ui_Element *init_ui_element(Vector2 position, Vector2 size, Vector2 pivot
     
     new_ui_element.color = color;
     
-    ui_context.elements.append(new_ui_element);
+    ui_context.elements.append(new_ui_element, &default_allocator);
     
     last_ui_element = ui_context.elements.last();
     

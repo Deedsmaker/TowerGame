@@ -409,7 +409,7 @@ void make_lightmap_settings_panel(){
     Old::make_panel_text(tprintf("Lightmaps count: %d", current_context->lightmaps.count), "lightmap_count_panel_text");
     
     if (Old::make_panel_button("Add lightmap", "add_lightmap_button")){
-        current_context->lightmaps.append({});
+        current_context->lightmaps.append({}, &current_context->allocator);
     }
     
     local_persist i32 lightmap_level = 0;

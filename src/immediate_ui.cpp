@@ -3,18 +3,18 @@
 struct Ui_Panel {
     Rectangle rect = {0};
     
-    Array <Rectangle> childs = {.allocator = temp};
+    Array <Rectangle> childs = {};
 };
 
-Array <Ui_Panel> active_panels = {.allocator = temp};
-Array <Ui_Panel> panels = {.allocator = temp};
+Array <Ui_Panel> active_panels = {};
+Array <Ui_Panel> panels = {};
 
 void begin_panel(Rectangle rect) {
     Ui_Panel panel = {0};
     
     panel.rect = rect;
-    panels.append(panel);
-    active_panels.append(panel);
+    panels.append(panel, temp);
+    active_panels.append(panel, temp);
 }
 
 void end_panel() { 

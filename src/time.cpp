@@ -51,7 +51,7 @@ global_variable Array <struct timespec> performance_timers = {0};
 void push_performance_timer() { 
     struct timespec now;
     timespec_get(&now, TIME_UTC);
-    performance_timers.append(now);
+    performance_timers.append(now, &default_allocator);
 }
 
 i64 pop_performance_timer_milliseconds() {

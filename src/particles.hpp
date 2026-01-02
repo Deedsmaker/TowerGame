@@ -397,7 +397,7 @@ internal inline void update_emitter_particles(Particle_Emitter *emitter, f32 dt)
             add_rect_vertices(&vertices, {0.5f, 0.5f});
             local_persist Bounds bounds = get_bounds(vertices, {0.5f, 0.5f});
             
-            fill_collisions(particle->position, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND);
+            fill_collisions(particle->position, vertices, bounds, {0.5f, 0.5f}, &collisions_buffer, GROUND, &default_allocator);
             if (collisions_buffer.count > 0) {
                 Collision col = collisions_buffer.get_value(0);
                 emit_particles(&air_dust_emitter, col.point, col.normal);

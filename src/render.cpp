@@ -3,11 +3,11 @@
 Font main_font = {0};
 
 void init_fonts() {
-    Array <i32> codepoints = {.allocator = temp};
+    Array <i32> codepoints = {};
     
     // To the cyrillic codepoints.
     for (int i = 0; i <= 0x04FF ; i++) {
-        codepoints.append(i);
+        codepoints.append(i, temp);
     }
 
     main_font = LoadFontEx("Inter-VariableFont_opsz,wght.ttf", 72, codepoints.data, codepoints.count);

@@ -283,11 +283,11 @@ void init_array(Array<T> *array, i32 capacity, Allocator *allocator) {
 
 template <typename T>
 Array <T> copy_array(Array<T> *to_copy, Allocator *allocator) {
-    Array <T> result = {.allocator = allocator};
+    Array <T> result = {};
     init_array(&result, to_copy->capacity, allocator);
     
     for_array (i, to_copy) {
-        result.append(*to_copy->get(i));
+        result.append(*to_copy->get(i), allocator);
     }
     
     return result;
@@ -466,9 +466,9 @@ struct Chunk_Array {
         assert(start_chunk_index < chunks_count);
         
         if (!first_chunk) {
-            init_chunk(&first_chunk);  
-            chunks_count += 1;
-            return 0;
+            // init_chunk(&first_chunk);
+            // chunks_count += 1;
+            return -1;
         } 
         
         Chunk *chunk = first_chunk;
