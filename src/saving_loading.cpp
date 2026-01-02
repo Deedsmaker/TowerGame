@@ -32,9 +32,8 @@ void load_completed_levels() {
         return;
     }
     
-    auto completed_in_file = split_string(file_content, S("\n "), &default_allocator);
-    global_data.completed_levels.append_another_array(&completed_in_file);
-    completed_in_file.free_data();
+    auto completed_in_file = split_string(file_content, S("\n "), temp);
+    global_data.completed_levels.append_another_array(&completed_in_file, &default_allocator);
 }
 
 void record_completed_level(String name) {

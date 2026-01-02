@@ -10,15 +10,15 @@ inline void undo_mark_entity_changed(Entity *entity) {
 void add_changes_to_undo(Array <Entity_Undo_Change> *changes) {
     if (changes->count == 0) return;
 
-    current_context->undo_actions.append(*changes);
+    current_context->undo_actions.append(*changes, &default_allocator);
     current_context->max_undos_added = current_context->undo_actions.count;
 }
 
 Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *changed, Array <i32> *original) { 
-    Array <Entity_Undo_Change> changes = {.allocator = temp};
+    Array <Entity_Undo_Change> changes = {};
 
     if (changed->count > original->count) {
-        Array <i32> differences = changed->get_unique_elements_differences(original);
+        Array <i32> differences = changed->get_unique_elements_differences(original, temp);
         assert(differences.count > 0);
         for_array (i, &differences) {
             Entity_Undo_Change change =  {
@@ -28,10 +28,10 @@ Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *
                 .changed_array = changed
             };
             
-            changes.append(change);
+            changes.append(change, temp);
         }
     } else if (changed->count < original->count) {
-        Array <i32> differences = changed->get_unique_elements_differences(original);
+        Array <i32> differences = changed->get_unique_elements_differences(original, temp);
         assert(differences.count > 0);
         for_array (i, &differences) {
             Entity_Undo_Change change =  {
@@ -41,8 +41,7 @@ Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *
                 .changed_array = changed
             };
             
-            changes.append(change);
-    
+            changes.append(change, temp);
         }
     }
     
@@ -51,14 +50,14 @@ Array <Entity_Undo_Change> get_i32_array_difference(i32 entity_id, Array <i32> *
 
 Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *original, Allocator *allocator = &default_allocator) {
     // @LEAK Probably. Could think about using undo level context memory allocator in undo_actions. Could work if we'll reuse things.
-    Array <Entity_Undo_Change> changes = {.allocator = allocator};
+    Array <Entity_Undo_Change> changes = {};
 
     if (changed->will_be_destroyed) {
         changes.append({
             .entity_id = changed->id,
             .change_type = ENTITY_DESTROYED,
             .destroyed_entity_copy = copy_and_add_entity(original, &undo_context) // changed would have will_be_destroyed runtime flag set, whereas for original we've unset it.
-        });
+        }, temp);
     }
 
     if (original->position != changed->position) {
@@ -67,21 +66,21 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
             .change_type = VECTOR2_CHANGE,
             .vector_change = changed->position - original->position,
             .changed_vector = &changed->position
-        });
+        }, temp);
     }
     if (original->scale != changed->scale) {
         changes.append({
             .entity_id = changed->id,
             .change_type = SCALE_CHANGE,
             .vector_change = changed->scale - original->scale,
-        });
+        }, temp);
     }
     if (original->rotation != changed->rotation) {
         changes.append({
             .entity_id = changed->id,
             .change_type = ROTATION_CHANGE,
             .float_change = changed->rotation - original->rotation,
-        });
+        }, temp);
     }
     if (original->draw_order != changed->draw_order) {
         changes.append({
@@ -89,20 +88,20 @@ Array <Entity_Undo_Change> get_entities_difference(Entity *changed, Entity *orig
             .change_type = INTEGER_CHANGE,
             .integer_change = changed->draw_order - original->draw_order,
             .changed_integer = &changed->draw_order
-        });
+        }, temp);
     }
     
     if (changed->flags & TRIGGER) {
         auto connected_changes = get_i32_array_difference(changed->id, &changed->trigger->connected, &original->trigger->connected);
-        changes.append_another_array(&connected_changes);
+        changes.append_another_array(&connected_changes, temp);
         
         auto tracking_changes = get_i32_array_difference(changed->id, &changed->trigger->tracking, &original->trigger->tracking);
-        changes.append_another_array(&tracking_changes);
+        changes.append_another_array(&tracking_changes, temp);
     }
     
     if (changed->flags & KILL_SWITCH) {
         auto connected_changes = get_i32_array_difference(changed->id, &changed->kill_switch->connected, &original->kill_switch->connected);    
-        changes.append_another_array(&connected_changes);
+        changes.append_another_array(&connected_changes, temp);
     }
     
     // We're not performing any check if there was no actual changes because that's just allowes us make less checks in actual
@@ -138,7 +137,7 @@ inline void update_undo_logic() {
         // actions will be in one undo.
         b32 found_one_that_will_be_destroyed = false;
         
-        Array <Entity_Undo_Change> changes = {.allocator = &default_allocator};
+        Array <Entity_Undo_Change> changes = {}; // Default allocator for that because we're sending this array directly to undo array.
         
         for_chunk_array(i, &current_context->entities) {
             Entity *entity = current_context->entities.get(i);
@@ -156,7 +155,7 @@ inline void update_undo_logic() {
 
                 unchanged_entity->will_be_destroyed = false;
                 auto entity_change = get_entities_difference(entity, unchanged_entity, temp);
-                changes.append_another_array(&entity_change);
+                changes.append_another_array(&entity_change, &default_allocator);
             }
             
             free_entity(unchanged_entity);
@@ -167,7 +166,7 @@ inline void update_undo_logic() {
         
         assert(found_one_that_will_be_destroyed);
     } else if (editor.just_spawned_ids.count > 0) {
-        Array <Entity_Undo_Change> changes = {.allocator = &default_allocator};
+        Array <Entity_Undo_Change> changes = {}; // Default allocator for that because we're sending this array directly to undo array.
         for_array (i, &editor.just_spawned_ids) {
             Entity *spawned = get_entity(editor.just_spawned_ids.get_value(i));    
             
@@ -175,7 +174,7 @@ inline void update_undo_logic() {
                 .entity_id = spawned->id,
                 .change_type = ENTITY_SPAWNED,
                 .spawned_entity_copy = copy_and_add_entity(spawned, &undo_context)
-            });
+            }, &default_allocator);
         }
         
         // Like in case of registering entity destroy undo - here we want to go through all entities aswell to look for 
@@ -197,7 +196,7 @@ inline void update_undo_logic() {
                             .change_type = ARRAY_APPENDED,
                             .number_appended = editor.just_spawned_ids.get_value(j),
                             .changed_array = &trigger->connected
-                        });
+                        }, &default_allocator);
                     }
                     if (trigger->tracking.contains(editor.just_spawned_ids.get(j))) {
                         changes.append({
@@ -205,7 +204,7 @@ inline void update_undo_logic() {
                             .change_type = ARRAY_APPENDED,
                             .number_appended = editor.just_spawned_ids.get_value(j),
                             .changed_array = &trigger->tracking
-                        });
+                        }, &default_allocator);
                     }
                 }
             }
@@ -218,7 +217,7 @@ inline void update_undo_logic() {
                             .change_type = ARRAY_APPENDED,
                             .number_appended = editor.just_spawned_ids.get_value(j),
                             .changed_array = &kill_switch->connected
-                        });
+                        }, &default_allocator);
                     }
                 }
             }
@@ -238,14 +237,13 @@ inline void update_undo_logic() {
     } else if (editor.multiselection.entities.count > 0) {
         assert(editor.multiselection.entities.count == editor.multiselection.unchanged_copies.count);
         if (get_entity(editor.multiselection.entities.get_value(0))->runtime_only_flags & EDITOR_CHANGED) {
-            Array <Entity_Undo_Change> changes = {.allocator = &default_allocator};
-            
+            Array <Entity_Undo_Change> changes = {}; // Default allocator for that because we're sending this directly to undo array.            
             for_array (i, &editor.multiselection.entities) {
                 Entity *entity = get_entity(editor.multiselection.entities.get_value(i));
                 entity->runtime_only_flags ^= EDITOR_CHANGED;
                 Entity *unchanged  = editor.multiselection.unchanged_copies.get_value(i);
                 auto entity_changes = get_entities_difference(entity, unchanged, temp);
-                changes.append_another_array(&entity_changes);
+                changes.append_another_array(&entity_changes, &default_allocator);
                 free_entity(unchanged);
                 
                 editor.multiselection.unchanged_copies.insert(copy_and_add_entity(entity, &undo_context), i);               
@@ -322,7 +320,7 @@ inline void update_undo_logic() {
                     // value was removed from the middle of a array - we'll insert it at the end.
                     Entity *entity = get_entity(change->entity_id);  
                     i32 removed_value = change->number_removed;
-                    change->changed_array->append(removed_value);
+                    change->changed_array->append(removed_value, &default_allocator);
                 } break;
                 case NO_CHANGE: { 
                     assert(false);
@@ -394,7 +392,7 @@ inline void update_undo_logic() {
                 case ARRAY_APPENDED: {
                     Entity *entity = get_entity(change->entity_id);  
                     i32 value_to_append = change->number_appended;
-                    change->changed_array->append(value_to_append);
+                    change->changed_array->append(value_to_append, &default_allocator);
                 } break;
                 case ARRAY_REMOVED: {
                     Entity *entity = get_entity(change->entity_id);    

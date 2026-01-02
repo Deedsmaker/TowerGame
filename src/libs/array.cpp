@@ -78,9 +78,9 @@ struct Array {
     //     return last();
     // }
     
-    void append_another_array(Array <T> *another_array) {
+    void append_another_array(Array <T> *another_array, Allocator *allocator) {
         for_array (i, another_array) {
-            append(another_array->get_value(i));
+            append(another_array->get_value(i), allocator);
         }
     }
     
