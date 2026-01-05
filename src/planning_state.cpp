@@ -181,27 +181,27 @@ void validate_corner_node(Context *context) {
     
     return;
     
-    no_points_for_corner_node_case: {
-        if (corner_node->entity) {
-            mark_entity_destroyed(corner_node->entity);
-            corner_node->entity = NULL;
-        }
-        corner_node->type = NO_NODE;
+no_points_for_corner_node_case: 
+    
+    if (corner_node->entity) {
+        mark_entity_destroyed(corner_node->entity);
+        corner_node->entity = NULL;
+    }
+    corner_node->type = NO_NODE;
+    
+    // If we have no points for corner node - we want to orient last real node entity right.
+    // Without that it will look at where was corner node before it become no_points case and will orient itself correctly 
+    // only when we'll enter gaming state (if we're not going to spawn last node).
+    if (planning->nodes.count > 2) {
+        auto pre_last = planning->nodes.get(planning->nodes.count - 2);
         
-        // If we have no points for corner node - we want to orient last real node entity right.
-        // Without that it will look at where was corner node before it become no_points case and will orient itself correctly 
-        // only when we'll enter gaming state (if we're not going to spawn last node).
-        if (planning->nodes.count > 2) {
-            auto pre_last = planning->nodes.get(planning->nodes.count - 2);
+        if (pre_last->entity != NULL) {
+            auto pre_pre_last = planning->nodes.get(planning->nodes.count - 3);
             
-            if (pre_last->entity != NULL) {
-                auto pre_pre_last = planning->nodes.get(planning->nodes.count - 3);
-                
-                Vector2 vec = pre_last->position - pre_pre_last->position;
-                Vector2 dir = normalized(vec);
-                
-                change_up(pre_last->entity, dir);
-            }
+            Vector2 vec = pre_last->position - pre_pre_last->position;
+            Vector2 dir = normalized(vec);
+            
+            change_up(pre_last->entity, dir);
         }
     }
 }

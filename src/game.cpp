@@ -2529,8 +2529,10 @@ void enter_gaming_state(Context *from_context) {
 void enter_planning_state(u64 enter_flags) {
     assert(editor_state == GAME);
     
+    auto context = &planning_context;
     if (enter_flags & RESET_PLANNING_DATA) {
-        reset_planning_data(&planning_context);
+        // Reset planning data.
+        reset_planning_data(context);
     }
     
     if (current_context->flags & HUB_CONTEXT) {
