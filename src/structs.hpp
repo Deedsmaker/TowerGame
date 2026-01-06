@@ -1267,28 +1267,28 @@ struct Context {
     
     Turret_State turret_state = {};
 
-    Chunk_Array <Entity_Allocator> entity_allocators = {};
+    Chunk_Array <Entity_Allocator> entity_allocators = {.chunk_size = 512};
 
-    Chunk_Array <Entity> entities = {};
+    Chunk_Array <Entity> entities = {.chunk_size = 512};
     
-    Chunk_Array <Propeller> propellers = {};
-    Chunk_Array <Trigger> triggers = {};
-    Chunk_Array <Kill_Switch> kill_switches = {};
-    Chunk_Array <Sticky_Texture> sticky_textures = {};
-    Chunk_Array <Move_Sequence> move_sequences = {};
-    Chunk_Array <Bird_Enemy> bird_enemies = {};
-    Chunk_Array <Jump_Shooter> jump_shooters = {};
-    Chunk_Array <Turret> turrets = {};
-    Chunk_Array <Win_Block> win_blocks = {};
-    Chunk_Array <Level_Loader> level_loaders = {};
-    Chunk_Array <Planning_Point> planning_points = {};
+    Chunk_Array <Propeller> propellers = {.chunk_size = 16};
+    Chunk_Array <Trigger> triggers = {.chunk_size = 32};
+    Chunk_Array <Kill_Switch> kill_switches = {.chunk_size = 8};
+    Chunk_Array <Sticky_Texture> sticky_textures = {.chunk_size = 128};
+    Chunk_Array <Move_Sequence> move_sequences = {.chunk_size = 8};
+    Chunk_Array <Bird_Enemy> bird_enemies = {.chunk_size = 32};
+    Chunk_Array <Jump_Shooter> jump_shooters = {.chunk_size = 8};
+    Chunk_Array <Turret> turrets = {.chunk_size = 16};
+    Chunk_Array <Win_Block> win_blocks = {.chunk_size = 4};
+    Chunk_Array <Level_Loader> level_loaders = {.chunk_size = 8};
+    Chunk_Array <Planning_Point> planning_points = {.chunk_size = 32};
     
-    Chunk_Array <Projectile> projectiles = {};
+    Chunk_Array <Projectile> projectiles = {.chunk_size = 256};
     
-    Chunk_Array <Enemy> just_enemies = {};
+    Chunk_Array <Enemy> just_enemies = {.chunk_size = 64};
     
-    Chunk_Array <Centipede> centipedes = {};
-    Chunk_Array <Centipede_Segment> centipede_segments = {};
+    Chunk_Array <Centipede> centipedes = {.chunk_size = 8};
+    Chunk_Array <Centipede_Segment> centipede_segments = {.chunk_size = 128};
     
     Entity *player_entity = NULL;
     Player player = {};  
@@ -1305,7 +1305,7 @@ struct Context {
     
     Collision_Grid collision_grid = {};
     
-    Chunk_Array <Light> lights = {};
+    Chunk_Array <Light> lights = {.chunk_size = 128};
     // Chunk_Array <Light> medium_temp_lights = {};
     // Chunk_Array <Light> big_temp_lights = {};
     

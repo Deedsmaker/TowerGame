@@ -518,7 +518,13 @@ struct Chunk_Array {
         return !chunk->elements[index - (chunk_index * chunk_size)].occupied;
     }
     
-    void add_chunk(Allocator *allocator) {
+    Chunk *add_chunk(Allocator *allocator) {
+        if (!first_chunk) {
+            init_chunk(&first_chunk, allocator);
+            chunks_count += 1;
+            return first_chunk;
+        }
+    
         Chunk *last_chunk = first_chunk;
         for (i32 i = 0; i < chunks_count - 1; i++) last_chunk = last_chunk->next;
         assert(last_chunk);
@@ -526,9 +532,11 @@ struct Chunk_Array {
         last_chunk->next = (Chunk *)alloc(allocator, sizeof(Chunk));
         last_chunk->next->elements = (Chunk_Element *)alloc(allocator, chunk_size * sizeof(Chunk_Element));
         chunks_count += 1;
+        
+        return last_chunk;
     }
     
-    i32 find_free_space_and_grow_if_need(Allocator *allocator) {
+    i32 find_free_index_and_grow_if_need(Allocator *allocator) {
         if (!first_chunk) {
             init_chunk(&first_chunk, allocator);
             chunks_count += 1;
@@ -565,7 +573,7 @@ struct Chunk_Array {
     T *append(T value, Allocator *allocator, i32 *added_index = NULL) {
         if (chunk_size == 0) chunk_size = 32;
     
-        i32 append_index = find_free_space_and_grow_if_need(allocator);
+        i32 append_index = find_free_index_and_grow_if_need(allocator);
         assert(append_index >= 0);
     
         Chunk *chunk = first_chunk;
@@ -596,9 +604,11 @@ struct Chunk_Array {
         if (chunk_index >= chunks_count) {
             i32 chunks_to_add = chunk_index - chunks_count + 1;
             for (i32 i = 0; i < chunks_to_add; i++) {
-                add_chunk(allocator);
+                chunk = add_chunk(allocator);
             }
         }
+        
+        assert(chunk);
         
         assert(chunk_index < chunks_count);
         for (i32 i = 0; i < chunk_index; i++) chunk = chunk->next;

@@ -2198,35 +2198,8 @@ void init_context(Context *context, String name, u64 flags = 0) {
     init_array(&context->particles, MAX_PARTICLES, &default_allocator);
     init_array(&context->particle_emitters, MAX_SMALL_COUNT_PARTICLE_EMITTERS + MAX_MEDIUM_COUNT_PARTICLE_EMITTERS + MAX_BIG_COUNT_PARTICLE_EMITTERS, &default_allocator);
     
-    init_array(&context->notes, 64, &default_allocator);
+    init_array(&context->notes, 64, &default_allocator); // @TODO: These array initializations should be removed because you know why.
     
-    init_chunk_array(&context->entity_allocators, 512, &default_allocator);
-    
-    init_chunk_array(&context->entities, 512, &default_allocator);
-    
-    init_chunk_array(&context->propellers, 16, &default_allocator);
-    init_chunk_array(&context->triggers, 32, &default_allocator);
-    init_chunk_array(&context->sticky_textures, 128, &default_allocator);
-    init_chunk_array(&context->move_sequences, 128, &default_allocator);
-    init_chunk_array(&context->bird_enemies, 64, &default_allocator);
-    init_chunk_array(&context->jump_shooters, 8, &default_allocator);
-    init_chunk_array(&context->kill_switches, 8, &default_allocator);
-    init_chunk_array(&context->turrets, 32, &default_allocator);
-    init_chunk_array(&context->win_blocks, 4, &default_allocator);
-    init_chunk_array(&context->level_loaders, 8, &default_allocator);
-    
-    init_chunk_array(&context->projectiles, 256, &default_allocator);
-    
-    init_chunk_array(&context->just_enemies, 64, &default_allocator);
-    
-    init_chunk_array(&context->centipedes, 8, &default_allocator);
-    init_chunk_array(&context->centipede_segments, 128, &default_allocator);
-    
-    init_chunk_array(&context->planning_points, 32, &default_allocator);
-    
-    
-    init_chunk_array(&context->lights, 128, &default_allocator);
-
     //init context
     // for (i32 i = 0; i < context->lights.capacity; i++) {
     //     Light *light = context->lights.append({0});
@@ -2278,7 +2251,7 @@ void init_context(Context *context, String name, u64 flags = 0) {
     init_array(&current_context->collision_grid.cells, cells_count, &default_allocator);
     
     for (i32 i = 0; i < cells_count; i++) {
-        current_context->collision_grid.cells.append({0}, &default_allocator);
+        current_context->collision_grid.cells.append({0}, &default_allocator); // This collision grid initialization should probably stay if we want to keep separate collision grid for every context. We should just keep track of it on clearing context.
     }
     
     context->inited = true;
