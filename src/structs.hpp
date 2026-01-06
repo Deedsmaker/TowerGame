@@ -1301,7 +1301,7 @@ struct Context {
     
     Array <Note> notes = {};
     
-    Bird_Slot bird_slots[MAX_BIRD_POSITIONS];
+    Bird_Slot bird_slots[MAX_BIRD_POSITIONS] = {};
     
     Collision_Grid collision_grid = {};
     

@@ -715,83 +715,46 @@ void copy_context(Context *dest, Context *src, b32 should_init_entities) {
 } // End copy context.
 
 void clear_context(Context *context) {
-    // Remember that currently we init level context only in very beginnning, so nobody should set inited to false.
-    assert(context->inited);
 
     Context *original_context = current_context;
     switch_current_context(context);
-    ForEntities(entity, 0) {
-        free_entity(entity);
-        *entity = {0};
-    }
     
-    context->game_time = 0;
+    // Remember that currently we init level context only in very beginnning, so nobody should set inited to false.
+    auto inited = context->inited;
+    assert(inited);
+    // Keeping track of things we want to save after clearing.
+    auto name = copy_string(context->name, temp);
+    auto allocator_saved = context->allocator;
     
-    context->turret_state = {0};
+    auto particles = context->particles;
+    auto emitters = context->particle_emitters;
+    auto notes = context->notes;
     
-    context->initially_simulated = false;
+    auto collision_grid = context->collision_grid;
     
-    context->player_entity = NULL;
-    context->player = {0};
+    *context = {};
+    context->allocator = allocator_saved;
     
-    context->entity_allocators.clear();
+    clear_allocator(&context->allocator);
+    auto allocator = &context->allocator;
     
-    context->entities.clear();
+    context->name = copy_string(name, allocator);
     
-    context->propellers.clear();
-    context->triggers.clear();
-    context->sticky_textures.clear();
-    context->move_sequences.clear();
-    context->bird_enemies.clear();
-    context->jump_shooters.clear();
-    context->kill_switches.clear();
-    context->turrets.clear();
-    context->win_blocks.clear();
-    context->level_loaders.clear();
+    context->particles = particles;
+    context->particle_emitters = emitters;
+    context->notes = notes;
     
-    context->projectiles.clear();
+    context->collision_grid = collision_grid;
     
-    context->just_enemies.clear();
+    context->initially_simulated = false; // @CLEANUP: Do we really want to reset this here? Or should it have default value of false.
     
-    context->planning_points.clear();
-    
-    context->centipedes.clear();
-    context->centipede_segments.clear();
-    
-    context->level_name.free_data();
-    context->level_name = {0};
-    
-    // context->particles.clear();
-    // context->emitters.clear();
+    context->inited = inited;
     
     // We do that instead of clearing because this things are using it's full capacity and not count. Count should be equal
     // to capactiy for them. That probably should change some time.
     ArrayOfStructsToDefaultValues(context->particle_emitters);
     ArrayOfStructsToDefaultValues(context->particles);
     ArrayOfStructsToDefaultValues(context->notes);
-    
-    for_chunk_array(i, &context->lights) {
-        free_light(get_light(i, context), i, context);
-    }
-    context->lights.clear();
-    
-    // for (i32 i = 0; i < context->lights.capacity; i++) {
-    //     context->lights.get(i)->exists = false;
-    //     if (i >= global_data.entity_lights_start_index) {
-    //         free_light(context->lights.get(i));       
-    //         *(context->lights.get(i)) = {0};
-    //     } else { // So we in temp lights section
-    //     }
-    // }
-    
-    current_context->lightmaps.clear();
-    
-    // context->we_got_a_winner = false;
-    // player_data = {0};
-    
-    context->flags = 0;
-    
-    clear_allocator(&context->allocator, true);
     
     init_planning_data(context);
     
