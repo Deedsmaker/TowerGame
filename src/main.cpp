@@ -150,9 +150,19 @@ b32 window_minimized = false;
 //     }
 // }
 
+void test_thing(int a, ...) {
+    char *first = (char *)(&a);
+    int arg = *((int*)(first + 8));
+    char *arg2 = ((first + 17));
+    printf("%d\n", arg);
+    printf("%s\n", arg2);
+}
+
 int main(){
     *temp = init_allocator(Megabytes(16), ARENA_ALLOCATOR);
 
+    // test_thing(1, 6, "fds");
+    // return 0;
     // make_thing();
     
     // return 0;

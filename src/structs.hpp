@@ -449,8 +449,10 @@ struct Win_Block : Enemy {
 };
 
 enum Level_Loader_Flags {
-    LEVEL_LOADER_OPEN = 0x1,  
-    LEVEL_LOADER_BIG = 0x2,  
+    LOADER_OPEN              = 0x1,  
+    LOADER_BIG               = 0x2,  
+    LOADER_GIVE_SWORD_CHARGE = 0x4,
+    LOADER_GIVE_AMMO         = 0x8,
 };
 
 struct Level_Loader {

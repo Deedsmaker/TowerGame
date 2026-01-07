@@ -1058,7 +1058,7 @@ void init_spawn_objects() {
         big_level_loader_entity->color = WHITE;
         setup_color_changer(big_level_loader_entity);
         
-        big_level_loader_entity->level_loader->flags |= LEVEL_LOADER_BIG;
+        big_level_loader_entity->level_loader->flags |= LOADER_BIG;
         
         remove_flag(&big_level_loader_entity->trigger->settings, PLAYER_TOUCH);
         
@@ -1791,7 +1791,7 @@ void init_entity(Entity *entity, Entity *to_copy) {
         auto loader = entity->level_loader;
         loader->entity = entity;
         
-        if (loader->flags & LEVEL_LOADER_BIG) {
+        if (loader->flags & LOADER_BIG) {
             entity->texture = get_texture("LevelLoader_Big");
             strcpy(entity->texture_name, "LevelLoader_Big");
         } else {
@@ -3877,13 +3877,16 @@ void update_editor_ui() {
             }
             v_pos += height_add;
             
-            INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LEVEL_LOADER_OPEN, level_loader_validate(selected));
+            INSPECTOR_UI_TOGGLE_FLAGS("Is open: ", "level_loader_is_open", loader->flags, LOADER_OPEN, level_loader_validate(selected));
             Old::make_ui_text("Level to load: ", {inspector_position.x + 5, v_pos}, "level_loader_load_level_name_text");
             if (make_input_field(c_str(loader->level_to_load), {inspector_position.x + inspector_size.x * 0.4f, v_pos}, {inspector_size.x * 0.6f, 20}, "level_loader_load_level_name") ) {
                 loader->level_to_load.free_data(); // @TODO: Make this string builder.
                 loader->level_to_load = string(&default_allocator, focus_input_field.content);
             }
             v_pos += height_add;
+            
+            INSPECTOR_UI_TOGGLE_FLAGS("Give sword charge: ", "level_loader_give_sword", loader->flags, LOADER_GIVE_SWORD_CHARGE, level_loader_validate(selected));
+            INSPECTOR_UI_TOGGLE_FLAGS("Give ammo: ", "level_loader_give_ammo", loader->flags, LOADER_GIVE_AMMO, level_loader_validate(selected));
         } // End level loader inspector.
         
         // Trigger inspector.
@@ -6923,7 +6926,7 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     }
     
     if (connected->flags & LEVEL_LOADER) {
-        connected->level_loader->flags |= LEVEL_LOADER_OPEN;
+        connected->level_loader->flags |= LOADER_OPEN;
     }
 }
 
@@ -8377,7 +8380,7 @@ void draw_entity(Entity *e) {
     
     if (e->flags & LEVEL_LOADER) {
         auto loader = e->level_loader;
-        if (loader->flags & LEVEL_LOADER_OPEN) {
+        if (loader->flags & LOADER_OPEN) {
             change_color(e, WHITE);
         } else {
             change_color(e, ColorBrightness(WHITE, -0.4f));
@@ -8418,6 +8421,19 @@ void draw_entity(Entity *e) {
                     draw_game_texture(e->texture, position, e->scale, e->pivot, e->rotation, e->color);
                 }
             }
+        }
+    }
+    
+    // Draw level loader.
+    if (e->flags & LEVEL_LOADER) {
+        auto loader = e->level_loader;           
+        if (loader->flags & LOADER_GIVE_SWORD_CHARGE) {
+            auto texture = get_texture("BigSwordSticky");
+            draw_game_texture(texture, e->position, {10, 15}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.6f));
+        }
+        if (loader->flags & LOADER_GIVE_AMMO) {
+            auto texture = get_texture("Bullet_player");
+            draw_game_texture(texture, e->position, {10, 15}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.8f));
         }
     }
     
