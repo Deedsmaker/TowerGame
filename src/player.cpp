@@ -1078,7 +1078,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
             Collision col = collisions_buffer.get_value(i);
             
-            if (!(player->state_flags & BOOSTED_LEFT_WALL) && player->velocity.y < wall_vertical_boost && player->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
+            if (!(player->state_flags & BOOSTED_LEFT_WALL) && player->velocity.y < wall_vertical_boost && player->velocity.y != 0 && (input_direction.x * col.normal.x < 0) && !player->grounded) {
                 player->velocity.y = wall_vertical_boost;
                 player->state_flags |= BOOSTED_LEFT_WALL;
             } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
@@ -1111,7 +1111,7 @@ void update_movement(Entity *entity, Player *player, Input input, f32 dt) {
         for (i32 i = 0; i < collisions_buffer.count && !is_player_in_stun(entity); i++) {
             Collision col = collisions_buffer.get_value(i);
             
-            if (!(player->state_flags & BOOSTED_RIGHT_WALL) && player->velocity.y < wall_vertical_boost && player->velocity.y != 0 && (input_direction.x * col.normal.x < 0)) {
+            if (!(player->state_flags & BOOSTED_RIGHT_WALL) && player->velocity.y < wall_vertical_boost && player->velocity.y != 0 && (input_direction.x * col.normal.x < 0) && !player->grounded) {
                 player->velocity.y = wall_vertical_boost;
                 player->state_flags |= BOOSTED_RIGHT_WALL;
             } else if (timer_since_on_wall >= allowed_time_on_wall_without_pushing_back) {
