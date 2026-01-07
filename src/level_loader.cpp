@@ -13,7 +13,7 @@ inline void level_loader_validate(Entity *entity) {
     // Could happen that we will "open" other level loaders before current loader itself is considered open, 
     // but that situation should occur only during loading).
     
-    b32 level_completed = global_data.completed_levels.contains(loader->level_to_load);
+    b32 level_completed = global_data.game_save.completed_levels.contains(loader->level_to_load);
     if (level_completed) {
         For (&entity->trigger->connected) {
             auto connected = get_entity(*it, entity->context);
@@ -48,7 +48,7 @@ inline void update_standing_on_level_loader(Entity *entity, Entity *player_entit
         }
         
         if (IsKeyPressed(KEY_P)) {
-            record_completed_level(loader->level_to_load);
+            record_completed_level(loader->level_to_load, temp);
             level_loader_validate(entity);
         }
     }

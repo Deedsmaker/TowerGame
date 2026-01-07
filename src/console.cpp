@@ -362,6 +362,10 @@ void console_win_level() {
     win_level();
 }
 
+void console_clear_save_data() {
+    clear_current_save_data(temp);
+}
+
 void init_console() {
     init_array(&console.args, 8, &default_allocator);
     init_array(&console.commands, 128, &default_allocator);
@@ -408,7 +412,7 @@ void init_console() {
     
     console.commands.append(make_console_command("timescale", debug_set_default_time_scale, debug_set_time_scale), &default_allocator);
     
-    console.commands.append(make_console_command("clear_completed_levels", clear_completed_levels, NULL), &default_allocator);
+    console.commands.append(make_console_command("clear_save_data", console_clear_save_data, NULL), &default_allocator);
     console.commands.append(make_console_command("win", console_win_level, NULL), &default_allocator);
     
     // console.commands.append(make_console_command("create",    print_create_level_hint, create_level), &default_allocator);

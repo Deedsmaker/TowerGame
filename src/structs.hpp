@@ -1370,10 +1370,20 @@ struct State_Context { // @TODO: How can we rename this?
     i32 contiguous_projectile_hits_count = 0;
 };
 
-struct Global_Data{
+struct Game_Save_Data {
+    Array <String> completed_levels = {};
+    
+    u32 sword_charges_collected = 0;
+    
+    inline static const u32 BASE_AMMO = 5;
+    u32 ammo_collected = 0;
+};
+
+struct Global_Data {
     Array <Entity> entities_draw_queue = {};
     
-    Array <String> completed_levels = {0};
+    String current_save_name = S("main_save"); 
+    Game_Save_Data game_save = {};
     
     // Array <Light> temp_lights = {};
     

@@ -495,6 +495,23 @@ u64 to_u64(String string){
 
     return value * sign;
 }
+u32 to_u32(String string){
+    u32 value = 0;
+    u32 sign = 1;
+
+    i32 index = 0;
+
+    if (string.data[0] == '-') sign = -1;
+    while ((string.data[index] == '+' || string.data[index] == '-') && index < string.count){
+        index += 1;
+    }
+
+    for (u32 i = index; ((string.data[i] >= '0') && (string.data[i] <= '9')) && i < string.count; i++){
+        value = value * 10 + (u32)(string.data[i] - '0');
+    }
+
+    return value * sign;
+}
 u8 to_u8(String string){
     u8 value = 0;
     u8 sign = 1;

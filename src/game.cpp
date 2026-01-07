@@ -2242,7 +2242,7 @@ void init_game() {
     log(tstring("Initing game."), PUSH_INDENTATION);
 
     init_fonts();
-    load_completed_levels();
+    load_game_save_data(temp);
 
     initing_game = true;
     
@@ -5847,7 +5847,7 @@ void win_level() {
         state_context.we_got_a_winner = true;
         kill_player();
         
-        record_completed_level(current_context->level_name);
+        record_completed_level(current_context->level_name, temp);
     }
 }
 

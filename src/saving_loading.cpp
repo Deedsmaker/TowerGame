@@ -17,54 +17,132 @@ b32 level_exists(String name, Allocator *allocator) {
     return result;
 }
 
-static const String COMPLETED_LEVELS_FILE_NAME = S("levels/completed_levels.txt");
-void load_completed_levels() { 
-    For (&global_data.completed_levels) it->free_data();
-    global_data.completed_levels.clear();  
+global_variable const String SAVES_PATH = S("saves");
+global_variable const String MAIN_SAVE_DATA_FILE_NAME = S("main.save_data");
+
+void save_game_data(Allocator *temp) {
+    auto save = &global_data.game_save;
+    auto path = string(temp, "%s/%s", c_str(SAVES_PATH), c_str(global_data.current_save_name));
     
-    if (!file_exists(COMPLETED_LEVELS_FILE_NAME)) {
-        return;
+    make_directory_if_not_exists(path);
+     
+    
+    String_Builder b = {.allocator = temp};
+    
+    builder_append(&b, "; sword_charges_collected");
+    builder_append(&b, string(temp, "\n\t%d", save->sword_charges_collected));
+    
+    builder_append(&b, "\n; ammo_collected");
+    builder_append(&b, string(temp, "\n\t%d", save->ammo_collected));
+    
+    builder_append(&b, "\n; completed_levels");
+    For (&save->completed_levels) {
+        builder_append(&b, string(temp, "\n\t%s", c_str(*it)));
     }
     
-    b32 success = false;
-    auto file_content = read_entire_file(COMPLETED_LEVELS_FILE_NAME, &success, temp);
+    auto data_path = string(temp, "%s/%s", c_str(path), c_str(MAIN_SAVE_DATA_FILE_NAME));
+    auto success = write_entire_file(data_path, &b);
     if (!success) {
-        return;
+        log(string(temp, "Failed to save game data. Save path was: %s", c_str(data_path)), LOG_ERROR);
     }
-    
-    auto completed_in_file = split_string(file_content, S("\n "), temp);
-    global_data.completed_levels.append_another_array(&completed_in_file, &default_allocator);
 }
 
-void record_completed_level(String name) {
-    if (global_data.completed_levels.contains(name)) {
+void load_game_save_data(Allocator *temp) {
+    auto save = &global_data.game_save;
+    auto path = string(temp, "%s/%s", c_str(SAVES_PATH), c_str(global_data.current_save_name));
+    
+    if (!directory_exists(path)) {
+        // Would mean that we just not saved this save file yet. But maybe we will want to save some level data first when
+        // we pick new save file.
         return;
     }
+    
+    auto data_path = string(temp, "%s/%s", c_str(path), c_str(MAIN_SAVE_DATA_FILE_NAME));
+    
+    bool success = false;
+    String content = read_entire_file(data_path, &success, temp);
+    if (!success) {
+        log(string(temp, "Failed to read game save data file %s", c_str(data_path)), LOG_ERROR);
+        return;
+    }
+    
+    // Clearing previous completed levels array and freeing level names because it was allocated with default_allocator.
+    for_array (i, &save->completed_levels) {
+        save->completed_levels.get(i)->free_data();
+    }
+    *save = {};
+    
+    auto splitted = split_string(content, S(" \n\t"), temp);
+    
+    For (&splitted) {
+    loop_begin:
+        it = splitted.get(i); // That's to work with appearing at loop_begin label without implicitly setting "it" in the macro.
+        if (!(*it == ";")) continue; // Maybe we should log warning here because that would mean that we miscalculated "i" increment somewhere, but I will leave space for some optional saved valued without identifier for now.
+    
+        auto id = splitted.get_value(++i);
+        if (i >= splitted.count) break;
+        
+        auto value_string = splitted.get_value(i);
+        if (value_string == ";") {
+            // That will mean that there was no value under identifier so we going to check next thing.
+            goto loop_begin;
+        }
+        
+        auto value_u32 = to_u32(value_string);
+        
+        if (0) {
+        } else if (id == "sword_charges_collected") {
+            save->sword_charges_collected = value_u32;
+        } else if (id == "ammo_collected") {
+            save->ammo_collected = value_u32;
+        } else if (id == "completed_levels") {
+            for (; i < splitted.count && !(value_string == ";"); i++) {
+                value_string = splitted.get_value(i);
+                
+                auto level = copy_string(value_string, &default_allocator);
+                save->completed_levels.append(level, &default_allocator);
+            }
+            
+            if (value_string == ";") {
+                goto loop_begin; // So we won't increment i on default loop iteration.
+            }
+        }
+    }
+}
+
+void record_completed_level(String name, Allocator *temp) {
+    if (global_data.game_save.completed_levels.contains(name)) {
+        return;
+    }
+    
+    log(string(temp, "Saving completed level %s", c_str(name)), PUSH_INDENTATION);
     
     if (!level_exists(name, temp)) {
-        log(string(temp, "Level %s does not exists and we've tried to record it's complition!", c_str(name)), LOG_ERROR);
+        log(string(temp, "Level %s does not exists and we've tried to record it's completition!", c_str(name)), LOG_ERROR | POP_INDENTATION);
         return;
     }
 
-    b32 success = append_text_to_file(COMPLETED_LEVELS_FILE_NAME, string(temp, "%s\n", c_str(name)));
-    if (!success) {
-        log(string(temp, "Failed to append level name %s to file %s", c_str(name), c_str(COMPLETED_LEVELS_FILE_NAME)), LOG_ERROR);
+    global_data.game_save.completed_levels.append(copy_string(name, &default_allocator), &default_allocator);
+    
+    save_game_data(temp);
+    
+    log(string(temp, "Finished saving completed level %s", c_str(name), POP_INDENTATION));
+}    
+
+void clear_current_save_data(Allocator *temp) {
+    auto save = &global_data.game_save;
+    For (&save->completed_levels) {
+        it->free_data();
+    }
+    *save = {};
+    
+    auto path = string(temp, "%s/%s", c_str(SAVES_PATH), c_str(global_data.current_save_name));
+    if (!directory_exists(path)) {
         return;
     }
     
-    global_data.completed_levels.append(copy_string(name, &default_allocator), &default_allocator);
-}
-
-void clear_completed_levels() {
-    global_data.completed_levels.clear();
-    if (!file_exists(COMPLETED_LEVELS_FILE_NAME)) {
-        return;
-    }
-       
-    b32 success = write_entire_file(COMPLETED_LEVELS_FILE_NAME, S(""));
-    if (!success) {
-        log(string(temp, "Failed to clear %s file!", c_str(COMPLETED_LEVELS_FILE_NAME)), LOG_ERROR);
-    }
+    auto data_path = string(temp, "%s/%s", c_str(path), c_str(MAIN_SAVE_DATA_FILE_NAME));
+    write_entire_file(data_path, S("")); // We don't care for success much because there might be no such file yet because we did not save anything (yet).
     
     validate_level_loaders(current_context);
 }
@@ -72,7 +150,7 @@ void clear_completed_levels() {
 void load_level_order() {
     String level_order_path = S("levels/level_order.txt");
     
-    b32 success = false;
+    bool success = false;
     String content = read_entire_file(level_order_path, &success, temp);   
     if (!success) {
         log("Failed to read %s file!", LOG_ERROR);
@@ -606,7 +684,7 @@ b32 load_level(String name, u64 load_flags = 0) {
     if (level_info_file_index < 0) {
         log(tstring("Failed to find %s file!\n", c_str(level_info_file_name)));
     } else {
-        b32 success = false;
+        bool success = false;
         String level_info = read_entire_file(level_files.get_value(level_info_file_index), &success, temp);
         if (!success) {
             log(tstring("Failed to read %s file! Stopping loading.\n", c_str(level_info_file_name)), LOG_ERROR | POP_INDENTATION);
@@ -645,7 +723,7 @@ b32 load_level(String name, u64 load_flags = 0) {
         } else if (string_find(file_name, tstring("Entity")) == 0) {
             // There goes entity parsing.
             
-            b32 success = false;
+            bool success = false;
             String entity_info = read_entire_file(file_path, &success, temp);
             if (!success) {
                 log(tstring("Failed to read entity file data from file %s\n", c_str(file_path)), LOG_ERROR);

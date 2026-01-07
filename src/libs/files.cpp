@@ -4,7 +4,7 @@
 #include "allocator.cpp"
 #include "array.cpp"
 
-String read_entire_file(String name, b32 *success, Allocator *allocator = &default_allocator) {
+String read_entire_file(String name, bool *success, Allocator *allocator = &default_allocator) {
     
     char *text_data = LoadFileText(c_str(name));
     
@@ -22,15 +22,15 @@ String read_entire_file(String name, b32 *success, Allocator *allocator = &defau
     return s;
 }
 
-b32 write_entire_file(String name, String_Builder *builder) {
+bool write_entire_file(String name, String_Builder *builder) {
     return SaveFileText(c_str(name), (char *)c_str(builder));
 }
 
-b32 write_entire_file(String name, String string) {
+bool write_entire_file(String name, String string) {
     return SaveFileText(c_str(name), (char *)c_str(string));
 }
 
-b32 append_text_to_file(String file_name, String to_append) {
+bool append_text_to_file(String file_name, String to_append) {
     FILE *file = fopen(c_str(file_name), "a");
     if (!file) {
         return false;
@@ -43,35 +43,35 @@ b32 append_text_to_file(String file_name, String to_append) {
     return true;
 }
     
-b32 directory_exists(String name) {
+bool directory_exists(String name) {
     return DirectoryExists(c_str(name));
 }
 
-b32 make_directory_if_not_exists(String name) { 
+bool make_directory_if_not_exists(String name) { 
     if (!directory_exists(name)) {
         return MakeDirectory(c_str(name)) == 0;   
     }
     
-    return false;
+    return true;
 }
 
-b32 file_exists(String name) {
+bool file_exists(String name) {
     return FileExists(c_str(name));
 }
 
-b32 delete_file(String name) {
+bool delete_file(String name) {
     if (!file_exists(name)) return false;
     
     return FileRemove(c_str(name));
 }
 
 // Rename file or directory.
-b32 rename_file(String name, String new_name) {
+bool rename_file(String name, String new_name) {
     if (!file_exists(name)) return false;
     
     return FileRename(c_str(name), c_str(new_name));
 }
-b32 rename_directory(String name, String new_name) {
+bool rename_directory(String name, String new_name) {
     if (!directory_exists(name)) return false;   
     
     return rename_file(name, new_name);
@@ -148,7 +148,7 @@ Array <String> get_file_names_in_directory(String directory_name, Allocator *all
     #include <direct.h>
 #endif
 
-b32 delete_directory(String path) {
+bool delete_directory(String path) {
     if (!directory_exists(path)) return false;
       
     auto files = get_files_in_directory(path, temp);
