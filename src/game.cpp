@@ -2459,7 +2459,7 @@ void enter_gaming_state(Context *from_context) {
     current_context->cam.position = current_context->player_spawn_point;
 }
 
-// Currently do not pass here from which context enter and not copying anything in actual planning context because 
+// Currently do not pass here *from* which context enter and not copying anything in actual planning context because 
 // we can enter planning context from gaming state and we don't want anything changed.
 // It will probably be changed.
 void enter_planning_state(u64 enter_flags) {
@@ -2471,12 +2471,11 @@ void enter_planning_state(u64 enter_flags) {
         reset_planning_data(context);
     }
     
-    if (current_context->flags & HUB_CONTEXT) {
+    if (context->flags & HUB_CONTEXT) {
         // Everything level related should be in plannig context at this point.
         enter_gaming_state(&planning_context);
         return;
     }
-    
     
     clean_up_scene();
     game_state = GAME_PLANNING;
@@ -2487,23 +2486,23 @@ void enter_planning_state(u64 enter_flags) {
     
     game_setup_collisions();
     
-    if (!current_context->player_entity) { 
+    if (!context->player_entity) { 
         planning_context.player = {0};
-        add_player_entity(current_context, &current_context->player);
+        add_player_entity(context, &context->player);
     }
     
-    current_context->cam.cam2D.zoom = 0.35f;
-    current_context->cam.target_zoom = 0.35f;
-    current_context->cam.position = current_context->player_spawn_point;
+    context->cam.cam2D.zoom = 0.35f;
+    context->cam.target_zoom = 0.35f;
+    context->cam.position = context->player_spawn_point;
     
-    if (!current_context->initially_simulated) {
+    if (!context->initially_simulated) {
         // Simulating game world for 2 seconds before the start.
         input = {0};
         for (i32 i = 0; i < FIXED_FPS * 2; i++) { 
             update_entities(&planning_context, TARGET_FRAME_TIME);
         }
         
-        current_context->initially_simulated = true;
+        context->initially_simulated = true;
     }
 }
 

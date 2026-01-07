@@ -860,7 +860,7 @@ b32 load_level(String name, u64 load_flags = 0) {
     setup_context_cam(context);
     context->cam.cam2D.zoom = 0.35f;
     
-    log(tstring("Finished loading %s. Is hub level: %d", c_str(level_path), (current_context->flags & HUB_CONTEXT) > 0), POP_INDENTATION);
+    log(tstring("Finished loading %s. Is hub level: %d", c_str(level_path), (context->flags & HUB_CONTEXT) > 0), POP_INDENTATION);
     
     prepared_loaded_level = true;
     
