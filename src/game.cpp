@@ -837,43 +837,45 @@ void init_bird_emitters(Entity *entity) {
 String get_entity_name(Entity *entity, Allocator *allocator) {
     if (0) {
     } else if (entity->flags & GROUND) {
-        return string(allocator, "Ground");  
+        return S("Ground");  
     } else if (entity->flags & BIRD_ENEMY) {
-        return string(allocator, "Bird_enemy");  
+        return S("Bird_enemy");  
     } else if (entity->flags & STICKY_TEXTURE) {
-        return string(allocator, "Sticky_texture");  
+        return S("Sticky_texture");  
     } else if (entity->flags & CENTIPEDE) {
-        return string(allocator, "Centipede");  
+        return S("Centipede");  
     } else if (entity->flags & CENTIPEDE_SEGMENT) {
-        return string(allocator, "Centipede_segment");  
+        return S("Centipede_segment");  
     } else if (entity->flags & AMMO_PACK) {
-        return string(allocator, "Ammo_pack");  
+        return S("Ammo_pack");  
+    } else if (entity->flags & LEVEL_LOADER) {
+        return S("Level_Loader");
     } else if (entity->flags & TRIGGER) {
-        return string(allocator, "Trigger");  
+        return S("Trigger");  
     } else if (entity->flags & KILL_SWITCH) {
-        return string(allocator, "Kill_Switch");  
+        return S("Kill_Switch");  
     } else if (entity->flags & TURRET) {
-        return string(allocator, "Turret");  
+        return S("Turret");  
     } else if (entity->flags & HIT_BOOSTER) {
-        return string(allocator, "Hit_Booster");  
+        return S("Hit_Booster");  
     } else if (entity->flags & PLANNING_POINT) {
         if (entity->planning_point->flags & ITEM_POINT) {
-            return string(allocator, "Item_Planning_Point");  
+            return S("Item_Planning_Point");  
         } else if (entity->planning_point->flags & SPACE_POINT) {
-            return string(allocator, "Space_Planning_Point");
+            return S("Space_Planning_Point");
         } else {
-            return string(allocator, "Some_Planning_Point");
+            return S("Some_Planning_Point");
         }
     } else if (entity->flags & DUMMY) {
         if (entity->flags & LIGHT) {
-            return string(allocator, "Light");  
+            return S("Light");  
         }
-        return string(allocator, "Dummy");  
+        return S("Dummy");  
     } else if (entity->texture) {
         return string(allocator, tprintf("Texture_%s", entity->texture_name));  
     } 
         
-    return string(allocator, "No_name");
+    return S("No_name");
 }
 inline String temp_entity_name(Entity *entity) {
     return get_entity_name(entity, temp);
@@ -2242,7 +2244,6 @@ void init_game() {
     log(tstring("Initing game."), PUSH_INDENTATION);
 
     init_fonts();
-    load_game_save_data(temp);
 
     initing_game = true;
     
@@ -2420,7 +2421,7 @@ void game_setup_collisions() {
     update_all_collision_cells(update_static_collision_cells);
 }
 
-void enter_gaming_state(Context *from_context) {
+void enter_gaming_state_only_from_plannning(Context *from_context) {
     b32 should_init_entities = false;
     
     clean_up_scene();
@@ -2471,9 +2472,12 @@ void enter_planning_state(u64 enter_flags) {
         reset_planning_data(context);
     }
     
+    load_game_save_data(temp);
+    validate_level_loaders(context);
+    
     if (context->flags & HUB_CONTEXT) {
         // Everything level related should be in plannig context at this point.
-        enter_gaming_state(&planning_context);
+        enter_gaming_state_only_from_plannning(&planning_context);
         return;
     }
     
@@ -2547,6 +2551,7 @@ void kill_player() {
 void editor_enter_editor_state() {
     editor_state = EDITOR;
     state_context = {0};
+    global_data.game_save = {}; // That's mainly because we don't want to save LOADER_OPEN flag on saving level while editing that would be set because it is recorded in save file. 
     
     global_data.playing_replay = false;
     
@@ -2650,7 +2655,7 @@ void fixed_game_update(Context *context, f32 dt) {
 
     if (game_state == GAME_PLANNING && editor_state == GAME) {
         if (input.press_flags & ENTER_GAMING_STATE) {
-            enter_gaming_state(&planning_context);
+            enter_gaming_state_only_from_plannning(&planning_context);
         } else {
             // Update_entities(-1);.
         }

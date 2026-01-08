@@ -62,7 +62,7 @@ void load_game_save_data(Allocator *temp) {
     bool success = false;
     String content = read_entire_file(data_path, &success, temp);
     if (!success) {
-        log(string(temp, "Failed to read game save data file %s", c_str(data_path)), LOG_ERROR);
+        log(string(temp, "No save data detected in path %s. That could mean that save data was cleared.", c_str(data_path)));
         return;
     }
     
@@ -613,9 +613,9 @@ void finish_load_level() {
             enter_planning_state(RESET_PLANNING_DATA);
         }
     } else {
+        global_data.game_save = {};
         editor_enter_editor_state();
     }
-    
     
     current_context->cam.position = current_context->player_spawn_point;
     current_context->cam.target = current_context->player_spawn_point;

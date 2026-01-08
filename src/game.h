@@ -28,7 +28,7 @@ void clean_up_scene();
 // void enter_and_reload_game_state(Context *from_context, b32 should_init_entities);
 void editor_enter_game_state(Context *from_context);
 void enter_planning_state(u64 enter_flags = 0);
-void enter_gaming_state(Context *from_context);
+void enter_gaming_state_only_from_planning(Context *from_context);
 
 void editor_enter_game_state(Context *from_context);
 void editor_enter_editor_state();
