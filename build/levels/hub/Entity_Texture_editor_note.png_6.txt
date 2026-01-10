@@ -1,0 +1,17 @@
+name Texture_editor_note.png 
+ id 6 
+ position { -259.821381,  242.678207} 
+ scale { 20.000000,  15.000000} 
+ pivot { 0.500000,  0.500000} 
+ rotation 0.000000 
+ color { 255,  255,  255,  178} 
+ flags 16384 
+ draw_order 100 
+ vertices [ { 10.707107,  8.207107} { -10.707107,  8.207107} { 10.707107,  -8.207107} { -10.707107,  -8.207107} ] 
+ unscaled_vertices [  { 0.500000,  0.500000} { -0.500000,  0.500000} { 0.500000,  -0.500000} { -0.500000,  -0.500000} ] 
+ hidden 0 
+ spawn_enemy_when_no_ammo 0 
+ texture_name editor_note.png 
+ note_content " Проверка проверка " 
+ note_draw_in_game 0 
+ 

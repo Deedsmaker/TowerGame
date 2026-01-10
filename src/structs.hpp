@@ -790,15 +790,18 @@ struct Player {
     //Sword
     b32 is_sword_will_hit_explosive = false;
     
-    i32 max_big_sword_charges = 3;
-    i32 current_big_sword_charges = 3;
+    i32 max_sword_charges = 0;
+    i32 sword_charges = 0;
     
     f32 sword_spin_direction = 0;
     
     b32 sword_hit_ground = false;
     
     //Rifle
-    i32 ammo_count = 6;
+    
+    inline static const i32 BASE_AMMO = 5;
+    i32 max_ammo = 0;
+    i32 ammo = 0;
     
     f32 weak_recoil_stun_start_time = -12;
     
@@ -1372,11 +1375,12 @@ struct State_Context { // @TODO: How can we rename this?
 
 struct Game_Save_Data {
     Array <String> completed_levels = {};
+    String *just_completed_level_name = NULL;
     
     u32 sword_charges_collected = 0;
     
-    inline static const u32 BASE_AMMO = 5;
     u32 ammo_collected = 0;
+    
 };
 
 struct Global_Data {

@@ -13,12 +13,32 @@ inline void level_loader_validate(Entity *entity) {
     // Could happen that we will "open" other level loaders before current loader itself is considered open, 
     // but that situation should occur only during loading).
     
-    b32 level_completed = global_data.game_save.completed_levels.contains(loader->level_to_load);
+    auto save = &global_data.game_save;
+    b32 level_completed = save->completed_levels.contains(loader->level_to_load);
     if (level_completed) {
         For (&entity->trigger->connected) {
             auto connected = get_entity(*it, entity->context);
             trigger_entity(entity, connected);
         }
+        
+        
+        if (save->just_completed_level_name && (*save->just_completed_level_name) == loader->level_to_load) {
+            // To not give buffs multiple times we're catching exact moment where level was completed and doing what has to be done 
+            // when level on this level loader was completed for the first time.
+            save->just_completed_level_name = NULL;
+            if (loader->flags & LOADER_GIVE_SWORD_CHARGE) {
+                save->sword_charges_collected += 1;
+                game_log("Sword charge aquired.");
+            }
+            if (loader->flags & LOADER_GIVE_AMMO) {
+                static const u32 AMMO_TO_GIVE = 5;
+                save->ammo_collected += AMMO_TO_GIVE;
+                game_log(tstring("%d additional ammo aquired.", AMMO_TO_GIVE));
+            }
+        }
+        
+        save_game_data(temp);
+        player_validate_stats_by_game_save(&entity->context->player);
     }
 }
 
@@ -53,4 +73,3 @@ inline void update_standing_on_level_loader(Entity *entity, Entity *player_entit
         }
     }
 }
-

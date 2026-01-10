@@ -2404,7 +2404,7 @@ Entity *add_player_entity(Context *context, Player *data) {
         rifle_trail_emitter->follow_entity = false;
     }
     
-    data->ammo_count = last_player_data.ammo_count;
+    data->ammo = last_player_data.ammo;
     
     current_context->player_entity = new_player_entity;
     
@@ -2436,10 +2436,10 @@ void enter_gaming_state_only_from_plannning(Context *from_context) {
     
     state_context.we_got_a_winner = false;
     
-    if (!game_context.player_entity) {
-        game_context.player = {0};
-        add_player_entity(&game_context, &game_context.player);
-    }
+    // if (!game_context.player_entity) {
+    //     game_context.player = {};
+    //     add_player_entity(&game_context, &game_context.player);
+    // }
     
     game_setup_collisions();
     
@@ -2473,8 +2473,16 @@ void enter_planning_state(u64 enter_flags) {
     }
     
     load_game_save_data(temp);
+    
     validate_level_loaders(context);
     
+    if (!context->player_entity) { 
+        planning_context.player = {};
+        add_player_entity(context, &context->player);
+    }
+    
+    player_validate_stats_by_game_save(&context->player);    
+
     if (context->flags & HUB_CONTEXT) {
         // Everything level related should be in plannig context at this point.
         enter_gaming_state_only_from_plannning(&planning_context);
@@ -2489,11 +2497,6 @@ void enter_planning_state(u64 enter_flags) {
     state_context.we_got_a_winner = false;
     
     game_setup_collisions();
-    
-    if (!context->player_entity) { 
-        planning_context.player = {0};
-        add_player_entity(context, &context->player);
-    }
     
     context->cam.cam2D.zoom = 0.35f;
     context->cam.target_zoom = 0.35f;
@@ -6894,6 +6897,8 @@ void activate_turret(Entity *entity) {
 void trigger_entity(Entity *trigger_entity, Entity *connected) {
     connected->hidden = !(trigger_entity->trigger->settings & SHOWS_ENTITIES);
     
+    auto trigger = trigger_entity->trigger;
+    
     b32 should_agro = (trigger_entity->trigger->settings & AGRO_ENEMIES) && debug.enemy_ai;
     if (should_agro) {
         if (connected->flags & ENEMY) {
@@ -6933,6 +6938,11 @@ void trigger_entity(Entity *trigger_entity, Entity *connected) {
     if (connected->flags & LEVEL_LOADER) {
         connected->level_loader->flags |= LOADER_OPEN;
     }
+    // Trigger level loader.
+    if (trigger_entity->flags & LEVEL_LOADER && !trigger->triggered) {
+    }
+    
+    trigger->triggered = true;
 }
 
 i32 update_trigger(Entity *e) {
@@ -7823,7 +7833,7 @@ void update_entities(Context *context, f32 dt) {
             continue;
         }
                 
-        if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo_count <= 0 && (/*!current_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
+        if (e->enabled && editor_state == GAME && e->spawn_enemy_when_no_ammo && player_data->ammo <= 0 && (/*!current_context->entities.has_key(e->spawned_enemy_id) || */e->spawned_enemy_id == -1)) { 
             Entity *spawned = spawn_object_by_name("ammo_pack", e->position, current_context);
             e->spawned_enemy_id = spawned->id;
         }
@@ -9001,8 +9011,8 @@ void draw_ui(const char *tag) {
             
             f32 spacing    = width * 1.5f;
                       
-            for (i32 i = 0; i < player_data->max_big_sword_charges; i++, horizontal += spacing) {
-                Color color = i < player_data->current_big_sword_charges ? ColorBrightness(GREEN, 0.2f) : Fade(BROWN, 0.3f);
+            for (i32 i = 0; i < player_data->max_sword_charges; i++, horizontal += spacing) {
+                Color color = i < player_data->sword_charges ? ColorBrightness(GREEN, 0.2f) : Fade(BROWN, 0.3f);
                 draw_rect({horizontal, vertical}, {width, height}, {0, 0}, 0, color);
             }
         }
@@ -9459,7 +9469,7 @@ void draw_game() {
     }
     
     v_pos += font_size;
-    draw_text(tprintf("Ammo: %d", player_data->ammo_count), 10, v_pos, font_size * 1.5f, VIOLET);
+    draw_text(tprintf("Ammo: %d", player_data->ammo), 10, v_pos, font_size * 1.5f, VIOLET);
     v_pos += font_size * 1.5f;
 
     

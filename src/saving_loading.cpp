@@ -79,10 +79,10 @@ void load_game_save_data(Allocator *temp) {
         it = splitted.get(i); // That's to work with appearing at loop_begin label without implicitly setting "it" in the macro.
         if (!(*it == ";")) continue; // Maybe we should log warning here because that would mean that we miscalculated "i" increment somewhere, but I will leave space for some optional saved valued without identifier for now.
     
-        auto id = splitted.get_value(++i);
+        auto id = splitted.get_value(++i); // "i" before that should be ';'.
         if (i >= splitted.count) break;
         
-        auto value_string = splitted.get_value(i);
+        auto value_string = splitted.get_value(++i);
         if (value_string == ";") {
             // That will mean that there was no value under identifier so we going to check next thing.
             goto loop_begin;
@@ -111,7 +111,8 @@ void load_game_save_data(Allocator *temp) {
 }
 
 void record_completed_level(String name, Allocator *temp) {
-    if (global_data.game_save.completed_levels.contains(name)) {
+    auto save = &global_data.game_save;
+    if (save->completed_levels.contains(name)) {
         return;
     }
     
@@ -122,7 +123,7 @@ void record_completed_level(String name, Allocator *temp) {
         return;
     }
 
-    global_data.game_save.completed_levels.append(copy_string(name, &default_allocator), &default_allocator);
+    save->just_completed_level_name = save->completed_levels.append(copy_string(name, &default_allocator), &default_allocator);
     
     save_game_data(temp);
     

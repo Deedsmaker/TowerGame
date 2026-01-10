@@ -1,5 +1,15 @@
 #pragma once
 
+void player_validate_stats_by_game_save(Player *player) {
+    auto save = &global_data.game_save;
+    
+    player->max_sword_charges = save->sword_charges_collected;
+    player->sword_charges = player->max_sword_charges;
+    
+    player->max_ammo = save->ammo_collected + player->BASE_AMMO;
+    player->ammo = player->max_ammo;
+}
+
 void add_blood_amount(Player *player, f32 added) {
     player->blood_amount += added;
     clamp(&player->blood_amount, 0, player->max_blood_amount);
@@ -14,11 +24,11 @@ void add_blood_amount(Player *player, f32 added) {
 // }
 
 inline void add_player_ammo(i32 amount) {
-    player_data->ammo_count += amount;
+    player_data->ammo += amount;
     
-    player_data->ammo_count = clamp(player_data->ammo_count, 0, 3333);
+    player_data->ammo = clamp(player_data->ammo, 0, 3333);
     
-    if (player_data->ammo_count == 0 && amount < 0) {
+    if (player_data->ammo == 0 && amount < 0) {
         player_data->timers.last_bullet_shot_time = current_context->game_time;
     }
 }
@@ -87,8 +97,8 @@ void sword_kill_enemy(Entity *enemy_entity, Vector2 *enemy_velocity) {
     
 //     play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
     
-//     assert(player_data->current_big_sword_charges > 0 && player_data->current_big_sword_charges <= player_data->max_big_sword_charges);
-//     player_data->current_big_sword_charges -= 1;
+//     assert(player_data->sword_charges > 0 && player_data->sword_charges <= player_data->max_sword_charges);
+//     player_data->sword_charges -= 1;
     
 //     remove_flag(&player_data->state_flags, HIT_CENTIPEDE_THIS_SPIN);
 // }
@@ -220,8 +230,8 @@ b32 try_sword_damage_enemy(Entity *enemy_entity, Vector2 hit_position) {
         
         if (can_kill) {
             if (enemy_entity->flags & GIVES_BIG_SWORD_CHARGE) {
-                player->current_big_sword_charges += 1;                
-                clamp(&player->current_big_sword_charges, 0, player->max_big_sword_charges);
+                player->sword_charges += 1;                
+                clamp(&player->sword_charges, 0, player->max_sword_charges);
             }
             
             if (enemy_entity->flags & HIT_BOOSTER) {
@@ -445,16 +455,16 @@ void update_sword(Entity *entity, Player *player, Input input, f32 dt) {
         }
     
         if (player->sword_mode == RIFLE_MODE) {
-            if (input.press_flags & SPIN && player->current_big_sword_charges > 0) {            
+            if (input.press_flags & SPIN && player->sword_charges > 0) {            
                 player->sword_mode = SWORD_MODE;
                 player->sword_prepare_timer = 0;
                 
                 play_sound("SwordSwingBig", 0.9f, 1.0f, 0.05f);
                 
-                assert(player->current_big_sword_charges > 0 && player->current_big_sword_charges <= player->max_big_sword_charges);
+                assert(player->sword_charges > 0 && player->sword_charges <= player->max_sword_charges);
                 
                 remove_flag(&player->state_flags, HIT_CENTIPEDE_THIS_SPIN);
-                player->current_big_sword_charges -= 1;
+                player->sword_charges -= 1;
                 
                 player->sword_attack_start_move_direction = input_direction.x != 0 ? input_direction.x : 1;
                 player->sword_attack_start_angle = sword->rotation;
@@ -662,7 +672,7 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
         }
         
         if (input.press_flags & SHOOT) {
-            if ((player_data->ammo_count <= 0 && !debug.infinite_ammo)) {
+            if ((player_data->ammo <= 0 && !debug.infinite_ammo)) {
                 play_sound("FailedRifleActivation", 0.4f);
             }
             
@@ -678,7 +688,7 @@ void update_rifle(Entity *entity, Player *player_data, Input input, f32 dt) {
         Vector2 sword_to_mouse = normalized(sword_vec_to_mouse);
         change_up(sword, sword_to_mouse);
         // player shoot
-        b32 can_shoot_rifle = (player_data->ammo_count > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
+        b32 can_shoot_rifle = (player_data->ammo > 0 || debug.infinite_ammo) && state_context.shoot_stopers_count == 0;
         
         while (shoots_queued > 0) {
             if (can_shoot_rifle) {
