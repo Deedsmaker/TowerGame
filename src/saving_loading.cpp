@@ -25,7 +25,6 @@ void save_game_data(Allocator *temp) {
     auto path = string(temp, "%s/%s", c_str(SAVES_PATH), c_str(global_data.current_save_name));
     
     make_directory_if_not_exists(path);
-     
     
     String_Builder b = {.allocator = temp};
     
