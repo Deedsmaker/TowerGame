@@ -202,6 +202,10 @@ inline Color color_opacity(Color color, f32 alpha) {
 inline void mark_entity_destroyed(Entity *entity) {
     entity->will_be_destroyed = true;
     
+    if (entity->context->flags & HUB_CONTEXT) {
+        remember_destroyed_or_killed_entity(entity->context, entity);
+    }
+    
     // @CLEANUP: That will probably be not necessary if we'll make that it's centipede itself who will call update on all 
     // segments. The right moment to do that will be when we'll make updating entities by type and not just going thgough
     // all of em.

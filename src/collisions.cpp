@@ -293,7 +293,7 @@ void update_all_collision_cells(b32 update_cells_for_static_entities) {
     }
     
     ForEntities(entity, 0) {
-        if (entity->will_be_destroyed) {
+        if (entity->will_be_destroyed || !entity->enabled) {
             continue;
         }
     
