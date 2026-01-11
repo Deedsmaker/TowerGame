@@ -1250,11 +1250,21 @@ struct Entity_Allocator {
     bool occupied = false;  
 };
 
+struct Hub {
+    inline static const f32 SWORD_RECHARGE_TIME = 5.0f;
+    f32 sword_recharge_timer = 0;  
+    
+    inline static const f32 AMMO_RECHARGE_TIME = 1.0f;
+    f32 ammo_recharge_timer = 0;
+};
+
 struct Context {
     String name = {0};
     Allocator allocator = {.type = DEFAULT_ALLOCATOR};
 
     u64 flags = 0;
+
+    Hub hub = {};
 
     Array <Array<Entity_Undo_Change>> undo_actions = {0};
     i32 max_undos_added = 0;

@@ -169,6 +169,7 @@ inline b32 is_entity_static(Entity *entity) {
 #include "bird_enemy.cpp"
 #include "level_loader.cpp"
 #include "game_ui.cpp"
+#include "hub.cpp"
 
 void setup_context_cam(Context *context) {
     context->cam.width = global_cam_data.width;
@@ -3223,7 +3224,12 @@ void update_game() {
         
         core.time.previous_dt = full_delta;
     } else {
+        // Fixed updating with real dt only in editor mode.
         fixed_game_update(current_context, core.time.real_dt);
+    }
+    
+    if (editor_state == GAME && current_context->flags & HUB_CONTEXT) {
+        update_hub(current_context, core.time.real_dt);
     }
     
     update_standing_on_entities(current_context->player_entity, &current_context->player);
