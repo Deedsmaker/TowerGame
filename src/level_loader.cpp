@@ -37,8 +37,12 @@ inline void level_loader_validate(Entity *entity) {
             }
         }
         
+        loader->flags |= LOADER_COMPLETED;
+        
         save_game_data(temp);
         player_validate_stats_by_game_save(&entity->context->player);
+    } else { // Level is not completed.
+        remove_flag(&loader->flags, LOADER_COMPLETED);
     }
 }
 

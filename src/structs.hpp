@@ -453,6 +453,7 @@ enum Level_Loader_Flags {
     LOADER_BIG               = 0x2,  
     LOADER_GIVE_SWORD_CHARGE = 0x4,
     LOADER_GIVE_AMMO         = 0x8,
+    LOADER_COMPLETED         = 0x10,
 };
 
 struct Level_Loader {

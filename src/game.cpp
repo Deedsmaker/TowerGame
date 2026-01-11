@@ -8442,6 +8442,11 @@ void draw_entity(Entity *e) {
     // Draw level loader.
     if (e->flags & LEVEL_LOADER) {
         auto loader = e->level_loader;           
+        
+        if (!(loader->flags & LOADER_COMPLETED) && loader->flags & LOADER_OPEN) {
+            draw_game_rect_lines(e->position, e->scale, e->pivot, GREEN);
+        }
+
         if (loader->flags & LOADER_GIVE_SWORD_CHARGE) {
             auto texture = get_texture("BigSwordSticky");
             draw_game_texture(texture, e->position, {10, 15}, {0.5f, 0.5f}, 0, Fade(WHITE, 0.6f));
