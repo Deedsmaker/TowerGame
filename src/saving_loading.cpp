@@ -66,8 +66,8 @@ void load_game_save_data(Allocator *temp) {
     }
     
     // Clearing previous completed levels array and freeing level names because it was allocated with default_allocator.
-    for_array (i, &save->completed_levels) {
-        save->completed_levels.get(i)->free_data();
+    foreach (level, &save->completed_levels) {
+        level->free_data();
     }
     *save = {};
     

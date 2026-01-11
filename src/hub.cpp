@@ -26,3 +26,12 @@ void update_hub(Context *context, f32 dt) {
         }
     }
 }
+
+void remember_destroyed_entity(Context *context, Entity *entity) {
+    if (!entity->will_be_destroyed) {
+        log("In remember_destroyed_entity entity that was passed is not marked as will_be_destroyed. That's an error.", LOG_ERROR);
+        return;
+    }
+    
+    
+}
