@@ -202,10 +202,6 @@ inline Color color_opacity(Color color, f32 alpha) {
 inline void mark_entity_destroyed(Entity *entity) {
     entity->will_be_destroyed = true;
     
-    if (entity->context->flags & HUB_CONTEXT) {
-        remember_destroyed_or_killed_entity(entity->context, entity);
-    }
-    
     // @CLEANUP: That will probably be not necessary if we'll make that it's centipede itself who will call update on all 
     // segments. The right moment to do that will be when we'll make updating entities by type and not just going thgough
     // all of em.
@@ -327,6 +323,9 @@ void free_entity(Entity *e) {
         } else if (e->flags & CENTIPEDE) { // Free centipede.
             For (&e->centipede->segments) {
                 mark_entity_destroyed(*it);
+                if (context->flags & HUB_CONTEXT && editor_state == GAME) {
+                    remember_killed_enemy(context, *it); // For segments we remembered it before, but now we need to go here one more time to tell hub that this enemy is no longer should be revived.
+                }
             }
             
             // e->centipede->segments.free_data();
@@ -5997,6 +5996,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
     assert(enemy_entity->flags & ENEMY);
     assert(enemy_entity->union_enemy);
     
+    auto context = enemy_entity->context;
     Enemy *enemy = enemy_entity->union_enemy;
     if (!enemy->dead_man) {
         if (can_wait) {
@@ -6015,6 +6015,10 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         if (should_be_destroyed) {
             enemy_entity->enabled = false;
             mark_entity_destroyed(enemy_entity);
+            
+            if (context->flags & HUB_CONTEXT) {
+                remember_killed_enemy(enemy_entity->context, enemy_entity);
+            }
     
             if (enemy_entity->flags & SHOOT_STOPER) {
                 // assert(state_context.shoot_stopers_count >= 0);
@@ -6051,6 +6055,10 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         
         if (enemy_entity->flags & MOVE_SEQUENCE && !(enemy_entity->flags & CENTIPEDE_SEGMENT)) {
             enemy_entity->move_sequence->moving = false;
+        }
+        
+        if (enemy_entity->flags & CENTIPEDE_SEGMENT && enemy_entity->context->flags & HUB_CONTEXT) {
+            remember_killed_enemy(enemy_entity->context, enemy_entity);
         }
         
         // Explosion.
@@ -7477,6 +7485,7 @@ inline b32 update_entity(Entity *e, f32 dt) {
             centipede->all_segments_dead = true;
         
             mark_entity_destroyed(e);
+            remember_killed_enemy(e->context, e);
         }
         // end update centipede end
     }

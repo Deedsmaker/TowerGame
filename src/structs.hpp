@@ -1250,7 +1250,7 @@ struct Entity_Allocator {
     bool occupied = false;  
 };
 
-struct Entity_To_Restore {
+struct Entity_With_Timer {
     Entity *entity = NULL;
     f32 timer = 0;
 };
@@ -1262,7 +1262,8 @@ struct Hub {
     inline static const f32 AMMO_RECHARGE_TIME = 1.0f;
     f32 ammo_recharge_timer = 0;
     
-    Array <Entity_To_Restore> destroyed_entities = {};
+    Array <Entity_With_Timer> destroyed_entities = {};
+    Array <Entity_With_Timer> enemies_to_revive = {};
 };
 
 struct Context {
