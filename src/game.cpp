@@ -200,6 +200,10 @@ inline Color color_opacity(Color color, f32 alpha) {
 }
 
 inline void mark_entity_destroyed(Entity *entity) {
+    if (entity->runtime_only_flags & SHOULD_NOT_BE_DESTROYED) {
+        return;
+    }
+
     entity->will_be_destroyed = true;
     
     // @CLEANUP: That will probably be not necessary if we'll make that it's centipede itself who will call update on all 
@@ -5918,7 +5922,7 @@ void respond_jump_shooter_collision(Entity *shooter_entity, Collision col) {
             play_sound("Explosion", shooter_entity->position, 0.3f);
             add_explosion_light(shooter_entity->position, rnd(100.0f, 250.0f), 0.15f, 0.4f, ColorBrightness(RED, 0.5f));
             mark_entity_destroyed(shooter_entity);
-            shooter_entity->enabled = false;
+            // shooter_entity->enabled = false;
             shake_camera(0.6f);
             return;
         }
@@ -6013,7 +6017,7 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
         enemy->died_time = current_context->game_time;
         b32 should_be_destroyed = !(enemy_entity->flags & (TRIGGER | CENTIPEDE_SEGMENT));
         if (should_be_destroyed) {
-            enemy_entity->enabled = false;
+            // enemy_entity->enabled = false;
             mark_entity_destroyed(enemy_entity);
             
             if (context->flags & HUB_CONTEXT) {

@@ -870,6 +870,7 @@ enum Runtime_Flags : FLAGS {
     EDITOR_CHANGED  = 0x1,  
     SHOULD_NOT_SAVE = 0x2,
     SHOULD_NOT_COPY = 0x4,
+    SHOULD_NOT_BE_DESTROYED = 0x8,
 };
 
 struct Planning_Point;

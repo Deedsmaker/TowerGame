@@ -33,6 +33,7 @@ void update_hub(Context *context, f32 dt) {
         it->timer += dt;
         if (it->timer >= HUB_ENTITY_RESTORE_TIME) {
             it->entity->enabled = true;
+            remove_flag(&it->entity->runtime_only_flags, SHOULD_NOT_BE_DESTROYED);
             context->hub.destroyed_entities.remove(i);
         }
     }
@@ -49,19 +50,19 @@ void update_hub(Context *context, f32 dt) {
     }
 }
 
-void copy_and_remember_entity_for_restoration(Context *context, Entity *entity) {
-    // NOTE: Currently we don't keep the id of destroyed entity, so any entity that was pointing to that one will be lost.
-    // If that will be needed we'll think about it.
-    auto remember_me = copy_and_add_entity(entity, context);
-    
-    remember_me->will_be_destroyed = false;
-    remember_me->destroyed = false;
-    if (remember_me->union_enemy) {
-        remember_me->union_enemy->dead_man = false;
+void disable_and_remember_entity_for_restoration(Context *context, Entity *entity) {
+    // We don't copy entity here and instead just disabling it. 
+    // For that to work we rely on flag SHOULD_NOT_BE_DESTROYED.
+
+    entity->will_be_destroyed = false;
+    entity->destroyed = false;
+    if (entity->union_enemy) {
+        entity->union_enemy->dead_man = false;
     }
-    remember_me->enabled = false;
+    entity->enabled = false;
+    entity->runtime_only_flags |= SHOULD_NOT_BE_DESTROYED;
     
-    context->hub.destroyed_entities.append({.entity = remember_me, .timer = 0}, &context->allocator);
+    context->hub.destroyed_entities.append({.entity = entity, .timer = 0}, &context->allocator);
 }
 
 void remember_killed_enemy(Context *context, Entity *entity) {
@@ -109,5 +110,5 @@ void remember_killed_enemy(Context *context, Entity *entity) {
         return;
     }
     
-    copy_and_remember_entity_for_restoration(context, entity);
+    disable_and_remember_entity_for_restoration(context, entity);
 }
