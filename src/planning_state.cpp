@@ -86,14 +86,14 @@ void planning_validate_node_points(Context *context) {
     i32 collected_space_points = 0;
     
     For (&planning->nodes) {
-        if (i == planning->nodes.count - 1) {
+        if (it_index == planning->nodes.count - 1) {
             continue;
         }
         
         assert(it->type != NO_NODE);
         
         if (it->type == SPACE_NODE) {            
-            if (i > 0) used_space_points += 1; // Not counting first base node.
+            if (it_index > 0) used_space_points += 1; // Not counting first base node.
         } else {
             used_item_points += 1;
         }
@@ -223,11 +223,11 @@ void planning_prepare_to_enter_gaming(Context *context) {
     }
     
     For (&planning->nodes) {
-        if (i == planning->nodes.count - 2 && it->entity != NULL) {
+        if (it_index == planning->nodes.count - 2 && it->entity != NULL) {
             // If last node is node with entity on it - we want to keep it's orientation on direction from previous to it, 
             // instead of it to point at a imaginary next node.
             
-            Vector2 previous_to_it = it->position - planning->nodes.get(i - 1)->position;
+            Vector2 previous_to_it = it->position - planning->nodes.get(it_index - 1)->position;
             Vector2 dir = normalized(previous_to_it);
             
             change_up(it->entity, dir);
@@ -326,8 +326,8 @@ void update_planning(Context *context) {
 
 void planning_draw(Context *context) {
     For (&context->planning.nodes) {
-        if (i > 0 && i < context->planning.nodes.count - 1) {
-            auto previous = context->planning.nodes.get(i - 1);
+        if (it_index > 0 && it_index < context->planning.nodes.count - 1) {
+            auto previous = context->planning.nodes.get(it_index - 1);
             
             auto color = Fade(SKYBLUE, 0.5f);
             if (previous->type != SPACE_NODE) {
@@ -360,7 +360,7 @@ void planning_draw_ui(Context *context) {
     Old::make_ui_text(tprintf("Item points: %d", planning->current_item_points), panel_pos + Vector2_up * 25, "item_points_info");
     
     For (&planning->node_icons) {
-        Vector2 pos = panel_pos + Vector2_up * 50 * (i + 1);
+        Vector2 pos = panel_pos + Vector2_up * 50 * (it_index + 1);
         Vector2 size = {panel_size.x - 20, 40};
         
         Color color = BLUE;
@@ -377,12 +377,12 @@ void planning_draw_ui(Context *context) {
             color = GRAY;
         }
         
-        if (i == planning->selected_icon_index && !cannot_place_that_node) {
+        if (it_index == planning->selected_icon_index && !cannot_place_that_node) {
             color = SKYBLUE;
         }
         
-        Old::make_ui_image(pos, size, {0, 0}, Fade(color, 0.8f), tprintf("planning_icon_%d", i));
-        Old::make_ui_text(c_str(it->name), pos, 22, WHITE, tprintf("planning_text_%d", i));
+        Old::make_ui_image(pos, size, {0, 0}, Fade(color, 0.8f), tprintf("planning_icon_%d", it_index));
+        Old::make_ui_text(c_str(it->name), pos, 22, WHITE, tprintf("planning_text_%d", it_index));
         // if (Old::make_button(pos, size, object->name, tprintf("planning_object_%d", i))) {
         //     // planning_start_holding_entity(&object->entity);
         // }

@@ -34,6 +34,11 @@ void update_hub(Context *context, f32 dt) {
         if (it->timer >= HUB_ENTITY_RESTORE_TIME) {
             it->entity->enabled = true;
             remove_flag(&it->entity->runtime_only_flags, SHOULD_NOT_BE_DESTROYED);
+            
+            if (it->entity->flags & CENTIPEDE) {
+                // for_array(j, 
+            }
+            
             context->hub.destroyed_entities.remove(i);
         }
     }

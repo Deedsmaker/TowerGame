@@ -75,13 +75,13 @@ void load_game_save_data(Allocator *temp) {
     
     For (&splitted) {
     loop_begin:
-        it = splitted.get(i); // That's to work with appearing at loop_begin label without implicitly setting "it" in the macro.
+        it = splitted.get(it_index); // That's to work with appearing at loop_begin label without implicitly setting "it" in the macro.
         if (!(*it == ";")) continue; // Maybe we should log warning here because that would mean that we miscalculated "i" increment somewhere, but I will leave space for some optional saved valued without identifier for now.
     
-        auto id = splitted.get_value(++i); // "i" before that should be ';'.
-        if (i >= splitted.count) break;
+        auto id = splitted.get_value(++it_index); // "i" before that should be ';'.
+        if (it_index >= splitted.count) break;
         
-        auto value_string = splitted.get_value(++i);
+        auto value_string = splitted.get_value(++it_index);
         if (value_string == ";") {
             // That will mean that there was no value under identifier so we going to check next thing.
             goto loop_begin;
@@ -95,8 +95,8 @@ void load_game_save_data(Allocator *temp) {
         } else if (id == "ammo_collected") {
             save->ammo_collected = value_u32;
         } else if (id == "completed_levels") {
-            for (; i < splitted.count && !(value_string == ";"); i++) {
-                value_string = splitted.get_value(i);
+            for (; it_index < splitted.count && !(value_string == ";"); it_index++) {
+                value_string = splitted.get_value(it_index);
                 
                 auto level = copy_string(value_string, &default_allocator);
                 save->completed_levels.append(level, &default_allocator);

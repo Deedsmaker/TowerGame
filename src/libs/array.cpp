@@ -7,8 +7,8 @@
 #include "my_defines.hpp"
 #include "logger.h"
 
-#define For(array) auto it = (array)->maybe_get_first(); for (u32 i = 0; i < (array)->count; i += 1, it = (array)->maybe_get(i))
-#define foreach(it, array) auto it = (array)->maybe_get_first(); for (u32 i = 0; i < (array)->count; i += 1, it = (array)->maybe_get(i))
+#define For(array) auto it = (array)->maybe_get_first(); for (u32 it_index = 0; it_index < (array)->count; it_index += 1, it = (array)->maybe_get(it_index))
+#define foreach(it, array) auto it = (array)->maybe_get_first(); for (u32 it##_index = 0; it##_index < (array)->count; it##_index += 1, it = (array)->maybe_get(it##_index))
 
 #define for_array(index, array) for (i32 index = 0; index < (array)->count; index++)
 #define for_array_backwards(index, array) for (i32 index = (array)->count - 1; index >= 0; index--)
