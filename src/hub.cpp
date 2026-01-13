@@ -36,7 +36,10 @@ void update_hub(Context *context, f32 dt) {
             remove_flag(&it->entity->runtime_only_flags, SHOULD_NOT_BE_DESTROYED);
             
             if (it->entity->flags & CENTIPEDE) {
-                // for_array(j, 
+                foreach (segment, &it->entity->centipede->segments) {
+                    (*segment)->enabled = true;
+                    remove_flag(&(*segment)->runtime_only_flags, SHOULD_NOT_BE_DESTROYED);
+                }
             }
             
             context->hub.destroyed_entities.remove(i);
