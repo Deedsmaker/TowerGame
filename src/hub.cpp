@@ -48,6 +48,18 @@ void update_hub(Context *context, f32 dt) {
             context->hub.enemies_to_revive.remove(i);
         }
     }
+    
+    for_array_backwards (centipede_index, &hub->damaged_centipedes) {
+        auto it = hub->damaged_centipedes.get(centipede_index);
+        
+        it->timer += dt;
+        if (it->timer >= HUB_ENTITY_RESTORE_TIME) {
+            foreach (segment, &it->entity->centipede->segments) {
+                (*segment)->centipede_segment->dead_man = false;
+            }
+            hub->damaged_centipedes.remove(centipede_index);
+        }
+    }
 }
 
 void disable_and_remember_entity_for_restoration(Context *context, Entity *entity) {
@@ -62,10 +74,24 @@ void disable_and_remember_entity_for_restoration(Context *context, Entity *entit
     entity->enabled = false;
     entity->runtime_only_flags |= SHOULD_NOT_BE_DESTROYED;
     
+    if (entity->flags & CENTIPEDE) {
+        auto centipede = entity->centipede;
+        For (&centipede->segments) {
+            auto segment = *it;
+            segment->will_be_destroyed = false;
+            segment->destroyed = false;
+            segment->enabled = false;
+            segment->centipede_segment->dead_man = false;
+            segment->runtime_only_flags |= SHOULD_NOT_BE_DESTROYED;
+        }
+    }
+    
     context->hub.destroyed_entities.append({.entity = entity, .timer = 0}, &context->allocator);
 }
 
 void remember_killed_enemy(Context *context, Entity *entity) {
+    auto hub = &context->hub;
+    
     auto allowed_flags = ENEMY;
     if (!(entity->flags & allowed_flags)) {
         return;
@@ -74,33 +100,31 @@ void remember_killed_enemy(Context *context, Entity *entity) {
     auto enemy = entity->union_enemy;
     
     if (!enemy->dead_man && !entity->will_be_destroyed) {
-        log("On remembering killed enemy enemy was not, in fact, dead man and was not marked as will_be_destroyed. That's an error.", LOG_ERROR);
+        log("On remembering killed enemy enemy was not, in fact, dead man, and was not marked as will_be_destroyed. That's an error.", LOG_ERROR);
         return;
     }
     
     if (entity->flags & CENTIPEDE_SEGMENT) {
-        // Currently we want to only revive only centipede segments, because they're marked as dead man and will not be destroyed  
-        // until centipede itself is dead. 
-        //
-        // In case if this segment itself is marked as destroyed - we assume that centipede head was destroyed and also we assume that 
-        // we will find this exact segment in array of enemies that we want to revive and we want to remove that segment from there,
-        // because it will be created again when centipede will be copied.
+        // Segment marked as will_be_destroyed means that centipede itself will be destroyed and that case we handle separately.
         if (entity->will_be_destroyed) {
-            bool found = false;
-            For (&context->hub.enemies_to_revive) {
-                if (it->entity == entity) {
-                    found = true;
-                    context->hub.enemies_to_revive.remove(i);
-                    break;
-                }
-            }
-            
-            if (!found) {
-                log("On recording destroyed entity centipede segment that is currently marked destroyed was not found in array of remembered dead enemies for revival. That should not happen because segment should be destroyed only when centipede itself is destroyed and that should happen only when every segment is dead.", LOG_ERROR);
-            }
-        } else {
-            context->hub.enemies_to_revive.append({.entity = entity, .timer = 0}, &context->allocator);
+            return;
         }
+        auto head = entity->centipede_segment->head; 
+        
+        bool found = false;
+        // In case of centipede segments we have one timer for all segments. When one segment is damaged we reseting timer for centipede 
+        // and when timer will be incremented enough - we will revive all damaged segments.
+        For (&hub->damaged_centipedes) {
+            if (it->entity == head) {
+                it->timer = 0;
+                found = true;
+            }
+        }
+             
+        if (!found) {
+            hub->damaged_centipedes.append({.entity = head, .timer = 0}, &context->allocator);
+        }
+        
         return;
     }
     

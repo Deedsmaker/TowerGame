@@ -1265,6 +1265,7 @@ struct Hub {
     
     Array <Entity_With_Timer> destroyed_entities = {};
     Array <Entity_With_Timer> enemies_to_revive = {};
+    Array <Entity_With_Timer> damaged_centipedes = {};
 };
 
 struct Context {
