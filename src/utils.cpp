@@ -148,6 +148,9 @@ void print(i32 num){
 void print(const char *str){
     printf("%s; %.4f\n", str, core.time.app_time);
 }
+void print(String string){
+    printf("%s; %.4f\n", c_str(string), core.time.app_time);
+}
 
 void print(Array <i32> *numbers) {
     printf("Numbers: [");

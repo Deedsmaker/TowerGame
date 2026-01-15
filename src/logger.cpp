@@ -84,7 +84,7 @@ void push_log_indentation() {
 void pop_log_indentation() {
     logs_indentation_count -= 1;
     
-    log_if_false(logs_indentation_count >= 0, "Poped too mush log indentation! logs_indentation_count is %s", logs_indentation_count);
+    log_if_false(logs_indentation_count >= 0, "Poped too mush log indentation! logs_indentation_count is %d", logs_indentation_count);
 }
 
 inline void log(String message, u64 flags) { 

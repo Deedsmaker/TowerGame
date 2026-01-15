@@ -5,6 +5,8 @@
 #include "allocator.cpp"
 #include "logger.h"
 
+Vector2 parse_vector2(Array <String> *splitted, i32 start_index);
+
 String level_name_to_path(String name, Allocator *allocator) {
     return string(allocator, "levels/%s", c_str(name));
 }
@@ -28,15 +30,27 @@ void save_game_data(Allocator *temp) {
     
     String_Builder b = {.allocator = temp};
     
-    builder_append(&b, "; sword_charges_collected");
+    builder_append(&b, "; last_safe_player_position");
+    builder_append(&b, string(temp, "\n\t%f\n\t%f", save->last_safe_player_position.x, save->last_safe_player_position.y));
+    
+    builder_append(&b, "\n; sword_charges_collected");
     builder_append(&b, string(temp, "\n\t%d", save->sword_charges_collected));
     
     builder_append(&b, "\n; ammo_collected");
     builder_append(&b, string(temp, "\n\t%d", save->ammo_collected));
     
-    builder_append(&b, "\n; completed_levels");
-    For (&save->completed_levels) {
-        builder_append(&b, string(temp, "\n\t%s", c_str(*it)));
+    {
+        builder_append(&b, "\n; permanently_destroyed_ids");
+        For (&save->permanently_destroyed_ids) {
+            builder_append(&b, string(temp, "\n\t%d", *it));
+        }
+    }
+    
+    {
+        builder_append(&b, "\n; completed_levels");
+        For (&save->completed_levels) {
+            builder_append(&b, string(temp, "\n\t%s", c_str(*it)));
+        }
     }
     
     auto data_path = string(temp, "%s/%s", c_str(path), c_str(MAIN_SAVE_DATA_FILE_NAME));
@@ -44,6 +58,30 @@ void save_game_data(Allocator *temp) {
     if (!success) {
         log(string(temp, "Failed to save game data. Save path was: %s", c_str(data_path)), LOG_ERROR);
     }
+}
+
+void eat_spaces(String *string) {
+    while (string->count > 0 && (string->data[0] == ' ' || string->data[0] == '\t')) {  
+        string->data += 1;
+        string->count -= 1;
+    }
+}
+
+String consume_line(String *string, Allocator *allocator) {
+    String s = {};
+    
+    i32 index = 0;
+    for (index = 0; index < string->count; index++) {
+        if (string->data[index] == '\n') {   
+            break;
+        }
+    }
+    
+    s = make_substring(*string, 0, index, allocator);
+    string->data += s.count;
+    string->count -= s.count;
+    
+    return s;
 }
 
 void load_game_save_data(Allocator *temp) {
@@ -90,15 +128,31 @@ void load_game_save_data(Allocator *temp) {
         auto value_u32 = to_u32(value_string);
         
         if (0) {
+        } else if (id == "last_safe_player_position") {
+            auto value_Vector2 = parse_vector2(&splitted, it_index - 1);
+            it_index += 1; // Now it's past vector2.
+            save->last_safe_player_position = value_Vector2;
         } else if (id == "sword_charges_collected") {
             save->sword_charges_collected = value_u32;
         } else if (id == "ammo_collected") {
             save->ammo_collected = value_u32;
+        } else if (id == "permanently_destroyed_ids") {
+            for (; it_index < splitted.count && !(value_string == ";"); it_index++) {
+                value_string = splitted.get_value(it_index);
+                
+                auto id = to_i32(value_string);
+                save->permanently_destroyed_ids.append(id, &default_allocator);
+            }
+            
+            if (value_string == ";") {
+                goto loop_begin; // So we won't increment i on default loop iteration.
+            }
         } else if (id == "completed_levels") {
             for (; it_index < splitted.count && !(value_string == ";"); it_index++) {
                 value_string = splitted.get_value(it_index);
                 
                 auto level = copy_string(value_string, &default_allocator);
+                print(level);
                 save->completed_levels.append(level, &default_allocator);
             }
             
@@ -115,10 +169,10 @@ void record_completed_level(String name, Allocator *temp) {
         return;
     }
     
-    log(string(temp, "Saving completed level %s", c_str(name)), PUSH_INDENTATION);
+    log(string(temp, "Saving completed level %s", c_str(name)));
     
     if (!level_exists(name, temp)) {
-        log(string(temp, "Level %s does not exists and we've tried to record it's completition!", c_str(name)), LOG_ERROR | POP_INDENTATION);
+        log(string(temp, "Level %s does not exists and we've tried to record it's completition!", c_str(name)), LOG_ERROR);
         return;
     }
 
@@ -126,7 +180,7 @@ void record_completed_level(String name, Allocator *temp) {
     
     save_game_data(temp);
     
-    log(string(temp, "Finished saving completed level %s", c_str(name), POP_INDENTATION));
+    log(string(temp, "Finished saving completed level %s", c_str(name)));
 }    
 
 void clear_current_save_data(Allocator *temp) {
@@ -145,6 +199,18 @@ void clear_current_save_data(Allocator *temp) {
     write_entire_file(data_path, S("")); // We don't care for success much because there might be no such file yet because we did not save anything (yet).
     
     validate_level_loaders(current_context);
+}
+
+void record_permanently_destroyed_entity(i32 id, Allocator *temp) {
+    auto save = &global_data.game_save;
+    
+    assert(get_entity(id));
+    assert(!save->permanently_destroyed_ids.contains(id));
+    
+    save->permanently_destroyed_ids.append(id, &default_allocator);
+    
+    log(string(temp, "Remembering permanently destroyed entity with id: %d", id));
+    save_game_data(temp);
 }
 
 void load_level_order() {

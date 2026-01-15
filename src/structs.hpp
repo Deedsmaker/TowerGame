@@ -1398,10 +1398,13 @@ struct Game_Save_Data {
     Array <String> completed_levels = {};
     String *just_completed_level_name = NULL;
     
+    Array <i32> permanently_destroyed_ids = {};
+    
     u32 sword_charges_collected = 0;
     
     u32 ammo_collected = 0;
     
+    Vector2 last_safe_player_position = Vector2_zero;
 };
 
 struct Global_Data {

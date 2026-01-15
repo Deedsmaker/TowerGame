@@ -327,9 +327,9 @@ void free_entity(Entity *e) {
         } else if (e->flags & CENTIPEDE) { // Free centipede.
             For (&e->centipede->segments) {
                 mark_entity_destroyed(*it);
-                if (context->flags & HUB_CONTEXT && editor_state == GAME) {
-                    remember_killed_enemy(context, *it); // For segments we remembered it before, but now we need to go here one more time to tell hub that this enemy is no longer should be revived.
-                }
+                // if (context->flags & HUB_CONTEXT && editor_state == GAME) {
+                //     remember_killed_enemy(context, *it); // For segments we remembered it before, but now we need to go here one more time to tell hub that this enemy is no longer should be revived.
+                // }
             }
             
             // e->centipede->segments.free_data();
@@ -1661,6 +1661,17 @@ void init_entity(Entity *entity, Entity *to_copy) {
     set_allocators_and_copy_types_if_need(entity, to_copy);
 
     entity->color = entity->color_changer.start_color;
+    
+    auto context = entity->context;
+    // Check if entity is permanently destroyed.
+    if (context->flags & HUB_CONTEXT && editor_state == GAME) {
+        auto save = &global_data.game_save;
+        if (save->permanently_destroyed_ids.contains(entity->id)) {
+            // mark_entity_destroyed(entity);
+            entity->enabled = false;
+            return;
+        }
+    }
     
     // Init planning point.
     if (entity->flags & PLANNING_POINT) {
@@ -3372,7 +3383,7 @@ inline Light *get_light(i32 index, Context *context) {
     return context->lights.get(index);
 }
 
-inline Entity *get_entity(i32 id, Context *context) {
+inline Entity * get_entity(i32 id, Context *context) {
     if (!context) context = current_context;
     
     Entity *entity = context->entities.get(id - 1);
@@ -6021,7 +6032,15 @@ void kill_enemy(Entity *enemy_entity, Vector2 kill_position, Vector2 kill_direct
             mark_entity_destroyed(enemy_entity);
             
             if (context->flags & HUB_CONTEXT) {
-                remember_killed_enemy(enemy_entity->context, enemy_entity);
+                bool should_revive_enemy = enemy_entity->flags & HIT_BOOSTER;
+                if (should_revive_enemy) {
+                    remember_killed_enemy(enemy_entity->context, enemy_entity);
+                }
+                
+                bool should_permanently_destroy = enemy_entity->flags & (TURRET | KILL_SWITCH);
+                if (should_permanently_destroy) {
+                    record_permanently_destroyed_entity(enemy_entity->id, temp);
+                }
             }
     
             if (enemy_entity->flags & SHOOT_STOPER) {

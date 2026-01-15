@@ -1,4 +1,4 @@
 is_hub_level 1 
- player_spawn_point {-270.535706, 152.678635}
+ player_spawn_point {-476.101379, 159.816711}
  lightmaps [ ];
  
